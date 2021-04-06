@@ -42,7 +42,8 @@ WORKDIR $GF_PATHS_HOME
 
 COPY conf ./conf
 
-RUN mkdir -p "$GF_PATHS_HOME/.aws" && \
+RUN yum update -y && \
+    mkdir -p "$GF_PATHS_HOME/.aws" && \
     # addgroup -S -g $GF_GID grafana && \
     # adduser -S -u $GF_UID -G grafana grafana && \
     # Note: the openshift base image does not include the addgroup and adduser commands so we have to use useradd/groupadd
