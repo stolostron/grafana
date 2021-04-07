@@ -43,6 +43,7 @@ WORKDIR $GF_PATHS_HOME
 COPY conf ./conf
 
 RUN yum update -y && \
+    yum clean all && \
     mkdir -p "$GF_PATHS_HOME/.aws" && \
     # addgroup -S -g $GF_GID grafana && \
     # adduser -S -u $GF_UID -G grafana grafana && \
