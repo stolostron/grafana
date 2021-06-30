@@ -156,9 +156,10 @@ func (ds *DataSource) GetHttpTransport() (*dataSourceTransport, error) {
 		TLSClientConfig: tlsConfig,
 		Proxy:           http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
-			Timeout:   time.Duration(setting.DataProxyTimeout) * time.Second,
+			Timeout:   time.Duration(setting.DataProxyDialTimeout) * time.Second,
 			KeepAlive: time.Duration(setting.DataProxyKeepAlive) * time.Second,
 		}).Dial,
+		ResponseHeaderTimeout: time.Duration(setting.DataProxyTimeout) * time.Second,
 		TLSHandshakeTimeout:   time.Duration(setting.DataProxyTLSHandshakeTimeout) * time.Second,
 		ExpectContinueTimeout: time.Duration(setting.DataProxyExpectContinueTimeout) * time.Second,
 		MaxIdleConns:          setting.DataProxyMaxIdleConns,

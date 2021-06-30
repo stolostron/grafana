@@ -75,6 +75,7 @@ var (
 	CertFile, KeyFile              string
 	DataProxyLogging               bool
 	DataProxyTimeout               int
+	DataProxyDialTimeout           int
 	DataProxyTLSHandshakeTimeout   int
 	DataProxyExpectContinueTimeout int
 	DataProxyMaxIdleConns          int
@@ -778,6 +779,7 @@ func (cfg *Cfg) Load(args *CommandLineArgs) error {
 	dataproxy := iniFile.Section("dataproxy")
 	DataProxyLogging = dataproxy.Key("logging").MustBool(false)
 	DataProxyTimeout = dataproxy.Key("timeout").MustInt(30)
+	DataProxyDialTimeout = dataproxy.Key("dial_timeout").MustInt(10)
 	DataProxyKeepAlive = dataproxy.Key("keep_alive_seconds").MustInt(30)
 	DataProxyTLSHandshakeTimeout = dataproxy.Key("tls_handshake_timeout_seconds").MustInt(10)
 	DataProxyExpectContinueTimeout = dataproxy.Key("expect_continue_timeout_seconds").MustInt(1)
