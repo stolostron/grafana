@@ -23,13 +23,17 @@ func (hs *HTTPServer) createShortURL(c *models.ReqContext, cmd dtos.CreateShortU
 		hs.log.Error("Invalid short URL path", "path", cmd.Path)
 		return response.Error(400, "Path should be relative", nil)
 	}
+	if strings.Contains(cmd.Path, "../") {
+		hs.log.Error("Invalid short URL path", "path", cmd.Path)
+		return response.Error(400, "Invalid path", nil)
+	}
 
 	shortURL, err := hs.ShortURLService.CreateShortURL(c.Req.Context(), c.SignedInUser, cmd.Path)
 	if err != nil {
 		return response.Error(500, "Failed to create short URL", err)
 	}
 
-	url := fmt.Sprintf("%s/goto/%s", strings.TrimSuffix(setting.AppUrl, "/"), shortURL.Uid)
+	url := fmt.Sprintf("%s/goto/%s?orgId=%d", strings.TrimSuffix(setting.AppUrl, "/"), shortURL.Uid, c.OrgId)
 	c.Logger.Debug("Created short URL", "url", url)
 
 	dto := dtos.ShortURL{

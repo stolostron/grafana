@@ -7,22 +7,17 @@ import {
   VizOrientation,
 } from '@grafana/data';
 import { BarChartPanel } from './BarChartPanel';
-import {
-  BarChartFieldConfig,
-  BarChartOptions,
-  BarStackingMode,
-  BarValueVisibility,
-  graphFieldOptions,
-} from '@grafana/ui';
-import { addAxisConfig, addHideFrom, addLegendOptions } from '../timeseries/config';
-import { defaultBarChartFieldConfig } from '@grafana/ui/src/components/BarChart/types';
+import { StackingMode, BarValueVisibility } from '@grafana/schema';
+import { graphFieldOptions, commonOptionsBuilder } from '@grafana/ui';
+
+import { BarChartFieldConfig, BarChartOptions, defaultBarChartFieldConfig } from 'app/plugins/panel/barchart/types';
 
 export const plugin = new PanelPlugin<BarChartOptions, BarChartFieldConfig>(BarChartPanel)
   .useFieldConfig({
     standardOptions: {
       [FieldConfigProperty.Color]: {
         settings: {
-          byValueSupport: false,
+          byValueSupport: true,
         },
         defaultValue: {
           mode: FieldColorModeId.PaletteClassic,
@@ -62,8 +57,8 @@ export const plugin = new PanelPlugin<BarChartOptions, BarChartFieldConfig>(BarC
           },
         });
 
-      addAxisConfig(builder, cfg, true);
-      addHideFrom(builder);
+      commonOptionsBuilder.addAxisConfig(builder, cfg, true);
+      commonOptionsBuilder.addHideFrom(builder);
     },
   })
   .setPanelOptions((builder) => {
@@ -81,19 +76,6 @@ export const plugin = new PanelPlugin<BarChartOptions, BarChartFieldConfig>(BarC
         defaultValue: VizOrientation.Auto,
       })
       .addRadio({
-        path: 'stacking',
-        name: 'Stacking',
-        settings: {
-          options: [
-            { value: BarStackingMode.None, label: 'None' },
-            { value: BarStackingMode.Standard, label: 'Standard' },
-            { value: BarStackingMode.Percent, label: 'Percent' },
-          ],
-        },
-        defaultValue: BarStackingMode.None,
-        showIf: () => false, // <<< Hide from the UI for now
-      })
-      .addRadio({
         path: 'showValue',
         name: 'Show values',
         settings: {
@@ -105,6 +87,14 @@ export const plugin = new PanelPlugin<BarChartOptions, BarChartFieldConfig>(BarC
         },
         defaultValue: BarValueVisibility.Auto,
       })
+      .addRadio({
+        path: 'stacking',
+        name: 'Stacking',
+        settings: {
+          options: graphFieldOptions.stacking,
+        },
+        defaultValue: StackingMode.None,
+      })
       .addSliderInput({
         path: 'groupWidth',
         name: 'Group width',
@@ -115,7 +105,7 @@ export const plugin = new PanelPlugin<BarChartOptions, BarChartFieldConfig>(BarC
           step: 0.01,
         },
         showIf: (c, data) => {
-          if (c.stacking && c.stacking !== BarStackingMode.None) {
+          if (c.stacking && c.stacking !== StackingMode.None) {
             return false;
           }
           return countNumberFields(data) !== 1;
@@ -132,7 +122,9 @@ export const plugin = new PanelPlugin<BarChartOptions, BarChartFieldConfig>(BarC
         },
       });
 
-    addLegendOptions(builder);
+    commonOptionsBuilder.addTooltipOptions(builder);
+    commonOptionsBuilder.addLegendOptions(builder);
+    commonOptionsBuilder.addTextSizeOptions(builder, false);
   });
 
 function countNumberFields(data?: DataFrame[]): number {

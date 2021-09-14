@@ -16,14 +16,16 @@
 package httpstatic
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
+	"github.com/grafana/grafana/pkg/infra/log"
 	"gopkg.in/macaron.v1"
 )
 
@@ -113,7 +115,7 @@ func prepareStaticOptions(dir string, options []StaticOptions) StaticOptions {
 	return prepareStaticOption(dir, opt)
 }
 
-func staticHandler(ctx *macaron.Context, log *log.Logger, opt StaticOptions) bool {
+func staticHandler(ctx *macaron.Context, log log.Logger, opt StaticOptions) bool {
 	if ctx.Req.Method != "GET" && ctx.Req.Method != "HEAD" {
 		return false
 	}
@@ -136,7 +138,7 @@ func staticHandler(ctx *macaron.Context, log *log.Logger, opt StaticOptions) boo
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			log.Printf("Failed to close file: %s\n", err)
+			log.Error("Failed to close file", "error", err)
 		}
 	}()
 
@@ -149,18 +151,27 @@ func staticHandler(ctx *macaron.Context, log *log.Logger, opt StaticOptions) boo
 	if fi.IsDir() {
 		// Redirect if missing trailing slash.
 		if !strings.HasSuffix(ctx.Req.URL.Path, "/") {
-			http.Redirect(ctx.Resp, ctx.Req.Request, ctx.Req.URL.Path+"/", http.StatusFound)
+			path := fmt.Sprintf("%s/", ctx.Req.URL.Path)
+			if !strings.HasPrefix(path, "/") {
+				// Disambiguate that it's a path relative to this server
+				path = fmt.Sprintf("/%s", path)
+			} else {
+				// A string starting with // or /\ is interpreted by browsers as a URL, and not a server relative path
+				rePrefix := regexp.MustCompile(`^(?:/\\|/+)`)
+				path = rePrefix.ReplaceAllString(path, "/")
+			}
+			http.Redirect(ctx.Resp, ctx.Req, path, http.StatusFound)
 			return true
 		}
 
 		file = path.Join(file, opt.IndexFile)
-		f, err = opt.FileSystem.Open(file)
+		indexFile, err := opt.FileSystem.Open(file)
 		if err != nil {
 			return false // Discard error.
 		}
 		defer func() {
-			if err := f.Close(); err != nil {
-				log.Printf("Failed to close file: %s", err)
+			if err := indexFile.Close(); err != nil {
+				log.Error("Failed to close file", "error", err)
 			}
 		}()
 
@@ -171,7 +182,7 @@ func staticHandler(ctx *macaron.Context, log *log.Logger, opt StaticOptions) boo
 	}
 
 	if !opt.SkipLogging {
-		log.Printf("[Static] Serving %s\n", file)
+		log.Info("[Static] Serving", "file", file)
 	}
 
 	// Add an Expires header to the static content
@@ -179,7 +190,7 @@ func staticHandler(ctx *macaron.Context, log *log.Logger, opt StaticOptions) boo
 		opt.AddHeaders(ctx)
 	}
 
-	http.ServeContent(ctx.Resp, ctx.Req.Request, file, fi.ModTime(), f)
+	http.ServeContent(ctx.Resp, ctx.Req, file, fi.ModTime(), f)
 	return true
 }
 
@@ -187,7 +198,8 @@ func staticHandler(ctx *macaron.Context, log *log.Logger, opt StaticOptions) boo
 func Static(directory string, staticOpt ...StaticOptions) macaron.Handler {
 	opt := prepareStaticOptions(directory, staticOpt)
 
-	return func(ctx *macaron.Context, log *log.Logger) {
-		staticHandler(ctx, log, opt)
+	logger := log.New("static")
+	return func(ctx *macaron.Context) {
+		staticHandler(ctx, logger, opt)
 	}
 }

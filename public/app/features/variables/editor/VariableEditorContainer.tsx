@@ -1,5 +1,5 @@
 import React, { MouseEvent, PureComponent } from 'react';
-import { Icon } from '@grafana/ui';
+import { Icon, LinkButton } from '@grafana/ui';
 import { selectors } from '@grafana/e2e-selectors';
 
 import { toVariableIdentifier, toVariablePayload, VariableIdentifier } from '../state/types';
@@ -17,6 +17,11 @@ const mapStateToProps = (state: StoreState) => ({
   variables: getEditorVariables(state),
   idInEditor: state.templating.editor.id,
   dashboard: state.dashboard.getModel(),
+  unknownsNetwork: state.templating.inspect.unknownsNetwork,
+  unknownExists: state.templating.inspect.unknownExits,
+  usagesNetwork: state.templating.inspect.usagesNetwork,
+  unknown: state.templating.inspect.unknown,
+  usages: state.templating.inspect.usages,
 });
 
 const mapDispatchToProps = {
@@ -67,6 +72,7 @@ class VariableEditorContainerUnconnected extends PureComponent<Props> {
 
   render() {
     const variableToEdit = this.props.variables.find((s) => s.id === this.props.idInEditor) ?? null;
+
     return (
       <div>
         <div className="page-action-bar">
@@ -92,14 +98,13 @@ class VariableEditorContainerUnconnected extends PureComponent<Props> {
           {this.props.variables.length > 0 && variableToEdit === null && (
             <>
               <VariablesDependenciesButton variables={this.props.variables} />
-              <a
+              <LinkButton
                 type="button"
-                className="btn btn-primary"
                 onClick={this.onNewVariable}
                 aria-label={selectors.pages.Dashboard.Settings.Variables.List.newButton}
               >
                 New
-              </a>
+              </LinkButton>
             </>
           )}
         </div>
@@ -114,8 +119,10 @@ class VariableEditorContainerUnconnected extends PureComponent<Props> {
               onChangeVariableOrder={this.onChangeVariableOrder}
               onDuplicateVariable={this.onDuplicateVariable}
               onRemoveVariable={this.onRemoveVariable}
+              usages={this.props.usages}
+              usagesNetwork={this.props.usagesNetwork}
             />
-            <VariablesUnknownTable dashboard={this.props.dashboard} variables={this.props.variables} />
+            {this.props.unknownExists ? <VariablesUnknownTable usages={this.props.unknownsNetwork} /> : null}
           </>
         )}
         {variableToEdit && <VariableEditorEditor identifier={toVariableIdentifier(variableToEdit)} />}

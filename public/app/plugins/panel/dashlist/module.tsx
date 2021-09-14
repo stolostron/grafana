@@ -1,10 +1,10 @@
-import _ from 'lodash';
 import { PanelModel, PanelPlugin } from '@grafana/data';
 import { DashList } from './DashList';
 import { DashListOptions } from './types';
 import { FolderPicker } from 'app/core/components/Select/FolderPicker';
 import React from 'react';
 import { TagsInput } from '@grafana/ui';
+import { PermissionLevelString } from '../../../types';
 
 export const plugin = new PanelPlugin<DashListOptions>(DashList)
   .setPanelOptions((builder) => {
@@ -48,9 +48,9 @@ export const plugin = new PanelPlugin<DashListOptions>(DashList)
           return (
             <FolderPicker
               initialFolderId={props.value}
-              useNewForms
               initialTitle="All"
               enableReset={true}
+              permissionLevel={PermissionLevelString.View}
               onChange={({ id }) => props.onChange(id)}
             />
           );

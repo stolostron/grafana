@@ -10,6 +10,7 @@ var (
 	ErrUserNotFound      = errors.New("user not found")
 	ErrUserAlreadyExists = errors.New("user already exists")
 	ErrLastGrafanaAdmin  = errors.New("cannot remove last grafana admin")
+	ErrProtectedUser     = errors.New("cannot adopt protected user")
 )
 
 type Password string
@@ -87,11 +88,6 @@ type ChangeUserPasswordCommand struct {
 	UserId int64 `json:"-"`
 }
 
-type UpdateUserPermissionsCommand struct {
-	IsGrafanaAdmin bool
-	UserId         int64 `json:"-"`
-}
-
 type DisableUserCommand struct {
 	UserId     int64
 	IsDisabled bool
@@ -142,12 +138,17 @@ type GetUserProfileQuery struct {
 	Result UserProfileDTO
 }
 
+type SearchUsersFilter string
+
+const ActiveLast30Days SearchUsersFilter = "activeLast30Days"
+
 type SearchUsersQuery struct {
 	OrgId      int64
 	Query      string
 	Page       int
 	Limit      int
 	AuthModule string
+	Filter     SearchUsersFilter
 
 	IsDisabled *bool
 
@@ -200,6 +201,14 @@ func (u *SignedInUser) NameOrFallback() string {
 	return u.Email
 }
 
+func (u *SignedInUser) ToUserDisplayDTO() *UserDisplayDTO {
+	return &UserDisplayDTO{
+		Id:    u.UserId,
+		Login: u.Login,
+		Name:  u.Name,
+	}
+}
+
 type UpdateUserLastSeenAtCommand struct {
 	UserId int64
 }
@@ -244,6 +253,13 @@ type UserSearchHitDTO struct {
 	LastSeenAtAge string               `json:"lastSeenAtAge"`
 	AuthLabels    []string             `json:"authLabels"`
 	AuthModule    AuthModuleConversion `json:"-"`
+}
+
+type UserDisplayDTO struct {
+	Id        int64  `json:"id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Login     string `json:"login,omitempty"`
+	AvatarUrl string `json:"avatarUrl"`
 }
 
 type UserIdDTO struct {

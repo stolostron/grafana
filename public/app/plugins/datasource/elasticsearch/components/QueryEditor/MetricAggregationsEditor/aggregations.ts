@@ -20,6 +20,8 @@ export type MetricAggregationType =
   | 'raw_document'
   | 'raw_data'
   | 'logs'
+  | 'rate'
+  | 'top_metrics'
   | PipelineMetricAggregationType;
 
 interface BaseMetricAggregation {
@@ -43,9 +45,10 @@ export interface MetricAggregationWithMissingSupport extends BaseMetricAggregati
   };
 }
 
+type InlineScript = string | { inline?: string };
 export interface MetricAggregationWithInlineScript extends BaseMetricAggregation {
   settings?: {
-    script?: string;
+    script?: InlineScript;
   };
 }
 
@@ -59,7 +62,7 @@ export interface Average
     MetricAggregationWithInlineScript {
   type: 'avg';
   settings?: {
-    script?: string;
+    script?: InlineScript;
     missing?: string;
   };
 }
@@ -67,7 +70,7 @@ export interface Average
 export interface Sum extends MetricAggregationWithField, MetricAggregationWithInlineScript {
   type: 'sum';
   settings?: {
-    script?: string;
+    script?: InlineScript;
     missing?: string;
   };
 }
@@ -75,7 +78,7 @@ export interface Sum extends MetricAggregationWithField, MetricAggregationWithIn
 export interface Max extends MetricAggregationWithField, MetricAggregationWithInlineScript {
   type: 'max';
   settings?: {
-    script?: string;
+    script?: InlineScript;
     missing?: string;
   };
 }
@@ -83,7 +86,7 @@ export interface Max extends MetricAggregationWithField, MetricAggregationWithIn
 export interface Min extends MetricAggregationWithField, MetricAggregationWithInlineScript {
   type: 'min';
   settings?: {
-    script?: string;
+    script?: InlineScript;
     missing?: string;
   };
 }
@@ -105,7 +108,7 @@ export interface ExtendedStat {
 export interface ExtendedStats extends MetricAggregationWithField, MetricAggregationWithInlineScript {
   type: 'extended_stats';
   settings?: {
-    script?: string;
+    script?: InlineScript;
     missing?: string;
     sigma?: string;
   };
@@ -118,7 +121,7 @@ export interface Percentiles extends MetricAggregationWithField, MetricAggregati
   type: 'percentiles';
   settings?: {
     percents?: string[];
-    script?: string;
+    script?: InlineScript;
     missing?: string;
   };
 }
@@ -147,6 +150,17 @@ export interface RawData extends BaseMetricAggregation {
 
 export interface Logs extends BaseMetricAggregation {
   type: 'logs';
+  settings?: {
+    limit?: string;
+  };
+}
+
+export interface Rate extends MetricAggregationWithField {
+  type: 'rate';
+  settings?: {
+    unit?: string;
+    mode?: string;
+  };
 }
 
 export interface BasePipelineMetricAggregation extends MetricAggregationWithField {
@@ -168,8 +182,8 @@ export interface MovingAverageModelOption {
 
 export interface BaseMovingAverageModelSettings {
   model: MovingAverageModel;
-  window: number;
-  predict: number;
+  window: string;
+  predict: string;
 }
 
 export interface MovingAverageSimpleModelSettings extends BaseMovingAverageModelSettings {
@@ -182,15 +196,17 @@ export interface MovingAverageLinearModelSettings extends BaseMovingAverageModel
 
 export interface MovingAverageEWMAModelSettings extends BaseMovingAverageModelSettings {
   model: 'ewma';
-  alpha: number;
+  settings?: {
+    alpha?: string;
+  };
   minimize: boolean;
 }
 
 export interface MovingAverageHoltModelSettings extends BaseMovingAverageModelSettings {
   model: 'holt';
   settings: {
-    alpha?: number;
-    beta?: number;
+    alpha?: string;
+    beta?: string;
   };
   minimize: boolean;
 }
@@ -198,10 +214,10 @@ export interface MovingAverageHoltModelSettings extends BaseMovingAverageModelSe
 export interface MovingAverageHoltWintersModelSettings extends BaseMovingAverageModelSettings {
   model: 'holt_winters';
   settings: {
-    alpha?: number;
-    beta?: number;
-    gamma?: number;
-    period?: number;
+    alpha?: string;
+    beta?: string;
+    gamma?: string;
+    period?: string;
     pad?: boolean;
   };
   minimize: boolean;
@@ -234,11 +250,16 @@ export const isHoltWintersMovingAverage = (
   metric: MovingAverage | MovingAverage<'holt_winters'>
 ): metric is MovingAverage<'holt_winters'> => metric.settings?.model === 'holt_winters';
 
+export const isMovingAverageWithModelSettings = (
+  metric: MovingAverage
+): metric is MovingAverage<'ewma'> | MovingAverage<'holt'> | MovingAverage<'holt_winters'> =>
+  ['holt', 'ewma', 'holt_winters'].includes(metric.settings?.model || '');
+
 export interface MovingFunction extends BasePipelineMetricAggregation {
   type: 'moving_fn';
   settings?: {
     window?: string;
-    script?: string;
+    script?: InlineScript;
     shift?: string;
   };
 }
@@ -253,7 +274,7 @@ export interface Derivative extends BasePipelineMetricAggregation {
 export interface SerialDiff extends BasePipelineMetricAggregation {
   type: 'serial_diff';
   settings?: {
-    lag?: number;
+    lag?: string;
   };
 }
 
@@ -267,7 +288,16 @@ export interface CumulativeSum extends BasePipelineMetricAggregation {
 export interface BucketScript extends PipelineMetricAggregationWithMultipleBucketPaths {
   type: 'bucket_script';
   settings?: {
-    script?: string;
+    script?: InlineScript;
+  };
+}
+
+export interface TopMetrics extends BaseMetricAggregation {
+  type: 'top_metrics';
+  settings?: {
+    order?: string;
+    orderBy?: string;
+    metrics?: string[];
   };
 }
 
@@ -288,11 +318,14 @@ export type MetricAggregationWithSettings =
   | Sum
   | Average
   | MovingAverage
-  | MovingFunction;
+  | MovingFunction
+  | Logs
+  | Rate
+  | TopMetrics;
 
 export type MetricAggregationWithMeta = ExtendedStats;
 
-export type MetricAggregation = Count | Logs | PipelineMetricAggregation | MetricAggregationWithSettings;
+export type MetricAggregation = Count | PipelineMetricAggregation | MetricAggregationWithSettings;
 
 // Guards
 // Given the structure of the aggregations (ie. `settings` field being always optional) we cannot
@@ -332,7 +365,7 @@ export const isMetricAggregationWithInlineScript = (
   metric: BaseMetricAggregation | MetricAggregationWithInlineScript
 ): metric is MetricAggregationWithInlineScript => metricAggregationConfig[metric.type].supportsInlineScript;
 
-export const METRIC_AGGREGATION_TYPES = [
+export const METRIC_AGGREGATION_TYPES: MetricAggregationType[] = [
   'count',
   'avg',
   'sum',
@@ -350,7 +383,9 @@ export const METRIC_AGGREGATION_TYPES = [
   'serial_diff',
   'cumulative_sum',
   'bucket_script',
+  'rate',
+  'top_metrics',
 ];
 
 export const isMetricAggregationType = (s: MetricAggregationType | string): s is MetricAggregationType =>
-  METRIC_AGGREGATION_TYPES.includes(s);
+  METRIC_AGGREGATION_TYPES.includes(s as MetricAggregationType);

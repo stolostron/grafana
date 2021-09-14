@@ -1,8 +1,8 @@
 import React, { FC, useCallback } from 'react';
-import { css } from 'emotion';
+import { css } from '@emotion/css';
 import { selectors as e2eSelectors } from '@grafana/e2e-selectors';
-import { TagList, Card, useStyles, Icon, IconName } from '@grafana/ui';
-import { GrafanaTheme } from '@grafana/data';
+import { TagList, Card, Icon, IconName, useStyles2 } from '@grafana/ui';
+import { GrafanaTheme2 } from '@grafana/data';
 import { DashboardSectionItem, OnToggleChecked } from '../types';
 import { SearchCheckbox } from './SearchCheckbox';
 import { SEARCH_ITEM_HEIGHT } from '../constants';
@@ -26,19 +26,24 @@ const getIconFromMeta = (meta = ''): IconName => {
 };
 
 export const SearchItem: FC<Props> = ({ item, editable, onToggleChecked, onTagSelected }) => {
-  const styles = useStyles(getStyles);
-  const tagSelected = useCallback((tag: string, event: React.MouseEvent<HTMLElement>) => {
-    onTagSelected(tag);
-  }, []);
+  const styles = useStyles2(getStyles);
+  const tagSelected = useCallback(
+    (tag: string, event: React.MouseEvent<HTMLElement>) => {
+      onTagSelected(tag);
+    },
+    [onTagSelected]
+  );
 
-  const toggleItem = useCallback(
-    (event: React.MouseEvent) => {
-      event.preventDefault();
+  const handleCheckboxClick = useCallback(
+    (ev: React.MouseEvent) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+
       if (onToggleChecked) {
         onToggleChecked(item);
       }
     },
-    [item]
+    [item, onToggleChecked]
   );
 
   const folderTitle = item.folderTitle || 'General';
@@ -50,8 +55,8 @@ export const SearchItem: FC<Props> = ({ item, editable, onToggleChecked, onTagSe
       style={{ minHeight: SEARCH_ITEM_HEIGHT }}
       className={styles.container}
     >
-      <Card.Figure align={'center'}>
-        <SearchCheckbox editable={editable} checked={item.checked} onClick={toggleItem} />
+      <Card.Figure align={'center'} className={styles.checkbox}>
+        <SearchCheckbox editable={editable} checked={item.checked} onClick={handleCheckboxClick} />
       </Card.Figure>
       <Card.Meta separator={''}>
         <span className={styles.metaContainer}>
@@ -72,20 +77,26 @@ export const SearchItem: FC<Props> = ({ item, editable, onToggleChecked, onTagSe
   );
 };
 
-const getStyles = (theme: GrafanaTheme) => {
+const getStyles = (theme: GrafanaTheme2) => {
   return {
     container: css`
-      padding: ${theme.spacing.sm} ${theme.spacing.md};
+      margin-bottom: ${theme.spacing(0.75)};
+
+      a {
+        padding: ${theme.spacing(1)} ${theme.spacing(2)};
+      }
     `,
     metaContainer: css`
       display: flex;
       align-items: center;
-      margin-right: ${theme.spacing.sm};
+      margin-right: ${theme.spacing(1)};
 
       svg {
-        margin-right: ${theme.spacing.xs};
-        margin-bottom: 0;
+        margin-right: ${theme.spacing(0.5)};
       }
+    `,
+    checkbox: css`
+      margin-right: 0;
     `,
   };
 };

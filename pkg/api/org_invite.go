@@ -69,7 +69,7 @@ func AddOrgInvite(c *models.ReqContext, inviteDto dtos.AddInviteForm) response.R
 	if inviteDto.SendEmail && util.IsEmail(inviteDto.LoginOrEmail) {
 		emailCmd := models.SendEmailCommand{
 			To:       []string{inviteDto.LoginOrEmail},
-			Template: "new_user_invite.html",
+			Template: "new_user_invite",
 			Data: map[string]interface{}{
 				"Name":      util.StringsFallback2(cmd.Name, cmd.Email),
 				"OrgName":   c.OrgName,
@@ -111,7 +111,7 @@ func inviteExistingUserToOrg(c *models.ReqContext, user *models.User, inviteDto 
 	if inviteDto.SendEmail && util.IsEmail(user.Email) {
 		emailCmd := models.SendEmailCommand{
 			To:       []string{user.Email},
-			Template: "invited_to_org.html",
+			Template: "invited_to_org",
 			Data: map[string]interface{}{
 				"Name":      user.NameOrFallback(),
 				"OrgName":   c.OrgName,
@@ -186,15 +186,14 @@ func (hs *HTTPServer) CompleteInvite(c *models.ReqContext, completeInvite dtos.C
 		SkipOrgSetup: true,
 	}
 
-	if err := bus.Dispatch(&cmd); err != nil {
+	user, err := hs.Login.CreateUser(cmd)
+	if err != nil {
 		if errors.Is(err, models.ErrUserAlreadyExists) {
 			return response.Error(412, fmt.Sprintf("User with email '%s' or username '%s' already exists", completeInvite.Email, completeInvite.Username), err)
 		}
 
 		return response.Error(500, "failed to create user", err)
 	}
-
-	user := &cmd.Result
 
 	if err := bus.Publish(&events.SignUpCompleted{
 		Name:  user.NameOrFallback(),
@@ -207,7 +206,7 @@ func (hs *HTTPServer) CompleteInvite(c *models.ReqContext, completeInvite dtos.C
 		return rsp
 	}
 
-	err := hs.loginUserWithUser(user, c)
+	err = hs.loginUserWithUser(user, c)
 	if err != nil {
 		return response.Error(500, "failed to accept invite", err)
 	}

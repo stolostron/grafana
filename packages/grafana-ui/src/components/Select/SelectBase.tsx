@@ -1,16 +1,12 @@
-import React, { useCallback } from 'react';
-// @ts-ignore
-import { default as ReactSelect } from '@torkelo/react-select';
-// @ts-ignore
-import Creatable from '@torkelo/react-select/creatable';
-// @ts-ignore
-import { default as ReactAsyncSelect } from '@torkelo/react-select/async';
-// @ts-ignore
-import { default as AsyncCreatable } from '@torkelo/react-select/async-creatable';
+import React, { ComponentProps, useCallback } from 'react';
+import { default as ReactSelect } from 'react-select';
+import Creatable from 'react-select/creatable';
+import { default as ReactAsyncSelect } from 'react-select/async';
+import { default as AsyncCreatable } from 'react-select/async-creatable';
 
 import { Icon } from '../Icon/Icon';
 import { Spinner } from '../Spinner/Spinner';
-import { css, cx } from 'emotion';
+import { css, cx } from '@emotion/css';
 import resetSelectStyles from './resetSelectStyles';
 import { SelectMenu, SelectMenuOptions } from './SelectMenu';
 import { IndicatorsContainer } from './IndicatorsContainer';
@@ -20,10 +16,11 @@ import { DropdownIndicator } from './DropdownIndicator';
 import { SelectOptionGroup } from './SelectOptionGroup';
 import { SingleValue } from './SingleValue';
 import { MultiValueContainer, MultiValueRemove } from './MultiValue';
-import { useTheme } from '../../themes';
+import { useTheme2 } from '../../themes';
 import { getSelectStyles } from './getSelectStyles';
 import { cleanValue, findSelectedValue } from './utils';
 import { SelectBaseProps, SelectValue } from './types';
+import { deprecationWarning } from '@grafana/data';
 
 interface ExtraValuesIndicatorProps {
   maxVisibleValues?: number | undefined;
@@ -119,8 +116,9 @@ export function SelectBase<T>({
   maxMenuHeight = 300,
   minMenuHeight,
   maxVisibleValues,
-  menuPlacement = 'bottom',
+  menuPlacement = 'auto',
   menuPosition,
+  menuShouldPortal = false,
   noOptionsMessage = 'No options found',
   onBlur,
   onChange,
@@ -138,8 +136,12 @@ export function SelectBase<T>({
   tabSelectsValue = true,
   value,
   width,
+  isValidNewOption,
 }: SelectBaseProps<T>) {
-  const theme = useTheme();
+  if (menuShouldPortal === false) {
+    deprecationWarning('SelectBase', 'menuShouldPortal={false}', 'menuShouldPortal={true}');
+  }
+  const theme = useTheme2();
   const styles = getSelectStyles(theme);
   const onChangeWithEmpty = useCallback(
     (value: SelectValue<T>) => {
@@ -150,8 +152,10 @@ export function SelectBase<T>({
     },
     [isMulti, onChange]
   );
-  let ReactSelectComponent: ReactSelect | Creatable = ReactSelect;
-  const creatableProps: any = {};
+
+  let ReactSelectComponent = ReactSelect;
+
+  const creatableProps: ComponentProps<typeof Creatable> = {};
   let asyncSelectProps: any = {};
   let selectedValue;
   if (isMulti && loadOptions) {
@@ -176,6 +180,8 @@ export function SelectBase<T>({
     backspaceRemovesValue,
     captureMenuScroll: false,
     closeMenuOnSelect,
+    // We don't want to close if we're actually scrolling the menu
+    // So only close if none of the parents are the select menu itself
     defaultValue,
     // Also passing disabled, as this is the new Select API, and I want to use this prop instead of react-select's one
     disabled,
@@ -199,6 +205,8 @@ export function SelectBase<T>({
     menuIsOpen: isOpen,
     menuPlacement,
     menuPosition,
+    menuShouldBlockScroll: true,
+    menuPortalTarget: menuShouldPortal ? document.body : undefined,
     menuShouldScrollIntoView: false,
     onBlur,
     onChange: onChangeWithEmpty,
@@ -217,14 +225,15 @@ export function SelectBase<T>({
   };
 
   if (allowCustomValue) {
-    ReactSelectComponent = Creatable;
+    ReactSelectComponent = Creatable as any;
     creatableProps.formatCreateLabel = formatCreateLabel ?? ((input: string) => `Create: ${input}`);
     creatableProps.onCreateOption = onCreateOption;
+    creatableProps.isValidNewOption = isValidNewOption;
   }
 
   // Instead of having AsyncSelect, as a separate component we render ReactAsyncSelect
   if (loadOptions) {
-    ReactSelectComponent = allowCustomValue ? AsyncCreatable : ReactAsyncSelect;
+    ReactSelectComponent = (allowCustomValue ? AsyncCreatable : ReactAsyncSelect) as any;
     asyncSelectProps = {
       loadOptions,
       cacheOptions,
@@ -247,12 +256,13 @@ export function SelectBase<T>({
                   css(props.getStyles('placeholder', props)),
                   css`
                     display: inline-block;
-                    color: ${theme.colors.formInputPlaceholderText};
+                    color: ${theme.colors.text.disabled};
                     position: absolute;
                     top: 50%;
                     transform: translateY(-50%);
                     box-sizing: border-box;
                     line-height: 1;
+                    white-space: nowrap;
                   `
                 )}
               >
@@ -292,6 +302,9 @@ export function SelectBase<T>({
             return (
               <Icon
                 name="times"
+                role="button"
+                aria-label="select-clear-value"
+                className={styles.singleValueRemove}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -316,24 +329,24 @@ export function SelectBase<T>({
           DropdownIndicator(props: any) {
             return <DropdownIndicator isOpen={props.selectProps.menuIsOpen} />;
           },
-          SingleValue: SingleValue,
+          SingleValue(props: any) {
+            return <SingleValue {...props} disabled={disabled} />;
+          },
           MultiValueContainer: MultiValueContainer,
           MultiValueRemove: MultiValueRemove,
           ...components,
         }}
         styles={{
           ...resetSelectStyles(),
-          menuPortal: ({ position, width }: any) => ({
-            position,
-            width,
-            zIndex: theme.zIndex.dropdown,
+          menuPortal: (base: any) => ({
+            ...base,
+            zIndex: theme.zIndex.portal,
           }),
           //These are required for the menu positioning to function
           menu: ({ top, bottom, position }: any) => ({
             top,
             bottom,
             position,
-            marginBottom: !!bottom ? '10px' : '0',
             minWidth: '100%',
             zIndex: theme.zIndex.dropdown,
           }),

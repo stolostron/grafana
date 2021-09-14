@@ -44,6 +44,8 @@ func createExternalDashboardSnapshot(cmd models.CreateDashboardSnapshotCommand) 
 		"name":      cmd.Name,
 		"expires":   cmd.Expires,
 		"dashboard": cmd.Dashboard,
+		"key":       cmd.Key,
+		"deleteKey": cmd.DeleteKey,
 	}
 
 	messageBytes, err := simplejson.NewFromAny(message).Encode()
@@ -158,13 +160,8 @@ func GetDashboardSnapshot(c *models.ReqContext) response.Response {
 		return response.Error(404, "Dashboard snapshot not found", err)
 	}
 
-	dashboard, err := snapshot.DashboardJSON()
-	if err != nil {
-		return response.Error(500, "Failed to get dashboard data for dashboard snapshot", err)
-	}
-
 	dto := dtos.DashboardFullWithMeta{
-		Dashboard: dashboard,
+		Dashboard: snapshot.Dashboard,
 		Meta: dtos.DashboardMeta{
 			Type:       models.DashTypeSnapshot,
 			IsSnapshot: true,
@@ -175,7 +172,7 @@ func GetDashboardSnapshot(c *models.ReqContext) response.Response {
 
 	metrics.MApiDashboardSnapshotGet.Inc()
 
-	return response.JSON(200, dto).Header("Cache-Control", "public, max-age=3600")
+	return response.JSON(200, dto).SetHeader("Cache-Control", "public, max-age=3600")
 }
 
 func deleteExternalDashboardSnapshot(externalUrl string) error {
@@ -183,9 +180,12 @@ func deleteExternalDashboardSnapshot(externalUrl string) error {
 	if err != nil {
 		return err
 	}
-	if err := response.Body.Close(); err != nil {
-		plog.Warn("Failed closing response body", "err", err)
-	}
+
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			plog.Warn("Failed to close response body", "err", err)
+		}
+	}()
 
 	if response.StatusCode == 200 {
 		return nil
@@ -251,11 +251,7 @@ func DeleteDashboardSnapshot(c *models.ReqContext) response.Response {
 		return response.Error(404, "Failed to get dashboard snapshot", nil)
 	}
 
-	dashboard, err := query.Result.DashboardJSON()
-	if err != nil {
-		return response.Error(500, "Failed to get dashboard data for dashboard snapshot", err)
-	}
-	dashboardID := dashboard.Get("id").MustInt64()
+	dashboardID := query.Result.Dashboard.Get("id").MustInt64()
 
 	guardian := guardian.New(dashboardID, c.OrgId, c.SignedInUser)
 	canEdit, err := guardian.CanEdit()

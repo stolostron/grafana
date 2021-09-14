@@ -16,7 +16,9 @@ describe('LogRows', () => {
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
+        prettifyLogMessage={true}
         timeZone={'utc'}
+        enableLogDetails={true}
       />
     );
 
@@ -37,8 +39,10 @@ describe('LogRows', () => {
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
+        prettifyLogMessage={true}
         timeZone={'utc'}
         previewLimit={1}
+        enableLogDetails={true}
       />
     );
 
@@ -67,7 +71,9 @@ describe('LogRows', () => {
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
+        prettifyLogMessage={true}
         timeZone={'utc'}
+        enableLogDetails={true}
       />
     );
 
@@ -87,7 +93,9 @@ describe('LogRows', () => {
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
+        prettifyLogMessage={true}
         timeZone={'utc'}
+        enableLogDetails={true}
       />
     );
 
@@ -108,8 +116,10 @@ describe('LogRows', () => {
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
+        prettifyLogMessage={true}
         timeZone={'utc'}
         logsSortOrder={LogsSortOrder.Ascending}
+        enableLogDetails={true}
       />
     );
 
@@ -131,8 +141,10 @@ describe('LogRows', () => {
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
+        prettifyLogMessage={true}
         timeZone={'utc'}
         logsSortOrder={LogsSortOrder.Descending}
+        enableLogDetails={true}
       />
     );
 
@@ -155,6 +167,7 @@ const makeLog = (overrides: Partial<LogRowModel>): LogRowModel => {
     logLevel: LogLevel.debug,
     entry,
     hasAnsi: false,
+    hasUnescapedContent: false,
     labels: {},
     raw: entry,
     timeFromNow: '',

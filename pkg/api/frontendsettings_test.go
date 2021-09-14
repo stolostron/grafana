@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/grafana/pkg/plugins"
+	"github.com/grafana/grafana/pkg/plugins/manager"
 	"github.com/grafana/grafana/pkg/services/rendering"
 
 	"github.com/grafana/grafana/pkg/services/licensing"
@@ -39,27 +39,26 @@ func setupTestEnvironment(t *testing.T, cfg *setting.Cfg) (*macaron.Macaron, *HT
 		})
 	}
 
-	bus.ClearBusHandlers()
-	bus.AddHandler("sql", sqlstore.GetPluginSettings)
-	t.Cleanup(bus.ClearBusHandlers)
+	sqlStore := sqlstore.InitTestDB(t)
+	pm := &manager.PluginManager{Cfg: cfg, SQLStore: sqlStore}
 
-	r := &rendering.RenderingService{Cfg: cfg}
+	r := &rendering.RenderingService{
+		Cfg:           cfg,
+		PluginManager: pm,
+	}
 
 	hs := &HTTPServer{
 		Cfg:           cfg,
 		Bus:           bus.GetBus(),
 		License:       &licensing.OSSLicensingService{Cfg: cfg},
 		RenderService: r,
-		PluginManager: &plugins.PluginManager{Cfg: cfg},
+		SQLStore:      sqlStore,
+		PluginManager: pm,
 	}
 
 	m := macaron.New()
 	m.Use(getContextHandler(t, cfg).Middleware)
-	m.Use(macaron.Renderer(macaron.RenderOptions{
-		Directory:  filepath.Join(setting.StaticRootPath, "views"),
-		IndentJSON: true,
-		Delims:     macaron.Delims{Left: "[[", Right: "]]"},
-	}))
+	m.UseMiddleware(macaron.Renderer(filepath.Join(setting.StaticRootPath, "views"), "[[", "]]"))
 	m.Get("/api/frontend/settings/", hs.GetFrontendSettings)
 
 	return m, hs

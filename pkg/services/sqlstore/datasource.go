@@ -1,9 +1,11 @@
 package sqlstore
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/grafana/grafana/pkg/events"
 	"github.com/grafana/grafana/pkg/util/errutil"
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
@@ -18,6 +20,7 @@ import (
 
 func init() {
 	bus.AddHandler("sql", GetDataSources)
+	bus.AddHandler("sql", GetDataSourcesByType)
 	bus.AddHandler("sql", GetDataSource)
 	bus.AddHandler("sql", AddDataSource)
 	bus.AddHandler("sql", DeleteDataSource)
@@ -71,8 +74,19 @@ func GetDataSources(query *models.GetDataSourcesQuery) error {
 	} else {
 		sess = x.Limit(query.DataSourceLimit, 0).Where("org_id=?", query.OrgId).Asc("name")
 	}
+
 	query.Result = make([]*models.DataSource, 0)
 	return sess.Find(&query.Result)
+}
+
+// GetDataSourcesByType returns all datasources for a given type or an error if the specified type is an empty string
+func GetDataSourcesByType(query *models.GetDataSourcesByTypeQuery) error {
+	if query.Type == "" {
+		return fmt.Errorf("datasource type cannot be empty")
+	}
+
+	query.Result = make([]*models.DataSource, 0)
+	return x.Where("type=?", query.Type).Asc("id").Find(&query.Result)
 }
 
 // GetDefaultDataSource is used to get the default datasource of organization
@@ -132,6 +146,15 @@ func DeleteDataSource(cmd *models.DeleteDataSourceCommand) error {
 	return inTransaction(func(sess *DBSession) error {
 		result, err := sess.Exec(params...)
 		cmd.DeletedDatasourcesCount, _ = result.RowsAffected()
+
+		sess.publishAfterCommit(&events.DataSourceDeleted{
+			Timestamp: time.Now(),
+			Name:      cmd.Name,
+			ID:        cmd.ID,
+			UID:       cmd.UID,
+			OrgID:     cmd.OrgID,
+		})
+
 		return err
 	})
 }
@@ -191,6 +214,14 @@ func AddDataSource(cmd *models.AddDataSourceCommand) error {
 		}
 
 		cmd.Result = ds
+
+		sess.publishAfterCommit(&events.DataSourceCreated{
+			Timestamp: time.Now(),
+			Name:      cmd.Name,
+			ID:        ds.Id,
+			UID:       cmd.Uid,
+			OrgID:     cmd.OrgId,
+		})
 		return nil
 	})
 }

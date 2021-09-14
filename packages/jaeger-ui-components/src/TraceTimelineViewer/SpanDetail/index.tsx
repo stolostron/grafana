@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from 'react';
-import { css } from 'emotion';
+import { css } from '@emotion/css';
 import cx from 'classnames';
 
 import AccordianKeyValues from './AccordianKeyValues';
@@ -25,7 +25,7 @@ import CopyIcon from '../../common/CopyIcon';
 import LabeledList from '../../common/LabeledList';
 
 import { TNil } from '../../types';
-import { TraceKeyValuePair, TraceLink, TraceLog, TraceSpan } from '@grafana/data';
+import { TraceKeyValuePair, TraceLink, TraceLog, TraceSpan } from '../../types/trace';
 import AccordianReferences from './AccordianReferences';
 import { autoColor, createStyle, Theme, useTheme } from '../../Theme';
 import { UIDivider } from '../../uiElementsContext';
@@ -255,7 +255,7 @@ export default function SpanDetail(props: SpanDetailProps) {
             onToggle={() => stackTracesToggle(spanID)}
           />
         )}
-        {references && references.length > 1 && (
+        {references && references.length > 0 && (references.length > 1 || references[0].refType !== 'CHILD_OF') && (
           <AccordianReferences
             data={references}
             isOpen={isReferencesOpen}

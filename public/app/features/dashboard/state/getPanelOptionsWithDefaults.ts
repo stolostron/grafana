@@ -105,6 +105,8 @@ export function filterFieldConfigOverrides(
 }
 
 function cleanProperties(obj: any, parentPath: string, fieldConfigRegistry: FieldConfigOptionsRegistry) {
+  let found = false;
+
   for (const propName of Object.keys(obj)) {
     const value = obj[propName];
     const fullPath = `${parentPath}${propName}`;
@@ -112,6 +114,7 @@ function cleanProperties(obj: any, parentPath: string, fieldConfigRegistry: Fiel
 
     // need to check early here as some standard properties have nested properies
     if (existsInRegistry) {
+      found = true;
       continue;
     }
 
@@ -120,9 +123,15 @@ function cleanProperties(obj: any, parentPath: string, fieldConfigRegistry: Fiel
         unset(obj, propName);
       }
     } else {
-      cleanProperties(value, `${fullPath}.`, fieldConfigRegistry);
+      const childPropFound = cleanProperties(value, `${fullPath}.`, fieldConfigRegistry);
+      // If no child props found unset the main object
+      if (!childPropFound) {
+        unset(obj, propName);
+      }
     }
   }
+
+  return found;
 }
 
 function adaptFieldColorMode(
@@ -151,11 +160,20 @@ function adaptFieldColorMode(
 
     // When supporting value colors and prefering thresholds, use Thresholds mode.
     // Otherwise keep current mode
-    if (colorSettings.byValueSupport && colorSettings.preferThresholdsMode) {
+    if (colorSettings.byValueSupport && colorSettings.preferThresholdsMode && mode?.id !== FieldColorModeId.Fixed) {
       if (!mode || !mode.isByValue) {
         fieldConfig.defaults.color = { mode: FieldColorModeId.Thresholds };
         return fieldConfig;
       }
+    }
+
+    // If panel support bySeries then we should default to that when switching to this panel as that is most likely
+    // what users will expect. Example scenario a user who has a graph panel (time series) and switches to Gauge and
+    // then back to time series we want the graph panel color mode to reset to classic palette and not preserve the
+    // Gauge prefered thresholds mode.
+    if (colorSettings.bySeriesSupport && mode?.isByValue) {
+      fieldConfig.defaults.color = { mode: FieldColorModeId.PaletteClassic };
+      return fieldConfig;
     }
   }
   return fieldConfig;
@@ -189,7 +207,9 @@ export function restoreCustomOverrideRules(current: FieldConfigSource, old: Fiel
       if (isCustomFieldProp(prop)) {
         const currentOverride = result.overrides.find((o) => isEqual(o.matcher, override.matcher));
         if (currentOverride) {
-          currentOverride.properties.push(prop);
+          if (currentOverride !== override) {
+            currentOverride.properties.push(prop);
+          }
         } else {
           result.overrides.push(override);
         }

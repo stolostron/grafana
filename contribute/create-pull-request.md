@@ -16,10 +16,10 @@ If this is your first time contributing to an open-source project on GitHub, mak
 To increase the chance of having your pull request accepted, make sure your pull request follows these guidelines:
 
 - Title and description matches the implementation.
-- Commits within the pull request follow the [Formatting guidelines](#Formatting-guidelines). 
+- Commits within the pull request follow the [Formatting guidelines](#Formatting-guidelines).
 - The pull request closes one related issue.
 - The pull request contains necessary tests that verify the intended behavior.
-- If your pull request has conflicts, rebase your branch onto the master branch.
+- If your pull request has conflicts, rebase your branch onto the main branch.
 
 If the pull request fixes a bug:
 
@@ -42,6 +42,18 @@ Pull requests for Redux contributions must:
 - Use `reducerTester` to test reducers. Refer to [Redux framework](/contribute/style-guides/redux.md) for more details.
 - Not contain code that mutates state in reducers or thunks.
 - Not contain code that accesses the reducers state slice directly. Instead, the code should use state selectors to access state.
+
+Pull requests that add or modify unit tests that are written in Jest must adhere to these guidelines:
+
+- Don't add snapshots tests. We are incrementally removing existing snapshot tests, we don't want more.
+- If an existing unit test is written in Enzyme, migrate it to RTL (React Testing Library), unless you’re fixing a bug. Bug fixes usually shouldn't include any bigger refactoring, so it’s ok to skip migrating the test to RTL.
+
+Pull requests that create new UI components or modify existing ones must adhere to the following accessibility guidelines:
+
+- Use semantic HTML.
+- Use ARIA roles, labels and other accessibility attributes correctly. Accessibility attributes should only be used when semantic HTML doesn't satisfy your use case.
+- Use the [Grafana theme palette](/contribute/style-guides/themes.md) for styling. It contains colors with good contrast which aids accessibility.
+- Use [RTL](https://testing-library.com/docs/dom-testing-library/api-accessibility/) for writing unit tests. It helps to create accessible components.
 
 ### Backend-specific guidelines
 
@@ -90,6 +102,8 @@ For changes to panels, the area should be the name of the panel, suffixed with P
 - `GraphPanel: Fix legend sorting issues`
 - `Docs: Changed url to URL in all documentation files`
 
+If you're unsure, please have a look at the existing [changelog](https://github.com/grafana/grafana/blob/main/CHANGELOG.md) for inspiration/guidance.
+
 ### Pull request titles
 
 The Grafana team _squashes_ all commits into one when we accept a pull request. The title of the pull request becomes the subject line of the squashed commit message. We still encourage contributors to write informative commit messages, as they becomes a part of the Git commit body.
@@ -102,6 +116,6 @@ Make sure that the title for your pull request uses the same format as the subje
 
 If your PR includes configuration changes, all of the following files must be changed correspondingly:
 
-* conf/defaults.ini
-* conf/sample.ini
-* docs/sources/administration/configuration.md 
+- conf/defaults.ini
+- conf/sample.ini
+- docs/sources/administration/configuration.md
