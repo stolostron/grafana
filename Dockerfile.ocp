@@ -4,12 +4,12 @@ FROM registry.ci.openshift.org/open-cluster-management/builder:go1.17-linux AS b
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 ENV GOFLAGS="-mod=mod"
 
-COPY go.mod go.sum ./
-#COPY vendor vendor
-
+COPY .git/ ./.git/
+COPY go.mod go.sum embed.go ./
+COPY cue cue
+COPY public/app/plugins public/app/plugins
 COPY pkg pkg
-COPY build.go build.go
-COPY package.json package.json
+COPY build.go package.json ./
 
 RUN go run build.go build
 # Need to copy the generated binaries to a non-platform specific location to handle
