@@ -238,4 +238,4 @@ require (
 
 replace github.com/apache/thrift => github.com/apache/thrift v0.14.1
 
-replace gopkg.in/macaron.v1 => ./pkg/macaron
+replace gopkg.in/macaron.v1 => github.com/clyang82/macaron v0.0.0-20210919125939-24f7a32c844d 
