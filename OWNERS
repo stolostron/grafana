@@ -1,9 +1,11 @@
 approvers:
 - haoqing0110
-
-reviewers:
 - clyang82
 - marcolan018
+- bjoydeep
+- subbarao-meduri
+- dislbenn
+
+reviewers:
 - songleo
 - morvencao
-- bjoydeep
