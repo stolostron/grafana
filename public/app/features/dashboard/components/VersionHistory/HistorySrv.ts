@@ -1,7 +1,8 @@
 import { isNumber } from 'lodash';
-import coreModule from 'app/core/core_module';
-import { DashboardModel } from '../../state/DashboardModel';
+
 import { getBackendSrv } from '@grafana/runtime';
+
+import { DashboardModel } from '../../state/DashboardModel';
 
 export interface HistoryListOpts {
   limit: number;
@@ -45,5 +46,3 @@ export class HistorySrv {
 
 const historySrv = new HistorySrv();
 export { historySrv };
-
-coreModule.service('historySrv', HistorySrv);

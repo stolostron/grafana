@@ -1,13 +1,23 @@
-+++
-title = "Licensing HTTP API "
-description = "Enterprise Licensing HTTP API"
-keywords = ["grafana", "http", "documentation", "api", "licensing", "enterprise"]
-aliases = ["/docs/grafana/latest/http_api/licensing/"]
-+++
+---
+aliases:
+  - /docs/grafana/latest/http_api/licensing/
+description: Enterprise Licensing HTTP API
+keywords:
+  - grafana
+  - http
+  - documentation
+  - api
+  - licensing
+  - enterprise
+title: 'Licensing HTTP API '
+---
 
 # Enterprise License API
 
 Licensing is only available in Grafana Enterprise. Read more about [Grafana Enterprise]({{< relref "../enterprise" >}}).
+
+If you are running Grafana Enterprise and have [Fine-grained access control]({{< relref "../enterprise/access-control/_index.md" >}}) enabled, for some endpoints you would need to have relevant permissions.
+Refer to specific resources to understand what permissions are required.
 
 ## Check license availability
 
@@ -16,6 +26,16 @@ Licensing is only available in Grafana Enterprise. Read more about [Grafana Ente
 `GET /api/licensing/check`
 
 Checks if a valid license is available.
+
+### Required permissions
+
+See note in the [introduction]({{< ref "#enterprise-license-api" >}}) for an explanation.
+
+| Action         | Scope |
+| -------------- | ----- |
+| licensing:read | n/a   |
+
+### Examples
 
 **Example request:**
 
@@ -46,6 +66,16 @@ Status codes:
 `POST /api/licensing/token/renew`
 
 Manually ask license issuer for a new token.
+
+### Required permissions
+
+See note in the [introduction]({{< ref "#enterprise-license-api" >}}) for an explanation.
+
+| Action           | Scope |
+| ---------------- | ----- |
+| licensing:update | n/a   |
+
+### Examples
 
 **Example request:**
 
@@ -96,6 +126,16 @@ Status Codes:
 `DELETE /api/licensing/token`
 
 Removes the license stored in the Grafana database.
+
+### Required permissions
+
+See note in the [introduction]({{< ref "#enterprise-license-api" >}}) for an explanation.
+
+| Action           | Scope |
+| ---------------- | ----- |
+| licensing:delete | n/a   |
+
+### Examples
 
 **Example request:**
 

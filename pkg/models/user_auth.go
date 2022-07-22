@@ -19,6 +19,7 @@ type UserAuth struct {
 	Created           time.Time
 	OAuthAccessToken  string
 	OAuthRefreshToken string
+	OAuthIdToken      string
 	OAuthTokenType    string
 	OAuthExpiry       time.Time
 }
@@ -54,11 +55,11 @@ type RequestURIKey struct{}
 // COMMANDS
 
 type UpsertUserCommand struct {
-	ReqContext    *ReqContext
-	ExternalUser  *ExternalUserInfo
+	ReqContext   *ReqContext
+	ExternalUser *ExternalUserInfo
+	UserLookupParams
+	Result        *User
 	SignupAllowed bool
-
-	Result *User
 }
 
 type SetAuthInfoCommand struct {
@@ -95,11 +96,14 @@ type LoginUserQuery struct {
 type GetUserByAuthInfoQuery struct {
 	AuthModule string
 	AuthId     string
-	UserId     int64
-	Email      string
-	Login      string
+	UserLookupParams
+}
 
-	Result *User
+type UserLookupParams struct {
+	// Describes lookup order as well
+	UserID *int64  // if set, will try to find the user by id
+	Email  *string // if set, will try to find the user by email
+	Login  *string // if set, will try to find the user by login
 }
 
 type GetExternalUserInfoByLoginQuery struct {
@@ -120,9 +124,4 @@ type TeamOrgGroupDTO struct {
 	TeamName string `json:"teamName"`
 	OrgName  string `json:"orgName"`
 	GroupDN  string `json:"groupDN"`
-}
-
-type GetTeamsForLDAPGroupCommand struct {
-	Groups []string
-	Result []TeamOrgGroupDTO
 }

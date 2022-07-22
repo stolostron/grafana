@@ -1,8 +1,10 @@
 import React, { FC } from 'react';
 import { useAsync } from 'react-use';
-import { Icon, IconName, Select } from '@grafana/ui';
+
 import { SelectableValue } from '@grafana/data';
+import { Icon, Select } from '@grafana/ui';
 import { DEFAULT_SORT } from 'app/features/search/constants';
+
 import { SearchSrv } from '../../services/search_srv';
 
 const searchSrv = new SearchSrv();
@@ -23,7 +25,7 @@ const getSortOptions = (filter?: string[]) => {
 
 export const SortPicker: FC<Props> = ({ onChange, value, placeholder, filter }) => {
   // Using sync Select and manual options fetching here since we need to find the selected option by value
-  const { loading, value: options } = useAsync<SelectableValue[]>(() => getSortOptions(filter), []);
+  const { loading, value: options } = useAsync<() => Promise<SelectableValue[]>>(() => getSortOptions(filter), []);
 
   const selected = options?.find((opt) => opt.value === value);
   return !loading ? (
@@ -34,8 +36,9 @@ export const SortPicker: FC<Props> = ({ onChange, value, placeholder, filter }) 
       onChange={onChange}
       value={selected ?? null}
       options={options}
+      aria-label="Sort"
       placeholder={placeholder ?? `Sort (Default ${DEFAULT_SORT.label})`}
-      prefix={<Icon name={(value?.includes('asc') ? 'sort-amount-up' : 'sort-amount-down') as IconName} />}
+      prefix={<Icon name={value?.includes('asc') ? 'sort-amount-up' : 'sort-amount-down'} />}
     />
   ) : null;
 };

@@ -1,37 +1,38 @@
 import { CSSObject } from '@emotion/css';
-import { GrafanaTheme, GrafanaTheme2 } from '@grafana/data';
 import tinycolor from 'tinycolor2';
 
-export function cardChrome(theme: GrafanaTheme): string {
+import { GrafanaTheme, GrafanaTheme2 } from '@grafana/data';
+
+export function cardChrome(theme: GrafanaTheme2): string {
   return `
-    background: ${theme.colors.bg2};
+    background: ${theme.colors.background.secondary};
     &:hover {
-      background: ${hoverColor(theme.colors.bg2, theme)};
+      background: ${hoverColor(theme.colors.background.secondary, theme)};
     }
-    box-shadow: ${theme.shadows.listItem};
-    border-radius: ${theme.border.radius.md};
+    box-shadow: ${theme.components.panel.boxShadow};
+    border-radius: ${theme.shape.borderRadius(2)};
 `;
 }
 
-export function hoverColor(color: string, theme: GrafanaTheme): string {
+export function hoverColor(color: string, theme: GrafanaTheme2): string {
   return theme.isDark ? tinycolor(color).brighten(2).toString() : tinycolor(color).darken(2).toString();
 }
 
-export function listItem(theme: GrafanaTheme): string {
+export function listItem(theme: GrafanaTheme2): string {
   return `
-  background: ${theme.colors.bg2};
+  background: ${theme.colors.background.secondary};
   &:hover {
-    background: ${hoverColor(theme.colors.bg2, theme)};
+    background: ${hoverColor(theme.colors.background.secondary, theme)};
   }
-  box-shadow: ${theme.shadows.listItem};
-  border-radius: ${theme.border.radius.md};
+  box-shadow: ${theme.components.panel.boxShadow};
+  border-radius: ${theme.shape.borderRadius(2)};
 `;
 }
 
-export function listItemSelected(theme: GrafanaTheme): string {
+export function listItemSelected(theme: GrafanaTheme2): string {
   return `
-    background: ${hoverColor(theme.colors.bg2, theme)};
-    color: ${theme.colors.textStrong};
+    background: ${hoverColor(theme.colors.background.secondary, theme)};
+    color: ${theme.colors.text.maxContrast};
 `;
 }
 
@@ -43,7 +44,9 @@ export const focusCss = (theme: GrafanaTheme) => `
   outline: 2px dotted transparent;
   outline-offset: 2px;
   box-shadow: 0 0 0 2px ${theme.colors.bodyBg}, 0 0 0px 4px ${theme.colors.formFocusOutline};
-  transition: all 0.2s cubic-bezier(0.19, 1, 0.22, 1);
+  transition-property: outline, outline-offset, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
 `;
 
 export function getMouseFocusStyles(theme: GrafanaTheme2): CSSObject {
@@ -58,7 +61,9 @@ export function getFocusStyles(theme: GrafanaTheme2): CSSObject {
     outline: '2px dotted transparent',
     outlineOffset: '2px',
     boxShadow: `0 0 0 2px ${theme.colors.background.canvas}, 0 0 0px 4px ${theme.colors.primary.main}`,
-    transition: `all 0.2s cubic-bezier(0.19, 1, 0.22, 1)`,
+    transitionTimingFunction: `cubic-bezier(0.19, 1, 0.22, 1)`,
+    transitionDuration: '0.2s',
+    transitionProperty: 'outline, outline-offset, box-shadow',
   };
 }
 

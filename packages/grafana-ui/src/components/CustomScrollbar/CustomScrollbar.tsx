@@ -1,10 +1,11 @@
-import React, { FC, useCallback, useEffect, useRef } from 'react';
-import { isNil } from 'lodash';
-import classNames from 'classnames';
 import { css } from '@emotion/css';
-import Scrollbars, { positionValues } from 'react-custom-scrollbars';
-import { useStyles2 } from '../../themes';
+import classNames from 'classnames';
+import React, { FC, RefCallback, useCallback, useEffect, useRef } from 'react';
+import Scrollbars, { positionValues } from 'react-custom-scrollbars-2';
+
 import { GrafanaTheme2 } from '@grafana/data';
+
+import { useStyles2 } from '../../themes';
 
 export type ScrollbarPosition = positionValues;
 
@@ -16,6 +17,7 @@ interface Props {
   hideTracksWhenNotNeeded?: boolean;
   hideHorizontalTrack?: boolean;
   hideVerticalTrack?: boolean;
+  scrollRefCallback?: RefCallback<HTMLDivElement>;
   scrollTop?: number;
   setScrollTop?: (position: ScrollbarPosition) => void;
   autoHeightMin?: number | string;
@@ -35,28 +37,30 @@ export const CustomScrollbar: FC<Props> = ({
   hideTracksWhenNotNeeded = false,
   hideHorizontalTrack,
   hideVerticalTrack,
+  scrollRefCallback,
   updateAfterMountMs,
   scrollTop,
   children,
 }) => {
-  const ref = useRef<Scrollbars>(null);
+  const ref = useRef<Scrollbars & { view: HTMLDivElement }>(null);
   const styles = useStyles2(getStyles);
 
-  const updateScroll = () => {
-    if (ref.current && !isNil(scrollTop)) {
-      ref.current.scrollTop(scrollTop);
+  useEffect(() => {
+    if (ref.current && scrollRefCallback) {
+      scrollRefCallback(ref.current.view);
     }
-  };
+  }, [ref, scrollRefCallback]);
 
   useEffect(() => {
-    updateScroll();
-  });
+    if (ref.current && scrollTop != null) {
+      ref.current.scrollTop(scrollTop);
+    }
+  }, [scrollTop]);
 
   /**
    * Special logic for doing a update a few milliseconds after mount to check for
    * updated height due to dynamic content
    */
-
   useEffect(() => {
     if (!updateAfterMountMs) {
       return;

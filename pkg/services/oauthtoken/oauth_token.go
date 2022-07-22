@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/login/social"
 	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/registry"
+	"github.com/grafana/grafana/pkg/services/login"
 	"golang.org/x/oauth2"
 )
 
@@ -16,12 +15,9 @@ var (
 	logger = log.New("oauthtoken")
 )
 
-func init() {
-	registry.RegisterService(&Service{})
-}
-
 type Service struct {
-	SocialService social.Service `inject:""`
+	SocialService   social.Service
+	AuthInfoService login.AuthInfoService
 }
 
 type OAuthTokenService interface {
@@ -29,8 +25,11 @@ type OAuthTokenService interface {
 	IsOAuthPassThruEnabled(*models.DataSource) bool
 }
 
-func (o *Service) Init() error {
-	return nil
+func ProvideService(socialService social.Service, authInfoService login.AuthInfoService) *Service {
+	return &Service{
+		SocialService:   socialService,
+		AuthInfoService: authInfoService,
+	}
 }
 
 // GetCurrentOAuthToken returns the OAuth token, if any, for the authenticated user. Will try to refresh the token if it has expired.
@@ -41,7 +40,7 @@ func (o *Service) GetCurrentOAuthToken(ctx context.Context, user *models.SignedI
 	}
 
 	authInfoQuery := &models.GetAuthInfoQuery{UserId: user.UserId}
-	if err := bus.Dispatch(authInfoQuery); err != nil {
+	if err := o.AuthInfoService.GetAuthInfo(ctx, authInfoQuery); err != nil {
 		if errors.Is(err, models.ErrUserNotFound) {
 			// Not necessarily an error.  User may be logged in another way.
 			logger.Debug("no OAuth token for user found", "userId", user.UserId, "username", user.Login)
@@ -71,6 +70,11 @@ func (o *Service) GetCurrentOAuthToken(ctx context.Context, user *models.SignedI
 		RefreshToken: authInfoQuery.Result.OAuthRefreshToken,
 		TokenType:    authInfoQuery.Result.OAuthTokenType,
 	}
+
+	if authInfoQuery.Result.OAuthIdToken != "" {
+		persistedToken = persistedToken.WithExtra(map[string]interface{}{"id_token": authInfoQuery.Result.OAuthIdToken})
+	}
+
 	// TokenSource handles refreshing the token if it has expired
 	token, err := connect.TokenSource(ctx, persistedToken).Token()
 	if err != nil {
@@ -86,7 +90,7 @@ func (o *Service) GetCurrentOAuthToken(ctx context.Context, user *models.SignedI
 			AuthId:     authInfoQuery.Result.AuthId,
 			OAuthToken: token,
 		}
-		if err := bus.Dispatch(updateAuthCommand); err != nil {
+		if err := o.AuthInfoService.UpdateAuthInfo(ctx, updateAuthCommand); err != nil {
 			logger.Error("failed to update auth info during token refresh", "userId", user.UserId, "username", user.Login, "error", err)
 			return nil
 		}

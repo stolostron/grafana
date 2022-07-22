@@ -1,26 +1,37 @@
+import { isString } from 'lodash';
 import { from, merge, Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
-import { getBackendSrv, getGrafanaLiveSrv, getTemplateSrv, toDataQueryResponse } from '@grafana/runtime';
+import { map } from 'rxjs/operators';
+
 import {
   AnnotationQuery,
   AnnotationQueryRequest,
+  DataFrameView,
   DataQueryRequest,
   DataQueryResponse,
-  DataSourceApi,
   DataSourceInstanceSettings,
+  DataSourceRef,
   isValidLiveChannelAddress,
+  MutableDataFrame,
   parseLiveChannelAddress,
-  StreamingFrameOptions,
   toDataFrame,
 } from '@grafana/data';
+import {
+  DataSourceWithBackend,
+  getBackendSrv,
+  getGrafanaLiveSrv,
+  getTemplateSrv,
+  StreamingFrameOptions,
+} from '@grafana/runtime';
+import { migrateDatasourceNameToRef } from 'app/features/dashboard/state/DashboardMigrator';
 
-import { GrafanaAnnotationQuery, GrafanaAnnotationType, GrafanaQuery, GrafanaQueryType } from './types';
-import AnnotationQueryEditor from './components/AnnotationQueryEditor';
 import { getDashboardSrv } from '../../../features/dashboard/services/DashboardSrv';
+
+import AnnotationQueryEditor from './components/AnnotationQueryEditor';
+import { GrafanaAnnotationQuery, GrafanaAnnotationType, GrafanaQuery, GrafanaQueryType } from './types';
 
 let counter = 100;
 
-export class GrafanaDatasource extends DataSourceApi<GrafanaQuery> {
+export class GrafanaDatasource extends DataSourceWithBackend<GrafanaQuery> {
   constructor(instanceSettings: DataSourceInstanceSettings) {
     super(instanceSettings);
     this.annotations = {
@@ -37,13 +48,24 @@ export class GrafanaDatasource extends DataSourceApi<GrafanaQuery> {
         return json;
       },
       prepareQuery(anno: AnnotationQuery<GrafanaAnnotationQuery>): GrafanaQuery {
-        return { ...anno, refId: anno.name, queryType: GrafanaQueryType.Annotations };
+        let datasource: DataSourceRef | undefined | null = undefined;
+        if (isString(anno.datasource)) {
+          const ref = migrateDatasourceNameToRef(anno.datasource, { returnDefaultAsNull: false });
+          if (ref) {
+            datasource = ref;
+          }
+        } else {
+          datasource = anno.datasource as DataSourceRef;
+        }
+
+        return { ...anno, refId: anno.name, queryType: GrafanaQueryType.Annotations, datasource };
       },
     };
   }
 
   query(request: DataQueryRequest<GrafanaQuery>): Observable<DataQueryResponse> {
-    const queries: Array<Observable<DataQueryResponse>> = [];
+    const results: Array<Observable<DataQueryResponse>> = [];
+    const targets: GrafanaQuery[] = [];
     const templateSrv = getTemplateSrv();
     for (const target of request.targets) {
       if (target.queryType === GrafanaQueryType.Annotations) {
@@ -51,7 +73,7 @@ export class GrafanaDatasource extends DataSourceApi<GrafanaQuery> {
           this.getAnnotations({
             range: request.range,
             rangeRaw: request.range.raw,
-            annotation: (target as unknown) as AnnotationQuery<GrafanaAnnotationQuery>,
+            annotation: target as unknown as AnnotationQuery<GrafanaAnnotationQuery>,
             dashboard: getDashboardSrv().getCurrent(),
           })
         );
@@ -74,7 +96,7 @@ export class GrafanaDatasource extends DataSourceApi<GrafanaQuery> {
         if (!isValidLiveChannelAddress(addr)) {
           continue;
         }
-        const buffer: StreamingFrameOptions = {
+        const buffer: Partial<StreamingFrameOptions> = {
           maxLength: request.maxDataPoints ?? 500,
         };
         if (target.buffer) {
@@ -84,7 +106,7 @@ export class GrafanaDatasource extends DataSourceApi<GrafanaQuery> {
           buffer.maxDelta = request.range.to.valueOf() - request.range.from.valueOf();
         }
 
-        queries.push(
+        results.push(
           getGrafanaLiveSrv().getDataStream({
             key: `${request.requestId}.${counter++}`,
             addr: addr!,
@@ -93,17 +115,47 @@ export class GrafanaDatasource extends DataSourceApi<GrafanaQuery> {
           })
         );
       } else {
-        queries.push(getRandomWalk(request));
+        if (!target.queryType) {
+          target.queryType = GrafanaQueryType.RandomWalk;
+        }
+        targets.push(target);
       }
     }
-    // With a single query just return the results
-    if (queries.length === 1) {
-      return queries[0];
+
+    if (targets.length) {
+      results.push(
+        super.query({
+          ...request,
+          targets,
+        })
+      );
     }
-    if (queries.length > 1) {
-      return merge(...queries);
+
+    if (results.length) {
+      // With a single query just return the results
+      if (results.length === 1) {
+        return results[0];
+      }
+      return merge(...results);
     }
     return of(); // nothing
+  }
+
+  listFiles(path: string): Observable<DataFrameView<FileElement>> {
+    return this.query({
+      targets: [
+        {
+          refId: 'A',
+          queryType: GrafanaQueryType.List,
+          path,
+        },
+      ],
+    } as any).pipe(
+      map((v) => {
+        const frame = v.data[0] ?? new MutableDataFrame();
+        return new DataFrameView<FileElement>(frame);
+      })
+    );
   }
 
   metricFindQuery(options: any) {
@@ -112,7 +164,7 @@ export class GrafanaDatasource extends DataSourceApi<GrafanaQuery> {
 
   async getAnnotations(options: AnnotationQueryRequest<GrafanaQuery>): Promise<DataQueryResponse> {
     const templateSrv = getTemplateSrv();
-    const annotation = (options.annotation as unknown) as AnnotationQuery<GrafanaAnnotationQuery>;
+    const annotation = options.annotation as unknown as AnnotationQuery<GrafanaAnnotationQuery>;
     const target = annotation.target!;
     const params: any = {
       from: options.range.from.valueOf(),
@@ -166,31 +218,7 @@ export class GrafanaDatasource extends DataSourceApi<GrafanaQuery> {
   }
 }
 
-// Note that the query does not actually matter
-function getRandomWalk(request: DataQueryRequest): Observable<DataQueryResponse> {
-  const { intervalMs, maxDataPoints, range, requestId } = request;
-
-  // Yes, this implementation ignores multiple targets!  But that matches existing behavior
-  const params: Record<string, any> = {
-    intervalMs,
-    maxDataPoints,
-    from: range.from.valueOf(),
-    to: range.to.valueOf(),
-  };
-
-  return getBackendSrv()
-    .fetch({
-      url: '/api/tsdb/testdata/random-walk',
-      method: 'GET',
-      params,
-      requestId,
-    })
-    .pipe(
-      map((rsp: any) => {
-        return toDataQueryResponse(rsp);
-      }),
-      catchError((err) => {
-        return of(toDataQueryResponse(err));
-      })
-    );
+export interface FileElement {
+  name: string;
+  ['media-type']: string;
 }

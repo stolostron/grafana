@@ -1,8 +1,11 @@
 import React, { useCallback, useState } from 'react';
+
 import { Input } from '@grafana/ui';
 
-import { Field } from '../Field';
 import { AzureQueryEditorFieldProps } from '../../types';
+import { Field } from '../Field';
+
+import { setLegendAlias } from './setQueryValue';
 
 const LegendFormatField: React.FC<AzureQueryEditorFieldProps> = ({ onQueryChange, query }) => {
   const [value, setValue] = useState<string>(query.azureMonitor?.alias ?? '');
@@ -16,13 +19,8 @@ const LegendFormatField: React.FC<AzureQueryEditorFieldProps> = ({ onQueryChange
   }, []);
 
   const handleBlur = useCallback(() => {
-    onQueryChange({
-      ...query,
-      azureMonitor: {
-        ...query.azureMonitor,
-        alias: value,
-      },
-    });
+    const newQuery = setLegendAlias(query, value);
+    onQueryChange(newQuery);
   }, [onQueryChange, query, value]);
 
   return (

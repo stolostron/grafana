@@ -1,11 +1,13 @@
 import { css } from '@emotion/css';
+import React, { FC } from 'react';
+import { useForm, Validate } from 'react-hook-form';
+import { useDispatch } from 'react-redux';
+
 import { GrafanaTheme2 } from '@grafana/data';
 import { Alert, Button, Field, Input, LinkButton, TextArea, useStyles2 } from '@grafana/ui';
 import { useCleanup } from 'app/core/hooks/useCleanup';
 import { AlertManagerCortexConfig } from 'app/plugins/datasource/alertmanager/types';
-import React, { FC } from 'react';
-import { useForm, Validate } from 'react-hook-form';
-import { useDispatch } from 'react-redux';
+
 import { useUnifiedAlertingSelector } from '../../hooks/useUnifiedAlertingSelector';
 import { updateAlertManagerConfigAction } from '../../state/actions';
 import { makeAMLink } from '../../utils/misc';
@@ -98,12 +100,13 @@ export const TemplateForm: FC<Props> = ({ existing, alertManagerSourceName, conf
           {error.message || (error as any)?.data?.message || String(error)}
         </Alert>
       )}
-      <Field label="Template name" error={errors?.name?.message} invalid={!!errors.name?.message}>
+      <Field label="Template name" error={errors?.name?.message} invalid={!!errors.name?.message} required>
         <Input
           {...register('name', {
             required: { value: true, message: 'Required.' },
             validate: { nameIsUnique: validateNameIsUnique },
           })}
+          placeholder="Give your template a name"
           width={42}
           autoFocus={true}
         />
@@ -134,10 +137,12 @@ export const TemplateForm: FC<Props> = ({ existing, alertManagerSourceName, conf
         label="Content"
         error={errors?.content?.message}
         invalid={!!errors.content?.message}
+        required
       >
         <TextArea
           {...register('content', { required: { value: true, message: 'Required.' } })}
           className={styles.textarea}
+          placeholder="Message"
           rows={12}
         />
       </Field>

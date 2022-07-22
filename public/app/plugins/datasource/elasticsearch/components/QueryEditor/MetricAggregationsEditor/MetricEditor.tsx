@@ -1,16 +1,17 @@
-import { SelectableValue } from '@grafana/data';
-import { InlineSegmentGroup, Segment, SegmentAsync, useTheme2 } from '@grafana/ui';
 import { cx } from '@emotion/css';
 import React, { useCallback } from 'react';
-import { useDatasource, useQuery } from '../ElasticsearchQueryContext';
+import { satisfies } from 'semver';
+
+import { SelectableValue } from '@grafana/data';
+import { InlineSegmentGroup, Segment, SegmentAsync, useTheme2 } from '@grafana/ui';
+
+import { useFields } from '../../../hooks/useFields';
 import { useDispatch } from '../../../hooks/useStatelessReducer';
-import { getStyles } from './styles';
-import { SettingsEditor } from './SettingsEditor';
-import { MetricAggregationAction } from './state/types';
-import { metricAggregationConfig } from './utils';
-import { changeMetricField, changeMetricType } from './state/actions';
 import { MetricPicker } from '../../MetricPicker';
+import { useDatasource, useQuery } from '../ElasticsearchQueryContext';
 import { segmentStyles } from '../styles';
+
+import { SettingsEditor } from './SettingsEditor';
 import {
   isMetricAggregationWithField,
   isMetricAggregationWithInlineScript,
@@ -20,8 +21,9 @@ import {
   MetricAggregation,
   MetricAggregationType,
 } from './aggregations';
-import { useFields } from '../../../hooks/useFields';
-import { satisfies } from 'semver';
+import { changeMetricField, changeMetricType } from './state/actions';
+import { getStyles } from './styles';
+import { metricAggregationConfig } from './utils';
 
 const toOption = (metric: MetricAggregation) => ({
   label: metricAggregationConfig[metric.type].label,
@@ -65,7 +67,7 @@ export const MetricEditor = ({ value }: Props) => {
   const styles = getStyles(useTheme2(), !!value.hide);
   const datasource = useDatasource();
   const query = useQuery();
-  const dispatch = useDispatch<MetricAggregationAction>();
+  const dispatch = useDispatch();
   const getFields = useFields(value.type);
 
   const loadOptions = useCallback(async () => {
@@ -90,7 +92,7 @@ export const MetricEditor = ({ value }: Props) => {
         <Segment
           className={cx(styles.color, segmentStyles)}
           options={getTypeOptions(previousMetrics, datasource.esVersion, datasource.xpack)}
-          onChange={(e) => dispatch(changeMetricType(value.id, e.value!))}
+          onChange={(e) => dispatch(changeMetricType({ id: value.id, type: e.value! }))}
           value={toOption(value)}
         />
 
@@ -98,7 +100,7 @@ export const MetricEditor = ({ value }: Props) => {
           <SegmentAsync
             className={cx(styles.color, segmentStyles)}
             loadOptions={loadOptions}
-            onChange={(e) => dispatch(changeMetricField(value.id, e.value!))}
+            onChange={(e) => dispatch(changeMetricField({ id: value.id, field: e.value! }))}
             placeholder="Select Field"
             value={value.field}
           />
@@ -107,7 +109,7 @@ export const MetricEditor = ({ value }: Props) => {
         {isPipelineAggregation(value) && !isPipelineAggregationWithMultipleBucketPaths(value) && (
           <MetricPicker
             className={cx(styles.color, segmentStyles)}
-            onChange={(e) => dispatch(changeMetricField(value.id, e.value?.id!))}
+            onChange={(e) => dispatch(changeMetricField({ id: value.id, field: e.value?.id! }))}
             options={previousMetrics}
             value={value.field}
           />
