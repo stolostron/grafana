@@ -1,10 +1,13 @@
-import React, { HTMLAttributes } from 'react';
-import { Label } from './Label';
-import { stylesFactory, useTheme2 } from '../../themes';
 import { css, cx } from '@emotion/css';
+import React, { HTMLAttributes } from 'react';
+
 import { GrafanaTheme2 } from '@grafana/data';
+
+import { stylesFactory, useTheme2 } from '../../themes';
+import { getChildId } from '../../utils/reactUtils';
+
 import { FieldValidationMessage } from './FieldValidationMessage';
-import { getChildId } from '../../utils/children';
+import { Label } from './Label';
 
 export interface FieldProps extends HTMLAttributes<HTMLDivElement> {
   /** Form input element, i.e Input or Switch */
@@ -22,13 +25,19 @@ export interface FieldProps extends HTMLAttributes<HTMLDivElement> {
   /** Indicates if field is required */
   required?: boolean;
   /** Error message to display */
-  error?: string | null;
+  error?: React.ReactNode;
   /** Indicates horizontal layout of the field */
   horizontal?: boolean;
   /** make validation message overflow horizontally. Prevents pushing out adjacent inline components */
   validationMessageHorizontalOverflow?: boolean;
 
   className?: string;
+  /**
+   *  A unique id that associates the label of the Field component with the control with the unique id.
+   *  If the `htmlFor` property is missing the `htmlFor` will be inferred from the `id` or `inputId` property of the first child.
+   *  https://developer.mozilla.org/en-US/docs/Web/HTML/Element/label#attr-for
+   */
+  htmlFor?: string;
 }
 
 export const getFieldStyles = stylesFactory((theme: GrafanaTheme2) => {
@@ -72,11 +81,12 @@ export const Field: React.FC<FieldProps> = ({
   children,
   className,
   validationMessageHorizontalOverflow,
+  htmlFor,
   ...otherProps
 }) => {
   const theme = useTheme2();
   const styles = getFieldStyles(theme);
-  const inputId = getChildId(children);
+  const inputId = htmlFor ?? getChildId(children);
 
   const labelElement =
     typeof label === 'string' ? (

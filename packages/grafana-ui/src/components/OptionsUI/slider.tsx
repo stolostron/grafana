@@ -1,5 +1,7 @@
 import React from 'react';
+
 import { FieldConfigEditorProps, SliderFieldConfigSettings } from '@grafana/data';
+
 import { Slider } from '../Slider/Slider';
 
 export const SliderValueEditor: React.FC<FieldConfigEditorProps<number, SliderFieldConfigSettings>> = ({
@@ -16,7 +18,10 @@ export const SliderValueEditor: React.FC<FieldConfigEditorProps<number, SliderFi
       min={settings?.min || 0}
       max={settings?.max || 100}
       step={settings?.step}
+      marks={settings?.marks}
+      included={settings?.included}
       onChange={onChange}
+      ariaLabelForHandle={settings?.ariaLabelForHandle}
     />
   );
 };

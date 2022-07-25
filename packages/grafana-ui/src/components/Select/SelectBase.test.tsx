@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { selectOptionInTest } from './test-utils';
+import React, { useState } from 'react';
+
 import { SelectableValue } from '@grafana/data';
+
 import { SelectBase } from './SelectBase';
+import { selectOptionInTest } from './test-utils';
 
 describe('SelectBase', () => {
   const onChangeHandler = () => jest.fn();
@@ -62,7 +64,7 @@ describe('SelectBase', () => {
     describe('is provided', () => {
       it('opens on focus', () => {
         render(<SelectBase menuShouldPortal onChange={onChangeHandler} openMenuOnFocus />);
-        fireEvent.focus(screen.getByRole('textbox'));
+        fireEvent.focus(screen.getByRole('combobox'));
         expect(screen.queryByText(/no options found/i)).toBeVisible();
       });
     });
@@ -74,8 +76,8 @@ describe('SelectBase', () => {
         ${' '}
       `('opens on arrow down/up or space', ({ key }) => {
         render(<SelectBase menuShouldPortal onChange={onChangeHandler} />);
-        fireEvent.focus(screen.getByRole('textbox'));
-        fireEvent.keyDown(screen.getByRole('textbox'), { key });
+        fireEvent.focus(screen.getByRole('combobox'));
+        fireEvent.keyDown(screen.getByRole('combobox'), { key });
         expect(screen.queryByText(/no options found/i)).toBeVisible();
       });
     });
@@ -202,10 +204,10 @@ describe('SelectBase', () => {
       expect(selectEl).toBeInTheDocument();
 
       await selectOptionInTest(selectEl, 'Option 2');
-      expect(spy).toHaveBeenCalledWith({
-        label: 'Option 2',
-        value: 2,
-      });
+      expect(spy).toHaveBeenCalledWith(
+        { label: 'Option 2', value: 2 },
+        { action: 'select-option', name: undefined, option: undefined }
+      );
     });
   });
 });

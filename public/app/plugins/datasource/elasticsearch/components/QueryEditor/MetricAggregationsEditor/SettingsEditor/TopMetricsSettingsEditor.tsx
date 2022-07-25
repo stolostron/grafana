@@ -1,12 +1,14 @@
-import { AsyncMultiSelect, InlineField, SegmentAsync, Select } from '@grafana/ui';
+import { css } from '@emotion/css';
 import React, { FunctionComponent } from 'react';
-import { useDispatch } from '../../../../hooks/useStatelessReducer';
+
+import { SelectableValue } from '@grafana/data';
+import { AsyncMultiSelect, InlineField, SegmentAsync, Select } from '@grafana/ui';
+
 import { useFields } from '../../../../hooks/useFields';
+import { useDispatch } from '../../../../hooks/useStatelessReducer';
+import { orderOptions } from '../../BucketAggregationsEditor/utils';
 import { TopMetrics } from '../aggregations';
 import { changeMetricSetting } from '../state/actions';
-import { orderOptions } from '../../BucketAggregationsEditor/utils';
-import { css } from '@emotion/css';
-import { SelectableValue } from '@grafana/data';
 
 interface Props {
   metric: TopMetrics;
@@ -26,11 +28,11 @@ export const TopMetricsSettingsEditor: FunctionComponent<Props> = ({ metric }) =
           menuShouldPortal
           onChange={(e) =>
             dispatch(
-              changeMetricSetting(
+              changeMetricSetting({
                 metric,
-                'metrics',
-                e.map((v) => v.value!)
-              )
+                settingName: 'metrics',
+                newValue: e.map((v) => v.value!),
+              })
             )
           }
           loadOptions={getMetricsOptions}
@@ -42,7 +44,7 @@ export const TopMetricsSettingsEditor: FunctionComponent<Props> = ({ metric }) =
       <InlineField label="Order" labelWidth={16}>
         <Select
           menuShouldPortal
-          onChange={(e) => dispatch(changeMetricSetting(metric, 'order', e.value))}
+          onChange={(e) => dispatch(changeMetricSetting({ metric, settingName: 'order', newValue: e.value }))}
           options={orderOptions}
           value={metric.settings?.order}
         />
@@ -61,7 +63,7 @@ export const TopMetricsSettingsEditor: FunctionComponent<Props> = ({ metric }) =
             margin-right: 0;
           `}
           loadOptions={getOrderByOptions}
-          onChange={(e) => dispatch(changeMetricSetting(metric, 'orderBy', e.value))}
+          onChange={(e) => dispatch(changeMetricSetting({ metric, settingName: 'orderBy', newValue: e.value }))}
           placeholder="Select Field"
           value={metric.settings?.orderBy}
         />

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana/pkg/tsdb"
+	"github.com/grafana/grafana/pkg/tsdb/intervalv2"
 )
 
 var (
@@ -26,17 +26,19 @@ func (query *Query) Build(queryContext *backend.QueryDataRequest) (string, error
 		res += query.renderWhereClause()
 		res += query.renderTimeFilter(queryContext)
 		res += query.renderGroupBy(queryContext)
+		res += query.renderOrderByTime()
+		res += query.renderLimit()
+		res += query.renderSlimit()
 		res += query.renderTz()
 	}
 
-	calculator := tsdb.NewCalculator(tsdb.CalculatorOptions{})
-
-	i := calculator.Calculate(queryContext.Queries[0].TimeRange, query.Interval)
+	intervalText := intervalv2.FormatDuration(query.Interval)
+	intervalMs := int64(query.Interval / time.Millisecond)
 
 	res = strings.ReplaceAll(res, "$timeFilter", query.renderTimeFilter(queryContext))
-	res = strings.ReplaceAll(res, "$interval", i.Text)
-	res = strings.ReplaceAll(res, "$__interval_ms", strconv.FormatInt(i.Milliseconds(), 10))
-	res = strings.ReplaceAll(res, "$__interval", i.Text)
+	res = strings.ReplaceAll(res, "$interval", intervalText)
+	res = strings.ReplaceAll(res, "$__interval_ms", strconv.FormatInt(intervalMs, 10))
+	res = strings.ReplaceAll(res, "$__interval", intervalText)
 
 	return res, nil
 }
@@ -152,12 +154,36 @@ func (query *Query) renderGroupBy(queryContext *backend.QueryDataRequest) string
 	return groupBy
 }
 
+func (query *Query) renderOrderByTime() string {
+	orderByTime := query.OrderByTime
+	if orderByTime == "" {
+		return ""
+	}
+	return fmt.Sprintf(" ORDER BY time %s", orderByTime)
+}
+
 func (query *Query) renderTz() string {
 	tz := query.Tz
 	if tz == "" {
 		return ""
 	}
 	return fmt.Sprintf(" tz('%s')", tz)
+}
+
+func (query *Query) renderLimit() string {
+	limit := query.Limit
+	if limit == "" {
+		return ""
+	}
+	return fmt.Sprintf(" limit %s", limit)
+}
+
+func (query *Query) renderSlimit() string {
+	slimit := query.Slimit
+	if slimit == "" {
+		return ""
+	}
+	return fmt.Sprintf(" slimit %s", slimit)
 }
 
 func epochMStoInfluxTime(tr *backend.TimeRange) (string, string) {

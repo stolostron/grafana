@@ -1,6 +1,8 @@
 import { asyncScheduler, Observable, of, scheduled } from 'rxjs';
-import { DashboardQueryRunnerOptions } from './types';
+
 import { AnnotationEvent, getDefaultTimeRange } from '@grafana/data';
+
+import { DashboardQueryRunnerOptions } from './types';
 
 // function that creates an async of result Observable
 export function toAsyncOfResult(result: any): Observable<any> {
@@ -52,6 +54,7 @@ export function getDefaultOptions(): DashboardQueryRunnerOptions {
       subscribe: jest.fn().mockReturnValue({ unsubscribe: jest.fn() }),
       publish: jest.fn(),
     },
+    panels: [{ alert: {} } as any],
   };
   const range = getDefaultTimeRange();
 

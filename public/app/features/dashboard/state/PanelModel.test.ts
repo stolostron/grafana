@@ -1,5 +1,5 @@
-import { PanelModel } from './PanelModel';
-import { getPanelPlugin } from '../../plugins/__mocks__/pluginMocks';
+import { ComponentClass } from 'react';
+
 import {
   DataLinkBuiltInVars,
   FieldConfigProperty,
@@ -10,16 +10,19 @@ import {
   dateTime,
   TimeRange,
 } from '@grafana/data';
-import { ComponentClass } from 'react';
-import { PanelQueryRunner } from '../../query/state/PanelQueryRunner';
-import { setTimeSrv } from '../services/TimeSrv';
-import { TemplateSrv } from '../../templating/template_srv';
 import { setTemplateSrv } from '@grafana/runtime';
+import { queryBuilder } from 'app/features/variables/shared/testing/builders';
+
+import { mockStandardFieldConfigOptions } from '../../../../test/helpers/fieldConfig';
+import { getPanelPlugin } from '../../plugins/__mocks__/pluginMocks';
+import { PanelQueryRunner } from '../../query/state/PanelQueryRunner';
+import { TemplateSrv } from '../../templating/template_srv';
 import { variableAdapters } from '../../variables/adapters';
 import { createQueryVariableAdapter } from '../../variables/query/adapter';
-import { mockStandardFieldConfigOptions } from '../../../../test/helpers/fieldConfig';
-import { queryBuilder } from 'app/features/variables/shared/testing/builders';
+import { setTimeSrv } from '../services/TimeSrv';
 import { TimeOverrideResult } from '../utils/panel';
+
+import { PanelModel } from './PanelModel';
 
 standardFieldConfigEditorRegistry.setInit(() => mockStandardFieldConfigOptions());
 standardEditorsRegistry.setInit(() => mockStandardFieldConfigOptions());
@@ -55,7 +58,7 @@ describe('PanelModel', () => {
       {
         id: 'table',
       },
-      (null as unknown) as ComponentClass<PanelProps>, // react
+      null as unknown as ComponentClass<PanelProps>, // react
       {} // angular
     );
 
@@ -196,11 +199,6 @@ describe('PanelModel', () => {
       expect(saveModel.gridPos).toBe(undefined);
     });
 
-    it('getSaveModel should not remove datasource default', () => {
-      const saveModel = model.getSaveModel();
-      expect(saveModel.datasource).toBe(null);
-    });
-
     it('getSaveModel should remove nonPersistedProperties', () => {
       const saveModel = model.getSaveModel();
       expect(saveModel.events).toBe(undefined);
@@ -232,6 +230,18 @@ describe('PanelModel', () => {
         const extra = { aaa: { text: '???', value: 'XXX' } };
         const out = model.replaceVariables('hello $aaa and $bbb', extra);
         expect(out).toBe('hello XXX and BBB');
+      });
+
+      it('Can use request scoped vars', () => {
+        model.getQueryRunner().getLastRequest = () => {
+          return {
+            scopedVars: {
+              __interval: { text: '10m', value: '10m' },
+            },
+          };
+        };
+        const out = model.replaceVariables('hello $__interval');
+        expect(out).toBe('hello 10m');
       });
     });
 
@@ -265,7 +275,6 @@ describe('PanelModel', () => {
           });
         });
 
-        model.editSourceId = 1001;
         model.fieldConfig.defaults.decimals = 3;
         model.fieldConfig.defaults.custom = {
           customProp: true,
@@ -287,10 +296,6 @@ describe('PanelModel', () => {
         ];
         model.changePlugin(newPlugin);
         model.alert = { id: 2 };
-      });
-
-      it('should keep editSourceId', () => {
-        expect(model.editSourceId).toBe(1001);
       });
 
       it('should keep maxDataPoints', () => {

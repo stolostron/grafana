@@ -1,11 +1,13 @@
 import uPlot, { Cursor, Series } from 'uplot';
-import { FIXED_UNIT } from '@grafana/ui/src/components/GraphNG/GraphNG';
-import { pointWithin, Quadtree, Rect } from 'app/plugins/panel/barchart/quadtree';
-import { distribute, SPACE_BETWEEN } from 'app/plugins/panel/barchart/distribute';
-import { TimelineFieldConfig, TimelineMode, TimelineValueAlignment } from './types';
+
 import { GrafanaTheme2, TimeRange } from '@grafana/data';
-import { BarValueVisibility } from '@grafana/ui';
 import { alpha } from '@grafana/data/src/themes/colorManipulator';
+import { VisibilityMode } from '@grafana/schema';
+import { FIXED_UNIT } from '@grafana/ui/src/components/GraphNG/GraphNG';
+import { distribute, SPACE_BETWEEN } from 'app/plugins/panel/barchart/distribute';
+import { pointWithin, Quadtree, Rect } from 'app/plugins/panel/barchart/quadtree';
+
+import { TimelineFieldConfig, TimelineMode, TimelineValueAlignment } from './types';
 
 const { round, min, ceil } = Math;
 
@@ -40,7 +42,8 @@ export interface TimelineCoreOptions {
   rowHeight: number;
   colWidth?: number;
   theme: GrafanaTheme2;
-  showValue: BarValueVisibility;
+  showValue: VisibilityMode;
+  mergeValues?: boolean;
   isDiscrete: (seriesIdx: number) => boolean;
   getValueColor: (seriesIdx: number, value: any) => string;
   label: (seriesIdx: number) => string;
@@ -62,6 +65,7 @@ export function getConfig(opts: TimelineCoreOptions) {
     rowHeight = 0,
     colWidth = 0,
     showValue,
+    mergeValues = false,
     theme,
     label,
     formatValue,
@@ -212,11 +216,16 @@ export function getConfig(opts: TimelineCoreOptions) {
         walk(rowHeight, sidx - 1, numSeries, yDim, (iy, y0, height) => {
           if (mode === TimelineMode.Changes) {
             for (let ix = 0; ix < dataY.length; ix++) {
-              if (dataY[ix] != null) {
+              let yVal = dataY[ix];
+
+              if (yVal != null) {
                 let left = Math.round(valToPosX(dataX[ix], scaleX, xDim, xOff));
 
                 let nextIx = ix;
-                while (dataY[++nextIx] === undefined && nextIx < dataY.length) {}
+                while (
+                  ++nextIx < dataY.length &&
+                  (dataY[nextIx] === undefined || (mergeValues && dataY[nextIx] === yVal))
+                ) {}
 
                 // to now (not to end of chart)
                 let right =
@@ -236,7 +245,7 @@ export function getConfig(opts: TimelineCoreOptions) {
                   strokeWidth,
                   iy,
                   ix,
-                  dataY[ix],
+                  yVal,
                   discrete
                 );
 
@@ -288,7 +297,7 @@ export function getConfig(opts: TimelineCoreOptions) {
   };
 
   const drawPoints: Series.Points.Show =
-    formatValue == null || showValue === BarValueVisibility.Never
+    formatValue == null || showValue === VisibilityMode.Never
       ? false
       : (u, sidx, i0, i1) => {
           u.ctx.save();
@@ -312,7 +321,7 @@ export function getConfig(opts: TimelineCoreOptions) {
                   const boxRect = boxRectsBySeries[sidx - 1][ix];
 
                   // Todo refine this to better know when to not render text (when values do not fit)
-                  if (!boxRect || (showValue === BarValueVisibility.Auto && boxRect.w < 25)) {
+                  if (!boxRect || (showValue === VisibilityMode.Auto && boxRect.w < 25)) {
                     continue;
                   }
 

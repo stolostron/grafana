@@ -1,18 +1,20 @@
-import React, { FC, ReactNode } from 'react';
 import { css, cx } from '@emotion/css';
+import React, { FC, ReactNode } from 'react';
+
 import { GrafanaTheme2 } from '@grafana/data';
+import { selectors } from '@grafana/e2e-selectors';
+
+import { Link } from '..';
+import { styleMixins } from '../../themes';
 import { useStyles2 } from '../../themes/ThemeContext';
+import { getFocusStyles } from '../../themes/mixins';
 import { IconName } from '../../types';
 import { Icon } from '../Icon/Icon';
-import { styleMixins } from '../../themes';
 import { IconButton } from '../IconButton/IconButton';
-import { selectors } from '@grafana/e2e-selectors';
-import { Link } from '..';
-import { getFocusStyles } from '../../themes/mixins';
 
 export interface Props {
   pageIcon?: IconName;
-  title: string;
+  title?: string;
   parent?: string;
   onGoBack?: () => void;
   titleHref?: string;
@@ -21,11 +23,25 @@ export interface Props {
   children?: ReactNode;
   className?: string;
   isFullscreen?: boolean;
+  'aria-label'?: string;
 }
 
 /** @alpha */
 export const PageToolbar: FC<Props> = React.memo(
-  ({ title, parent, pageIcon, onGoBack, children, titleHref, parentHref, leftItems, isFullscreen, className }) => {
+  ({
+    title,
+    parent,
+    pageIcon,
+    onGoBack,
+    children,
+    titleHref,
+    parentHref,
+    leftItems,
+    isFullscreen,
+    className,
+    /** main nav-container aria-label **/
+    'aria-label': ariaLabel,
+  }) => {
     const styles = useStyles2(getStyles);
 
     /**
@@ -44,7 +60,7 @@ export const PageToolbar: FC<Props> = React.memo(
     );
 
     return (
-      <div className={mainStyle}>
+      <nav className={mainStyle} aria-label={ariaLabel}>
         {pageIcon && !onGoBack && (
           <div className={styles.pageIcon}>
             <Icon name={pageIcon} size="lg" aria-hidden />
@@ -80,7 +96,8 @@ export const PageToolbar: FC<Props> = React.memo(
               )}
             </>
           )}
-          {titleHref && (
+
+          {title && titleHref && (
             <h1 className={styles.h1Styles}>
               <Link
                 aria-label="Search dashboard by name"
@@ -91,7 +108,7 @@ export const PageToolbar: FC<Props> = React.memo(
               </Link>
             </h1>
           )}
-          {!titleHref && <h1 className={styles.titleText}>{title}</h1>}
+          {title && !titleHref && <h1 className={styles.titleText}>{title}</h1>}
         </nav>
         {leftItems?.map((child, index) => (
           <div className={styles.leftActionItem} key={index}>
@@ -109,7 +126,7 @@ export const PageToolbar: FC<Props> = React.memo(
               </div>
             );
           })}
-      </div>
+      </nav>
     );
   }
 );
@@ -125,6 +142,7 @@ const getStyles = (theme: GrafanaTheme2) => {
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
+    margin: 0;
     max-width: 240px;
     border-radius: 2px;
 

@@ -1,19 +1,20 @@
 import React from 'react';
-import { BucketAggregationEditor } from './BucketAggregationEditor';
+
 import { useDispatch } from '../../../hooks/useStatelessReducer';
-import { addBucketAggregation, removeBucketAggregation } from './state/actions';
-import { BucketAggregationAction } from './state/types';
-import { BucketAggregation } from './aggregations';
+import { IconButton } from '../../IconButton';
 import { useQuery } from '../ElasticsearchQueryContext';
 import { QueryEditorRow } from '../QueryEditorRow';
-import { IconButton } from '../../IconButton';
+
+import { BucketAggregationEditor } from './BucketAggregationEditor';
+import { BucketAggregation } from './aggregations';
+import { addBucketAggregation, removeBucketAggregation } from './state/actions';
 
 interface Props {
   nextId: BucketAggregation['id'];
 }
 
 export const BucketAggregationsEditor = ({ nextId }: Props) => {
-  const dispatch = useDispatch<BucketAggregationAction>();
+  const dispatch = useDispatch();
   const { bucketAggs } = useQuery();
   const totalBucketAggs = bucketAggs?.length || 0;
 

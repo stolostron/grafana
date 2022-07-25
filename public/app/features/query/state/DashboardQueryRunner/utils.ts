@@ -1,11 +1,13 @@
 import { cloneDeep } from 'lodash';
 import { Observable, of } from 'rxjs';
-import { AnnotationEvent, AnnotationQuery, DataFrame, DataFrameView } from '@grafana/data';
-import { config, toDataQueryError } from '@grafana/runtime';
 
+import { AnnotationEvent, AnnotationQuery, DataFrame, DataFrameView, DataSourceApi } from '@grafana/data';
+import { config, toDataQueryError } from '@grafana/runtime';
 import { dispatch } from 'app/store/store';
+
 import { createErrorNotification } from '../../../../core/copy/appNotification';
 import { notifyApp } from '../../../../core/reducers/appNotification';
+
 import { DashboardQueryRunnerWorkerResult } from './types';
 
 export function handleAnnotationQueryRunnerError(err: any): Observable<AnnotationEvent[]> {
@@ -15,6 +17,11 @@ export function handleAnnotationQueryRunnerError(err: any): Observable<Annotatio
 
   notifyWithError('AnnotationQueryRunner failed', err);
   return of([]);
+}
+
+export function handleDatasourceSrvError(err: any): Observable<DataSourceApi | undefined> {
+  notifyWithError('Failed to retrieve datasource', err);
+  return of(undefined);
 }
 
 export const emptyResult: () => Observable<DashboardQueryRunnerWorkerResult> = () =>

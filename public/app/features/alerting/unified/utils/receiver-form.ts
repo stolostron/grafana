@@ -1,4 +1,5 @@
-import { isArray } from 'angular';
+import { isArray } from 'lodash';
+
 import {
   AlertManagerCortexConfig,
   GrafanaManagedReceiverConfig,
@@ -6,6 +7,7 @@ import {
   Route,
 } from 'app/plugins/datasource/alertmanager/types';
 import { CloudNotifierType, NotifierDTO, NotifierType } from 'app/types';
+
 import {
   CloudChannelConfig,
   CloudChannelMap,
@@ -207,7 +209,7 @@ function grafanaChannelConfigToFormChannelValues(
   return values;
 }
 
-function formChannelValuesToGrafanaChannelConfig(
+export function formChannelValuesToGrafanaChannelConfig(
   values: GrafanaChannelValues,
   defaults: GrafanaChannelValues,
   name: string,

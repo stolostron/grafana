@@ -1,9 +1,15 @@
-+++
-title = "User HTTP API "
-description = "Grafana User HTTP API"
-keywords = ["grafana", "http", "documentation", "api", "user"]
-aliases = ["/docs/grafana/latest/http_api/user/"]
-+++
+---
+aliases:
+  - /docs/grafana/latest/http_api/user/
+description: Grafana User HTTP API
+keywords:
+  - grafana
+  - http
+  - documentation
+  - api
+  - user
+title: 'User HTTP API '
+---
 
 # User API
 
@@ -20,7 +26,7 @@ See note in the [introduction]({{< ref "#user-api" >}}) for an explanation.
 
 | Action     | Scope           |
 | ---------- | --------------- |
-| users:read | global:users:\* |
+| users:read | global.users:\* |
 
 **Example Request**:
 
@@ -75,7 +81,7 @@ See note in the [introduction]({{< ref "#user-api" >}}) for an explanation.
 
 | Action     | Scope           |
 | ---------- | --------------- |
-| users:read | global:users:\* |
+| users:read | global.users:\* |
 
 **Example Request**:
 
@@ -182,7 +188,7 @@ See note in the [introduction]({{< ref "#user-api" >}}) for an explanation.
 
 | Action     | Scope           |
 | ---------- | --------------- |
-| users:read | global:users:\* |
+| users:read | global.users:\* |
 
 **Example Request using the email as option**:
 

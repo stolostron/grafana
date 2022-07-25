@@ -1,9 +1,15 @@
-+++
-title = "Configure Grafana Live"
-description = "Grafana Live configuration guide"
-keywords = ["Grafana", "live", "guide", "websocket"]
-weight = 120
-+++
+---
+aliases:
+  - /docs/grafana/latest/live/configure-grafana-live/
+description: Grafana Live configuration guide
+keywords:
+  - Grafana
+  - live
+  - guide
+  - websocket
+title: Configure Grafana Live
+weight: 120
+---
 
 # Configure Grafana Live
 
@@ -93,7 +99,7 @@ http {
         location / {
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "Upgrade";
+            proxy_set_header Connection $connection_upgrade;
             proxy_set_header Host $http_host;
             proxy_pass http://grafana;
         }

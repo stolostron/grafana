@@ -1,5 +1,6 @@
 import { isArray, reduce } from 'lodash';
-import { QueryPartDef, QueryPart } from 'app/core/components/query_part/query_part';
+
+import { QueryPartDef, QueryPart } from 'app/features/alerting/state/query_part';
 
 const alertQueryDef = new QueryPartDef({
   type: 'query',
@@ -81,7 +82,10 @@ function createReducerPart(model: any) {
 }
 
 function getStateDisplayModel(state: string) {
-  switch (state) {
+  const normalizedState = state.toLowerCase().replace(/_/g, '');
+
+  switch (normalizedState) {
+    case 'normal':
     case 'ok': {
       return {
         text: 'OK',
@@ -96,7 +100,7 @@ function getStateDisplayModel(state: string) {
         stateClass: 'alert-state-critical',
       };
     }
-    case 'no_data': {
+    case 'nodata': {
       return {
         text: 'NO DATA',
         iconClass: 'question-circle',
@@ -121,7 +125,7 @@ function getStateDisplayModel(state: string) {
       return {
         text: 'UNKNOWN',
         iconClass: 'question-circle',
-        stateClass: 'alert-state-paused',
+        stateClass: '.alert-state-paused',
       };
     }
 
@@ -138,6 +142,14 @@ function getStateDisplayModel(state: string) {
         text: 'INACTIVE',
         iconClass: 'check',
         stateClass: '',
+      };
+    }
+
+    case 'error': {
+      return {
+        text: 'ERROR',
+        iconClass: 'heart-break',
+        stateClass: 'alert-state-critical',
       };
     }
   }

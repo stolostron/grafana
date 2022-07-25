@@ -1,8 +1,10 @@
-import React from 'react';
-import { GrafanaTheme2 } from '@grafana/data';
-import { ColorPicker } from '../ColorPicker/ColorPicker';
-import { useTheme2, useStyles2 } from '../../themes';
 import { css } from '@emotion/css';
+import React from 'react';
+
+import { GrafanaTheme2 } from '@grafana/data';
+
+import { useTheme2, useStyles2 } from '../../themes';
+import { ColorPicker } from '../ColorPicker/ColorPicker';
 import { ColorSwatch } from '../ColorPicker/ColorSwatch';
 
 /**
@@ -24,7 +26,7 @@ export const ColorValueEditor: React.FC<ColorValueEditorProps> = ({ value, onCha
     <ColorPicker color={value ?? ''} onChange={onChange} enableNamedColors={true}>
       {({ ref, showColorPicker, hideColorPicker }) => {
         return (
-          <div className={styles.spot} onBlur={hideColorPicker}>
+          <div className={styles.spot}>
             <div className={styles.colorPicker}>
               <ColorSwatch
                 ref={ref}
