@@ -15,7 +15,10 @@ COPY scripts scripts
 COPY cue.mod cue.mod
 COPY .bingo .bingo
 
-RUN go run build.go build
+RUN go mod verify
+RUN make build-go
+
+#RUN go run build.go build
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
 RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-server \
