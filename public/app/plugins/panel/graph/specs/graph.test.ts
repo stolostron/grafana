@@ -1,20 +1,19 @@
-import { GraphCtrl } from '../module';
-import { MetricsPanelCtrl } from 'app/features/panel/metrics_panel_ctrl';
-import { PanelCtrl } from 'app/features/panel/panel_ctrl';
-import config from 'app/core/config';
-
-import TimeSeries from 'app/core/time_series2';
 import $ from 'jquery';
-import { graphDirective, GraphElement } from '../graph';
-import { dateTime, EventBusSrv } from '@grafana/data';
-import { DashboardModel } from '../../../../features/dashboard/state';
 
-jest.mock('app/features/annotations/all', () => ({
-  EventManager: () => {
-    return {
-      on: () => {},
-      addFlotEvents: () => {},
-    };
+import { dateTime, EventBusSrv } from '@grafana/data';
+import { MetricsPanelCtrl } from 'app/angular/panel/metrics_panel_ctrl';
+import { PanelCtrl } from 'app/angular/panel/panel_ctrl';
+import config from 'app/core/config';
+import TimeSeries from 'app/core/time_series2';
+
+import { DashboardModel } from '../../../../features/dashboard/state';
+import { graphDirective, GraphElement } from '../graph';
+import { GraphCtrl } from '../module';
+
+jest.mock('../event_manager', () => ({
+  EventManager: class EventManagerMock {
+    on() {}
+    addFlotEvents() {}
   },
 }));
 
@@ -23,6 +22,7 @@ jest.mock('app/core/core', () => ({
     directive: () => {},
   },
   appEvents: {
+    subscribe: () => {},
     on: () => {},
   },
 }));
@@ -45,8 +45,8 @@ describe('grafanaGraph', () => {
       user: {
         lightTheme: false,
       },
-    };
-    GraphCtrl.prototype = {
+    } as any;
+    Object.assign(GraphCtrl.prototype, {
       ...MetricsPanelCtrl.prototype,
       ...PanelCtrl.prototype,
       ...GraphCtrl.prototype,
@@ -95,7 +95,7 @@ describe('grafanaGraph', () => {
       annotationsSrv: {
         getAnnotations: () => Promise.resolve({}),
       },
-    } as any;
+    }) as any;
 
     ctx.data = [];
     ctx.data.push(

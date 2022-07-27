@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { connect, ConnectedProps } from 'react-redux';
+
 import { TimeZone } from '@grafana/data';
-import { CollapsableSection, Field, Input, RadioButtonGroup, TagsInput } from '@grafana/ui';
 import { selectors } from '@grafana/e2e-selectors';
+import { config } from '@grafana/runtime';
+import { CollapsableSection, Field, Input, RadioButtonGroup, TagsInput } from '@grafana/ui';
 import { FolderPicker } from 'app/core/components/Select/FolderPicker';
+import { updateTimeZoneDashboard, updateWeekStartDashboard } from 'app/features/dashboard/state/actions';
+
 import { DashboardModel } from '../../state/DashboardModel';
 import { DeleteDashboardButton } from '../DeleteDashboard/DeleteDashboardButton';
-import { TimePickerSettings } from './TimePickerSettings';
 
-import { updateTimeZoneDashboard } from 'app/features/dashboard/state/actions';
+import { PreviewSettings } from './PreviewSettings';
+import { TimePickerSettings } from './TimePickerSettings';
 
 interface OwnProps {
   dashboard: DashboardModel;
@@ -22,7 +26,7 @@ const GRAPH_TOOLTIP_OPTIONS = [
   { value: 2, label: 'Shared Tooltip' },
 ];
 
-export function GeneralSettingsUnconnected({ dashboard, updateTimeZone }: Props): JSX.Element {
+export function GeneralSettingsUnconnected({ dashboard, updateTimeZone, updateWeekStart }: Props): JSX.Element {
   const [renderCounter, setRenderCounter] = useState(0);
 
   const onFolderChange = (folder: { id: number; title: string }) => {
@@ -53,10 +57,21 @@ export function GeneralSettingsUnconnected({ dashboard, updateTimeZone }: Props)
     setRenderCounter(renderCounter + 1);
   };
 
+  const onLiveNowChange = (v: boolean) => {
+    dashboard.liveNow = v;
+    setRenderCounter(renderCounter + 1);
+  };
+
   const onTimeZoneChange = (timeZone: TimeZone) => {
     dashboard.timezone = timeZone;
     setRenderCounter(renderCounter + 1);
     updateTimeZone(timeZone);
+  };
+
+  const onWeekStartChange = (weekStart: string) => {
+    dashboard.weekStart = weekStart;
+    setRenderCounter(renderCounter + 1);
+    updateWeekStart(weekStart);
   };
 
   const onTagsChange = (tags: string[]) => {
@@ -81,16 +96,17 @@ export function GeneralSettingsUnconnected({ dashboard, updateTimeZone }: Props)
       </h3>
       <div className="gf-form-group">
         <Field label="Name">
-          <Input name="title" onBlur={onBlur} defaultValue={dashboard.title} />
+          <Input id="title-input" name="title" onBlur={onBlur} defaultValue={dashboard.title} />
         </Field>
         <Field label="Description">
-          <Input name="description" onBlur={onBlur} defaultValue={dashboard.description} />
+          <Input id="description-input" name="description" onBlur={onBlur} defaultValue={dashboard.description} />
         </Field>
         <Field label="Tags">
-          <TagsInput tags={dashboard.tags} onChange={onTagsChange} />
+          <TagsInput id="tags-input" tags={dashboard.tags} onChange={onTagsChange} />
         </Field>
         <Field label="Folder">
           <FolderPicker
+            inputId="dashboard-folder-input"
             initialTitle={dashboard.meta.folderTitle}
             initialFolderId={dashboard.meta.folderId}
             onChange={onFolderChange}
@@ -108,15 +124,23 @@ export function GeneralSettingsUnconnected({ dashboard, updateTimeZone }: Props)
         </Field>
       </div>
 
+      {config.featureToggles.dashboardPreviews && config.featureToggles.dashboardPreviewsAdmin && (
+        <PreviewSettings uid={dashboard.uid} />
+      )}
+
       <TimePickerSettings
         onTimeZoneChange={onTimeZoneChange}
+        onWeekStartChange={onWeekStartChange}
         onRefreshIntervalChange={onRefreshIntervalChange}
         onNowDelayChange={onNowDelayChange}
         onHideTimePickerChange={onHideTimePickerChange}
+        onLiveNowChange={onLiveNowChange}
         refreshIntervals={dashboard.timepicker.refresh_intervals}
         timePickerHidden={dashboard.timepicker.hidden}
         nowDelay={dashboard.timepicker.nowDelay}
         timezone={dashboard.timezone}
+        weekStart={dashboard.weekStart}
+        liveNow={dashboard.liveNow}
       />
 
       <CollapsableSection label="Panel options" isOpen={true}>
@@ -129,7 +153,7 @@ export function GeneralSettingsUnconnected({ dashboard, updateTimeZone }: Props)
       </CollapsableSection>
 
       <div className="gf-form-button-row">
-        {dashboard.meta.canSave && <DeleteDashboardButton dashboard={dashboard} />}
+        {dashboard.meta.canDelete && <DeleteDashboardButton dashboard={dashboard} />}
       </div>
     </div>
   );
@@ -137,6 +161,7 @@ export function GeneralSettingsUnconnected({ dashboard, updateTimeZone }: Props)
 
 const mapDispatchToProps = {
   updateTimeZone: updateTimeZoneDashboard,
+  updateWeekStart: updateWeekStartDashboard,
 };
 
 const connector = connect(null, mapDispatchToProps);

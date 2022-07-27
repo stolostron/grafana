@@ -1,10 +1,19 @@
-import React from 'react';
 import { shallow } from 'enzyme';
+import React from 'react';
+
 import { DataSourceSettings, NavModel, LayoutModes } from '@grafana/data';
 
 import { DataSourcesListPage, Props } from './DataSourcesListPage';
 import { getMockDataSources } from './__mocks__/dataSourcesMocks';
 import { setDataSourcesLayoutMode, setDataSourcesSearchQuery } from './state/reducers';
+
+jest.mock('app/core/core', () => {
+  return {
+    contextSrv: {
+      hasPermission: () => true,
+    },
+  };
+});
 
 const setup = (propOverrides?: object) => {
   const props: Props = {

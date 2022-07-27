@@ -1,14 +1,13 @@
-import React from 'react';
-import { InlineField, Select, Input } from '@grafana/ui';
-import { Terms } from '../aggregations';
-import { useDispatch } from '../../../../hooks/useStatelessReducer';
-import { inlineFieldProps } from '.';
-import { bucketAggregationConfig, orderByOptions, orderOptions, sizeOptions } from '../utils';
-import { useCreatableSelectPersistedBehaviour } from '../../../hooks/useCreatableSelectPersistedBehaviour';
-import { changeBucketAggregationSetting } from '../state/actions';
-import { useQuery } from '../../ElasticsearchQueryContext';
+import { uniqueId } from 'lodash';
+import React, { useRef } from 'react';
+
 import { SelectableValue } from '@grafana/data';
+import { InlineField, Select, Input } from '@grafana/ui';
+
+import { useDispatch } from '../../../../hooks/useStatelessReducer';
 import { describeMetric } from '../../../../utils';
+import { useCreatableSelectPersistedBehaviour } from '../../../hooks/useCreatableSelectPersistedBehaviour';
+import { useQuery } from '../../ElasticsearchQueryContext';
 import {
   ExtendedStatMetaType,
   ExtendedStats,
@@ -16,7 +15,11 @@ import {
   MetricAggregation,
   Percentiles,
 } from '../../MetricAggregationsEditor/aggregations';
-import { uniqueId } from 'lodash';
+import { Terms } from '../aggregations';
+import { changeBucketAggregationSetting } from '../state/actions';
+import { bucketAggregationConfig, orderByOptions, orderOptions, sizeOptions } from '../utils';
+
+import { inlineFieldProps } from '.';
 
 interface Props {
   bucketAgg: Terms;
@@ -25,6 +28,7 @@ interface Props {
 export const TermsSettingsEditor = ({ bucketAgg }: Props) => {
   const { metrics } = useQuery();
   const orderBy = createOrderByOptions(metrics);
+  const { current: baseId } = useRef(uniqueId('es-terms-'));
 
   const dispatch = useDispatch();
 
@@ -32,8 +36,11 @@ export const TermsSettingsEditor = ({ bucketAgg }: Props) => {
     <>
       <InlineField label="Order" {...inlineFieldProps}>
         <Select
+          inputId={`${baseId}-order`}
           menuShouldPortal
-          onChange={(e) => dispatch(changeBucketAggregationSetting(bucketAgg, 'order', e.value!))}
+          onChange={(e) =>
+            dispatch(changeBucketAggregationSetting({ bucketAgg, settingName: 'order', newValue: e.value }))
+          }
           options={orderOptions}
           value={bucketAgg.settings?.order || bucketAggregationConfig.terms.defaultSettings?.order}
         />
@@ -41,13 +48,14 @@ export const TermsSettingsEditor = ({ bucketAgg }: Props) => {
 
       <InlineField label="Size" {...inlineFieldProps}>
         <Select
+          inputId={`${baseId}-size`}
           menuShouldPortal
           // TODO: isValidNewOption should only allow numbers & template variables
           {...useCreatableSelectPersistedBehaviour({
             options: sizeOptions,
             value: bucketAgg.settings?.size || bucketAggregationConfig.terms.defaultSettings?.size,
-            onChange(value) {
-              dispatch(changeBucketAggregationSetting(bucketAgg, 'size', value));
+            onChange({ value }) {
+              dispatch(changeBucketAggregationSetting({ bucketAgg, settingName: 'size', newValue: value }));
             },
           })}
         />
@@ -55,7 +63,12 @@ export const TermsSettingsEditor = ({ bucketAgg }: Props) => {
 
       <InlineField label="Min Doc Count" {...inlineFieldProps}>
         <Input
-          onBlur={(e) => dispatch(changeBucketAggregationSetting(bucketAgg, 'min_doc_count', e.target.value!))}
+          id={`${baseId}-min_doc_count`}
+          onBlur={(e) =>
+            dispatch(
+              changeBucketAggregationSetting({ bucketAgg, settingName: 'min_doc_count', newValue: e.target.value })
+            )
+          }
           defaultValue={
             bucketAgg.settings?.min_doc_count || bucketAggregationConfig.terms.defaultSettings?.min_doc_count
           }
@@ -64,9 +77,11 @@ export const TermsSettingsEditor = ({ bucketAgg }: Props) => {
 
       <InlineField label="Order By" {...inlineFieldProps}>
         <Select
-          inputId={uniqueId('es-terms-')}
+          inputId={`${baseId}-order_by`}
           menuShouldPortal
-          onChange={(e) => dispatch(changeBucketAggregationSetting(bucketAgg, 'orderBy', e.value!))}
+          onChange={(e) =>
+            dispatch(changeBucketAggregationSetting({ bucketAgg, settingName: 'orderBy', newValue: e.value }))
+          }
           options={orderBy}
           value={bucketAgg.settings?.orderBy || bucketAggregationConfig.terms.defaultSettings?.orderBy}
         />
@@ -74,7 +89,10 @@ export const TermsSettingsEditor = ({ bucketAgg }: Props) => {
 
       <InlineField label="Missing" {...inlineFieldProps}>
         <Input
-          onBlur={(e) => dispatch(changeBucketAggregationSetting(bucketAgg, 'missing', e.target.value!))}
+          id={`${baseId}-missing`}
+          onBlur={(e) =>
+            dispatch(changeBucketAggregationSetting({ bucketAgg, settingName: 'missing', newValue: e.target.value }))
+          }
           defaultValue={bucketAgg.settings?.missing || bucketAggregationConfig.terms.defaultSettings?.missing}
         />
       </InlineField>

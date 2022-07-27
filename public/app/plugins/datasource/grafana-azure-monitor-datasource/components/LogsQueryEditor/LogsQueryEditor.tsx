@@ -1,9 +1,12 @@
 import React from 'react';
-import { AzureMonitorErrorish, AzureMonitorOption, AzureMonitorQuery } from '../../types';
-import Datasource from '../../datasource';
+
 import { Alert, InlineFieldRow } from '@grafana/ui';
-import QueryField from './QueryField';
+
+import Datasource from '../../datasource';
+import { AzureMonitorErrorish, AzureMonitorOption, AzureMonitorQuery } from '../../types';
+
 import FormatAsField from './FormatAsField';
+import QueryField from './QueryField';
 import ResourceField from './ResourceField';
 import useMigrations from './useMigrations';
 
@@ -14,6 +17,7 @@ interface LogsQueryEditorProps {
   onChange: (newQuery: AzureMonitorQuery) => void;
   variableOptionGroup: { label: string; options: AzureMonitorOption[] };
   setError: (source: string, error: AzureMonitorErrorish | undefined) => void;
+  hideFormatAs?: boolean;
 }
 
 const LogsQueryEditor: React.FC<LogsQueryEditorProps> = ({
@@ -23,6 +27,7 @@ const LogsQueryEditor: React.FC<LogsQueryEditorProps> = ({
   variableOptionGroup,
   onChange,
   setError,
+  hideFormatAs,
 }) => {
   const migrationError = useMigrations(datasource, query, onChange);
 
@@ -48,14 +53,16 @@ const LogsQueryEditor: React.FC<LogsQueryEditorProps> = ({
         setError={setError}
       />
 
-      <FormatAsField
-        query={query}
-        datasource={datasource}
-        subscriptionId={subscriptionId}
-        variableOptionGroup={variableOptionGroup}
-        onQueryChange={onChange}
-        setError={setError}
-      />
+      {!hideFormatAs && (
+        <FormatAsField
+          query={query}
+          datasource={datasource}
+          subscriptionId={subscriptionId}
+          variableOptionGroup={variableOptionGroup}
+          onQueryChange={onChange}
+          setError={setError}
+        />
+      )}
 
       {migrationError && <Alert title={migrationError.title}>{migrationError.message}</Alert>}
     </div>

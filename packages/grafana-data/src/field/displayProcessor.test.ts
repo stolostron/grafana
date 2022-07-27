@@ -1,9 +1,10 @@
-import { getDisplayProcessor, getRawDisplayProcessor } from './displayProcessor';
-import { DisplayProcessor, DisplayValue } from '../types/displayValue';
-import { MappingType, ValueMapping } from '../types/valueMapping';
-import { FieldConfig, FieldType, ThresholdsMode } from '../types';
 import { systemDateFormats } from '../datetime';
 import { createTheme } from '../themes';
+import { FieldConfig, FieldType, ThresholdsMode } from '../types';
+import { DisplayProcessor, DisplayValue } from '../types/displayValue';
+import { MappingType, ValueMapping } from '../types/valueMapping';
+
+import { getDisplayProcessor, getRawDisplayProcessor } from './displayProcessor';
 
 function getDisplayProcessorFromConfig(config: FieldConfig) {
   return getDisplayProcessor({
@@ -70,11 +71,11 @@ describe('Process simple display values', () => {
   });
 
   it('array of text', () => {
-    assertSame(['a', 'b', 'c'], processors, { text: 'a,b,c', numeric: NaN });
+    assertSame(['a', 'b', 'c'], processors, { text: 'a, b, c', numeric: NaN });
   });
 
   it('array of numbers', () => {
-    assertSame([1, 2, 3], processors, { text: '1,2,3', numeric: NaN });
+    assertSame([1, 2, 3], processors, { text: '1, 2, 3', numeric: NaN });
   });
 
   it('empty object', () => {
@@ -145,6 +146,39 @@ describe('Format value', () => {
     expect(result.text).toEqual('10.0');
   });
 
+  it('should return icon value if there are matching value mappings', () => {
+    const valueMappings: ValueMapping[] = [
+      { type: MappingType.ValueToText, options: { '11': { text: 'elva', icon: 'windmill.svg' } } },
+    ];
+
+    const display = getDisplayProcessorFromConfig({ decimals: 1, mappings: valueMappings });
+    const result = display('11');
+
+    expect(result.icon).toEqual('windmill.svg');
+  });
+
+  it('should return icon value if there are matching value mappings in a range', () => {
+    const valueMappings: ValueMapping[] = [
+      { type: MappingType.RangeToText, options: { from: 1, to: 9, result: { text: '1-9', icon: 'drone.svg' } } },
+    ];
+
+    const display = getDisplayProcessorFromConfig({ decimals: 1, mappings: valueMappings });
+    const result = display('8');
+
+    expect(result.icon).toEqual('drone.svg');
+  });
+
+  it('should return undefined icon value if there are no matching value mappings in a range', () => {
+    const valueMappings: ValueMapping[] = [
+      { type: MappingType.ValueToText, options: { '11': { text: 'elva', icon: 'windmill.svg' } } },
+    ];
+
+    const display = getDisplayProcessorFromConfig({ decimals: 1, mappings: valueMappings });
+    const result = display('10');
+
+    expect(result.icon).toEqual(undefined);
+  });
+
   it('should return mapped value if there are matching value mappings', () => {
     const valueMappings: ValueMapping[] = [
       { type: MappingType.ValueToText, options: { '11': { text: 'elva' } } },
@@ -155,6 +189,62 @@ describe('Format value', () => {
     const result = instance('11');
 
     expect(result.text).toEqual('elva');
+  });
+
+  it('should return mapped color but use value format if no value mapping text specified', () => {
+    const valueMappings: ValueMapping[] = [
+      { type: MappingType.RangeToText, options: { from: 1, to: 9, result: { color: '#FFF' } } },
+    ];
+
+    const instance = getDisplayProcessorFromConfig({ decimals: 2, mappings: valueMappings });
+    const result = instance(5);
+
+    expect(result.color).toEqual('#FFF');
+    expect(result.text).toEqual('5.00');
+  });
+
+  it('should replace a matching regex', () => {
+    const valueMappings: ValueMapping[] = [
+      { type: MappingType.RegexToText, options: { pattern: '([^.]*).example.com', result: { text: '$1' } } },
+    ];
+
+    const instance = getDisplayProcessorFromConfig({ decimals: 1, mappings: valueMappings });
+    const result = instance('hostname.example.com');
+
+    expect(result.text).toEqual('hostname');
+  });
+
+  it('should not replace a non-matching regex', () => {
+    const valueMappings: ValueMapping[] = [
+      { type: MappingType.RegexToText, options: { pattern: '([^.]*).example.com', result: { text: '$1' } } },
+    ];
+
+    const instance = getDisplayProcessorFromConfig({ decimals: 1, mappings: valueMappings });
+    const result = instance('hostname.acme.com');
+
+    expect(result.text).toEqual('hostname.acme.com');
+  });
+
+  it('should empty a matching regex without replacement', () => {
+    const valueMappings: ValueMapping[] = [
+      { type: MappingType.RegexToText, options: { pattern: '([^.]*).example.com', result: { text: '' } } },
+    ];
+
+    const instance = getDisplayProcessorFromConfig({ decimals: 1, mappings: valueMappings });
+    const result = instance('hostname.example.com');
+
+    expect(result.text).toEqual('');
+  });
+
+  it('should not empty a non-matching regex', () => {
+    const valueMappings: ValueMapping[] = [
+      { type: MappingType.RegexToText, options: { pattern: '([^.]*).example.com', result: { text: '' } } },
+    ];
+
+    const instance = getDisplayProcessorFromConfig({ decimals: 1, mappings: valueMappings });
+    const result = instance('hostname.acme.com');
+
+    expect(result.text).toEqual('hostname.acme.com');
   });
 
   it('should return value with color if mapping has color', () => {
@@ -325,6 +415,46 @@ describe('Date display options', () => {
     expect(processor('2020-08-01T08:48:43.783337Z').text).toEqual('2020-08-01 08:48:43');
   });
 
+  it('should handle ISO string dates when in other timezones than UTC', () => {
+    const processor = getDisplayProcessor({
+      timeZone: 'CET',
+      field: {
+        type: FieldType.time,
+        config: {},
+      },
+      theme: createTheme(),
+    });
+
+    expect(processor('2020-08-01T08:48:43.783337Z').text).toEqual('2020-08-01 10:48:43'); //DST
+    expect(processor('2020-12-01T08:48:43.783337Z').text).toEqual('2020-12-01 09:48:43'); //STD
+  });
+
+  it('should handle ISO string dates with timezone offset', () => {
+    const processor = getDisplayProcessor({
+      timeZone: 'utc',
+      field: {
+        type: FieldType.time,
+        config: {},
+      },
+      theme: createTheme(),
+    });
+
+    expect(processor('2020-12-01T08:48:43.783337+02:00').text).toEqual('2020-12-01 06:48:43');
+  });
+
+  it('should handle ISO string dates without timezone qualifier by assuming UTC', () => {
+    const processor = getDisplayProcessor({
+      timeZone: 'CET',
+      field: {
+        type: FieldType.time,
+        config: {},
+      },
+      theme: createTheme(),
+    });
+
+    expect(processor('2020-12-01T08:48:43.783337').text).toEqual('2020-12-01 09:48:43');
+  });
+
   describe('number formatting for string values', () => {
     it('should preserve string unchanged if unit is strings', () => {
       const processor = getDisplayProcessor({
@@ -371,7 +501,7 @@ describe('getRawDisplayProcessor', () => {
     ${'a string'}                     | ${'a string'}
     ${null}                           | ${'null'}
     ${undefined}                      | ${'undefined'}
-    ${{ value: 0, label: 'a label' }} | ${'[object Object]'}
+    ${{ value: 0, label: 'a label' }} | ${'{"value":0,"label":"a label"}'}
   `('when called with value:{$value}', ({ value, expected }) => {
     const result = processor(value);
 

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+
+import { arrayUtils } from '@grafana/data';
 import { DeleteButton, HorizontalGroup, Icon, IconButton, TagList } from '@grafana/ui';
 import EmptyListCTA from 'app/core/components/EmptyListCTA/EmptyListCTA';
+
 import { DashboardModel, DashboardLink } from '../../state/DashboardModel';
 import { ListNewButton } from '../DashboardSettings/ListNewButton';
-import { arrayUtils } from '@grafana/data';
 
 type LinkSettingsListProps = {
   dashboard: DashboardModel;
@@ -94,7 +96,11 @@ export const LinkSettingsList: React.FC<LinkSettingsListProps> = ({ dashboard, o
                 <IconButton surface="header" aria-label="copy" name="copy" onClick={() => duplicateLink(link, idx)} />
               </td>
               <td style={{ width: '1%' }}>
-                <DeleteButton size="sm" onConfirm={() => deleteLink(idx)} />
+                <DeleteButton
+                  aria-label={`Delete link with title "${link.title}"`}
+                  size="sm"
+                  onConfirm={() => deleteLink(idx)}
+                />
               </td>
             </tr>
           ))}

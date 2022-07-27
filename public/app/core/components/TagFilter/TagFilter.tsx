@@ -1,12 +1,15 @@
 // Libraries
-import React, { FC } from 'react';
 import { css } from '@emotion/css';
+import debounce from 'debounce-promise';
+import React, { FC } from 'react';
 import { components } from 'react-select';
-import { stylesFactory, useTheme, resetSelectStyles, Icon, AsyncMultiSelect } from '@grafana/ui';
+
 import { escapeStringForRegex, GrafanaTheme } from '@grafana/data';
+import { stylesFactory, useTheme, Icon, AsyncMultiSelect } from '@grafana/ui';
+
 // Components
-import { TagOption } from './TagOption';
 import { TagBadge } from './TagBadge';
+import { TagOption } from './TagOption';
 
 export interface TermCount {
   term: string;
@@ -47,15 +50,16 @@ export const TagFilter: FC<Props> = ({
   const theme = useTheme();
   const styles = getStyles(theme);
 
-  const onLoadOptions = (query: string) => {
-    return tagOptions().then((options) => {
-      return options.map((option) => ({
-        value: option.term,
-        label: option.term,
-        count: option.count,
-      }));
-    });
+  const onLoadOptions = async (query: string) => {
+    const options = await tagOptions();
+    return options.map((option) => ({
+      value: option.term,
+      label: option.term,
+      count: option.count,
+    }));
   };
+
+  const debouncedLoadOptions = debounce(onLoadOptions, 300);
 
   const onTagChange = (newTags: any[]) => {
     // On remove with 1 item returns null, so we need to make sure it's an empty array in that case
@@ -66,6 +70,7 @@ export const TagFilter: FC<Props> = ({
   const value = tags.map((tag) => ({ value: tag, label: tag, count: 0 }));
 
   const selectOptions = {
+    allowCreateWhileLoading: true,
     allowCustomValue,
     formatCreateLabel,
     defaultOptions: true,
@@ -74,12 +79,11 @@ export const TagFilter: FC<Props> = ({
     getOptionValue: (i: any) => i.value,
     inputId,
     isMulti: true,
-    loadOptions: onLoadOptions,
+    loadOptions: debouncedLoadOptions,
     loadingMessage: 'Loading...',
     noOptionsMessage: 'No tags found',
     onChange: onTagChange,
     placeholder,
-    styles: resetSelectStyles(),
     value,
     width,
     components: {

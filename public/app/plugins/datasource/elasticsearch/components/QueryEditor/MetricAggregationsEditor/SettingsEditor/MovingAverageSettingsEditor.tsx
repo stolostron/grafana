@@ -1,9 +1,13 @@
+import { uniqueId } from 'lodash';
+import React, { useRef } from 'react';
+
 import { Input, InlineField, Select, InlineSwitch } from '@grafana/ui';
-import React from 'react';
+
 import { useDispatch } from '../../../../hooks/useStatelessReducer';
 import { movingAvgModelOptions } from '../../../../query_def';
 import { isEWMAMovingAverage, isHoltMovingAverage, isHoltWintersMovingAverage, MovingAverage } from '../aggregations';
 import { changeMetricSetting } from '../state/actions';
+
 import { SettingField } from './SettingField';
 
 interface Props {
@@ -15,13 +19,15 @@ interface Props {
 // as they might be incompatible. We should clear all other options on model change.
 export const MovingAverageSettingsEditor = ({ metric }: Props) => {
   const dispatch = useDispatch();
+  const { current: baseId } = useRef(uniqueId('es-moving-avg-'));
 
   return (
     <>
       <InlineField label="Model" labelWidth={16}>
         <Select
+          inputId={`${baseId}-model`}
           menuShouldPortal
-          onChange={(value) => dispatch(changeMetricSetting(metric, 'model', value.value!))}
+          onChange={(value) => dispatch(changeMetricSetting({ metric, settingName: 'model', newValue: value.value }))}
           options={movingAvgModelOptions}
           value={metric.settings?.model}
         />
@@ -34,11 +40,16 @@ export const MovingAverageSettingsEditor = ({ metric }: Props) => {
       {(isEWMAMovingAverage(metric) || isHoltMovingAverage(metric) || isHoltWintersMovingAverage(metric)) && (
         <InlineField label="Alpha" labelWidth={16}>
           <Input
+            id={`${baseId}-alpha`}
             onBlur={(e) =>
               dispatch(
-                changeMetricSetting(metric, 'settings', {
-                  ...metric.settings?.settings,
-                  alpha: e.target.value,
+                changeMetricSetting({
+                  metric,
+                  settingName: 'settings',
+                  newValue: {
+                    ...metric.settings?.settings,
+                    alpha: e.target.value,
+                  },
                 })
               )
             }
@@ -50,11 +61,16 @@ export const MovingAverageSettingsEditor = ({ metric }: Props) => {
       {(isHoltMovingAverage(metric) || isHoltWintersMovingAverage(metric)) && (
         <InlineField label="Beta" labelWidth={16}>
           <Input
+            id={`${baseId}-beta`}
             onBlur={(e) =>
               dispatch(
-                changeMetricSetting(metric, 'settings', {
-                  ...metric.settings?.settings,
-                  beta: e.target.value,
+                changeMetricSetting({
+                  metric,
+                  settingName: 'settings',
+                  newValue: {
+                    ...metric.settings?.settings,
+                    beta: e.target.value,
+                  },
                 })
               )
             }
@@ -67,11 +83,16 @@ export const MovingAverageSettingsEditor = ({ metric }: Props) => {
         <>
           <InlineField label="Gamma" labelWidth={16}>
             <Input
+              id={`${baseId}-gamma`}
               onBlur={(e) =>
                 dispatch(
-                  changeMetricSetting(metric, 'settings', {
-                    ...metric.settings?.settings,
-                    gamma: e.target.value,
+                  changeMetricSetting({
+                    metric,
+                    settingName: 'settings',
+                    newValue: {
+                      ...metric.settings?.settings,
+                      gamma: e.target.value,
+                    },
                   })
                 )
               }
@@ -80,11 +101,16 @@ export const MovingAverageSettingsEditor = ({ metric }: Props) => {
           </InlineField>
           <InlineField label="Period" labelWidth={16}>
             <Input
+              id={`${baseId}-period`}
               onBlur={(e) =>
                 dispatch(
-                  changeMetricSetting(metric, 'settings', {
-                    ...metric.settings?.settings,
-                    period: e.target.value!,
+                  changeMetricSetting({
+                    metric,
+                    settingName: 'settings',
+                    newValue: {
+                      ...metric.settings?.settings,
+                      period: e.target.value!,
+                    },
                   })
                 )
               }
@@ -94,9 +120,14 @@ export const MovingAverageSettingsEditor = ({ metric }: Props) => {
 
           <InlineField label="Pad" labelWidth={16}>
             <InlineSwitch
+              id={`${baseId}-pad`}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 dispatch(
-                  changeMetricSetting(metric, 'settings', { ...metric.settings?.settings, pad: e.target.checked })
+                  changeMetricSetting({
+                    metric,
+                    settingName: 'settings',
+                    newValue: { ...metric.settings?.settings, pad: e.target.checked },
+                  })
                 )
               }
               checked={!!metric.settings?.settings?.pad}
@@ -108,8 +139,9 @@ export const MovingAverageSettingsEditor = ({ metric }: Props) => {
       {(isEWMAMovingAverage(metric) || isHoltMovingAverage(metric) || isHoltWintersMovingAverage(metric)) && (
         <InlineField label="Minimize" labelWidth={16}>
           <InlineSwitch
+            id={`${baseId}-minimize`}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              dispatch(changeMetricSetting(metric, 'minimize', e.target.checked))
+              dispatch(changeMetricSetting({ metric, settingName: 'minimize', newValue: e.target.checked }))
             }
             checked={!!metric.settings?.minimize}
           />

@@ -1,10 +1,13 @@
-import React, { useCallback } from 'react';
 import { css, cx } from '@emotion/css';
+import React, { useCallback } from 'react';
+
+import { formattedValueToString, GrafanaTheme2 } from '@grafana/data';
+
+import { styleMixins } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
+
 import { VizLegendSeriesIcon } from './VizLegendSeriesIcon';
 import { VizLegendItem } from './types';
-import { useStyles } from '../../themes/ThemeContext';
-import { styleMixins } from '../../themes';
-import { GrafanaTheme, formattedValueToString } from '@grafana/data';
 
 export interface Props {
   key?: React.Key;
@@ -27,7 +30,7 @@ export const LegendTableItem: React.FunctionComponent<Props> = ({
   className,
   readonly,
 }) => {
-  const styles = useStyles(getStyles);
+  const styles = useStyles2(getStyles);
 
   const onMouseEnter = useCallback(
     (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
@@ -85,16 +88,16 @@ export const LegendTableItem: React.FunctionComponent<Props> = ({
 
 LegendTableItem.displayName = 'LegendTableItem';
 
-const getStyles = (theme: GrafanaTheme) => {
-  const rowHoverBg = styleMixins.hoverColor(theme.colors.bg1, theme);
+const getStyles = (theme: GrafanaTheme2) => {
+  const rowHoverBg = styleMixins.hoverColor(theme.colors.background.primary, theme);
 
   return {
     row: css`
       label: LegendRow;
-      font-size: ${theme.typography.size.sm};
-      border-bottom: 1px solid ${theme.colors.border1};
+      font-size: ${theme.v1.typography.size.sm};
+      border-bottom: 1px solid ${theme.colors.border.weak};
       td {
-        padding: ${theme.spacing.xxs} ${theme.spacing.sm};
+        padding: ${theme.spacing(0.25, 1)};
         white-space: nowrap;
       }
 
@@ -108,7 +111,7 @@ const getStyles = (theme: GrafanaTheme) => {
     `,
     labelDisabled: css`
       label: LegendLabelDisabled;
-      color: ${theme.colors.linkDisabled};
+      color: ${theme.colors.text.disabled};
     `,
     clickable: css`
       label: LegendClickable;
@@ -120,10 +123,10 @@ const getStyles = (theme: GrafanaTheme) => {
       align-items: center;
     `,
     value: css`
-      text-align: right;
+      text-align: left;
     `,
     yAxisLabel: css`
-      color: ${theme.palette.gray2};
+      color: ${theme.colors.text.secondary};
     `,
   };
 };

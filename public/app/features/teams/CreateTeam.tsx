@@ -1,10 +1,11 @@
 import React, { PureComponent } from 'react';
-import Page from 'app/core/components/Page/Page';
-import { hot } from 'react-hot-loader';
-import { Button, Form, Field, Input, FieldSet, Label, Tooltip, Icon } from '@grafana/ui';
+import { connect } from 'react-redux';
+
 import { NavModel } from '@grafana/data';
 import { getBackendSrv, locationService } from '@grafana/runtime';
-import { connect } from 'react-redux';
+import { Button, Form, Field, Input, FieldSet, Label, Tooltip, Icon } from '@grafana/ui';
+import Page from 'app/core/components/Page/Page';
+import { contextSrv } from 'app/core/core';
 import { getNavModel } from 'app/core/selectors/navModel';
 import { StoreState } from 'app/types';
 
@@ -21,6 +22,7 @@ export class CreateTeam extends PureComponent<Props> {
   create = async (formModel: TeamDTO) => {
     const result = await getBackendSrv().post('/api/teams', formModel);
     if (result.teamId) {
+      await contextSrv.fetchUserPermissions();
       locationService.push(`/org/teams/edit/${result.teamId}`);
     }
   };
@@ -34,7 +36,7 @@ export class CreateTeam extends PureComponent<Props> {
             {({ register }) => (
               <FieldSet label="New Team">
                 <Field label="Name">
-                  <Input {...register('name', { required: true })} width={60} />
+                  <Input {...register('name', { required: true })} id="team-name" width={60} />
                 </Field>
                 <Field
                   label={
@@ -68,4 +70,4 @@ function mapStateToProps(state: StoreState) {
   };
 }
 
-export default hot(module)(connect(mapStateToProps)(CreateTeam));
+export default connect(mapStateToProps)(CreateTeam);

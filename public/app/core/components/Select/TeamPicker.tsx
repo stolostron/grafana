@@ -1,8 +1,9 @@
-import React, { Component } from 'react';
 import { debounce, isNil } from 'lodash';
-import { AsyncSelect } from '@grafana/ui';
+import React, { Component } from 'react';
+
 import { SelectableValue } from '@grafana/data';
 import { getBackendSrv } from '@grafana/runtime';
+import { AsyncSelect } from '@grafana/ui';
 import { Team } from 'app/types';
 
 export interface Props {
@@ -65,6 +66,7 @@ export class TeamPicker extends Component<Props, State> {
           className={className}
           placeholder="Select a team"
           noOptionsMessage="No teams found"
+          aria-label="Team picker"
         />
       </div>
     );

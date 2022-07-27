@@ -1,72 +1,118 @@
+import { PluginError, PluginMeta, renderMarkdown } from '@grafana/data';
 import { getBackendSrv } from '@grafana/runtime';
-import { API_ROOT, GRAFANA_API_ROOT } from './constants';
-import { PluginDetails, Org, LocalPlugin, RemotePlugin } from './types';
 
-async function getRemotePlugins(): Promise<RemotePlugin[]> {
-  const res = await getBackendSrv().get(`${GRAFANA_API_ROOT}/plugins`);
-  return res.items;
-}
+import { API_ROOT, GCOM_API_ROOT } from './constants';
+import { isLocalPluginVisible, isRemotePluginVisible } from './helpers';
+import { LocalPlugin, RemotePlugin, CatalogPluginDetails, Version, PluginVersion } from './types';
 
-async function getPlugin(slug: string): Promise<PluginDetails> {
-  const installed = await getInstalledPlugins();
+export async function getPluginDetails(id: string): Promise<CatalogPluginDetails> {
+  const remote = await getRemotePlugin(id);
+  const isPublished = Boolean(remote);
 
-  const localPlugin = installed?.find((plugin: LocalPlugin) => {
-    return plugin.id === slug;
-  });
+  const [localPlugins, versions, localReadme] = await Promise.all([
+    getLocalPlugins(),
+    getPluginVersions(id, isPublished),
+    getLocalPluginReadme(id),
+  ]);
 
-  const [remote, versions] = await Promise.all([getRemotePlugin(slug, localPlugin), getPluginVersions(slug)]);
+  const local = localPlugins.find((p) => p.id === id);
+  const dependencies = local?.dependencies || remote?.json?.dependencies;
 
   return {
-    remote: remote,
-    remoteVersions: versions,
-    local: localPlugin,
+    grafanaDependency: dependencies?.grafanaDependency ?? dependencies?.grafanaVersion ?? '',
+    pluginDependencies: dependencies?.plugins || [],
+    links: local?.info.links || remote?.json?.info.links || [],
+    readme: localReadme || remote?.readme,
+    versions,
   };
 }
 
-async function getRemotePlugin(slug: string, local: LocalPlugin | undefined): Promise<RemotePlugin | undefined> {
-  try {
-    return await getBackendSrv().get(`${GRAFANA_API_ROOT}/plugins/${slug}`);
-  } catch (error) {
-    // this might be a plugin that doesn't exist on gcom.
-    error.isHandled = !!local;
-    return;
-  }
+export async function getRemotePlugins(): Promise<RemotePlugin[]> {
+  const { items: remotePlugins }: { items: RemotePlugin[] } = await getBackendSrv().get(`${GCOM_API_ROOT}/plugins`);
+
+  return remotePlugins.filter(isRemotePluginVisible);
 }
 
-async function getPluginVersions(id: string): Promise<any[]> {
+export async function getPluginErrors(): Promise<PluginError[]> {
   try {
-    const versions = await getBackendSrv().get(`${GRAFANA_API_ROOT}/plugins/${id}/versions`);
-    return versions.items;
+    return await getBackendSrv().get(`${API_ROOT}/errors`);
   } catch (error) {
     return [];
   }
 }
 
-async function getInstalledPlugins(): Promise<LocalPlugin[]> {
-  const installed = await getBackendSrv().get(`${API_ROOT}`, { embedded: 0 });
-  return installed;
+async function getRemotePlugin(id: string): Promise<RemotePlugin | undefined> {
+  try {
+    return await getBackendSrv().get(`${GCOM_API_ROOT}/plugins/${id}`, {});
+  } catch (error) {
+    // It can happen that GCOM is not available, in that case we show a limited set of information to the user.
+    error.isHandled = true;
+    return;
+  }
 }
 
-async function getOrg(slug: string): Promise<Org> {
-  const org = await getBackendSrv().get(`${GRAFANA_API_ROOT}/orgs/${slug}`);
-  return { ...org, avatarUrl: `${GRAFANA_API_ROOT}/orgs/${slug}/avatar` };
+async function getPluginVersions(id: string, isPublished: boolean): Promise<Version[]> {
+  try {
+    if (!isPublished) {
+      return [];
+    }
+
+    const versions: { items: PluginVersion[] } = await getBackendSrv().get(`${GCOM_API_ROOT}/plugins/${id}/versions`);
+
+    return (versions.items || []).map((v) => ({
+      version: v.version,
+      createdAt: v.createdAt,
+      isCompatible: v.isCompatible,
+      grafanaDependency: v.grafanaDependency,
+    }));
+  } catch (error) {
+    // It can happen that GCOM is not available, in that case we show a limited set of information to the user.
+    error.isHandled = true;
+    return [];
+  }
 }
 
-async function installPlugin(id: string, version: string) {
-  return await getBackendSrv().post(`${API_ROOT}/${id}/install`, {
-    version,
-  });
+async function getLocalPluginReadme(id: string): Promise<string> {
+  try {
+    const markdown: string = await getBackendSrv().get(`${API_ROOT}/${id}/markdown/help`);
+    const markdownAsHtml = markdown ? renderMarkdown(markdown) : '';
+
+    return markdownAsHtml;
+  } catch (error) {
+    error.isHandled = true;
+    return '';
+  }
 }
 
-async function uninstallPlugin(id: string) {
+export async function getLocalPlugins(): Promise<LocalPlugin[]> {
+  const localPlugins: LocalPlugin[] = await getBackendSrv().get(`${API_ROOT}`, { embedded: 0 });
+
+  return localPlugins.filter(isLocalPluginVisible);
+}
+
+export async function installPlugin(id: string) {
+  // This will install the latest compatible version based on the logic
+  // on the backend.
+  return await getBackendSrv().post(`${API_ROOT}/${id}/install`);
+}
+
+export async function uninstallPlugin(id: string) {
   return await getBackendSrv().post(`${API_ROOT}/${id}/uninstall`);
+}
+
+export async function updatePluginSettings(id: string, data: Partial<PluginMeta>) {
+  const response = await getBackendSrv().datasourceRequest({
+    url: `/api/plugins/${id}/settings`,
+    method: 'POST',
+    data,
+  });
+
+  return response?.data;
 }
 
 export const api = {
   getRemotePlugins,
-  getPlugin,
-  getInstalledPlugins,
-  getOrg,
+  getInstalledPlugins: getLocalPlugins,
   installPlugin,
   uninstallPlugin,
 };

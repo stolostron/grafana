@@ -1,9 +1,15 @@
-+++
-title = "Deploy Grafana on Kubernetes"
-description = "Guide for deploying Grafana on Kubernetes"
-keywords = ["grafana", "configuration", "documentation", "kubernetes"]
-weight = 700
-+++
+---
+aliases:
+  - /docs/grafana/latest/installation/kubernetes/
+description: Guide for deploying Grafana on Kubernetes
+keywords:
+  - grafana
+  - configuration
+  - documentation
+  - kubernetes
+title: Deploy Grafana on Kubernetes
+weight: 700
+---
 
 ## Deploy Grafana on Kubernetes
 
@@ -49,7 +55,7 @@ spec:
           - 0
       containers:
         - name: grafana
-          image: grafana/grafana:7.5.2
+          image: grafana/grafana:8.4.4
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

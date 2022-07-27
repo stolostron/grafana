@@ -1,33 +1,30 @@
-// Store
-import store from 'app/core/store';
-
-// Models
-import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
-import { PanelModel } from 'app/features/dashboard/state/PanelModel';
-import { TimeRange, AppEvents, rangeUtil, dateMath } from '@grafana/data';
-
-// Utils
 import { isString as _isString } from 'lodash';
+
+// Store
+
+import { TimeRange, AppEvents, rangeUtil, dateMath, PanelModel as IPanelModel } from '@grafana/data';
+import { getTemplateSrv } from '@grafana/runtime';
 import appEvents from 'app/core/app_events';
 import config from 'app/core/config';
-
-// Services
-import { getTemplateSrv } from '@grafana/runtime';
-
-// Constants
 import { LS_PANEL_COPY_KEY, PANEL_BORDER } from 'app/core/constants';
-
+import store from 'app/core/store';
 import { ShareModal } from 'app/features/dashboard/components/ShareModal';
-import { ShowConfirmModalEvent, ShowModalReactEvent } from '../../../types/events';
+import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
+import { PanelModel } from 'app/features/dashboard/state/PanelModel';
 import { AddLibraryPanelModal } from 'app/features/library-panels/components/AddLibraryPanelModal/AddLibraryPanelModal';
 import { UnlinkModal } from 'app/features/library-panels/components/UnlinkModal/UnlinkModal';
+import { cleanUpPanelState } from 'app/features/panel/state/actions';
+import { dispatch } from 'app/store/store';
+
+import { ShowConfirmModalEvent, ShowModalReactEvent } from '../../../types/events';
 
 export const removePanel = (dashboard: DashboardModel, panel: PanelModel, ask: boolean) => {
   // confirm deletion
   if (ask !== false) {
-    const text2 = panel.alert
-      ? 'Panel includes an alert rule. removing the panel will also remove the alert rule'
-      : undefined;
+    const text2 =
+      panel.alert && !config.unifiedAlertingEnabled
+        ? 'Panel includes an alert rule. removing the panel will also remove the alert rule'
+        : undefined;
     const confirmText = panel.alert ? 'YES' : undefined;
 
     appEvents.publish(
@@ -45,13 +42,14 @@ export const removePanel = (dashboard: DashboardModel, panel: PanelModel, ask: b
   }
 
   dashboard.removePanel(panel);
+  dispatch(cleanUpPanelState(panel.key));
 };
 
 export const duplicatePanel = (dashboard: DashboardModel, panel: PanelModel) => {
   dashboard.duplicatePanel(panel);
 };
 
-export const copyPanel = (panel: PanelModel) => {
+export const copyPanel = (panel: IPanelModel) => {
   let saveModel = panel;
   if (panel instanceof PanelModel) {
     saveModel = panel.getSaveModel();
