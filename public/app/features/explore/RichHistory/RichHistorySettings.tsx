@@ -1,18 +1,21 @@
-import React from 'react';
 import { css } from '@emotion/css';
+import React from 'react';
+
+import { GrafanaTheme, SelectableValue } from '@grafana/data';
 import { stylesFactory, useTheme, Select, Button, Switch, Field } from '@grafana/ui';
-import { GrafanaTheme } from '@grafana/data';
-import appEvents from 'app/core/app_events';
-import { ShowConfirmModalEvent } from '../../../types/events';
-import { dispatch } from 'app/store/store';
 import { notifyApp } from 'app/core/actions';
+import appEvents from 'app/core/app_events';
 import { createSuccessNotification } from 'app/core/copy/appNotification';
+import { MAX_HISTORY_ITEMS } from 'app/core/history/RichHistoryLocalStorage';
+import { dispatch } from 'app/store/store';
+
+import { ShowConfirmModalEvent } from '../../../types/events';
 
 export interface RichHistorySettingsProps {
   retentionPeriod: number;
   starredTabAsFirstTab: boolean;
   activeDatasourceOnly: boolean;
-  onChangeRetentionPeriod: (option: { label: string; value: number }) => void;
+  onChangeRetentionPeriod: (option: SelectableValue<number>) => void;
   toggleStarredTabAsFirstTab: () => void;
   toggleactiveDatasourceOnly: () => void;
   deleteRichHistory: () => void;
@@ -21,7 +24,6 @@ export interface RichHistorySettingsProps {
 const getStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     container: css`
-      padding-left: ${theme.spacing.sm};
       font-size: ${theme.typography.size.sm};
       .space-between {
         margin-bottom: ${theme.spacing.lg};
@@ -80,7 +82,7 @@ export function RichHistorySettings(props: RichHistorySettingsProps) {
     <div className={styles.container}>
       <Field
         label="History time span"
-        description="Select the period of time for which Grafana will save your query history"
+        description={`Select the period of time for which Grafana will save your query history. Up to ${MAX_HISTORY_ITEMS} entries will be stored.`}
         className="space-between"
       >
         <div className={styles.input}>

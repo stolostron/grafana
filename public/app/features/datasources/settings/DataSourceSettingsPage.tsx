@@ -1,14 +1,19 @@
 import React, { PureComponent } from 'react';
-import { isString } from 'lodash';
-// Components
-import Page from 'app/core/components/Page/Page';
-import { PluginSettings } from './PluginSettings';
-import BasicSettings from './BasicSettings';
-import ButtonRow from './ButtonRow';
-// Services & Utils
+import { connect, ConnectedProps } from 'react-redux';
+
+import { DataSourceSettings, urlUtil } from '@grafana/data';
+import { selectors } from '@grafana/e2e-selectors';
+import { Alert, Button } from '@grafana/ui';
+import { cleanUpAction } from 'app/core/actions/cleanUp';
 import appEvents from 'app/core/app_events';
-// Actions & selectors
-import { getDataSource, getDataSourceMeta } from '../state/selectors';
+import Page from 'app/core/components/Page/Page';
+import { contextSrv } from 'app/core/core';
+import { GrafanaRouteComponentProps } from 'app/core/navigation/types';
+import { getNavModel } from 'app/core/selectors/navModel';
+import { PluginStateInfo } from 'app/features/plugins/components/PluginStateInfo';
+import { StoreState, AccessControlAction } from 'app/types/';
+
+import { ShowConfirmModalEvent } from '../../../types/events';
 import {
   deleteDataSource,
   initDataSourceSettings,
@@ -16,21 +21,14 @@ import {
   testDataSource,
   updateDataSource,
 } from '../state/actions';
-import { getNavModel } from 'app/core/selectors/navModel';
-
-// Types
-import { StoreState } from 'app/types/';
-import { DataSourceSettings } from '@grafana/data';
-import { Alert, Button, LinkButton } from '@grafana/ui';
 import { getDataSourceLoadingNav, buildNavModel, getDataSourceNav } from '../state/navModel';
-import { PluginStateInfo } from 'app/features/plugins/PluginStateInfo';
 import { dataSourceLoaded, setDataSourceName, setIsDefault } from '../state/reducers';
-import { selectors } from '@grafana/e2e-selectors';
+import { getDataSource, getDataSourceMeta } from '../state/selectors';
+
+import BasicSettings from './BasicSettings';
+import ButtonRow from './ButtonRow';
 import { CloudInfoBox } from './CloudInfoBox';
-import { GrafanaRouteComponentProps } from 'app/core/navigation/types';
-import { connect, ConnectedProps } from 'react-redux';
-import { cleanUpAction } from 'app/core/actions/cleanUp';
-import { ShowConfirmModalEvent } from '../../../types/events';
+import { PluginSettings } from './PluginSettings';
 
 export interface OwnProps extends GrafanaRouteComponentProps<{ uid: string }> {}
 
@@ -38,7 +36,7 @@ function mapStateToProps(state: StoreState, props: OwnProps) {
   const dataSourceId = props.match.params.uid;
   const params = new URLSearchParams(props.location.search);
   const dataSource = getDataSource(state.dataSources, dataSourceId);
-  const { plugin, loadError, testingStatus } = state.dataSourceSettings;
+  const { plugin, loadError, loading, testingStatus } = state.dataSourceSettings;
   const page = params.get('page');
 
   const nav = plugin
@@ -58,6 +56,7 @@ function mapStateToProps(state: StoreState, props: OwnProps) {
     page,
     plugin,
     loadError,
+    loading,
     testingStatus,
     navModel,
   };
@@ -109,7 +108,7 @@ export class DataSourceSettingsPage extends PureComponent<Props> {
     appEvents.publish(
       new ShowConfirmModalEvent({
         title: 'Delete',
-        text: 'Are you sure you want to delete this data source?',
+        text: `Are you sure you want to delete the "${this.props.dataSource.name}" data source?`,
         yesText: 'Delete',
         icon: 'trash-alt',
         onConfirm: () => {
@@ -140,6 +139,14 @@ export class DataSourceSettingsPage extends PureComponent<Props> {
     );
   }
 
+  renderMissingEditRightsMessage() {
+    return (
+      <Alert severity="info" title="Missing rights">
+        You are not allowed to modify this data source. Please contact your server admin to update this data source.
+      </Alert>
+    );
+  }
+
   testDataSource() {
     const { dataSource, testDataSource } = this.props;
     testDataSource(dataSource.name);
@@ -149,19 +156,20 @@ export class DataSourceSettingsPage extends PureComponent<Props> {
     return this.props.dataSource.id > 0;
   }
 
-  renderLoadError(loadError: any) {
-    let showDelete = false;
-    let msg = loadError.toString();
-    if (loadError.data) {
-      if (loadError.data.message) {
-        msg = loadError.data.message;
-      }
-    } else if (isString(loadError)) {
-      showDelete = true;
-    }
+  onNavigateToExplore() {
+    const { dataSource } = this.props;
+    const exploreState = JSON.stringify({ datasource: dataSource.name, context: 'explore' });
+    const url = urlUtil.renderUrl('/explore', { left: exploreState });
+    return url;
+  }
+
+  renderLoadError() {
+    const { loadError, dataSource } = this.props;
+    const canDeleteDataSource =
+      !this.isReadOnly() && contextSrv.hasPermissionInMetadata(AccessControlAction.DataSourcesDelete, dataSource);
 
     const node = {
-      text: msg,
+      text: loadError!,
       subTitle: 'Data Source Error',
       icon: 'exclamation-triangle',
     };
@@ -172,18 +180,17 @@ export class DataSourceSettingsPage extends PureComponent<Props> {
 
     return (
       <Page navModel={nav}>
-        <Page.Contents>
-          <div>
-            <div className="gf-form-button-row">
-              {showDelete && (
-                <Button type="submit" variant="destructive" onClick={this.onDelete}>
-                  Delete
-                </Button>
-              )}
-              <LinkButton variant="secondary" href="datasources" fill="outline">
-                Back
-              </LinkButton>
-            </div>
+        <Page.Contents isLoading={this.props.loading}>
+          {this.isReadOnly() && this.renderIsReadOnlyMessage()}
+          <div className="gf-form-button-row">
+            {canDeleteDataSource && (
+              <Button type="submit" variant="destructive" onClick={this.onDelete}>
+                Delete
+              </Button>
+            )}
+            <Button variant="secondary" fill="outline" type="button" onClick={() => history.back()}>
+              Back
+            </Button>
           </div>
         </Page.Contents>
       </Page>
@@ -221,9 +228,12 @@ export class DataSourceSettingsPage extends PureComponent<Props> {
 
   renderSettings() {
     const { dataSourceMeta, setDataSourceName, setIsDefault, dataSource, plugin, testingStatus } = this.props;
+    const canWriteDataSource = contextSrv.hasPermissionInMetadata(AccessControlAction.DataSourcesWrite, dataSource);
+    const canDeleteDataSource = contextSrv.hasPermissionInMetadata(AccessControlAction.DataSourcesDelete, dataSource);
 
     return (
       <form onSubmit={this.onSubmit}>
+        {!canWriteDataSource && this.renderMissingEditRightsMessage()}
         {this.isReadOnly() && this.renderIsReadOnlyMessage()}
         {dataSourceMeta.state && (
           <div className="gf-form">
@@ -266,24 +276,26 @@ export class DataSourceSettingsPage extends PureComponent<Props> {
 
         <ButtonRow
           onSubmit={(event) => this.onSubmit(event)}
-          isReadOnly={this.isReadOnly()}
+          canSave={!this.isReadOnly() && canWriteDataSource}
+          canDelete={!this.isReadOnly() && canDeleteDataSource}
           onDelete={this.onDelete}
           onTest={(event) => this.onTest(event)}
+          exploreUrl={this.onNavigateToExplore()}
         />
       </form>
     );
   }
 
   render() {
-    const { navModel, page, loadError } = this.props;
+    const { navModel, page, loadError, loading } = this.props;
 
     if (loadError) {
-      return this.renderLoadError(loadError);
+      return this.renderLoadError();
     }
 
     return (
       <Page navModel={navModel}>
-        <Page.Contents isLoading={!this.hasDataSource}>
+        <Page.Contents isLoading={loading}>
           {this.hasDataSource ? <div>{page ? this.renderConfigPageBody(page) : this.renderSettings()}</div> : null}
         </Page.Contents>
       </Page>

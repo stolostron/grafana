@@ -14,14 +14,13 @@
 
 package grafanaschema
 
-Family: {
+Panel: {
     lineages: [
         [
             {
                 PanelOptions: {
                     // empty/missing will default to grafana blog
                     feedUrl?: string
-                    useProxy?: bool
                     showImage?: bool | *true
                 }
             }

@@ -1,17 +1,18 @@
+import { css, cx } from '@emotion/css';
 import React, { FC } from 'react';
-import { cx, css } from '@emotion/css';
-import { DataLink, GrafanaTheme2, PanelData } from '@grafana/data';
-import { Icon, useStyles2 } from '@grafana/ui';
-import { selectors } from '@grafana/e2e-selectors';
 
-import PanelHeaderCorner from './PanelHeaderCorner';
+import { DataLink, GrafanaTheme2, PanelData } from '@grafana/data';
+import { selectors } from '@grafana/e2e-selectors';
+import { Icon, useStyles2 } from '@grafana/ui';
 import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
 import { PanelModel } from 'app/features/dashboard/state/PanelModel';
 import { getPanelLinksSupplier } from 'app/features/panel/panellinks/linkSuppliers';
-import { PanelHeaderNotices } from './PanelHeaderNotices';
-import { PanelHeaderMenuTrigger } from './PanelHeaderMenuTrigger';
+
+import PanelHeaderCorner from './PanelHeaderCorner';
 import { PanelHeaderLoadingIndicator } from './PanelHeaderLoadingIndicator';
+import { PanelHeaderMenuTrigger } from './PanelHeaderMenuTrigger';
 import { PanelHeaderMenuWrapper } from './PanelHeaderMenuWrapper';
+import { PanelHeaderNotices } from './PanelHeaderNotices';
 
 export interface Props {
   panel: PanelModel;
@@ -49,7 +50,6 @@ export const PanelHeader: FC<Props> = ({ panel, error, isViewing, isEditing, dat
             return (
               <div className="panel-title">
                 <PanelHeaderNotices frames={data.series} panelId={panel.id} />
-                {panel.libraryPanel && <Icon name="library-panel" style={{ marginRight: '4px' }} />}
                 {alertState ? (
                   <Icon
                     name={alertState === 'alerting' ? 'heart-break' : 'heart'}

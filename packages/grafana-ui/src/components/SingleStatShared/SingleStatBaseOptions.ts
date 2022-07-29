@@ -16,7 +16,7 @@ import {
   ValueMapping,
   VizOrientation,
 } from '@grafana/data';
-import { OptionsWithTextFormatting } from '../../options';
+import { OptionsWithTextFormatting } from '@grafana/schema';
 
 export interface SingleStatBaseOptions extends OptionsWithTextFormatting {
   reduceOptions: ReduceDataOptions;

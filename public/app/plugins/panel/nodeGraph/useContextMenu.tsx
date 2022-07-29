@@ -1,10 +1,12 @@
-import React, { MouseEvent, useCallback, useState } from 'react';
-import { EdgeDatum, NodeDatum } from './types';
-import { DataFrame, Field, GrafanaTheme, LinkModel } from '@grafana/data';
-import { getEdgeFields, getNodeFields } from './utils';
 import { css } from '@emotion/css';
-import { Config } from './layout';
+import React, { MouseEvent, useCallback, useState } from 'react';
+
+import { DataFrame, Field, GrafanaTheme, LinkModel } from '@grafana/data';
 import { ContextMenu, MenuGroup, MenuItem, stylesFactory, useTheme } from '@grafana/ui';
+
+import { Config } from './layout';
+import { EdgeDatum, NodeDatum } from './types';
+import { getEdgeFields, getNodeFields } from './utils';
 
 /**
  * Hook that contains state of the context menu, both for edges and nodes and provides appropriate component when
@@ -87,7 +89,7 @@ function getItemsRenderer<T extends NodeDatum | EdgeDatum>(
   const items = getItems(links);
   return () => {
     let groups = items?.map((group, index) => (
-      <MenuGroup key={`${group.label}${index}`} label={group.label} ariaLabel={group.label}>
+      <MenuGroup key={`${group.label}${index}`} label={group.label}>
         {(group.items || []).map(mapMenuItem(item))}
       </MenuGroup>
     ));
@@ -106,7 +108,7 @@ function mapMenuItem<T extends NodeDatum | EdgeDatum>(item: T) {
         key={link.label}
         url={link.url}
         label={link.label}
-        ariaLabel={link.ariaLabel || link.label}
+        ariaLabel={link.ariaLabel}
         onClick={link.onClick ? () => link.onClick?.(item) : undefined}
         target={'_self'}
       />

@@ -1,17 +1,19 @@
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
 import { within } from '@testing-library/dom';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+
 import { PanelPluginMeta, PluginType } from '@grafana/data';
 
-import { LibraryPanelsSearch, LibraryPanelsSearchProps } from './LibraryPanelsSearch';
+import { backendSrv } from '../../../../core/services/backend_srv';
+import * as panelUtils from '../../../panel/state/util';
 import * as api from '../../state/api';
 import { LibraryElementKind, LibraryElementsSearchResult } from '../../types';
-import { backendSrv } from '../../../../core/services/backend_srv';
-import * as viztypepicker from '../../../dashboard/components/VizTypePicker/VizTypePicker';
+
+import { LibraryPanelsSearch, LibraryPanelsSearchProps } from './LibraryPanelsSearch';
 
 jest.mock('@grafana/runtime', () => ({
-  ...((jest.requireActual('@grafana/runtime') as unknown) as object),
+  ...(jest.requireActual('@grafana/runtime') as unknown as object),
   config: {
     panels: {
       timeseries: {
@@ -64,9 +66,7 @@ async function getTestContext(
     .spyOn(backendSrv, 'get')
     .mockResolvedValue({ sortOptions: [{ displaName: 'Desc', name: 'alpha-desc' }] });
   const getLibraryPanelsSpy = jest.spyOn(api, 'getLibraryPanels').mockResolvedValue(searchResult);
-  const getAllPanelPluginMetaSpy = jest
-    .spyOn(viztypepicker, 'getAllPanelPluginMeta')
-    .mockReturnValue([graph, timeseries]);
+  const getAllPanelPluginMetaSpy = jest.spyOn(panelUtils, 'getAllPanelPluginMeta').mockReturnValue([graph, timeseries]);
 
   const props: LibraryPanelsSearchProps = {
     onClick: jest.fn(),
@@ -95,7 +95,7 @@ describe('LibraryPanelsSearch', () => {
         const { getLibraryPanelsSpy } = await getTestContext();
         getLibraryPanelsSpy.mockClear();
 
-        await userEvent.type(screen.getByPlaceholderText(/search by name/i), 'a');
+        userEvent.type(screen.getByPlaceholderText(/search by name/i), 'a');
         await waitFor(() => expect(getLibraryPanelsSpy).toHaveBeenCalled());
         expect(getLibraryPanelsSpy).toHaveBeenCalledTimes(1);
         expect(getLibraryPanelsSpy).toHaveBeenCalledWith({
@@ -123,7 +123,7 @@ describe('LibraryPanelsSearch', () => {
         const { getLibraryPanelsSpy } = await getTestContext({ showSort: true });
         getLibraryPanelsSpy.mockClear();
 
-        await userEvent.type(screen.getByText(/sort \(default a–z\)/i), 'Desc{enter}');
+        userEvent.type(screen.getByText(/sort \(default a–z\)/i), 'Desc{enter}');
         await waitFor(() => expect(getLibraryPanelsSpy).toHaveBeenCalledTimes(1));
         expect(getLibraryPanelsSpy).toHaveBeenCalledWith({
           searchString: '',
@@ -143,7 +143,7 @@ describe('LibraryPanelsSearch', () => {
 
       expect(screen.getByPlaceholderText(/search by name/i)).toBeInTheDocument();
       expect(screen.getByText(/no library panels found./i)).toBeInTheDocument();
-      expect(screen.getByRole('textbox', { name: /panel type filter/i })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /panel type filter/i })).toBeInTheDocument();
     });
 
     describe('and user changes panel filter', () => {
@@ -151,8 +151,8 @@ describe('LibraryPanelsSearch', () => {
         const { getLibraryPanelsSpy } = await getTestContext({ showPanelFilter: true });
         getLibraryPanelsSpy.mockClear();
 
-        await userEvent.type(screen.getByRole('textbox', { name: /panel type filter/i }), 'Graph{enter}');
-        await userEvent.type(screen.getByRole('textbox', { name: /panel type filter/i }), 'Time Series{enter}');
+        userEvent.type(screen.getByRole('combobox', { name: /panel type filter/i }), 'Graph{enter}');
+        userEvent.type(screen.getByRole('combobox', { name: /panel type filter/i }), 'Time Series{enter}');
         await waitFor(() => expect(getLibraryPanelsSpy).toHaveBeenCalledTimes(1));
         expect(getLibraryPanelsSpy).toHaveBeenCalledWith({
           searchString: '',
@@ -171,7 +171,7 @@ describe('LibraryPanelsSearch', () => {
 
       expect(screen.getByPlaceholderText(/search by name/i)).toBeInTheDocument();
       expect(screen.getByText(/no library panels found./i)).toBeInTheDocument();
-      expect(screen.getByRole('textbox', { name: /folder filter/i })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /folder filter/i })).toBeInTheDocument();
     });
 
     describe('and user changes folder filter', () => {
@@ -179,8 +179,8 @@ describe('LibraryPanelsSearch', () => {
         const { getLibraryPanelsSpy } = await getTestContext({ showFolderFilter: true });
         getLibraryPanelsSpy.mockClear();
 
-        userEvent.click(screen.getByRole('textbox', { name: /folder filter/i }));
-        await userEvent.type(screen.getByRole('textbox', { name: /folder filter/i }), '{enter}', {
+        userEvent.click(screen.getByRole('combobox', { name: /folder filter/i }));
+        userEvent.type(screen.getByRole('combobox', { name: /folder filter/i }), '{enter}', {
           skipClick: true,
         });
         await waitFor(() => expect(getLibraryPanelsSpy).toHaveBeenCalledTimes(1));

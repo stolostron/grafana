@@ -1,9 +1,18 @@
 import React, { PureComponent } from 'react';
-import { InlineField, Select, Alert, Input } from '@grafana/ui';
-import { QueryEditorProps, SelectableValue, dataFrameFromJSON, rangeUtil } from '@grafana/data';
+
+import {
+  QueryEditorProps,
+  SelectableValue,
+  dataFrameFromJSON,
+  rangeUtil,
+  DataQueryRequest,
+  DataFrame,
+} from '@grafana/data';
+import { config, getBackendSrv, getDataSourceSrv } from '@grafana/runtime';
+import { InlineField, Select, Alert, Input, InlineFieldRow } from '@grafana/ui';
+
 import { GrafanaDatasource } from '../datasource';
 import { defaultQuery, GrafanaQuery, GrafanaQueryType } from '../types';
-import { getBackendSrv } from '@grafana/runtime';
 
 type Props = QueryEditorProps<GrafanaDatasource, GrafanaQuery>;
 
@@ -12,6 +21,7 @@ const labelWidth = 12;
 interface State {
   channels: Array<SelectableValue<string>>;
   channelFields: Record<string, Array<SelectableValue<string>>>;
+  folders?: Array<SelectableValue<string>>;
 }
 
 export class QueryEditor extends PureComponent<Props, State> {
@@ -28,7 +38,24 @@ export class QueryEditor extends PureComponent<Props, State> {
       value: GrafanaQueryType.LiveMeasurements,
       description: 'Stream real-time measurements from Grafana',
     },
+    {
+      label: 'List public files',
+      value: GrafanaQueryType.List,
+      description: 'Show directory listings for public resources',
+    },
   ];
+
+  constructor(props: Props) {
+    super(props);
+
+    if (config.featureToggles.panelTitleSearch) {
+      this.queryTypes.push({
+        label: 'Search',
+        value: GrafanaQueryType.Search,
+        description: 'Search for grafana resources',
+      });
+    }
+  }
 
   loadChannelInfo() {
     getBackendSrv()
@@ -59,6 +86,30 @@ export class QueryEditor extends PureComponent<Props, State> {
             this.setState({ channelFields, channels });
           }
         },
+      });
+  }
+
+  loadFolderInfo() {
+    const query: DataQueryRequest<GrafanaQuery> = {
+      targets: [{ queryType: GrafanaQueryType.List, refId: 'A' }],
+    } as any;
+
+    getDataSourceSrv()
+      .get('-- Grafana --')
+      .then((ds) => {
+        const gds = ds as GrafanaDatasource;
+        gds.query(query).subscribe({
+          next: (rsp) => {
+            if (rsp.data.length) {
+              const names = (rsp.data[0] as DataFrame).fields[0];
+              const folders = names.values.toArray().map((v) => ({
+                value: v,
+                label: v,
+              }));
+              this.setState({ folders });
+            }
+          },
+        });
       });
   }
 
@@ -109,20 +160,27 @@ export class QueryEditor extends PureComponent<Props, State> {
     onRunQuery();
   };
 
-  checkAndUpdateBuffer = (txt: string) => {
+  checkAndUpdateValue = (key: keyof GrafanaQuery, txt: string) => {
     const { onChange, query, onRunQuery } = this.props;
-    let buffer: number | undefined;
-    if (txt) {
-      try {
-        buffer = rangeUtil.intervalToSeconds(txt) * 1000;
-      } catch (err) {
-        console.warn('ERROR', err);
+    if (key === 'buffer') {
+      let buffer: number | undefined;
+      if (txt) {
+        try {
+          buffer = rangeUtil.intervalToSeconds(txt) * 1000;
+        } catch (err) {
+          console.warn('ERROR', err);
+        }
       }
+      onChange({
+        ...query,
+        buffer,
+      });
+    } else {
+      onChange({
+        ...query,
+        [key]: txt,
+      });
     }
-    onChange({
-      ...query,
-      buffer,
-    });
     onRunQuery();
   };
 
@@ -130,11 +188,11 @@ export class QueryEditor extends PureComponent<Props, State> {
     if (e.key !== 'Enter') {
       return;
     }
-    this.checkAndUpdateBuffer((e.target as any).value);
+    this.checkAndUpdateValue('buffer', (e.target as any).value);
   };
 
   handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    this.checkAndUpdateBuffer(e.target.value);
+    this.checkAndUpdateValue('buffer', e.target.value);
   };
 
   renderMeasurementsQuery() {
@@ -242,6 +300,77 @@ export class QueryEditor extends PureComponent<Props, State> {
     );
   }
 
+  onFolderChanged = (sel: SelectableValue<string>) => {
+    const { onChange, query, onRunQuery } = this.props;
+    onChange({ ...query, path: sel?.value });
+    onRunQuery();
+  };
+
+  renderListPublicFiles() {
+    let { path } = this.props.query;
+    let { folders } = this.state;
+    if (!folders) {
+      folders = [];
+      this.loadFolderInfo();
+    }
+    const currentFolder = folders.find((f) => f.value === path);
+    if (path && !currentFolder) {
+      folders = [
+        ...folders,
+        {
+          value: path,
+          label: path,
+        },
+      ];
+    }
+
+    return (
+      <InlineFieldRow>
+        <InlineField label="Path" grow={true} labelWidth={labelWidth}>
+          <Select
+            menuShouldPortal
+            options={folders}
+            value={currentFolder || ''}
+            onChange={this.onFolderChanged}
+            allowCustomValue={true}
+            backspaceRemovesValue={true}
+            placeholder="Select folder"
+            isClearable={true}
+            formatCreateLabel={(input: string) => `Folder: ${input}`}
+          />
+        </InlineField>
+      </InlineFieldRow>
+    );
+  }
+
+  handleSearchEnterKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') {
+      return;
+    }
+    this.checkAndUpdateValue('query', (e.target as any).value);
+  };
+
+  handleSearchBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    this.checkAndUpdateValue('query', e.target.value);
+  };
+
+  renderSearch() {
+    let { query } = this.props.query;
+    return (
+      <InlineFieldRow>
+        <InlineField label="Query" grow={true} labelWidth={labelWidth}>
+          <Input
+            placeholder="Everything"
+            defaultValue={query ?? ''}
+            onKeyDown={this.handleSearchEnterKey}
+            onBlur={this.handleSearchBlur}
+            spellCheck={false}
+          />
+        </InlineField>
+      </InlineFieldRow>
+    );
+  }
+
   render() {
     const query = {
       ...defaultQuery,
@@ -250,7 +379,7 @@ export class QueryEditor extends PureComponent<Props, State> {
 
     return (
       <>
-        <div className="gf-form">
+        <InlineFieldRow>
           <InlineField label="Query type" grow={true} labelWidth={labelWidth}>
             <Select
               menuShouldPortal
@@ -259,8 +388,10 @@ export class QueryEditor extends PureComponent<Props, State> {
               onChange={this.onQueryTypeChange}
             />
           </InlineField>
-        </div>
+        </InlineFieldRow>
         {query.queryType === GrafanaQueryType.LiveMeasurements && this.renderMeasurementsQuery()}
+        {query.queryType === GrafanaQueryType.List && this.renderListPublicFiles()}
+        {query.queryType === GrafanaQueryType.Search && this.renderSearch()}
       </>
     );
   }

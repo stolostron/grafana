@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
-import { withCenteredStory, withHorizontallyCenteredStory } from '../../utils/storybook/withCenteredStory';
-import { SelectableValue } from '@grafana/data';
-import { Icon, Select, AsyncSelect, MultiSelect, AsyncMultiSelect } from '@grafana/ui';
-import { getAvailableIcons, IconName } from '../../types';
-import { SelectCommonProps } from './types';
-import { Meta, Story } from '@storybook/react';
-import { generateOptions } from './mockOptions';
-import mdx from './Select.mdx';
 import { auto } from '@popperjs/core';
 import { action } from '@storybook/addon-actions';
+import { Meta, Story } from '@storybook/react';
+import React, { useState } from 'react';
+
+import { SelectableValue } from '@grafana/data';
+import { Icon, Select, AsyncSelect, MultiSelect, AsyncMultiSelect } from '@grafana/ui';
+
+import { getAvailableIcons, IconName } from '../../types';
+import { withCenteredStory, withHorizontallyCenteredStory } from '../../utils/storybook/withCenteredStory';
+
+import mdx from './Select.mdx';
+import { generateOptions } from './mockOptions';
+import { SelectCommonProps } from './types';
 
 export default {
   title: 'Forms/Select',
@@ -98,7 +101,6 @@ export const Basic: Story<StoryProps> = (args) => {
           setValue(v);
           action('onChange')(v);
         }}
-        prefix={getPrefix(args.icon)}
         {...args}
       />
     </>
@@ -294,6 +296,29 @@ export const AutoMenuPlacement: Story = (args) => {
 };
 AutoMenuPlacement.args = {
   menuPlacement: auto,
+};
+
+export const WidthAuto: Story = (args) => {
+  const [value, setValue] = useState<SelectableValue<string>>();
+
+  return (
+    <>
+      <div style={{ width: '100%' }}>
+        <Select
+          menuShouldPortal
+          options={generateOptions()}
+          value={value}
+          onChange={(v) => {
+            setValue(v);
+            action('onChange')(v);
+          }}
+          prefix={getPrefix(args.icon)}
+          {...args}
+          width="auto"
+        />
+      </div>
+    </>
+  );
 };
 
 export const CustomValueCreation: Story = (args) => {

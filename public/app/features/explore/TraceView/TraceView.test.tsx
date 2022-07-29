@@ -1,34 +1,61 @@
+import { TraceData, TraceSpanData } from '@jaegertracing/jaeger-ui-components/src/types/trace';
+import { render, prettyDOM, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { shallow } from 'enzyme';
-import { render, prettyDOM } from '@testing-library/react';
-import { TraceView } from './TraceView';
-import { TracePageHeader, TraceTimelineViewer } from '@jaegertracing/jaeger-ui-components';
+import { Provider } from 'react-redux';
+
+import { DataFrame, MutableDataFrame, getDefaultTimeRange, LoadingState } from '@grafana/data';
 import { setDataSourceSrv } from '@grafana/runtime';
 import { ExploreId } from 'app/types';
-import { TraceData, TraceSpanData } from '@jaegertracing/jaeger-ui-components/src/types/trace';
-import { MutableDataFrame } from '@grafana/data';
 
-jest.mock('react-redux', () => ({
-  useSelector: jest.fn(() => undefined),
-  connect: jest.fn((v) => v),
-}));
+import { configureStore } from '../../../store/configureStore';
 
-function renderTraceView() {
-  const wrapper = shallow(<TraceView exploreId={ExploreId.left} dataFrames={[frameOld]} splitOpenFn={() => {}} />);
+import { TraceView } from './TraceView';
+import { transformDataFrames } from './utils/transform';
+
+function getTraceView(frames: DataFrame[]) {
+  const store = configureStore();
+  const mockPanelData = {
+    state: LoadingState.Done,
+    series: [],
+    timeRange: getDefaultTimeRange(),
+  };
+
+  const traceView = (
+    <Provider store={store}>
+      <TraceView
+        exploreId={ExploreId.left}
+        dataFrames={frames}
+        splitOpenFn={() => {}}
+        traceProp={transformDataFrames(frames[0])!}
+        search=""
+        focusedSpanIdForSearch=""
+        expandOne={() => {}}
+        expandAll={() => {}}
+        collapseOne={() => {}}
+        collapseAll={() => {}}
+        childrenToggle={() => {}}
+        childrenHiddenIDs={new Set()}
+        queryResponse={mockPanelData}
+      />
+    </Provider>
+  );
+  return traceView;
+}
+
+function renderTraceView(frames = [frameOld]) {
+  const { container, baseElement } = render(getTraceView(frames));
+
   return {
-    timeline: wrapper.find(TraceTimelineViewer),
-    header: wrapper.find(TracePageHeader),
-    wrapper,
+    header: container.children[0],
+    timeline: container.children[1],
+    container,
+    baseElement,
   };
 }
 
 function renderTraceViewNew() {
-  const wrapper = shallow(<TraceView exploreId={ExploreId.left} dataFrames={[frameNew]} splitOpenFn={() => {}} />);
-  return {
-    timeline: wrapper.find(TraceTimelineViewer),
-    header: wrapper.find(TracePageHeader),
-    wrapper,
-  };
+  return renderTraceView([frameNew]);
 }
 
 describe('TraceView', () => {
@@ -42,132 +69,84 @@ describe('TraceView', () => {
 
   it('renders TraceTimelineViewer', () => {
     const { timeline, header } = renderTraceView();
-    expect(timeline).toHaveLength(1);
-    expect(header).toHaveLength(1);
+    expect(timeline).toBeDefined();
+    expect(header).toBeDefined();
   });
 
   it('renders TraceTimelineViewer with new format', () => {
     const { timeline, header } = renderTraceViewNew();
-    expect(timeline).toHaveLength(1);
-    expect(header).toHaveLength(1);
+    expect(timeline).toBeDefined();
+    expect(header).toBeDefined();
   });
 
   it('renders renders the same for old and new format', () => {
-    const { baseElement } = render(
-      <TraceView exploreId={ExploreId.left} dataFrames={[frameNew]} splitOpenFn={() => {}} />
-    );
-    const { baseElement: baseElementOld } = render(
-      <TraceView exploreId={ExploreId.left} dataFrames={[frameOld]} splitOpenFn={() => {}} />
-    );
+    const { baseElement } = renderTraceViewNew();
+    const { baseElement: baseElementOld } = renderTraceView();
     expect(prettyDOM(baseElement)).toEqual(prettyDOM(baseElementOld));
   });
 
   it('does not render anything on missing trace', () => {
     // Simulating Explore's access to empty response data
-    const { container } = render(<TraceView exploreId={ExploreId.left} dataFrames={[]} splitOpenFn={() => {}} />);
+    const { container } = renderTraceView([]);
     expect(container.hasChildNodes()).toBeFalsy();
   });
 
-  it('toggles detailState', () => {
-    let { timeline, wrapper } = renderTraceViewNew();
-    expect(timeline.props().traceTimeline.detailStates.size).toBe(0);
+  it('toggles detailState', async () => {
+    renderTraceViewNew();
+    expect(screen.queryByText(/Tags/)).toBeFalsy();
+    const spanView = screen.getAllByText('', { selector: 'div[data-test-id="span-view"]' })[0];
+    userEvent.click(spanView);
+    expect(screen.queryByText(/Tags/)).toBeTruthy();
 
-    timeline.props().detailToggle('1');
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.detailStates.size).toBe(1);
-    expect(timeline.props().traceTimeline.detailStates.get('1')).not.toBeUndefined();
-
-    timeline.props().detailToggle('1');
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.detailStates.size).toBe(0);
+    userEvent.click(spanView);
+    screen.debug(screen.queryAllByText(/Tags/));
+    expect(screen.queryByText(/Tags/)).toBeFalsy();
   });
 
-  it('toggles children visibility', () => {
-    let { timeline, wrapper } = renderTraceViewNew();
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(0);
-
-    timeline.props().childrenToggle('1');
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(1);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.has('1')).toBeTruthy();
-
-    timeline.props().childrenToggle('1');
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(0);
+  it('shows timeline ticks', () => {
+    renderTraceViewNew();
+    function ticks() {
+      return screen.getByText('', { selector: 'div[data-test-id="TimelineHeaderRow"]' }).children[1].children[1]
+        .textContent;
+    }
+    expect(ticks()).toBe('0μs274.5μs549μs823.5μs1.1ms');
   });
 
-  it('toggles adds and removes hover indent guides', () => {
-    let { timeline, wrapper } = renderTraceViewNew();
-    expect(timeline.props().traceTimeline.hoverIndentGuideIds.size).toBe(0);
+  it('correctly shows processes for each span', () => {
+    renderTraceView();
+    let table: HTMLElement;
+    expect(screen.queryAllByText('', { selector: 'div[data-test-id="span-view"]' }).length).toBe(3);
 
-    timeline.props().addHoverIndentGuideId('1');
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.hoverIndentGuideIds.size).toBe(1);
-    expect(timeline.props().traceTimeline.hoverIndentGuideIds.has('1')).toBeTruthy();
+    const firstSpan = screen.getAllByText('', { selector: 'div[data-test-id="span-view"]' })[0];
+    userEvent.click(firstSpan);
+    userEvent.click(screen.getByText(/Process/));
+    table = screen.getByText('', { selector: 'div[data-test-id="KeyValueTable"]' });
+    expect(table.innerHTML).toContain('client-uuid-1');
+    userEvent.click(firstSpan);
 
-    timeline.props().removeHoverIndentGuideId('1');
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.hoverIndentGuideIds.size).toBe(0);
+    const secondSpan = screen.getAllByText('', { selector: 'div[data-test-id="span-view"]' })[1];
+    userEvent.click(secondSpan);
+    userEvent.click(screen.getByText(/Process/));
+    table = screen.getByText('', { selector: 'div[data-test-id="KeyValueTable"]' });
+    expect(table.innerHTML).toContain('client-uuid-2');
+    userEvent.click(secondSpan);
+
+    const thirdSpan = screen.getAllByText('', { selector: 'div[data-test-id="span-view"]' })[2];
+    userEvent.click(thirdSpan);
+    userEvent.click(screen.getByText(/Process/));
+    table = screen.getByText('', { selector: 'div[data-test-id="KeyValueTable"]' });
+    expect(table.innerHTML).toContain('client-uuid-3');
   });
 
-  it('toggles collapses and expands one level of spans', () => {
-    let { timeline, wrapper } = renderTraceViewNew();
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(0);
-    const spans = timeline.props().trace.spans;
+  it('resets detail view for new trace with the identical spanID', () => {
+    const { rerender } = render(getTraceView([frameOld]));
+    const span = screen.getAllByText('', { selector: 'div[data-test-id="span-view"]' })[2];
+    userEvent.click(span);
+    //Process is in detail view
+    expect(screen.getByText(/Process/)).toBeInTheDocument();
 
-    timeline.props().collapseOne(spans);
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(1);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.has('3fb050342773d333')).toBeTruthy();
-
-    timeline.props().expandOne(spans);
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(0);
-  });
-
-  it('toggles collapses and expands all levels', () => {
-    let { timeline, wrapper } = renderTraceViewNew();
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(0);
-    const spans = timeline.props().trace.spans;
-
-    timeline.props().collapseAll(spans);
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(2);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.has('3fb050342773d333')).toBeTruthy();
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.has('1ed38015486087ca')).toBeTruthy();
-
-    timeline.props().expandAll();
-    timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().traceTimeline.childrenHiddenIDs.size).toBe(0);
-  });
-
-  it('searches for spans', () => {
-    let { wrapper, header } = renderTraceViewNew();
-    header.props().onSearchValueChange('HTTP POST - api_prom_push');
-
-    const timeline = wrapper.find(TraceTimelineViewer);
-    expect(timeline.props().findMatchesIDs?.has('1ed38015486087ca')).toBeTruthy();
-  });
-
-  it('change viewRange', () => {
-    let { header, timeline, wrapper } = renderTraceViewNew();
-    const defaultRange = { time: { current: [0, 1] } };
-    expect(timeline.props().viewRange).toEqual(defaultRange);
-    expect(header.props().viewRange).toEqual(defaultRange);
-    header.props().updateViewRangeTime(0.2, 0.8);
-
-    let newRange = { time: { current: [0.2, 0.8] } };
-    timeline = wrapper.find(TraceTimelineViewer);
-    header = wrapper.find(TracePageHeader);
-    expect(timeline.props().viewRange).toEqual(newRange);
-    expect(header.props().viewRange).toEqual(newRange);
-
-    newRange = { time: { current: [0.3, 0.7] } };
-    timeline.props().updateViewRangeTime(0.3, 0.7);
-    timeline = wrapper.find(TraceTimelineViewer);
-    header = wrapper.find(TracePageHeader);
-    expect(timeline.props().viewRange).toEqual(newRange);
-    expect(header.props().viewRange).toEqual(newRange);
+    rerender(getTraceView([frameNew]));
+    expect(screen.queryByText(/Process/)).not.toBeInTheDocument();
   });
 });
 
@@ -212,7 +191,7 @@ const response: TraceData & { spans: TraceSpanData[] } = {
           ],
         },
       ],
-      processID: 'p1',
+      processID: '1ed38015486087ca',
       warnings: null as any,
     },
     {
@@ -229,7 +208,7 @@ const response: TraceData & { spans: TraceSpanData[] } = {
         { key: 'internal.span.format', type: 'string', value: 'proto' },
       ],
       logs: [],
-      processID: 'p1',
+      processID: '3fb050342773d333',
       warnings: null,
     },
     {
@@ -246,15 +225,33 @@ const response: TraceData & { spans: TraceSpanData[] } = {
         { key: 'internal.span.format', type: 'string', value: 'proto' },
       ],
       logs: [] as any,
-      processID: 'p1',
+      processID: '35118c298fc91f68',
       warnings: null as any,
     },
   ],
   processes: {
-    p1: {
+    '1ed38015486087ca': {
       serviceName: 'loki-all',
       tags: [
-        { key: 'client-uuid', type: 'string', value: '2a59d08899ef6a8a' },
+        { key: 'client-uuid', type: 'string', value: 'client-uuid-1' },
+        { key: 'hostname', type: 'string', value: '0080b530fae3' },
+        { key: 'ip', type: 'string', value: '172.18.0.6' },
+        { key: 'jaeger.version', type: 'string', value: 'Go-2.20.1' },
+      ],
+    },
+    '3fb050342773d333': {
+      serviceName: 'loki-all',
+      tags: [
+        { key: 'client-uuid', type: 'string', value: 'client-uuid-2' },
+        { key: 'hostname', type: 'string', value: '0080b530fae3' },
+        { key: 'ip', type: 'string', value: '172.18.0.6' },
+        { key: 'jaeger.version', type: 'string', value: 'Go-2.20.1' },
+      ],
+    },
+    '35118c298fc91f68': {
+      serviceName: 'loki-all',
+      tags: [
+        { key: 'client-uuid', type: 'string', value: 'client-uuid-3' },
         { key: 'hostname', type: 'string', value: '0080b530fae3' },
         { key: 'ip', type: 'string', value: '172.18.0.6' },
         { key: 'jaeger.version', type: 'string', value: 'Go-2.20.1' },
@@ -264,7 +261,7 @@ const response: TraceData & { spans: TraceSpanData[] } = {
   warnings: null as any,
 };
 
-const frameOld = new MutableDataFrame({
+export const frameOld = new MutableDataFrame({
   fields: [
     {
       name: 'trace',

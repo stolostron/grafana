@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/Masterminds/semver"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -12,48 +13,25 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana/pkg/infra/httpclient"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/plugins/backendplugin"
-	"github.com/grafana/grafana/pkg/plugins/backendplugin/coreplugin"
-	"github.com/grafana/grafana/pkg/registry"
-	"github.com/grafana/grafana/pkg/tsdb"
 	es "github.com/grafana/grafana/pkg/tsdb/elasticsearch/client"
+	"github.com/grafana/grafana/pkg/tsdb/intervalv2"
 )
 
 var eslog = log.New("tsdb.elasticsearch")
 
-func init() {
-	registry.Register(&registry.Descriptor{
-		Name:         "ElasticSearchService",
-		InitPriority: registry.Low,
-		Instance:     &Service{},
-	})
-}
-
 type Service struct {
-	BackendPluginManager backendplugin.Manager `inject:""`
-	HTTPClientProvider   httpclient.Provider   `inject:""`
-	intervalCalculator   tsdb.Calculator
-	im                   instancemgmt.InstanceManager
+	httpClientProvider httpclient.Provider
+	intervalCalculator intervalv2.Calculator
+	im                 instancemgmt.InstanceManager
 }
 
-func (s *Service) Init() error {
+func ProvideService(httpClientProvider httpclient.Provider) *Service {
 	eslog.Debug("initializing")
-	im := datasource.NewInstanceManager(newInstanceSettings())
-	factory := coreplugin.New(backend.ServeOpts{
-		QueryDataHandler: newService(im, s.HTTPClientProvider),
-	})
-	if err := s.BackendPluginManager.Register("elasticsearch", factory); err != nil {
-		eslog.Error("Failed to register plugin", "error", err)
-	}
-	return nil
-}
 
-// newService creates a new executor func.
-func newService(im instancemgmt.InstanceManager, httpClientProvider httpclient.Provider) *Service {
 	return &Service{
-		im:                 im,
-		HTTPClientProvider: httpClientProvider,
-		intervalCalculator: tsdb.NewCalculator(),
+		im:                 datasource.NewInstanceManager(newInstanceSettings()),
+		httpClientProvider: httpClientProvider,
+		intervalCalculator: intervalv2.NewCalculator(),
 	}
 }
 
@@ -67,7 +45,7 @@ func (s *Service) QueryData(ctx context.Context, req *backend.QueryDataRequest) 
 		return &backend.QueryDataResponse{}, err
 	}
 
-	client, err := es.NewClient(ctx, s.HTTPClientProvider, dsInfo, req.Queries[0].TimeRange)
+	client, err := es.NewClient(ctx, s.httpClientProvider, dsInfo, req.Queries[0].TimeRange)
 	if err != nil {
 		return &backend.QueryDataResponse{}, err
 	}
@@ -86,6 +64,11 @@ func newInstanceSettings() datasource.InstanceFactoryFunc {
 		httpCliOpts, err := settings.HTTPClientOptions()
 		if err != nil {
 			return nil, fmt.Errorf("error getting http options: %w", err)
+		}
+
+		// Set SigV4 service namespace
+		if httpCliOpts.SigV4 != nil {
+			httpCliOpts.SigV4.Service = "es"
 		}
 
 		version, err := coerceVersion(jsonData["esVersion"])
@@ -113,8 +96,17 @@ func newInstanceSettings() datasource.InstanceFactoryFunc {
 			timeInterval = ""
 		}
 
-		maxConcurrentShardRequests, ok := jsonData["maxConcurrentShardRequests"].(float64)
-		if !ok {
+		var maxConcurrentShardRequests float64
+
+		switch v := jsonData["maxConcurrentShardRequests"].(type) {
+		case float64:
+			maxConcurrentShardRequests = v
+		case string:
+			maxConcurrentShardRequests, err = strconv.ParseFloat(v, 64)
+			if err != nil {
+				maxConcurrentShardRequests = 256
+			}
+		default:
 			maxConcurrentShardRequests = 256
 		}
 

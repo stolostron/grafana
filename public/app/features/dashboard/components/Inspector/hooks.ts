@@ -1,17 +1,20 @@
-import { DataQueryError, DataSourceApi, PanelData, PanelPlugin } from '@grafana/data';
+import { useMemo } from 'react';
 import useAsync from 'react-use/lib/useAsync';
+
+import { DataQueryError, DataSourceApi, PanelData, PanelPlugin } from '@grafana/data';
 import { getDataSourceSrv } from '@grafana/runtime';
 import { DashboardModel, PanelModel } from 'app/features/dashboard/state';
-import { useMemo } from 'react';
-import { supportsDataQuery } from '../PanelEditor/utils';
 import { InspectTab } from 'app/features/inspector/types';
+
+import { supportsDataQuery } from '../PanelEditor/utils';
+
 import { PanelInspectActionSupplier } from './PanelInspectActions';
 
 /**
  * Given PanelData return first data source supporting metadata inspector
  */
 export const useDatasourceMetadata = (data?: PanelData) => {
-  const state = useAsync<DataSourceApi | undefined>(async () => {
+  const state = useAsync(async () => {
     const targets = data?.request?.targets || [];
 
     if (data && data.series && targets.length) {

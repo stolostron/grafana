@@ -1,12 +1,15 @@
-import React, { FC, FormEvent, ReactNode, useCallback, useEffect, useState } from 'react';
-import { useMedia } from 'react-use';
-import Calendar from 'react-calendar/dist/entry.nostyle';
 import { css, cx } from '@emotion/css';
+import React, { FC, FormEvent, ReactNode, useCallback, useEffect, useState } from 'react';
+import Calendar from 'react-calendar';
+import { useMedia } from 'react-use';
+
 import { dateTimeFormat, DateTime, dateTime, GrafanaTheme2, isDateTime } from '@grafana/data';
-import { Button, ClickOutsideWrapper, Field, HorizontalGroup, Icon, Input, Portal } from '../..';
-import { TimeOfDayPicker } from '../TimeOfDayPicker';
-import { getBodyStyles, getStyles as getCalendarStyles } from '../TimeRangePicker/TimePickerCalendar';
+
+import { Button, ClickOutsideWrapper, HorizontalGroup, Icon, InlineField, Input, Portal } from '../..';
 import { useStyles2, useTheme2 } from '../../../themes';
+import { TimeOfDayPicker } from '../TimeOfDayPicker';
+import { getBodyStyles } from '../TimeRangePicker/CalendarBody';
+import { getStyles as getCalendarStyles } from '../TimeRangePicker/TimePickerCalendar';
 import { isValid } from '../utils';
 
 export interface Props {
@@ -16,11 +19,13 @@ export interface Props {
   onChange: (date: DateTime) => void;
   /** label for the input field */
   label?: ReactNode;
+  /** Set the latest selectable date */
+  maxDate?: Date;
 }
 
 const stopPropagation = (event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation();
 
-export const DateTimePicker: FC<Props> = ({ date, label, onChange }) => {
+export const DateTimePicker: FC<Props> = ({ date, maxDate, label, onChange }) => {
   const [isOpen, setOpen] = useState(false);
 
   const theme = useTheme2();
@@ -50,7 +55,13 @@ export const DateTimePicker: FC<Props> = ({ date, label, onChange }) => {
       {isOpen ? (
         isFullscreen ? (
           <ClickOutsideWrapper onClick={() => setOpen(false)}>
-            <DateTimeCalendar date={date} onChange={onApply} isFullscreen={true} onClose={() => setOpen(false)} />
+            <DateTimeCalendar
+              date={date}
+              onChange={onApply}
+              isFullscreen={true}
+              onClose={() => setOpen(false)}
+              maxDate={maxDate}
+            />
           </ClickOutsideWrapper>
         ) : (
           <Portal>
@@ -72,6 +83,7 @@ interface DateTimeCalendarProps {
   onChange: (date: DateTime) => void;
   onClose: () => void;
   isFullscreen: boolean;
+  maxDate?: Date;
 }
 
 interface InputProps {
@@ -125,13 +137,15 @@ const DateTimeInput: FC<InputProps> = ({ date, label, onChange, isFullscreen, on
     }
   }, [internalDate.value, onChange]);
 
-  const icon = <Button icon="calendar-alt" variant="secondary" onClick={onOpen} />;
+  const icon = <Button aria-label="Time picker" icon="calendar-alt" variant="secondary" onClick={onOpen} />;
   return (
-    <Field
+    <InlineField
       label={label}
       onClick={stopPropagation}
       invalid={!!(internalDate.value && internalDate.invalid)}
-      error="Incorrect date format"
+      className={css`
+        margin-bottom: 0;
+      `}
     >
       <Input
         onClick={stopPropagation}
@@ -143,11 +157,11 @@ const DateTimeInput: FC<InputProps> = ({ date, label, onChange, isFullscreen, on
         data-testid="date-time-input"
         placeholder="Select date/time"
       />
-    </Field>
+    </InlineField>
   );
 };
 
-const DateTimeCalendar: FC<DateTimeCalendarProps> = ({ date, onClose, onChange, isFullscreen }) => {
+const DateTimeCalendar: FC<DateTimeCalendarProps> = ({ date, onClose, onChange, isFullscreen, maxDate }) => {
   const calendarStyles = useStyles2(getBodyStyles);
   const styles = useStyles2(getStyles);
   const [internalDate, setInternalDate] = useState<Date>(() => {
@@ -183,11 +197,14 @@ const DateTimeCalendar: FC<DateTimeCalendarProps> = ({ date, onClose, onChange, 
         prev2Label={null}
         value={internalDate}
         nextLabel={<Icon name="angle-right" />}
+        nextAriaLabel="Next month"
         prevLabel={<Icon name="angle-left" />}
+        prevAriaLabel="Previous month"
         onChange={onChangeDate}
         locale="en"
         className={calendarStyles.body}
         tileClassName={calendarStyles.title}
+        maxDate={maxDate}
       />
       <div className={styles.time}>
         <TimeOfDayPicker showSeconds={true} onChange={onChangeTime} value={dateTime(internalDate)} />
@@ -210,6 +227,7 @@ const getStyles = (theme: GrafanaTheme2) => ({
     border: 1px ${theme.colors.border.weak} solid;
     border-radius: ${theme.shape.borderRadius(1)};
     background-color: ${theme.colors.background.primary};
+    z-index: ${theme.zIndex.modal};
   `,
   fullScreen: css`
     position: absolute;

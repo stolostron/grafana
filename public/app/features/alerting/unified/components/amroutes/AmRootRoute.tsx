@@ -1,8 +1,14 @@
-import React, { FC } from 'react';
 import { css } from '@emotion/css';
+import React, { FC } from 'react';
+
 import { GrafanaTheme2 } from '@grafana/data';
 import { Button, useStyles2 } from '@grafana/ui';
+
+import { Authorize } from '../../components/Authorize';
 import { AmRouteReceiver, FormAmRoute } from '../../types/amroutes';
+import { getNotificationsPermissions } from '../../utils/access-control';
+import { isVanillaPrometheusAlertManagerDataSource } from '../../utils/datasource';
+
 import { AmRootRouteForm } from './AmRootRouteForm';
 import { AmRootRouteRead } from './AmRootRouteRead';
 
@@ -27,16 +33,21 @@ export const AmRootRoute: FC<AmRootRouteProps> = ({
 }) => {
   const styles = useStyles2(getStyles);
 
+  const permissions = getNotificationsPermissions(alertManagerSourceName);
+  const isReadOnly = isVanillaPrometheusAlertManagerDataSource(alertManagerSourceName);
+
   return (
     <div className={styles.container} data-testid="am-root-route-container">
       <div className={styles.titleContainer}>
         <h5 className={styles.title}>
           Root policy - <i>default for all alerts</i>
         </h5>
-        {!isEditMode && (
-          <Button icon="pen" onClick={onEnterEditMode} size="sm" type="button" variant="secondary">
-            Edit
-          </Button>
+        {!isEditMode && !isReadOnly && (
+          <Authorize actions={[permissions.update]}>
+            <Button icon="pen" onClick={onEnterEditMode} size="sm" type="button" variant="secondary">
+              Edit
+            </Button>
+          </Authorize>
         )}
       </div>
       <p>

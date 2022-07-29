@@ -1,5 +1,6 @@
-import React from 'react';
 import { css } from '@emotion/css';
+import React from 'react';
+
 import { GrafanaTheme2 } from '@grafana/data';
 import { Modal, useStyles2 } from '@grafana/ui';
 
@@ -39,6 +40,10 @@ const shortcuts = {
     {
       keys: ['t', '→'],
       description: 'Move time range forward',
+    },
+    {
+      keys: ['t', 'a'],
+      description: 'Make time range absolute/permanent',
     },
   ],
 };

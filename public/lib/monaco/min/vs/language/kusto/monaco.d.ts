@@ -14,6 +14,7 @@ declare module monaco.languages.kusto {
     export interface LanguageSettings {
         includeControlCommands?: boolean;
         newlineAfterPipe?: boolean;
+        syntaxErrorAsMarkDown?: SyntaxErrorAsMarkDownOptions;
         openSuggestionDialogAfterPreviousSuggestionAccepted?: boolean;
         useIntellisenseV2?: boolean;
         useSemanticColorization?: boolean;
@@ -22,6 +23,15 @@ declare module monaco.languages.kusto {
         onDidProvideCompletionItems?: monaco.languages.kusto.OnDidProvideCompletionItems;
         enableHover?: boolean;
         formatter?: FormatterOptions;
+        enableQueryWarnings?: boolean;
+        enableQuerySuggestions?: boolean;
+        disabledDiagnoticCodes?: string[];
+    }
+
+    export interface SyntaxErrorAsMarkDownOptions {
+        header?: string;
+        icon?: string;
+        enableSyntaxErrorAsMarkDown?: boolean;
     }
 
     export interface FormatterOptions {
@@ -53,7 +63,7 @@ declare module monaco.languages.kusto {
     export interface KustoWorker {
         /**
          * Sets an array of ambient parameters to be known by the language service.
-         * Language service assumes that these parameters will be provided externaly when query gets executed and does
+         * Language service assumes that these parameters will be provided externally when query gets executed and does
          * not error-out when they are being referenced in the query.
          * @param parameters the array of parameters
          */
@@ -70,7 +80,7 @@ declare module monaco.languages.kusto {
             clusterConnectionString: string,
             databaseInContextName: string
         ): Promise<EngineSchema>;
-        getCommandInContext(uri: string, cursorOffest: number): Promise<string | null>;
+        getCommandInContext(uri: string, cursorOffset: number): Promise<string | null>;
         getCommandAndLocationInContext(
             uri: string,
             offset: number
@@ -84,10 +94,10 @@ declare module monaco.languages.kusto {
         /**
          * Get all declared query parameters declared in current block if any.
          */
-        getQueryParams(uri: string, cursorOffest: number): Promise<{ name: string; type: string }[]>;
+        getQueryParams(uri: string, cursorOffset: number): Promise<{ name: string; type: string }[]>;
 
         /**
-         * Get all the ambient parameters defind in global scope.
+         * Get all the ambient parameters defined in global scope.
          * Ambient parameters are parameters that are not defined in the syntax such as in a query paramter declaration.
          * These are parameters that are injected from outside, usually by a UX application that would like to offer
          * the user intellisense for a symbol, without forcing them to write a query declaration statement.
@@ -101,7 +111,7 @@ declare module monaco.languages.kusto {
          * statement.
          * It is also different from getGlobalParams that will return all global parameters whether used or not.
          */
-        getReferencedGlobalParams(uri: string): Promise<{ name: string; type: string }[]>;
+        getReferencedGlobalParams(uri: string, cursorOffset: number): Promise<{ name: string; type: string }[]>;
 
         /**
          * Get visualization options in render command if present (null otherwise).
@@ -111,6 +121,51 @@ declare module monaco.languages.kusto {
         doRangeFormat(uri: string, range: ls.Range): Promise<ls.TextEdit[]>;
         doCurrentCommandFormat(uri: string, caretPosition: ls.Position): Promise<ls.TextEdit[]>;
         doValidation(uri: string, intervals: { start: number; end: number }[]): Promise<ls.Diagnostic[]>;
+        setParameters(parameters: ScalarParameter[]): void;
+        /**
+         * Get all the database references from the current command. 
+         * If database's schema is already cached in previous calls to setSchema or addDatabaseToSchema it will not be returned.
+         * This method should be used to get all the cross-databases in a command, then schema for the database should be fetched and added with addDatabaseToSchema.
+         * @example
+         * If the current command includes: cluster('help').database('Samples') 
+         * getDatabaseReferences will return [{ clusterName: 'help', databaseName 'Samples' }]
+         */
+        getDatabaseReferences(uri: string, cursorOffset: number): Promise<DatabaseReference[]>;
+        /**
+         * Get all the cluster references from the current command.
+         * If cluster's schema is already cached it will not be returned.
+         * This method should be used to get all the cross-clusters in a command, then schema for the cluster should be fetched and added with addClusterToSchema.
+         * cluster name is returned exactly as written in the KQL `cluster(<cluster name>)` function.
+         * @example
+         * If the current command includes: cluster('help')
+         * it returns [{ clusterName: 'help' }]
+         * @example
+         * If the current command includes: cluster('https://demo11.westus.kusto.windows.net')
+         * getClusterReferences will return [{ clusterName: 'https://demo11.westus.kusto.windows.net' }]
+         */
+        getClusterReferences(uri: string, cursorOffset: number): Promise<ClusterReference[]>;
+        /**
+         * Adds a database's scheme. Useful with getDatabaseReferences to load schema for cross-cluster commands.
+         * @param clusterName the name of the cluster as returned from getDatabaseReferences/getClusterReferences.
+         * @example
+         * - User enters cluster('help').database('Samples')
+         * - hosting app calls getDatabaseReferences which returns [{ clusterName: 'help', databaseName: 'Samples' }]. 
+         * - hosting app fetches the database Schema from https://help.kusto.windows.net
+         * - hosting app calls 'addDatabaseToSchema' with the database's schema.
+         * - now, when user types cluster('help').database('Samples') then the auto complete list will show all the tables.
+         */
+        addDatabaseToSchema(uri: string, clusterName: string, databaseSchema: Database): Promise<void>;
+        /**
+         * Adds a cluster's databases to the schema. Useful when used with getClusterReferences in cross-cluster commands.
+         * @param clusterName the name of the cluster as returned in getClusterReferences.
+         * @example
+         * - User enters cluster('help')
+         * - hosting app calls getClusterReferences which returns [{ clusterName: 'help' }]. 
+         * - hosting app fetches the list of databases from https://help.kusto.windows.net
+         * - hosting app calls addClusterToSchema with the list of databases.
+         * - now, when user type `cluster('help').database(` then the auto complete list will show all the databases.
+         */
+        addClusterToSchema(uri: string, clusterName: string, databasesNames: string[]): Promise<void>;
     }
 
     /**
@@ -203,27 +258,36 @@ declare module monaco.languages.kusto {
     export declare type Kind = 'default' | 'unstacked' | 'stacked' | 'stacked100' | 'map';
 
     export interface RenderOptions {
-        visualization?: VisualizationType;
-        title?: string;
-        xcolumn?: string;
-        series?: string[];
-        ycolumns?: string[];
-        xtitle?: string;
-        ytitle?: string;
-        xaxis?: Scale;
-        yaxis?: Scale;
-        legend?: LegendVisibility;
-        ySplit?: YSplit;
-        accumulate?: boolean;
-        kind?: Kind;
-        anomalycolumns?: string[];
-        ymin?: number;
-        ymax?: number;
+        visualization?: null | VisualizationType;
+        title?: null | string;
+        xcolumn?: null | string;
+        series?: null | string[];
+        ycolumns?: null | string[];
+        xtitle?: null | string;
+        ytitle?: null | string;
+        xaxis?: null | Scale;
+        yaxis?: null | Scale;
+        legend?: null | LegendVisibility;
+        ySplit?: null | YSplit;
+        accumulate?: null | boolean;
+        kind?: null | Kind;
+        anomalycolumns?: null | string[];
+        ymin?: null | number;
+        ymax?: null | number;
     }
 
     export interface RenderInfo {
         options: RenderOptions;
         location: { startOffset: number; endOffset: number };
+    }
+
+    export interface DatabaseReference {
+        databaseName: string;
+        clusterName: string; 
+    };
+
+    export interface ClusterReference {
+        clusterName: string; 
     }
 
     export type RenderOptionKeys = keyof RenderOptions;

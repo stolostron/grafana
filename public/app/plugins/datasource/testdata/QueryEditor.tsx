@@ -1,25 +1,24 @@
-// Libraries
 import React, { ChangeEvent, FormEvent, useMemo } from 'react';
 import { useAsync } from 'react-use';
 
-// Components
-import { selectors as editorSelectors } from '@grafana/e2e-selectors';
-import { Input, InlineFieldRow, InlineField, Select, TextArea, InlineSwitch } from '@grafana/ui';
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
-import { StreamingClientEditor, RandomWalkEditor } from './components';
+import { selectors as editorSelectors } from '@grafana/e2e-selectors';
+import { InlineField, InlineFieldRow, InlineSwitch, Input, Select, TextArea } from '@grafana/ui';
 
-// Types
-import { TestDataDataSource } from './datasource';
-import { TestDataQuery, Scenario, NodesQuery, CSVWave, USAQuery } from './types';
-import { PredictablePulseEditor } from './components/PredictablePulseEditor';
+import { RandomWalkEditor, StreamingClientEditor } from './components';
+import { CSVContentEditor } from './components/CSVContentEditor';
+import { CSVFileEditor } from './components/CSVFileEditor';
 import { CSVWavesEditor } from './components/CSVWaveEditor';
-import { defaultCSVWaveQuery, defaultPulseQuery, defaultQuery } from './constants';
+import ErrorEditor from './components/ErrorEditor';
 import { GrafanaLiveEditor } from './components/GrafanaLiveEditor';
 import { NodeGraphEditor } from './components/NodeGraphEditor';
-import { defaultStreamQuery } from './runStreams';
-import { CSVFileEditor } from './components/CSVFileEditor';
-import { CSVContentEditor } from './components/CSVContentEditor';
+import { PredictablePulseEditor } from './components/PredictablePulseEditor';
+import { RawFrameEditor } from './components/RawFrameEditor';
 import { USAQueryEditor, usaQueryModes } from './components/USAQueryEditor';
+import { defaultCSVWaveQuery, defaultPulseQuery, defaultQuery } from './constants';
+import { TestDataDataSource } from './datasource';
+import { defaultStreamQuery } from './runStreams';
+import { CSVWave, NodesQuery, TestDataQuery, USAQuery } from './types';
 
 const showLabelsFor = ['random_walk', 'predictable_pulse'];
 const endpoints = [
@@ -40,7 +39,7 @@ export type Props = QueryEditorProps<TestDataDataSource, TestDataQuery>;
 export const QueryEditor = ({ query, datasource, onChange, onRunQuery }: Props) => {
   query = { ...defaultQuery, ...query };
 
-  const { loading, value: scenarioList } = useAsync<Scenario[]>(async () => {
+  const { loading, value: scenarioList } = useAsync(async () => {
     // migrate manual_entry (unusable since 7, removed in 8)
     if (query.scenarioId === 'manual_entry' && (query as any).points) {
       let csvContent = 'Time,Value\n';
@@ -63,11 +62,12 @@ export const QueryEditor = ({ query, datasource, onChange, onRunQuery }: Props) 
     onRunQuery();
   };
 
-  const currentScenario = useMemo(() => scenarioList?.find((scenario) => scenario.id === query.scenarioId), [
-    scenarioList,
-    query,
-  ]);
+  const currentScenario = useMemo(
+    () => scenarioList?.find((scenario) => scenario.id === query.scenarioId),
+    [scenarioList, query]
+  );
   const scenarioId = currentScenario?.id;
+  const description = currentScenario?.description;
 
   const onScenarioChange = (item: SelectableValue<string>) => {
     const scenario = scenarioList?.find((sc) => sc.id === item.value);
@@ -81,6 +81,7 @@ export const QueryEditor = ({ query, datasource, onChange, onRunQuery }: Props) 
       scenarioId: item.value!,
       refId: query.refId,
       alias: query.alias,
+      datasource: query.datasource,
     };
 
     if (scenario.stringInput) {
@@ -159,7 +160,7 @@ export const QueryEditor = ({ query, datasource, onChange, onRunQuery }: Props) 
         .sort((a, b) => a.label.localeCompare(b.label)),
     [scenarioList]
   );
-  const showLabels = useMemo(() => showLabelsFor.includes(query.scenarioId), [query]);
+  const showLabels = useMemo(() => showLabelsFor.includes(query.scenarioId ?? ''), [query]);
 
   if (loading) {
     return null;
@@ -170,6 +171,7 @@ export const QueryEditor = ({ query, datasource, onChange, onRunQuery }: Props) 
       <InlineFieldRow aria-label={selectors.scenarioSelectContainer}>
         <InlineField labelWidth={14} label="Scenario">
           <Select
+            inputId={`test-data-scenario-select-${query.refId}`}
             menuShouldPortal
             options={options}
             value={options.find((item) => item.value === query.scenarioId)}
@@ -233,6 +235,7 @@ export const QueryEditor = ({ query, datasource, onChange, onRunQuery }: Props) 
       {scenarioId === 'random_walk' && <RandomWalkEditor onChange={onInputChange} query={query} />}
       {scenarioId === 'streaming_client' && <StreamingClientEditor onChange={onStreamClientChange} query={query} />}
       {scenarioId === 'live' && <GrafanaLiveEditor onChange={onUpdate} query={query} />}
+      {scenarioId === 'raw_frame' && <RawFrameEditor onChange={onUpdate} query={query} />}
       {scenarioId === 'csv_file' && <CSVFileEditor onChange={onUpdate} query={query} />}
       {scenarioId === 'csv_content' && <CSVContentEditor onChange={onUpdate} query={query} />}
       {scenarioId === 'logs' && (
@@ -283,6 +286,9 @@ export const QueryEditor = ({ query, datasource, onChange, onRunQuery }: Props) 
       {scenarioId === 'node_graph' && (
         <NodeGraphEditor onChange={(val: NodesQuery) => onChange({ ...query, nodes: val })} query={query} />
       )}
+      {scenarioId === 'server_error_500' && <ErrorEditor onChange={onUpdate} query={query} />}
+
+      {description && <p>{description}</p>}
     </>
   );
 };

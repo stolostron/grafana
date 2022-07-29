@@ -1,11 +1,13 @@
 import React, { FC } from 'react';
-import { hot } from 'react-hot-loader';
 import { connect } from 'react-redux';
-import UserInviteForm from './UserInviteForm';
-import { contextSrv, NavModel } from 'app/core/core';
+
+import { NavModel } from '@grafana/data';
+import Page from 'app/core/components/Page/Page';
+import { contextSrv } from 'app/core/core';
 import { getNavModel } from 'app/core/selectors/navModel';
 import { StoreState } from 'app/types/store';
-import Page from 'app/core/components/Page/Page';
+
+import UserInviteForm from './UserInviteForm';
 
 interface Props {
   navModel: NavModel;
@@ -30,4 +32,4 @@ const mapStateToProps = (state: StoreState) => ({
   navModel: getNavModel(state.navIndex, 'users'),
 });
 
-export default hot(module)(connect(mapStateToProps)(UserInvitePage));
+export default connect(mapStateToProps)(UserInvitePage);

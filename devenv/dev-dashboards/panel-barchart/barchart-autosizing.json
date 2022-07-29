@@ -19,12 +19,10 @@
     ]
   },
   "editable": true,
-  "gnetId": null,
   "graphTooltip": 0,
   "links": [],
   "panels": [
     {
-      "datasource": null,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -37,7 +35,6 @@
             "fillOpacity": 80,
             "gradientMode": "none",
             "hideFrom": {
-              "graph": false,
               "legend": false,
               "tooltip": false,
               "viz": false
@@ -49,8 +46,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -80,14 +76,16 @@
         },
         "orientation": "auto",
         "showValue": "auto",
+        "stacking": "none",
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
-          "csvContent": "Name,Stat1,Stat2\nStockholm, 10, 15\nNew York, 19, 5\nLondon, 10, 1\nNegative, 15, -5\nLong value, 15,10",
+          "csvContent": "Time,Name,Stat1,Stat2\n2020-01-01T00:00:00Z,Stockholm, 10, 15\n2020-01-01T00:00:00Z,New York, 19, 5\n2020-01-01T00:00:00Z,London, 10, 1\n2020-01-01T00:00:00Z,Negative, 15, -5\n2020-01-01T00:00:00Z,Long value, 15,10",
           "refId": "A",
           "scenarioId": "csv_content"
         }
@@ -96,7 +94,6 @@
       "type": "barchart"
     },
     {
-      "datasource": null,
       "description": "Should be smaller given the longer value",
       "fieldConfig": {
         "defaults": {
@@ -110,7 +107,6 @@
             "fillOpacity": 80,
             "gradientMode": "none",
             "hideFrom": {
-              "graph": false,
               "legend": false,
               "tooltip": false,
               "viz": false
@@ -123,8 +119,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -154,9 +149,11 @@
         },
         "orientation": "auto",
         "showValue": "auto",
+        "stacking": "none",
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -170,7 +167,6 @@
       "type": "barchart"
     },
     {
-      "datasource": null,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -183,7 +179,6 @@
             "fillOpacity": 80,
             "gradientMode": "none",
             "hideFrom": {
-              "graph": false,
               "legend": false,
               "tooltip": false,
               "viz": false
@@ -195,8 +190,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -226,9 +220,11 @@
         },
         "orientation": "auto",
         "showValue": "auto",
+        "stacking": "none",
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -242,7 +238,6 @@
       "type": "barchart"
     },
     {
-      "datasource": null,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -255,7 +250,6 @@
             "fillOpacity": 80,
             "gradientMode": "none",
             "hideFrom": {
-              "graph": false,
               "legend": false,
               "tooltip": false,
               "viz": false
@@ -267,8 +261,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -298,9 +291,11 @@
         },
         "orientation": "auto",
         "showValue": "always",
+        "stacking": "none",
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -314,7 +309,10 @@
       "type": "barchart"
     },
     {
-      "datasource": "-- Dashboard --",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Dashboard --"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -327,7 +325,6 @@
             "fillOpacity": 80,
             "gradientMode": "none",
             "hideFrom": {
-              "graph": false,
               "legend": false,
               "tooltip": false,
               "viz": false
@@ -339,8 +336,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -368,12 +364,14 @@
         },
         "orientation": "auto",
         "showValue": "auto",
+        "stacking": "none",
         "text": {
-          "size": 10,
+          "titleSize": 10,
           "valueSize": 25
         },
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -386,7 +384,6 @@
       "type": "barchart"
     },
     {
-      "datasource": null,
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -399,7 +396,6 @@
             "fillOpacity": 80,
             "gradientMode": "none",
             "hideFrom": {
-              "graph": false,
               "legend": false,
               "tooltip": false,
               "viz": false
@@ -412,8 +408,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -443,9 +438,11 @@
         },
         "orientation": "horizontal",
         "showValue": "auto",
+        "stacking": "none",
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -459,7 +456,6 @@
       "type": "barchart"
     },
     {
-      "datasource": null,
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -473,7 +469,6 @@
             "fillOpacity": 80,
             "gradientMode": "none",
             "hideFrom": {
-              "graph": false,
               "legend": false,
               "tooltip": false,
               "viz": false
@@ -485,8 +480,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -516,9 +510,11 @@
         },
         "orientation": "horizontal",
         "showValue": "auto",
+        "stacking": "none",
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -533,12 +529,13 @@
     }
   ],
   "refresh": "",
-  "schemaVersion": 30,
+  "schemaVersion": 33,
   "style": "dark",
   "tags": [
     "gdev",
     "panel-tests",
-    "barchart"
+    "barchart",
+    "graph-ng"
   ],
   "templating": {
     "list": []

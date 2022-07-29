@@ -1,7 +1,8 @@
-import { DashboardAcl } from './acl';
-import { DataQuery, PanelPlugin } from '@grafana/data';
+import { DataQuery } from '@grafana/data';
 import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
-import { AngularComponent } from '@grafana/runtime';
+import { VariableModel } from 'app/features/variables/types';
+
+import { DashboardAcl } from './acl';
 
 export interface DashboardDTO {
   redirectUri?: string;
@@ -18,7 +19,7 @@ export interface DashboardMeta {
   canAdmin?: boolean;
   url?: string;
   folderId?: number;
-  fromExplore?: boolean;
+  folderUid?: string;
   canMakeEditable?: boolean;
   submenuEnabled?: boolean;
   provisioned?: boolean;
@@ -36,10 +37,27 @@ export interface DashboardMeta {
   fromScript?: boolean;
   fromFile?: boolean;
   hasUnsavedFolderChange?: boolean;
+  annotationsPermissions?: AnnotationsPermissions;
+}
+
+export interface AnnotationActions {
+  canAdd: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export interface AnnotationsPermissions {
+  dashboard: AnnotationActions;
+  organization: AnnotationActions;
 }
 
 export interface DashboardDataDTO {
   title: string;
+  uid: string;
+  templating: {
+    list: VariableModel[];
+  };
+  panels?: any[];
 }
 
 export enum DashboardRoutes {
@@ -75,18 +93,9 @@ export interface QueriesToUpdateOnDashboardLoad {
   queries: DataQuery[];
 }
 
-export interface PanelState {
-  pluginId: string;
-  plugin?: PanelPlugin;
-  angularComponent?: AngularComponent | null;
-}
-
 export interface DashboardState {
   getModel: GetMutableDashboardModelFn;
   initPhase: DashboardInitPhase;
-  isInitSlow: boolean;
   initError: DashboardInitError | null;
   permissions: DashboardAcl[];
-  modifiedQueries: QueriesToUpdateOnDashboardLoad | null;
-  panels: { [id: string]: PanelState };
 }

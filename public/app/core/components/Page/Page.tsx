@@ -1,15 +1,17 @@
 // Libraries
+import { css, cx } from '@emotion/css';
 import React, { FC, HTMLAttributes, useEffect } from 'react';
+
+import { GrafanaTheme2, NavModel } from '@grafana/data';
+import { CustomScrollbar, useStyles2 } from '@grafana/ui';
 import { getTitleFromNavModel } from 'app/core/selectors/navModel';
 
 // Components
-import PageHeader from '../PageHeader/PageHeader';
-import { Footer } from '../Footer/Footer';
-import { PageContents } from './PageContents';
-import { CustomScrollbar, useStyles2 } from '@grafana/ui';
-import { GrafanaTheme2, NavModel } from '@grafana/data';
 import { Branding } from '../Branding/Branding';
-import { css, cx } from '@emotion/css';
+import { Footer } from '../Footer/Footer';
+import PageHeader from '../PageHeader/PageHeader';
+
+import { PageContents } from './PageContents';
 
 interface Props extends HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -53,9 +55,8 @@ export default Page;
 
 const getStyles = (theme: GrafanaTheme2) => ({
   wrapper: css`
-    bottom: 0;
-    position: absolute;
-    top: 0;
     width: 100%;
+    flex-grow: 1;
+    min-height: 0;
   `,
 });

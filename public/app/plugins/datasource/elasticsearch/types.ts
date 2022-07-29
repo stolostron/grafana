@@ -1,4 +1,5 @@
 import { DataQuery, DataSourceJsonData } from '@grafana/data';
+
 import {
   BucketAggregation,
   BucketAggregationType,
@@ -72,8 +73,17 @@ export interface ElasticsearchQuery extends DataQuery {
   timeField?: string;
 }
 
+export interface TermsQuery {
+  query?: string;
+  size?: number;
+  field?: string;
+  order?: 'asc' | 'desc';
+  orderBy?: string;
+}
+
 export type DataLinkConfig = {
   field: string;
   url: string;
+  urlDisplayLabel?: string;
   datasourceUid?: string;
 };

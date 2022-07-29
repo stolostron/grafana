@@ -1,9 +1,6 @@
-// Libraries
 import { cloneDeep, defaultsDeep, isArray, isEqual, keys } from 'lodash';
-// Utils
-import { getTemplateSrv } from '@grafana/runtime';
-import { getNextRefIdChar } from 'app/core/utils/query';
-// Types
+import { v4 as uuidv4 } from 'uuid';
+
 import {
   DataConfigSource,
   DataFrameDTO,
@@ -17,27 +14,32 @@ import {
   PanelPluginDataSupport,
   ScopedVars,
   urlUtil,
+  PanelModel as IPanelModel,
+  DataSourceRef,
 } from '@grafana/data';
-import { EDIT_PANEL_ID } from 'app/core/constants';
+import { getTemplateSrv, RefreshEvent } from '@grafana/runtime';
 import config from 'app/core/config';
-import { PanelQueryRunner } from '../../query/state/PanelQueryRunner';
+import { getNextRefIdChar } from 'app/core/utils/query';
+import { QueryGroupOptions } from 'app/types';
 import {
   PanelOptionsChangedEvent,
   PanelQueriesChangedEvent,
   PanelTransformationsChangedEvent,
-  RefreshEvent,
   RenderEvent,
 } from 'app/types/events';
-import { getTimeSrv } from '../services/TimeSrv';
+
+import { PanelModelLibraryPanel } from '../../library-panels/types';
+import { PanelQueryRunner } from '../../query/state/PanelQueryRunner';
 import { getVariablesUrlParams } from '../../variables/getAllVariableValuesForUrl';
+import { getTimeSrv } from '../services/TimeSrv';
+import { TimeOverrideResult } from '../utils/panel';
+
 import {
   filterFieldConfigOverrides,
   getPanelOptionsWithDefaults,
   isStandardFieldProp,
   restoreCustomOverrideRules,
 } from './getPanelOptionsWithDefaults';
-import { QueryGroupOptions } from 'app/types';
-import { PanelModelLibraryPanel } from '../../library-panels/types';
 
 export interface GridPos {
   x: number;
@@ -46,8 +48,6 @@ export interface GridPos {
   h: number;
   static?: boolean;
 }
-
-import { TimeOverrideResult } from '../utils/panel';
 
 const notPersistedProperties: { [str: string]: boolean } = {
   events: true,
@@ -59,10 +59,10 @@ const notPersistedProperties: { [str: string]: boolean } = {
   plugin: true,
   queryRunner: true,
   replaceVariables: true,
-  editSourceId: true,
   configRev: true,
   getDisplayTitle: true,
   dataSupport: true,
+  key: true,
 };
 
 // For angular panels we need to clean up properties when changing type
@@ -101,13 +101,13 @@ const mustKeepProps: { [str: string]: boolean } = {
   queryRunner: true,
   transformations: true,
   fieldConfig: true,
-  editSourceId: true,
   maxDataPoints: true,
   interval: true,
   replaceVariables: true,
   libraryPanel: true,
   getDisplayTitle: true,
   configRev: true,
+  key: true,
 };
 
 const defaults: any = {
@@ -120,14 +120,12 @@ const defaults: any = {
     defaults: {},
     overrides: [],
   },
-  datasource: null,
   title: '',
 };
 
-export class PanelModel implements DataConfigSource {
+export class PanelModel implements DataConfigSource, IPanelModel {
   /* persisted id, used in URL to identify a panel */
   id!: number;
-  editSourceId?: number;
   gridPos!: GridPos;
   type!: string;
   title!: string;
@@ -144,7 +142,7 @@ export class PanelModel implements DataConfigSource {
   panels?: any;
   declare targets: DataQuery[];
   transformations?: DataTransformerConfig[];
-  datasource: string | null = null;
+  datasource: DataSourceRef | null = null;
   thresholds?: any;
   pluginVersion?: string;
 
@@ -171,10 +169,15 @@ export class PanelModel implements DataConfigSource {
   isInView = false;
   configRev = 0; // increments when configs change
   hasRefreshed?: boolean;
-  cacheTimeout?: any;
+  cacheTimeout?: string | null;
   cachedPluginOptions: Record<string, PanelOptionsCache> = {};
   legend?: { show: boolean; sort?: string; sortDesc?: boolean };
   plugin?: PanelPlugin;
+  /**
+   * Unique in application state, this is used as redux key for panel and for redux panel state
+   * Change will cause unmount and re-init of panel
+   */
+  key: string;
 
   /**
    * The PanelModel event bus only used for internal and legacy angular support.
@@ -188,6 +191,7 @@ export class PanelModel implements DataConfigSource {
     this.events = new EventBusSrv();
     this.restoreModel(model);
     this.replaceVariables = this.replaceVariables.bind(this);
+    this.key = uuidv4();
   }
 
   /** Given a persistened PanelModel restores property values */
@@ -223,6 +227,10 @@ export class PanelModel implements DataConfigSource {
 
     // queries must have refId
     this.ensureQueryIds();
+  }
+
+  generateNewKey() {
+    this.key = uuidv4();
   }
 
   ensureQueryIds() {
@@ -274,12 +282,6 @@ export class PanelModel implements DataConfigSource {
       model[property] = cloneDeep(this[property]);
     }
 
-    if (model.datasource === undefined) {
-      // This is part of defaults as defaults are removed in save model and
-      // this should not be removed in save model as exporter needs to templatize it
-      model.datasource = null;
-    }
-
     return model;
   }
 
@@ -298,12 +300,12 @@ export class PanelModel implements DataConfigSource {
     this.getQueryRunner().run({
       datasource: this.datasource,
       queries: this.targets,
-      panelId: this.editSourceId || this.id,
+      panelId: this.id,
       dashboardId: dashboardId,
       timezone: dashboardTimezone,
       timeRange: timeData.timeRange,
       timeInfo: timeData.timeInfo,
-      maxDataPoints: this.maxDataPoints || width,
+      maxDataPoints: this.maxDataPoints || Math.floor(width),
       minInterval: this.interval,
       scopedVars: this.scopedVars,
       cacheTimeout: this.cacheTimeout,
@@ -424,8 +426,6 @@ export class PanelModel implements DataConfigSource {
     this.plugin = newPlugin;
     this.configRev++;
 
-    // For some reason I need to rebind replace variables here, otherwise the viz repeater does not work
-    this.replaceVariables = this.replaceVariables.bind(this);
     this.applyPluginOptionDefaults(newPlugin, true);
 
     if (newPlugin.onPanelMigration) {
@@ -434,7 +434,12 @@ export class PanelModel implements DataConfigSource {
   }
 
   updateQueries(options: QueryGroupOptions) {
-    this.datasource = options.dataSource.default ? null : options.dataSource.name!;
+    const { dataSource } = options;
+    this.datasource = {
+      uid: dataSource.uid,
+      type: dataSource.type,
+    };
+    this.cacheTimeout = options.cacheTimeout;
     this.timeFrom = options.timeRange?.from;
     this.timeShift = options.timeRange?.shift;
     this.hideTimeOverride = options.timeRange?.hide;
@@ -470,12 +475,9 @@ export class PanelModel implements DataConfigSource {
   getEditClone() {
     const sourceModel = this.getSaveModel();
 
-    // Temporary id for the clone, restored later in redux action when changes are saved
-    sourceModel.id = EDIT_PANEL_ID;
-    sourceModel.editSourceId = this.id;
-
     const clone = new PanelModel(sourceModel);
     clone.isEditing = true;
+
     const sourceQueryRunner = this.getQueryRunner();
 
     // Copy last query result
@@ -552,26 +554,21 @@ export class PanelModel implements DataConfigSource {
   }
 
   replaceVariables(value: string, extraVars: ScopedVars | undefined, format?: string | Function) {
-    let vars = this.scopedVars;
-
-    if (extraVars) {
-      vars = vars ? { ...vars, ...extraVars } : extraVars;
-    }
+    const lastRequest = this.getQueryRunner().getLastRequest();
+    const vars: ScopedVars = Object.assign({}, this.scopedVars, lastRequest?.scopedVars, extraVars);
 
     const allVariablesParams = getVariablesUrlParams(vars);
     const variablesQuery = urlUtil.toUrlParams(allVariablesParams);
     const timeRangeUrl = urlUtil.toUrlParams(getTimeSrv().timeRangeForUrl());
 
-    vars = {
-      ...vars,
-      [DataLinkBuiltInVars.keepTime]: {
-        text: timeRangeUrl,
-        value: timeRangeUrl,
-      },
-      [DataLinkBuiltInVars.includeVars]: {
-        text: variablesQuery,
-        value: variablesQuery,
-      },
+    vars[DataLinkBuiltInVars.keepTime] = {
+      text: timeRangeUrl,
+      value: timeRangeUrl,
+    };
+
+    vars[DataLinkBuiltInVars.includeVars] = {
+      text: variablesQuery,
+      value: variablesQuery,
     };
 
     return getTemplateSrv().replace(value, vars, format);
@@ -586,19 +583,11 @@ export class PanelModel implements DataConfigSource {
   }
 
   /*
-   * Panel have a different id while in edit mode (to more easily be able to discard changes)
-   * Use this to always get the underlying source id
-   * */
-  getSavedId(): number {
-    return this.editSourceId ?? this.id;
-  }
-
-  /*
    * This is the title used when displaying the title in the UI so it will include any interpolated variables.
    * If you need the raw title without interpolation use title property instead.
    * */
   getDisplayTitle(): string {
-    return this.replaceVariables(this.title, {}, 'text');
+    return this.replaceVariables(this.title, undefined, 'text');
   }
 }
 

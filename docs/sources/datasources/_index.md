@@ -1,8 +1,10 @@
-+++
-title = "Data sources"
-aliases = ["/docs/grafana/latest/datasources/overview/"]
-weight = 60
-+++
+---
+aliases:
+  - /docs/grafana/latest/datasources/
+  - /docs/grafana/latest/datasources/overview/
+title: Data sources
+weight: 60
+---
 
 # Data sources
 
@@ -17,7 +19,7 @@ Each data source has a specific Query Editor that is customized for the features
 The following data sources are officially supported:
 
 - [Alertmanager]({{< relref "alertmanager.md" >}})
-- [AWS CloudWatch]({{< relref "cloudwatch.md" >}})
+- [AWS CloudWatch]({{< relref "aws-cloudwatch/_index.md" >}})
 - [Azure Monitor]({{< relref "azuremonitor/_index.md" >}})
 - [Elasticsearch]({{< relref "elasticsearch.md" >}})
 - [Google Cloud Monitoring]({{< relref "google-cloud-monitoring/_index.md" >}})
