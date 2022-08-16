@@ -46,4 +46,4 @@ If you're interested in contributing to the Grafana project:
 
 Grafana is distributed under [AGPL-3.0-only](LICENSE). For Apache-2.0 exceptions, see [LICENSING.md](LICENSING.md).
 
-Rebuild Image: Thu Jun 16 10:07:46 EDT 2022
+Rebuild Image: Tue Aug 16 14:18:41 EDT 2022
