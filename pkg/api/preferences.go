@@ -16,12 +16,6 @@ const (
 	lightTheme   string = "light"
 )
 
-const (
-	defaultTheme string = ""
-	darkTheme    string = "dark"
-	lightTheme   string = "light"
-)
-
 // POST /api/preferences/set-home-dash
 func (hs *HTTPServer) SetHomeDashboard(c *models.ReqContext) response.Response {
 	cmd := models.SavePreferencesCommand{}
