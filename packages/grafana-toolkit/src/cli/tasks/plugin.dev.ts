@@ -1,11 +1,11 @@
-import { Task, TaskRunner } from './task';
-import { bundlePlugin as bundleFn, PluginBundleOptions } from './plugin/bundle';
-import { useSpinner } from '../utils/useSpinner';
-import { lintPlugin } from './plugin.build';
-
-// @ts-ignore
 import execa = require('execa');
 import path = require('path');
+
+import { useSpinner } from '../utils/useSpinner';
+
+import { lintPlugin } from './plugin.build';
+import { bundlePlugin as bundleFn, PluginBundleOptions } from './plugin/bundle';
+import { Task, TaskRunner } from './task';
 
 const bundlePlugin = (options: PluginBundleOptions) =>
   useSpinner('Bundling plugin in dev mode', () => bundleFn(options));
@@ -15,7 +15,7 @@ const yarnlink = () =>
     try {
       // Make sure we are not using package.json defined toolkit
       await execa('yarn', ['remove', '@grafana/toolkit']);
-    } catch (e) {
+    } catch (e: any) {
       console.log('\n', e.message, '\n');
     }
     await execa('yarn', ['link', '@grafana/toolkit']);

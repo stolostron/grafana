@@ -1,10 +1,15 @@
-+++
-title = "Loki"
-description = "Guide for using Loki in Grafana"
-keywords = ["grafana", "loki", "logging", "guide"]
-aliases = ["/docs/grafana/latest/features/datasources/loki"]
-weight = 800
-+++
+---
+aliases:
+  - ../features/datasources/loki/
+description: Guide for using Loki in Grafana
+keywords:
+  - grafana
+  - loki
+  - logging
+  - guide
+title: Loki
+weight: 800
+---
 
 # Using Loki in Grafana
 
@@ -20,13 +25,15 @@ You can run Loki on your own hardware or use [Grafana Cloud](https://grafana.com
 
 To access Loki settings, click the **Configuration** (gear) icon, then click **Data Sources**, and then click the Loki data source.
 
-| Name                  | Description                                                                                                                                               |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Name`                | The data source name. This is how you refer to the data source in panels, queries, and Explore.                                                           |
-| `Default`             | Default data source that is pre-selected for new panels.                                                                                                  |
-| `URL`                 | URL of the Loki instance, e.g., `http://localhost:3100`.                                                                                                  |
-| `Whitelisted Cookies` | Grafana Proxy deletes forwarded cookies by default. Specify cookies by name that should be forwarded to the data source.                                  |
-| `Maximum lines`       | Upper limit for the number of log lines returned by Loki (default is 1000). Lower this limit if your browser is sluggish when displaying logs in Explore. |
+| Name              | Description                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Name`            | The data source name. This is how you refer to the data source in panels, queries, and Explore.                                                           |
+| `Default`         | Default data source that is pre-selected for new panels.                                                                                                  |
+| `URL`             | URL of the Loki instance, e.g., `http://localhost:3100`.                                                                                                  |
+| `Allowed cookies` | Grafana Proxy deletes forwarded cookies by default. Specify cookies by name that should be forwarded to the data source.                                  |
+| `Maximum lines`   | Upper limit for the number of log lines returned by Loki (default is 1000). Lower this limit if your browser is sluggish when displaying logs in Explore. |
+
+> **Note:** To troubleshoot configuration and other issues, check the log file located at /var/log/grafana/grafana.log on Unix systems or in <grafana_install_dir>/data/log on other platforms and manual installations.
 
 > **Note:** To troubleshoot configuration and other issues, check the log file located at /var/log/grafana/grafana.log on Unix systems or in <grafana_install_dir>/data/log on other platforms and manual installations.
 
@@ -43,7 +50,7 @@ Each derived field consists of:
 
 - **Name -** Shown in the log details as a label.
 - **Regex -** A Regex pattern that runs on the log message and captures part of it as the value of the new field. Can only contain a single capture group.
-- **URL/query -** If the link is external, then enter the full link URL. If the link is internal link, then this input serves as query for the target data source. In both cases, you can interpolate the value from the field with `${__value.raw }` macro.
+- **URL/query -** If the link is external, then enter the full link URL. If the link is internal link, then this input serves as query for the target data source. In both cases, you can interpolate the value from the field with `${__value.raw}` macro.
 - **URL Label -** (Optional) Set a custom display label for the link. The link label defaults to the full external URL or name of the linked internal data source and is overridden by this setting.
 - **Internal link -** Select if the link is internal or external. In case of internal link, a data source selector allows you to select the target data source. Only tracing data sources are supported.
 
@@ -66,7 +73,7 @@ You can use the Loki query editor to create log and metric queries.
 
 ### Log browser
 
-With Loki log browser you can easily navigate trough your list of labels and values and construct the query of your choice. Log browser has multi-step selection:
+With Loki log browser you can easily navigate through your list of labels and values and construct the query of your choice. Log browser has multi-step selection:
 
 1. Choose the labels you would like to consider for your search.
 2. Pick the values for selected labels. Log browser supports facetting and therefore it shows you only possible label combinations.

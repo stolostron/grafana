@@ -1,18 +1,19 @@
-import React, { PureComponent } from 'react';
 import { css, cx } from '@emotion/css';
-import { Field, LinkModel, LogLabelStatsModel, GrafanaTheme } from '@grafana/data';
+import React, { PureComponent } from 'react';
 
-import { Themeable } from '../../types/theme';
-import { withTheme } from '../../themes/index';
+import { Field, LinkModel, LogLabelStatsModel, GrafanaTheme2 } from '@grafana/data';
+
+import { withTheme2 } from '../../themes/index';
+import { Themeable2 } from '../../types/theme';
+import { DataLinkButton } from '../DataLinks/DataLinkButton';
+import { IconButton } from '../IconButton/IconButton';
+
+import { LogLabelStats } from './LogLabelStats';
 import { getLogRowStyles } from './getLogRowStyles';
-import { stylesFactory } from '../../themes/stylesFactory';
 
 //Components
-import { LogLabelStats } from './LogLabelStats';
-import { IconButton } from '../IconButton/IconButton';
-import { DataLinkButton } from '../DataLinks/DataLinkButton';
 
-export interface Props extends Themeable {
+export interface Props extends Themeable2 {
   parsedValue: string;
   parsedKey: string;
   wrapLogMessage?: boolean;
@@ -32,7 +33,7 @@ interface State {
   fieldStats: LogLabelStatsModel[] | null;
 }
 
-const getStyles = stylesFactory((theme: GrafanaTheme) => {
+const getStyles = (theme: GrafanaTheme2) => {
   return {
     noHoverBackground: css`
       label: noHoverBackground;
@@ -49,14 +50,14 @@ const getStyles = stylesFactory((theme: GrafanaTheme) => {
       word-break: break-all;
     `,
     showingField: css`
-      color: ${theme.palette.blue95};
+      color: ${theme.colors.primary.text};
     `,
     wrapLine: css`
       label: wrapLine;
       white-space: pre-wrap;
     `,
   };
-});
+};
 
 class UnThemedLogDetailsRow extends PureComponent<Props, State> {
   state: State = {
@@ -188,5 +189,5 @@ class UnThemedLogDetailsRow extends PureComponent<Props, State> {
   }
 }
 
-export const LogDetailsRow = withTheme(UnThemedLogDetailsRow);
+export const LogDetailsRow = withTheme2(UnThemedLogDetailsRow);
 LogDetailsRow.displayName = 'LogDetailsRow';

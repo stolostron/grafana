@@ -1,8 +1,8 @@
-import React, { createRef, MutableRefObject } from 'react';
-import uPlot, { Options } from 'uplot';
-import { PlotContext, PlotContextType } from './context';
-import { DEFAULT_PLOT_CONFIG, pluginLog } from './utils';
+import React, { createRef } from 'react';
+import uPlot, { AlignedData, Options } from 'uplot';
+
 import { PlotProps } from './types';
+import { DEFAULT_PLOT_CONFIG, pluginLog } from './utils';
 
 function sameDims(prevProps: PlotProps, nextProps: PlotProps) {
   return nextProps.width === prevProps.width && nextProps.height === prevProps.height;
@@ -16,8 +16,18 @@ function sameConfig(prevProps: PlotProps, nextProps: PlotProps) {
   return nextProps.config === prevProps.config;
 }
 
+function sameTimeRange(prevProps: PlotProps, nextProps: PlotProps) {
+  let prevTime = prevProps.timeRange;
+  let nextTime = nextProps.timeRange;
+
+  return (
+    prevTime === nextTime ||
+    (nextTime.from.valueOf() === prevTime.from.valueOf() && nextTime.to.valueOf() === prevTime.to.valueOf())
+  );
+}
+
 type UPlotChartState = {
-  ctx: PlotContextType;
+  plot: uPlot | null;
 };
 
 /**
@@ -34,35 +44,24 @@ export class UPlotChart extends React.Component<PlotProps, UPlotChartState> {
     super(props);
 
     this.state = {
-      ctx: {
-        plot: null,
-        getCanvasBoundingBox: () => {
-          return this.plotCanvasBBox.current;
-        },
-      },
+      plot: null,
     };
   }
 
   reinitPlot() {
-    let { ctx } = this.state;
     let { width, height, plotRef } = this.props;
 
-    ctx.plot?.destroy();
+    this.state.plot?.destroy();
 
     if (width === 0 && height === 0) {
       return;
     }
-
-    this.props.config.addHook('syncRect', (u, rect) => {
-      (this.plotCanvasBBox as MutableRefObject<any>).current = rect;
-    });
 
     this.props.config.addHook('setSize', (u) => {
       const canvas = u.over;
       if (!canvas) {
         return;
       }
-      (this.plotCanvasBBox as MutableRefObject<any>).current = canvas.getBoundingClientRect();
     });
 
     const config: Options = {
@@ -74,19 +73,13 @@ export class UPlotChart extends React.Component<PlotProps, UPlotChartState> {
     };
 
     pluginLog('UPlot', false, 'Reinitializing plot', config);
-    const plot = new uPlot(config, this.props.data, this.plotContainer!.current!);
+    const plot = new uPlot(config, this.props.data as AlignedData, this.plotContainer!.current!);
 
     if (plotRef) {
       plotRef(plot);
     }
 
-    this.setState((s) => ({
-      ...s,
-      ctx: {
-        ...s.ctx,
-        plot,
-      },
-    }));
+    this.setState({ plot });
   }
 
   componentDidMount() {
@@ -94,32 +87,35 @@ export class UPlotChart extends React.Component<PlotProps, UPlotChartState> {
   }
 
   componentWillUnmount() {
-    this.state.ctx.plot?.destroy();
+    this.state.plot?.destroy();
   }
 
   componentDidUpdate(prevProps: PlotProps) {
-    let { ctx } = this.state;
+    let { plot } = this.state;
 
     if (!sameDims(prevProps, this.props)) {
-      ctx.plot?.setSize({
+      plot?.setSize({
         width: this.props.width,
         height: this.props.height,
       });
     } else if (!sameConfig(prevProps, this.props)) {
       this.reinitPlot();
     } else if (!sameData(prevProps, this.props)) {
-      ctx.plot?.setData(this.props.data);
+      plot?.setData(this.props.data as AlignedData);
+    } else if (!sameTimeRange(prevProps, this.props)) {
+      plot?.setScale('x', {
+        min: this.props.timeRange.from.valueOf(),
+        max: this.props.timeRange.to.valueOf(),
+      });
     }
   }
 
   render() {
     return (
-      <PlotContext.Provider value={this.state.ctx}>
-        <div style={{ position: 'relative' }}>
-          <div ref={this.plotContainer} data-testid="uplot-main-div" />
-          {this.props.children}
-        </div>
-      </PlotContext.Provider>
+      <div style={{ position: 'relative' }}>
+        <div ref={this.plotContainer} data-testid="uplot-main-div" />
+        {this.props.children}
+      </div>
     );
   }
 }

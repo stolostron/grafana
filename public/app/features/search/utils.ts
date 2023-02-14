@@ -1,9 +1,12 @@
 import { parse, SearchParserResult } from 'search-query-parser';
-import { IconName } from '@grafana/ui';
+
 import { UrlQueryMap } from '@grafana/data';
-import { DashboardQuery, DashboardSection, DashboardSectionItem, SearchAction, UidsToDelete } from './types';
-import { NO_ID_SECTIONS, SECTION_STORAGE_KEY } from './constants';
+import { IconName } from '@grafana/ui';
+
 import { getDashboardSrv } from '../dashboard/services/DashboardSrv';
+
+import { NO_ID_SECTIONS, SECTION_STORAGE_KEY } from './constants';
+import { DashboardQuery, DashboardSection, DashboardSectionItem, SearchAction, UidsToDelete } from './types';
 
 /**
  * Check if folder has id. Only Recent and Starred folders are the ones without
@@ -165,7 +168,7 @@ export const getCheckedUids = (sections: DashboardSection[]): UidsToDelete => {
   }
 
   return sections.reduce((result, section) => {
-    if (section?.id !== 0 && section.checked) {
+    if (section?.id !== 0 && section.checked && section.uid) {
       return { ...result, folders: [...result.folders, section.uid] } as UidsToDelete;
     } else {
       return { ...result, dashboards: getCheckedDashboardsUids(sections) } as UidsToDelete;
@@ -227,10 +230,7 @@ export const getSectionIcon = (section: DashboardSection): IconName => {
  * Get storage key for a dashboard folder by its title
  * @param title
  */
-export const getSectionStorageKey = (title: string) => {
-  if (!title) {
-    return '';
-  }
+export const getSectionStorageKey = (title = 'General') => {
   return `${SECTION_STORAGE_KEY}.${title.toLowerCase()}`;
 };
 

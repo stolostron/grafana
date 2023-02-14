@@ -1,4 +1,11 @@
-import { DataSourceInstanceSettings, DataSourceJsonData, DataSourceSettings, TableData } from '@grafana/data';
+import {
+  DataSourceInstanceSettings,
+  DataSourceJsonData,
+  DataSourceSettings,
+  PanelData,
+  TableData,
+} from '@grafana/data';
+
 import Datasource from '../datasource';
 
 import { AzureMonitorQuery } from './query';
@@ -11,8 +18,6 @@ export interface DatasourceValidationResult {
   message: string;
   title?: string;
 }
-
-export type AzureResultFormat = 'time_series' | 'table';
 
 /**
  * Azure clouds known to Azure Monitor.
@@ -66,6 +71,8 @@ export interface AzureDataSourceJsonData extends DataSourceJsonData {
   logAnalyticsClientId?: string;
   /** @deprecated Azure Logs credentials */
   logAnalyticsSubscriptionId?: string;
+  /** @deprecated Azure Logs credentials */
+  logAnalyticsDefaultWorkspace?: string;
 
   // App Insights
   appInsightsAppId?: string;
@@ -140,9 +147,11 @@ export interface AzureLogsTableColumn {
 export interface AzureMonitorOption<T = string> {
   label: string;
   value: T;
+  options?: AzureMonitorOption[];
 }
 
 export interface AzureQueryEditorFieldProps {
+  data?: PanelData;
   query: AzureMonitorQuery;
   datasource: Datasource;
   subscriptionId?: string;
@@ -158,10 +167,12 @@ export interface AzureResourceSummaryItem {
   resourceName: string | undefined;
 }
 
-export interface RawAzureResourceGroupItem {
-  subscriptionURI: string;
+export interface RawAzureSubscriptionItem {
   subscriptionName: string;
+  subscriptionId: string;
+}
 
+export interface RawAzureResourceGroupItem {
   resourceGroupURI: string;
   resourceGroupName: string;
 }

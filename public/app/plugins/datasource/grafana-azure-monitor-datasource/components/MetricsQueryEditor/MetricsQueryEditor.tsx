@@ -1,22 +1,34 @@
 import React from 'react';
 
-import Datasource from '../../datasource';
-import { AzureMonitorQuery, AzureMonitorOption, AzureMonitorErrorish } from '../../types';
-import { useMetricsMetadata } from '../metrics';
-import SubscriptionField from '../SubscriptionField';
-import MetricNamespaceField from './MetricNamespaceField';
-import ResourceTypeField from './ResourceTypeField';
-import ResourceGroupsField from './ResourceGroupsField';
-import ResourceNameField from './ResourceNameField';
-import MetricNameField from './MetricNameField';
-import AggregationField from './AggregationField';
-import TimeGrainField from './TimeGrainField';
-import DimensionFields from './DimensionFields';
-import TopField from './TopField';
-import LegendFormatField from './LegendFormatField';
+import { PanelData } from '@grafana/data/src/types';
 import { InlineFieldRow } from '@grafana/ui';
 
+import Datasource from '../../datasource';
+import { AzureMonitorQuery, AzureMonitorOption, AzureMonitorErrorish } from '../../types';
+import SubscriptionField from '../SubscriptionField';
+
+import AggregationField from './AggregationField';
+import DimensionFields from './DimensionFields';
+import LegendFormatField from './LegendFormatField';
+import MetricNameField from './MetricNameField';
+import MetricNamespaceField from './MetricNamespaceField';
+import ResourceGroupsField from './ResourceGroupsField';
+import ResourceNameField from './ResourceNameField';
+import ResourceTypeField from './ResourceTypeField';
+import TimeGrainField from './TimeGrainField';
+import TopField from './TopField';
+import {
+  useMetricNames,
+  useMetricNamespaces,
+  useResourceGroups,
+  useResourceNames,
+  useResourceTypes,
+  useSubscriptions,
+  useMetricMetadata,
+} from './dataHooks';
+
 interface MetricsQueryEditorProps {
+  data: PanelData | undefined;
   query: AzureMonitorQuery;
   datasource: Datasource;
   subscriptionId?: string;
@@ -26,6 +38,7 @@ interface MetricsQueryEditorProps {
 }
 
 const MetricsQueryEditor: React.FC<MetricsQueryEditorProps> = ({
+  data,
   query,
   datasource,
   subscriptionId,
@@ -33,12 +46,19 @@ const MetricsQueryEditor: React.FC<MetricsQueryEditorProps> = ({
   onChange,
   setError,
 }) => {
-  const metricsMetadata = useMetricsMetadata(datasource, query, subscriptionId, onChange);
+  const metricsMetadata = useMetricMetadata(query, datasource, onChange);
+  const subscriptions = useSubscriptions(query, datasource, onChange, setError);
+  const resourceGroups = useResourceGroups(query, datasource, onChange, setError);
+  const resourceTypes = useResourceTypes(query, datasource, onChange, setError);
+  const resourceNames = useResourceNames(query, datasource, onChange, setError);
+  const metricNames = useMetricNames(query, datasource, onChange, setError);
+  const metricNamespaces = useMetricNamespaces(query, datasource, onChange, setError);
 
   return (
     <div data-testid="azure-monitor-metrics-query-editor">
       <InlineFieldRow>
         <SubscriptionField
+          subscriptions={subscriptions}
           query={query}
           datasource={datasource}
           subscriptionId={subscriptionId}
@@ -48,6 +68,7 @@ const MetricsQueryEditor: React.FC<MetricsQueryEditorProps> = ({
         />
 
         <ResourceGroupsField
+          resourceGroups={resourceGroups}
           query={query}
           datasource={datasource}
           subscriptionId={subscriptionId}
@@ -59,6 +80,7 @@ const MetricsQueryEditor: React.FC<MetricsQueryEditorProps> = ({
 
       <InlineFieldRow>
         <ResourceTypeField
+          resourceTypes={resourceTypes}
           query={query}
           datasource={datasource}
           subscriptionId={subscriptionId}
@@ -67,6 +89,7 @@ const MetricsQueryEditor: React.FC<MetricsQueryEditorProps> = ({
           setError={setError}
         />
         <ResourceNameField
+          resourceNames={resourceNames}
           query={query}
           datasource={datasource}
           subscriptionId={subscriptionId}
@@ -78,6 +101,7 @@ const MetricsQueryEditor: React.FC<MetricsQueryEditorProps> = ({
 
       <InlineFieldRow>
         <MetricNamespaceField
+          metricNamespaces={metricNamespaces}
           query={query}
           datasource={datasource}
           subscriptionId={subscriptionId}
@@ -86,6 +110,7 @@ const MetricsQueryEditor: React.FC<MetricsQueryEditorProps> = ({
           setError={setError}
         />
         <MetricNameField
+          metricNames={metricNames}
           query={query}
           datasource={datasource}
           subscriptionId={subscriptionId}
@@ -116,6 +141,7 @@ const MetricsQueryEditor: React.FC<MetricsQueryEditorProps> = ({
         />
       </InlineFieldRow>
       <DimensionFields
+        data={data}
         query={query}
         datasource={datasource}
         subscriptionId={subscriptionId}

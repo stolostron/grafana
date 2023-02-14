@@ -1,14 +1,16 @@
-import { useSpinner } from '../utils/useSpinner';
-import { testPlugin } from './plugin/tests';
-import { Task, TaskRunner } from './task';
-import rimrafCallback from 'rimraf';
-import { resolve as resolvePath } from 'path';
-import { promisify } from 'util';
-import globby from 'globby';
+import { CLIEngine } from 'eslint';
 import execa from 'execa';
 import { constants as fsConstants, promises as fs } from 'fs';
-import { CLIEngine } from 'eslint';
+import globby from 'globby';
+import { resolve as resolvePath } from 'path';
+import rimrafCallback from 'rimraf';
+import { promisify } from 'util';
+
+import { useSpinner } from '../utils/useSpinner';
+
 import { bundlePlugin as bundleFn, PluginBundleOptions } from './plugin/bundle';
+import { testPlugin } from './plugin/tests';
+import { Task, TaskRunner } from './task';
 
 const { access, copyFile } = fs;
 const { COPYFILE_EXCL } = fsConstants;
@@ -46,7 +48,6 @@ export const prepare = () =>
       // Remove local dependencies for @grafana/data/node_modules
       // See: https://github.com/grafana/grafana/issues/26748
       rimraf(resolvePath(__dirname, 'node_modules/@grafana/data/node_modules')),
-
       // Copy only if local tsconfig does not exist.  Otherwise this will work, but have odd behavior
       copyIfNonExistent(
         resolvePath(__dirname, '../../config/tsconfig.plugin.local.json'),
@@ -100,7 +101,7 @@ export const lintPlugin = ({ fix }: Fixable = {}) =>
         if (filePaths.length > 0) {
           return filePaths[0];
         } else {
-          return resolvePath(__dirname, '../../config/eslint.plugin.json');
+          return resolvePath(__dirname, '../../config/eslint.plugin.js');
         }
       }
     );
@@ -108,6 +109,7 @@ export const lintPlugin = ({ fix }: Fixable = {}) =>
     const cli = new CLIEngine({
       configFile,
       fix,
+      useEslintrc: false,
     });
 
     const report = cli.executeOnFiles(await getTypescriptSources());

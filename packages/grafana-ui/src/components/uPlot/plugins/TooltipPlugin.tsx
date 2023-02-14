@@ -1,7 +1,9 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { Portal } from '../../Portal/Portal';
-import { usePlotContext } from '../context';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useMountedState } from 'react-use';
+import uPlot from 'uplot';
+
 import {
+  arrayUtils,
   CartesianCoords2D,
   DashboardCursorSync,
   DataFrame,
@@ -12,18 +14,21 @@ import {
   getFieldDisplayName,
   TimeZone,
 } from '@grafana/data';
-import { SeriesTable, SeriesTableRowProps, TooltipDisplayMode, VizTooltipContainer } from '../../VizTooltip';
+import { TooltipDisplayMode, SortOrder } from '@grafana/schema';
+
+import { useTheme2 } from '../../../themes/ThemeContext';
+import { Portal } from '../../Portal/Portal';
+import { SeriesTable, SeriesTableRowProps, VizTooltipContainer } from '../../VizTooltip';
 import { UPlotConfigBuilder } from '../config/UPlotConfigBuilder';
 import { findMidPointYPosition, pluginLog } from '../utils';
-import { useTheme2 } from '../../../themes/ThemeContext';
-import uPlot from 'uplot';
 
 interface TooltipPluginProps {
   timeZone: TimeZone;
   data: DataFrame;
   config: UPlotConfigBuilder;
   mode?: TooltipDisplayMode;
-  sync?: DashboardCursorSync;
+  sortOrder?: SortOrder;
+  sync?: () => DashboardCursorSync;
   // Allows custom tooltip content rendering. Exposes aligned data frame with relevant indexes for data inspection
   // Use field.state.origin indexes from alignedData frame field to get access to original data frame and field index.
   renderTooltip?: (alignedFrame: DataFrame, seriesIdx: number | null, datapointIdx: number | null) => React.ReactNode;
@@ -36,20 +41,21 @@ const TOOLTIP_OFFSET = 10;
  */
 export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
   mode = TooltipDisplayMode.Single,
+  sortOrder = SortOrder.None,
   sync,
   timeZone,
   config,
   renderTooltip,
   ...otherProps
 }) => {
+  const plotInstance = useRef<uPlot>();
   const theme = useTheme2();
-  const plotCtx = usePlotContext();
   const [focusedSeriesIdx, setFocusedSeriesIdx] = useState<number | null>(null);
   const [focusedPointIdx, setFocusedPointIdx] = useState<number | null>(null);
   const [focusedPointIdxs, setFocusedPointIdxs] = useState<Array<number | null>>([]);
   const [coords, setCoords] = useState<CartesianCoords2D | null>(null);
-  const plotInstance = plotCtx.plot;
   const [isActive, setIsActive] = useState<boolean>(false);
+  const isMounted = useMountedState();
 
   const pluginId = `TooltipPlugin`;
 
@@ -58,42 +64,46 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
     pluginLog(pluginId, true, `Focused series: ${focusedSeriesIdx}, focused point: ${focusedPointIdx}`);
   }, [focusedPointIdx, focusedSeriesIdx]);
 
-  useEffect(() => {
-    const plotMouseLeave = () => {
-      setCoords(null);
-      setIsActive(false);
-      if (plotCtx.plot) {
-        plotCtx.plot.root.classList.remove('plot-active');
-      }
-    };
-
-    const plotMouseEnter = () => {
-      setIsActive(true);
-      if (plotCtx.plot) {
-        plotCtx.plot.root.classList.add('plot-active');
-      }
-    };
-
-    if (plotCtx && plotCtx.plot) {
-      plotCtx.plot.over.addEventListener('mouseleave', plotMouseLeave);
-      plotCtx.plot.over.addEventListener('mouseenter', plotMouseEnter);
-      if (sync === DashboardCursorSync.Crosshair) {
-        plotCtx.plot.root.classList.add('shared-crosshair');
-      }
-    }
-
-    return () => {
-      setCoords(null);
-      if (plotCtx && plotCtx.plot) {
-        plotCtx.plot.over.removeEventListener('mouseleave', plotMouseLeave);
-        plotCtx.plot.over.removeEventListener('mouseenter', plotMouseEnter);
-      }
-    };
-  }, [plotCtx.plot?.root]);
-
   // Add uPlot hooks to the config, or re-add when the config changed
   useLayoutEffect(() => {
+    let bbox: DOMRect | undefined = undefined;
+
+    const plotEnter = () => {
+      if (!isMounted()) {
+        return;
+      }
+      setIsActive(true);
+      plotInstance.current?.root.classList.add('plot-active');
+    };
+
+    const plotLeave = () => {
+      if (!isMounted()) {
+        return;
+      }
+      setCoords(null);
+      setIsActive(false);
+      plotInstance.current?.root.classList.remove('plot-active');
+    };
+
+    // cache uPlot plotting area bounding box
+    config.addHook('syncRect', (u, rect) => (bbox = rect));
+
+    config.addHook('init', (u) => {
+      plotInstance.current = u;
+
+      u.root.parentElement?.addEventListener('focus', plotEnter);
+      u.over.addEventListener('mouseenter', plotEnter);
+
+      u.root.parentElement?.addEventListener('blur', plotLeave);
+      u.over.addEventListener('mouseleave', plotLeave);
+
+      if (sync && sync() === DashboardCursorSync.Crosshair) {
+        u.root.classList.add('shared-crosshair');
+      }
+    });
+
     const tooltipInterpolator = config.getTooltipInterpolator();
+
     if (tooltipInterpolator) {
       // Custom toolitp positioning
       config.addHook('setCursor', (u) => {
@@ -106,7 +116,6 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
               return;
             }
 
-            const bbox = plotCtx.getCanvasBoundingBox();
             if (!bbox) {
               return;
             }
@@ -121,14 +130,16 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
       });
     } else {
       config.addHook('setLegend', (u) => {
+        if (!isMounted()) {
+          return;
+        }
         setFocusedPointIdx(u.legend.idx!);
         setFocusedPointIdxs(u.legend.idxs!.slice());
       });
 
       // default series/datapoint idx retireval
       config.addHook('setCursor', (u) => {
-        const bbox = plotCtx.getCanvasBoundingBox();
-        if (!bbox) {
+        if (!bbox || !isMounted()) {
           return;
         }
 
@@ -141,12 +152,25 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
       });
 
       config.addHook('setSeries', (_, idx) => {
+        if (!isMounted()) {
+          return;
+        }
         setFocusedSeriesIdx(idx);
       });
     }
-  }, [plotCtx, config]);
 
-  if (!plotInstance || focusedPointIdx === null || (!isActive && sync === DashboardCursorSync.Crosshair)) {
+    return () => {
+      setCoords(null);
+      if (plotInstance.current) {
+        plotInstance.current.over.removeEventListener('mouseleave', plotLeave);
+        plotInstance.current.over.removeEventListener('mouseenter', plotEnter);
+        plotInstance.current.root.parentElement?.removeEventListener('focus', plotEnter);
+        plotInstance.current.root.parentElement?.removeEventListener('blur', plotLeave);
+      }
+    };
+  }, [config, setCoords, setIsActive, setFocusedPointIdx, setFocusedPointIdxs]);
+
+  if (focusedPointIdx === null || (!isActive && sync && sync() === DashboardCursorSync.Crosshair)) {
     return null;
   }
 
@@ -158,7 +182,7 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
   const xFieldFmt = xField.display || getDisplayProcessor({ field: xField, timeZone, theme });
   let tooltip: React.ReactNode = null;
 
-  const xVal = xFieldFmt(xField!.values.get(focusedPointIdx)).text;
+  let xVal = xFieldFmt(xField!.values.get(focusedPointIdx)).text;
 
   if (!renderTooltip) {
     // when interacting with a point in single mode
@@ -169,8 +193,10 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
         return null;
       }
 
+      const dataIdx = focusedPointIdxs?.[focusedSeriesIdx] ?? focusedPointIdx;
+      xVal = xFieldFmt(xField!.values.get(dataIdx)).text;
       const fieldFmt = field.display || getDisplayProcessor({ field, timeZone, theme });
-      const display = fieldFmt(field.values.get(focusedPointIdx));
+      const display = fieldFmt(field.values.get(dataIdx));
 
       tooltip = (
         <SeriesTable
@@ -188,10 +214,11 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
 
     if (mode === TooltipDisplayMode.Multi) {
       let series: SeriesTableRowProps[] = [];
-      const plotSeries = plotInstance.series;
+      const frame = otherProps.data;
+      const fields = frame.fields;
+      const sortIdx: any[] = [];
 
-      for (let i = 0; i < plotSeries.length; i++) {
-        const frame = otherProps.data;
+      for (let i = 0; i < fields.length; i++) {
         const field = frame.fields[i];
         if (
           !field ||
@@ -204,13 +231,28 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
           continue;
         }
 
-        const display = field.display!(otherProps.data.fields[i].values.get(focusedPointIdxs[i]!));
+        const v = otherProps.data.fields[i].values.get(focusedPointIdxs[i]!);
+        const display = field.display!(v);
 
+        sortIdx.push(v);
         series.push({
           color: display.color || FALLBACK_COLOR,
           label: getFieldDisplayName(field, frame),
           value: display ? formattedValueToString(display) : null,
           isActive: focusedSeriesIdx === i,
+        });
+      }
+
+      if (sortOrder !== SortOrder.None) {
+        // create sort reference series array, as Array.sort() mutates the original array
+        const sortRef = [...series];
+        const sortFn = arrayUtils.sortValues(sortOrder);
+
+        series.sort((a, b) => {
+          // get compared values indices to retrieve raw values from sortIdx
+          const aIdx = sortRef.indexOf(a);
+          const bIdx = sortRef.indexOf(b);
+          return sortFn(sortIdx[aIdx], sortIdx[bIdx]);
         });
       }
 
@@ -231,7 +273,7 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
   );
 };
 
-function isCursourOutsideCanvas({ left, top }: uPlot.Cursor, canvas: DOMRect) {
+function isCursorOutsideCanvas({ left, top }: uPlot.Cursor, canvas: DOMRect) {
   if (left === undefined || top === undefined) {
     return false;
   }
@@ -248,7 +290,7 @@ export function positionTooltip(u: uPlot, bbox: DOMRect) {
   const cL = u.cursor.left || 0;
   const cT = u.cursor.top || 0;
 
-  if (isCursourOutsideCanvas(u.cursor, bbox)) {
+  if (isCursorOutsideCanvas(u.cursor, bbox)) {
     const idx = u.posToIdx(cL);
     // when cursor outside of uPlot's canvas
     if (cT < 0 || cT > bbox.height) {

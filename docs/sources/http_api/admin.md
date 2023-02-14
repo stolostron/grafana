@@ -1,9 +1,13 @@
-+++
-title = "Admin HTTP API "
-description = "Grafana Admin HTTP API"
-keywords = ["grafana", "http", "documentation", "api", "admin"]
-aliases = ["/docs/grafana/latest/http_api/admin/"]
-+++
+---
+description: Grafana Admin HTTP API
+keywords:
+  - grafana
+  - http
+  - documentation
+  - api
+  - admin
+title: 'Admin HTTP API '
+---
 
 # Admin API
 
@@ -282,6 +286,46 @@ Content-Type: application/json
 }
 ```
 
+## Grafana Usage Report preview
+
+`GET /api/admin/usage-report-preview`
+
+Preview usage report to be sent to vendor.
+
+Only works with Basic Authentication (username and password). See [introduction](http://docs.grafana.org/http_api/admin/#admin-api) for an explanation.
+
+**Example Request**:
+
+```http
+GET /api/admin/usage-report-preview
+Accept: application/json
+Content-Type: application/json
+```
+
+**Example Response**:
+
+```http
+HTTP/1.1 200
+Content-Type: application/json
+
+{
+	"version": "8_4_0",
+	"metrics": {
+		"stats.active_admins.count": 1,
+		"stats.active_editors.count": 1,
+		"stats.active_sessions.count": 0,
+		"stats.active_users.count": 2,
+		"stats.active_viewers.count": 0,
+		"stats.admins.count": 1,
+		"stats.alert_rules.count": 0,
+		"stats.alerting.ds.other.count": 0,
+		"stats.alerts.count": 5,
+		"stats.annotations.count": 6,
+		"stats.api_keys.count": 1
+  }
+}
+```
+
 ## Global Users
 
 `POST /api/admin/users`
@@ -336,7 +380,7 @@ See note in the [introduction]({{< ref "#admin-api" >}}) for an explanation.
 
 | Action                | Scope           |
 | --------------------- | --------------- |
-| users.password:update | global:users:\* |
+| users.password:update | global.users:\* |
 
 **Example Request**:
 
@@ -369,7 +413,7 @@ See note in the [introduction]({{< ref "#admin-api" >}}) for an explanation.
 
 | Action                   | Scope           |
 | ------------------------ | --------------- |
-| users.permissions:update | global:users:\* |
+| users.permissions:update | global.users:\* |
 
 **Example Request**:
 
@@ -402,7 +446,7 @@ See note in the [introduction]({{< ref "#admin-api" >}}) for an explanation.
 
 | Action       | Scope           |
 | ------------ | --------------- |
-| users:delete | global:users:\* |
+| users:delete | global.users:\* |
 
 **Example Request**:
 
@@ -470,7 +514,7 @@ See note in the [introduction]({{< ref "#admin-api" >}}) for an explanation.
 
 | Action               | Scope           |
 | -------------------- | --------------- |
-| users.authtoken:list | global:users:\* |
+| users.authtoken:list | global.users:\* |
 
 **Example Request**:
 
@@ -529,7 +573,7 @@ See note in the [introduction]({{< ref "#admin-api" >}}) for an explanation.
 
 | Action                 | Scope           |
 | ---------------------- | --------------- |
-| users.authtoken:update | global:users:\* |
+| users.authtoken:update | global.users:\* |
 
 **Example Request**:
 
@@ -569,7 +613,7 @@ See note in the [introduction]({{< ref "#admin-api" >}}) for an explanation.
 
 | Action       | Scope           |
 | ------------ | --------------- |
-| users.logout | global:users:\* |
+| users.logout | global.users:\* |
 
 **Example Request**:
 
@@ -600,7 +644,7 @@ Content-Type: application/json
 
 `POST /api/admin/provisioning/notifications/reload`
 
-`POST /api/admin/provisioning/accesscontrol/reload`
+`POST /api/admin/provisioning/access-control/reload`
 
 Reloads the provisioning config files for specified type and provision entities again. It won't return
 until the new provisioned entities are already stored in the database. In case of dashboards, it will stop
@@ -612,9 +656,13 @@ Only works with Basic Authentication (username and password). See [introduction]
 
 See note in the [introduction]({{< ref "#admin-api" >}}) for an explanation.
 
-| Action              | Scope                  | Provision entity |
-| ------------------- | ---------------------- | ---------------- |
-| provisioning:reload | services:accesscontrol | accesscontrol    |
+| Action              | Scope                      | Provision entity |
+| ------------------- | -------------------------- | ---------------- |
+| provisioning:reload | provisioners:accesscontrol | accesscontrol    |
+| provisioning:reload | provisioners:dashboards    | dashboards       |
+| provisioning:reload | provisioners:datasources   | datasources      |
+| provisioning:reload | provisioners:plugins       | plugins          |
+| provisioning:reload | provisioners:notifications | notifications    |
 
 **Example Request**:
 

@@ -1,9 +1,11 @@
-+++
-title = "Tracing in Explore"
-description = "Tracing in Explore"
-keywords = ["explore", "trace",]
-weight = 20
-+++
+---
+description: Tracing in Explore
+keywords:
+  - explore
+  - trace
+title: Tracing in Explore
+weight: 20
+---
 
 # Tracing in Explore
 
@@ -59,7 +61,7 @@ Clicking anywhere on the span row shows span details.
 
 ##### Node graph
 
-You can optionally expand the node graph for the displayed trace. Depending on the data source, this can show spans of the trace as nodes in the graph, or as some additional context like service map based on the current trace.
+You can optionally expand the node graph for the displayed trace. Depending on the data source, this can show spans of the trace as nodes in the graph, or as some additional context like service graph based on the current trace.
 
 ![Node graph](/static/img/docs/explore/explore-trace-view-node-graph-8-0.png 'Node graph')
 

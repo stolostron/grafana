@@ -1,4 +1,5 @@
 import { find, get } from 'lodash';
+
 import TimeGrainConverter from '../time_grain_converter';
 import {
   AzureMonitorLocalizedValue,
@@ -40,7 +41,10 @@ export default class ResponseParser {
     }
 
     for (let i = 0; i < result.value.length; i++) {
-      if (result.value[i].type === metricDefinition) {
+      if (
+        typeof result.value[i].type === 'string' &&
+        result.value[i].type.toLocaleLowerCase() === metricDefinition.toLocaleLowerCase()
+      ) {
         list.push({
           text: result.value[i].name,
           value: result.value[i].name,

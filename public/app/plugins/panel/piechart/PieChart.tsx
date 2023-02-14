@@ -1,4 +1,12 @@
+import { css } from '@emotion/css';
+import { localPoint } from '@visx/event';
+import { RadialGradient } from '@visx/gradient';
+import { Group } from '@visx/group';
+import Pie, { PieArcDatum, ProvidedProps } from '@visx/shape/lib/shapes/Pie';
+import { useTooltip, useTooltipInPortal } from '@visx/tooltip';
+import { UseTooltipParams } from '@visx/tooltip/lib/hooks/useTooltip';
 import React, { FC, useCallback } from 'react';
+import tinycolor from 'tinycolor2';
 
 import {
   FieldDisplay,
@@ -8,8 +16,9 @@ import {
   DataHoverClearEvent,
   DataHoverEvent,
 } from '@grafana/data';
+import { selectors } from '@grafana/e2e-selectors';
+import { VizTooltipOptions } from '@grafana/schema';
 import {
-  VizTooltipOptions,
   useTheme2,
   useStyles2,
   SeriesTableRowProps,
@@ -17,19 +26,11 @@ import {
   SeriesTable,
   usePanelContext,
 } from '@grafana/ui';
-import { PieChartType, PieChartLabels } from './types';
-import { useTooltip, useTooltipInPortal } from '@visx/tooltip';
-import Pie, { PieArcDatum, ProvidedProps } from '@visx/shape/lib/shapes/Pie';
-import { UseTooltipParams } from '@visx/tooltip/lib/hooks/useTooltip';
-import { RadialGradient } from '@visx/gradient';
-import { localPoint } from '@visx/event';
-import { Group } from '@visx/group';
-import tinycolor from 'tinycolor2';
-import { css } from '@emotion/css';
-
-import { useComponentInstanceId } from '@grafana/ui/src/utils/useComponetInstanceId';
 import { getTooltipContainerStyles } from '@grafana/ui/src/themes/mixins';
-import { selectors } from '@grafana/e2e-selectors';
+import { useComponentInstanceId } from '@grafana/ui/src/utils/useComponetInstanceId';
+
+import { PieChartType, PieChartLabels } from './types';
+import { filterDisplayItems, sumDisplayItemsReducer } from './utils';
 
 /**
  * @beta
@@ -63,9 +64,7 @@ export const PieChart: FC<PieChartProps> = ({
     scroll: true,
   });
 
-  const filteredFieldDisplayValues = fieldDisplayValues.filter((dv) => {
-    return !dv.field.custom.hideFrom.viz;
-  });
+  const filteredFieldDisplayValues = fieldDisplayValues.filter(filterDisplayItems);
 
   const getValue = (d: FieldDisplay) => d.display.numeric;
   const getGradientId = (color: string) => `${componentInstanceId}-${tinycolor(color).toHex()}`;
@@ -75,7 +74,7 @@ export const PieChart: FC<PieChartProps> = ({
 
   const showLabel = displayLabels.length > 0;
   const showTooltip = tooltipOptions.mode !== 'none' && tooltip.tooltipOpen;
-  const total = filteredFieldDisplayValues.reduce((acc, item) => item.display.numeric + acc, 0);
+  const total = filteredFieldDisplayValues.reduce(sumDisplayItemsReducer, 0);
   const layout = getPieLayout(width, height, pieType);
   const colors = [
     ...new Set(
@@ -301,7 +300,7 @@ function PieLabel({ arc, outerRadius, innerRadius, displayLabels, total, color, 
         )}
         {displayLabels.includes(PieChartLabels.Percent) && (
           <tspan x={labelX} dy="1.2em">
-            {((arc.data.display.numeric / total) * 100).toFixed(0) + '%'}
+            {((arc.data.display.numeric / total) * 100).toFixed(arc.data.field.decimals ?? 0) + '%'}
           </tspan>
         )}
       </text>

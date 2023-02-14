@@ -1,13 +1,21 @@
-+++
-title = "Graph (old)"
-keywords = ["grafana", "graph panel", "documentation", "guide", "graph"]
-aliases = ["/docs/grafana/latest/reference/graph/", "/docs/grafana/latest/features/panels/graph/", "/docs/grafana/latest/panels/visualizations/graph-panel/"]
-weight = 500
-+++
+---
+aliases:
+  - ../features/panels/graph/
+  - ../panels/visualizations/graph-panel/
+  - ../reference/graph/
+keywords:
+  - grafana
+  - graph panel
+  - documentation
+  - guide
+  - graph
+title: Graph (old)
+weight: 500
+---
 
 # Graph panel (old)
 
-> **Note:** [Time series panel](time-series/) visualization is going to replace the Graph panel visualization in a future release.
+> **Note:** [Time series panel]({{< relref "./time-series/_index.md" >}}) visualization is going to replace the Graph panel visualization in a future release.
 
 The graph panel can render metrics as a line, a path of dots, or a series of bars. This type of graph is versatile enough to display almost any time-series data.
 
@@ -16,9 +24,9 @@ The graph panel can render metrics as a line, a path of dots, or a series of bar
 Graph visualizations allow you to apply:
 
 - [Alerts]({{< relref "../alerting/_index.md" >}}) - This is the only type of visualization that allows you to set alerts.
-- [Data transformations]({{< relref "../panels/transformations/_index.md" >}})
-- [Field overrides]({{< relref "../panels/field-overrides.md" >}})
-- [Thresholds]({{< relref "../panels/thresholds.md" >}})
+- [Transform data]({{< relref "../panels/transform-data/add-transformation-to-data.md" >}})
+- [Add a field override]({{< relref "../panels/override-field-values/add-a-field-override.md" >}})
+- [Add a threshold]({{< relref "../panels/specify-thresholds/add-a-threshold.md" >}})
 
 ## Display options
 

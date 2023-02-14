@@ -1,14 +1,16 @@
 import React, { FC } from 'react';
+
+import { selectors } from '@grafana/e2e-selectors';
 import { config } from '@grafana/runtime';
 import { Button, Field, Form, HorizontalGroup, Input, LinkButton } from '@grafana/ui';
-import { selectors } from '@grafana/e2e-selectors';
+import { DashboardPickerByID } from 'app/core/components/editors/DashboardPickerByID';
 
-import { Playlist } from './types';
-import { DashboardPicker } from '../../core/components/Select/DashboardPicker';
 import { TagFilter } from '../../core/components/TagFilter/TagFilter';
 import { SearchSrv } from '../../core/services/search_srv';
-import { usePlaylistItems } from './usePlaylistItems';
+
 import { PlaylistTable } from './PlaylistTable';
+import { Playlist } from './types';
+import { usePlaylistItems } from './usePlaylistItems';
 
 interface PlaylistFormProps {
   onSubmit: (playlist: Playlist) => void;
@@ -52,7 +54,7 @@ export const PlaylistForm: FC<PlaylistFormProps> = ({ onSubmit, playlist }) => {
                 <h3 className="page-headering">Add dashboards</h3>
 
                 <Field label="Add by title">
-                  <DashboardPicker onChange={addById} isClearable />
+                  <DashboardPickerByID onChange={addById} id="dashboard-picker" isClearable />
                 </Field>
 
                 <Field label="Add by tag">

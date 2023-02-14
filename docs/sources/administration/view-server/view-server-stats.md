@@ -1,22 +1,26 @@
-+++
-title = "View server stats"
-keywords = ["grafana", "server", "statistics"]
-aliases = ["/docs/grafana/latest/admin/view-server-stats/"]
-weight = 400
-+++
+---
+aliases:
+  - ../../admin/view-server-stats/
+keywords:
+  - grafana
+  - server
+  - statistics
+title: View server stats
+weight: 400
+---
 
 # View Grafana server stats
 
 > Refer to [Fine-grained access control]({{< relref "../../enterprise/access-control/_index.md" >}}) in Grafana Enterprise to understand how you can control access with fine-grained permissions.
 
-If you are a Grafana server admin, then you can view useful statistics about your Grafana server in the Stats tab.
+If you are a Grafana server admin, then you can view useful statistics about your Grafana server in the Stats & Licensing tab.
 
-> **Note:** Only Grafana server administrators can access the **Server Admin** menu. For more information about about administrative permissions, refer to [Grafana server admin]({{< relref "../../permissions/_index.md" >}}).
+> **Note:** Only Grafana server administrators can access the **Server Admin** menu. For more information about about administrative permissions, refer to [About users and permissions]({{< relref "../manage-users-and-permissions/about-users-and-permissions.md" >}}).
 
 ## View server stats
 
 1. Log in to your Grafana server with an account that has the Grafana Admin flag set.
-1. Hover your cursor over the **Server Admin** (shield) icon in the side menu and then click the **Stats** tab.
+1. Hover your cursor over the **Server Admin** (shield) icon in the side menu and then click the **Stats & Licensing** tab.
 
 ## Available stats
 

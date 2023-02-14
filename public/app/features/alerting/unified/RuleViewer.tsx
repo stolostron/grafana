@@ -1,32 +1,41 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
-import { useObservable } from 'react-use';
 import { css } from '@emotion/css';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useObservable } from 'react-use';
+
 import { GrafanaTheme2, LoadingState, PanelData } from '@grafana/data';
 import {
-  withErrorBoundary,
-  useStyles2,
   Alert,
+  Button,
+  Icon,
   LoadingPlaceholder,
   PanelChromeLoadingIndicator,
-  Icon,
+  useStyles2,
+  VerticalGroup,
+  withErrorBoundary,
 } from '@grafana/ui';
 import { GrafanaRouteComponentProps } from 'app/core/navigation/types';
-import { AlertingQueryRunner } from './state/AlertingQueryRunner';
-import { useCombinedRule } from './hooks/useCombinedRule';
-import { alertRuleToQueries } from './utils/query';
-import { RuleState } from './components/rules/RuleState';
-import { getRulesSourceByName } from './utils/datasource';
+
+import { AlertQuery } from '../../../types/unified-alerting-dto';
+
+import { AlertLabels } from './components/AlertLabels';
 import { DetailsField } from './components/DetailsField';
-import { RuleHealth } from './components/rules/RuleHealth';
+import { RuleViewerLayout, RuleViewerLayoutContent } from './components/rule-viewer/RuleViewerLayout';
 import { RuleViewerVisualization } from './components/rule-viewer/RuleViewerVisualization';
 import { RuleDetailsActionButtons } from './components/rules/RuleDetailsActionButtons';
-import { RuleDetailsMatchingInstances } from './components/rules/RuleDetailsMatchingInstances';
-import { RuleDetailsDataSources } from './components/rules/RuleDetailsDataSources';
-import { RuleViewerLayout, RuleViewerLayoutContent } from './components/rule-viewer/RuleViewerLayout';
-import { AlertLabels } from './components/AlertLabels';
-import { RuleDetailsExpression } from './components/rules/RuleDetailsExpression';
 import { RuleDetailsAnnotations } from './components/rules/RuleDetailsAnnotations';
+import { RuleDetailsDataSources } from './components/rules/RuleDetailsDataSources';
+import { RuleDetailsExpression } from './components/rules/RuleDetailsExpression';
+import { RuleDetailsFederatedSources } from './components/rules/RuleDetailsFederatedSources';
+import { RuleDetailsMatchingInstances } from './components/rules/RuleDetailsMatchingInstances';
+import { RuleHealth } from './components/rules/RuleHealth';
+import { RuleState } from './components/rules/RuleState';
+import { useAlertQueriesStatus } from './hooks/useAlertQueriesStatus';
+import { useCombinedRule } from './hooks/useCombinedRule';
+import { AlertingQueryRunner } from './state/AlertingQueryRunner';
+import { getRulesSourceByName } from './utils/datasource';
+import { alertRuleToQueries } from './utils/query';
 import * as ruleId from './utils/rule-id';
+import { isFederatedRuleGroup } from './utils/rules';
 
 type RuleViewerProps = GrafanaRouteComponentProps<{ id?: string; sourceName?: string }>;
 
@@ -36,28 +45,49 @@ const pageTitle = 'Alerting / View rule';
 
 export function RuleViewer({ match }: RuleViewerProps) {
   const styles = useStyles2(getStyles);
-  const { id, sourceName } = match.params;
+  const { id } = match.params;
   const identifier = ruleId.tryParse(id, true);
-  const { loading, error, result: rule } = useCombinedRule(identifier, sourceName);
+
+  const { loading, error, result: rule } = useCombinedRule(identifier, identifier?.ruleSourceName);
   const runner = useMemo(() => new AlertingQueryRunner(), []);
   const data = useObservable(runner.get());
-  const queries = useMemo(() => alertRuleToQueries(rule), [rule]);
+  const queries2 = useMemo(() => alertRuleToQueries(rule), [rule]);
+  const [queries, setQueries] = useState<AlertQuery[]>([]);
+
+  const { allDataSourcesAvailable } = useAlertQueriesStatus(queries2);
 
   const onRunQueries = useCallback(() => {
-    if (queries.length > 0) {
+    if (queries.length > 0 && allDataSourcesAvailable) {
       runner.run(queries);
     }
-  }, [queries, runner]);
+  }, [queries, runner, allDataSourcesAvailable]);
 
   useEffect(() => {
-    onRunQueries();
-  }, [onRunQueries]);
+    setQueries(queries2);
+  }, [queries2]);
+
+  useEffect(() => {
+    if (allDataSourcesAvailable) {
+      onRunQueries();
+    }
+  }, [onRunQueries, allDataSourcesAvailable]);
 
   useEffect(() => {
     return () => runner.destroy();
   }, [runner]);
 
-  if (!sourceName) {
+  const onChangeQuery = useCallback((query: AlertQuery) => {
+    setQueries((queries) =>
+      queries.map((q) => {
+        if (q.refId === query.refId) {
+          return query;
+        }
+        return q;
+      })
+    );
+  }, []);
+
+  if (!identifier?.ruleSourceName) {
     return (
       <RuleViewerLayout title={pageTitle}>
         <Alert title={errorTitle}>
@@ -67,7 +97,7 @@ export function RuleViewer({ match }: RuleViewerProps) {
     );
   }
 
-  const rulesSource = getRulesSourceByName(sourceName);
+  const rulesSource = getRulesSourceByName(identifier.ruleSourceName);
 
   if (loading) {
     return (
@@ -98,9 +128,24 @@ export function RuleViewer({ match }: RuleViewerProps) {
       </RuleViewerLayout>
     );
   }
+
   const annotations = Object.entries(rule.annotations).filter(([_, value]) => !!value.trim());
+  const isFederatedRule = isFederatedRuleGroup(rule.group);
+
   return (
     <RuleViewerLayout wrapInContent={false} title={pageTitle}>
+      {isFederatedRule && (
+        <Alert severity="info" title="This rule is part of a federated rule group.">
+          <VerticalGroup>
+            Federated rule groups are currently an experimental feature.
+            <Button fill="text" icon="book">
+              <a href="https://grafana.com/docs/metrics-enterprise/latest/tenant-management/tenant-federation/#cross-tenant-alerting-and-recording-rule-federation">
+                Read documentation
+              </a>
+            </Button>
+          </VerticalGroup>
+        </Alert>
+      )}
       <RuleViewerLayoutContent>
         <div>
           <h4>
@@ -126,6 +171,7 @@ export function RuleViewer({ match }: RuleViewerProps) {
           </div>
           <div className={styles.rightSide}>
             <RuleDetailsDataSources rule={rule} rulesSource={rulesSource} />
+            {isFederatedRule && <RuleDetailsFederatedSources group={rule.group} />}
             <DetailsField label="Namespace / Group">{`${rule.namespace.name} / ${rule.group.name}`}</DetailsField>
           </div>
         </div>
@@ -133,7 +179,7 @@ export function RuleViewer({ match }: RuleViewerProps) {
           <RuleDetailsMatchingInstances promRule={rule.promRule} />
         </div>
       </RuleViewerLayoutContent>
-      {data && Object.keys(data).length > 0 && (
+      {!isFederatedRule && data && Object.keys(data).length > 0 && (
         <>
           <div className={styles.queriesTitle}>
             Query results <PanelChromeLoadingIndicator loading={isLoading(data)} onCancel={() => runner.cancel()} />
@@ -143,13 +189,22 @@ export function RuleViewer({ match }: RuleViewerProps) {
               {queries.map((query) => {
                 return (
                   <div key={query.refId} className={styles.query}>
-                    <RuleViewerVisualization query={query} data={data && data[query.refId]} />
+                    <RuleViewerVisualization
+                      query={query}
+                      data={data && data[query.refId]}
+                      onChangeQuery={onChangeQuery}
+                    />
                   </div>
                 );
               })}
             </div>
           </RuleViewerLayoutContent>
         </>
+      )}
+      {!isFederatedRule && !allDataSourcesAvailable && (
+        <Alert title="Query not available" severity="warning" className={styles.queryWarning}>
+          Cannot display the query preview. Some of the data sources used in the queries are not available.
+        </Alert>
       )}
     </RuleViewerLayout>
   );
@@ -177,6 +232,9 @@ const getStyles = (theme: GrafanaTheme2) => {
     query: css`
       border-bottom: 1px solid ${theme.colors.border.medium};
       padding: ${theme.spacing(2)};
+    `,
+    queryWarning: css`
+      margin: ${theme.spacing(4, 0)};
     `,
     details: css`
       display: flex;

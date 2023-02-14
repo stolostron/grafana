@@ -7,25 +7,50 @@ import (
 	"fmt"
 	"runtime/debug"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/grafana/grafana/pkg/expr"
 	"github.com/grafana/grafana/pkg/expr/classic"
 	"github.com/grafana/grafana/pkg/infra/log"
+	m "github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/datasources"
+	"github.com/grafana/grafana/pkg/services/datasources/service"
 	"github.com/grafana/grafana/pkg/services/ngalert/models"
-
+	"github.com/grafana/grafana/pkg/services/secrets"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/tsdb"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"github.com/grafana/grafana/pkg/expr"
 )
 
-const alertingEvaluationTimeout = 30 * time.Second
+//go:generate mockery --name Evaluator --structname FakeEvaluator --inpackage --filename evaluator_mock.go --with-expecter
+type Evaluator interface {
+	// ConditionEval executes conditions and evaluates the result.
+	ConditionEval(condition *models.Condition, now time.Time, expressionService *expr.Service) (Results, error)
+	// QueriesAndExpressionsEval executes queries and expressions and returns the result.
+	QueriesAndExpressionsEval(orgID int64, data []models.AlertQuery, now time.Time, expressionService *expr.Service) (*backend.QueryDataResponse, error)
+}
 
-type Evaluator struct {
-	Cfg *setting.Cfg
-	Log log.Logger
+type evaluatorImpl struct {
+	cfg             *setting.Cfg
+	log             log.Logger
+	dataSourceCache datasources.CacheService
+	secretsService  secrets.Service
+}
+
+func NewEvaluator(
+	cfg *setting.Cfg,
+	log log.Logger,
+	datasourceCache datasources.CacheService,
+	secretsService secrets.Service) Evaluator {
+	return &evaluatorImpl{
+		cfg:             cfg,
+		log:             log,
+		dataSourceCache: datasourceCache,
+		secretsService:  secretsService,
+	}
 }
 
 // invalidEvalResultFormatError is an error for invalid format of the alert definition evaluation results.
@@ -51,6 +76,9 @@ func (e *invalidEvalResultFormatError) Unwrap() error {
 // a condition.
 type ExecutionResults struct {
 	Error error
+
+	// NoData contains the DatasourceUID for RefIDs that returned no data.
+	NoData map[string]string
 
 	Results data.Frames
 }
@@ -118,15 +146,18 @@ type AlertExecCtx struct {
 	Ctx context.Context
 }
 
-// GetExprRequest validates the condition and creates a expr.Request from it.
-func GetExprRequest(ctx AlertExecCtx, data []models.AlertQuery, now time.Time) (*expr.Request, error) {
+// GetExprRequest validates the condition, gets the datasource information and creates an expr.Request from it.
+func GetExprRequest(ctx AlertExecCtx, data []models.AlertQuery, now time.Time, dsCacheService datasources.CacheService, secretsService secrets.Service, cfg *setting.Cfg) (*expr.Request, error) {
 	req := &expr.Request{
 		OrgId: ctx.OrgID,
 		Headers: map[string]string{
 			// Some data sources check this in query method as sometimes alerting needs special considerations.
-			"FromAlert": "true",
+			"FromAlert":    "true",
+			"X-Cache-Skip": "true",
 		},
 	}
+
+	datasources := make(map[string]*m.DataSource, len(data))
 
 	for i := range data {
 		q := data[i]
@@ -144,12 +175,41 @@ func GetExprRequest(ctx AlertExecCtx, data []models.AlertQuery, now time.Time) (
 			return nil, fmt.Errorf("failed to retrieve maxDatapoints from the model: %w", err)
 		}
 
+		ds, ok := datasources[q.DatasourceUID]
+		if !ok {
+			if expr.IsDataSource(q.DatasourceUID) {
+				ds = expr.DataSourceModel()
+			} else {
+				ds, err = dsCacheService.GetDatasourceByUID(ctx.Ctx, q.DatasourceUID, &m.SignedInUser{
+					OrgId:   ctx.OrgID,
+					OrgRole: m.ROLE_ADMIN, // Get DS as admin for service, API calls (test/post) must check permissions based on user.
+				}, true)
+				if err != nil {
+					return nil, err
+				}
+			}
+			datasources[q.DatasourceUID] = ds
+		}
+
+		// If the datasource has been configured with custom HTTP headers
+		// then we need to add these to the request
+		decryptedData, err := secretsService.DecryptJsonData(ctx.Ctx, ds.SecureJsonData)
+		if err != nil {
+			return nil, err
+		}
+		customHeaders := service.GetCustomHeaders(ds.JsonData, decryptedData, cfg)
+		for k, v := range customHeaders {
+			if _, ok := req.Headers[k]; !ok {
+				req.Headers[k] = v
+			}
+		}
+
 		req.Queries = append(req.Queries, expr.Query{
 			TimeRange: expr.TimeRange{
 				From: q.RelativeTimeRange.ToTimeRange(now).From,
 				To:   q.RelativeTimeRange.ToTimeRange(now).To,
 			},
-			DatasourceUID: q.DatasourceUID,
+			DataSource:    ds,
 			JSON:          model,
 			Interval:      interval,
 			RefID:         q.RefID,
@@ -166,18 +226,14 @@ type NumberValueCapture struct {
 	Value  *float64
 }
 
-func executeCondition(ctx AlertExecCtx, c *models.Condition, now time.Time, dataService *tsdb.Service) ExecutionResults {
-	result := ExecutionResults{}
-
-	execResp, err := executeQueriesAndExpressions(ctx, c.Data, now, dataService)
-
+func executeCondition(ctx AlertExecCtx, c *models.Condition, now time.Time, exprService *expr.Service, dsCacheService datasources.CacheService, secretsService secrets.Service, cfg *setting.Cfg) ExecutionResults {
+	execResp, err := executeQueriesAndExpressions(ctx, c.Data, now, exprService, dsCacheService, secretsService, cfg)
 	if err != nil {
 		return ExecutionResults{Error: err}
 	}
 
 	// eval captures for the '__value_string__' annotation and the Value property of the API response.
 	captures := make([]NumberValueCapture, 0, len(execResp.Responses))
-
 	captureVal := func(refID string, labels data.Labels, value *float64) {
 		captures = append(captures, NumberValueCapture{
 			Var:    refID,
@@ -186,7 +242,28 @@ func executeCondition(ctx AlertExecCtx, c *models.Condition, now time.Time, data
 		})
 	}
 
+	// datasourceUIDsForRefIDs is a short-lived lookup table of RefID to DatasourceUID
+	// for efficient lookups of the DatasourceUID when a RefID returns no data
+	datasourceUIDsForRefIDs := make(map[string]string)
+	for _, next := range c.Data {
+		datasourceUIDsForRefIDs[next.RefID] = next.DatasourceUID
+	}
+	// datasourceExprUID is a special DatasourceUID for expressions
+	datasourceExprUID := strconv.FormatInt(expr.DatasourceID, 10)
+
+	var result ExecutionResults
 	for refID, res := range execResp.Responses {
+		if len(res.Frames) == 0 {
+			// to ensure that NoData is consistent with Results we do not initialize NoData
+			// unless there is at least one RefID that returned no data
+			if result.NoData == nil {
+				result.NoData = make(map[string]string)
+			}
+			if s, ok := datasourceUIDsForRefIDs[refID]; ok && s != datasourceExprUID {
+				result.NoData[refID] = s
+			}
+		}
+
 		// for each frame within each response, the response can contain several data types including time-series data.
 		// For now, we favour simplicity and only care about single scalar values.
 		for _, frame := range res.Frames {
@@ -233,7 +310,7 @@ func executeCondition(ctx AlertExecCtx, c *models.Condition, now time.Time, data
 	return result
 }
 
-func executeQueriesAndExpressions(ctx AlertExecCtx, data []models.AlertQuery, now time.Time, dataService *tsdb.Service) (resp *backend.QueryDataResponse, err error) {
+func executeQueriesAndExpressions(ctx AlertExecCtx, data []models.AlertQuery, now time.Time, exprService *expr.Service, dsCacheService datasources.CacheService, secretsService secrets.Service, cfg *setting.Cfg) (resp *backend.QueryDataResponse, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			ctx.Log.Error("alert rule panic", "error", e, "stack", string(debug.Stack()))
@@ -246,16 +323,54 @@ func executeQueriesAndExpressions(ctx AlertExecCtx, data []models.AlertQuery, no
 		}
 	}()
 
-	queryDataReq, err := GetExprRequest(ctx, data, now)
+	queryDataReq, err := GetExprRequest(ctx, data, now, dsCacheService, secretsService, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	exprService := expr.Service{
-		Cfg:         &setting.Cfg{ExpressionsEnabled: ctx.ExpressionsEnabled},
-		DataService: dataService,
-	}
 	return exprService.TransformData(ctx.Ctx, queryDataReq)
+}
+
+// datasourceUIDsToRefIDs returns a sorted slice of Ref IDs for each Datasource UID.
+//
+// If refIDsToDatasourceUIDs is nil then this function also returns nil. Likewise,
+// if it is an empty map then it too returns an empty map.
+//
+// For example, given the following:
+//
+//		map[string]string{
+//			"ref1": "datasource1",
+//			"ref2": "datasource1",
+//			"ref3": "datasource2",
+//		}
+//
+// we would expect:
+//
+//  	map[string][]string{
+// 			"datasource1": []string{"ref1", "ref2"},
+//			"datasource2": []string{"ref3"},
+//		}
+func datasourceUIDsToRefIDs(refIDsToDatasourceUIDs map[string]string) map[string][]string {
+	if refIDsToDatasourceUIDs == nil {
+		return nil
+	}
+
+	// The ref IDs must be sorted. However, instead of sorting them once
+	// for each Datasource UID we can append them all to a slice and then
+	// sort them once
+	refIDs := make([]string, 0, len(refIDsToDatasourceUIDs))
+	for refID := range refIDsToDatasourceUIDs {
+		refIDs = append(refIDs, refID)
+	}
+	sort.Strings(refIDs)
+
+	result := make(map[string][]string)
+	for _, refID := range refIDs {
+		datasourceUID := refIDsToDatasourceUIDs[refID]
+		result[datasourceUID] = append(result[datasourceUID], refID)
+	}
+
+	return result
 }
 
 // evaluateExecutionResult takes the ExecutionResult which includes data.Frames returned
@@ -287,10 +402,10 @@ func evaluateExecutionResult(execResults ExecutionResults, ts time.Time) Results
 		})
 	}
 
-	appendNoData := func(l data.Labels) {
+	appendNoData := func(labels data.Labels) {
 		evalResults = append(evalResults, Result{
 			State:              NoData,
-			Instance:           l,
+			Instance:           labels,
 			EvaluatedAt:        ts,
 			EvaluationDuration: time.Since(ts),
 		})
@@ -298,6 +413,17 @@ func evaluateExecutionResult(execResults ExecutionResults, ts time.Time) Results
 
 	if execResults.Error != nil {
 		appendErrRes(execResults.Error)
+		return evalResults
+	}
+
+	if len(execResults.NoData) > 0 {
+		noData := datasourceUIDsToRefIDs(execResults.NoData)
+		for datasourceUID, refIDs := range noData {
+			appendNoData(data.Labels{
+				"datasource_uid": datasourceUID,
+				"ref_id":         strings.Join(refIDs, ","),
+			})
+		}
 		return evalResults
 	}
 
@@ -405,6 +531,7 @@ func (evalResults Results) AsDataFrame() data.Frame {
 		labelColumns = append(labelColumns, k)
 	}
 
+	//nolint:staticcheck
 	labelColumns = sort.StringSlice(labelColumns)
 
 	frame := data.NewFrame("evaluation results")
@@ -432,26 +559,26 @@ func (evalResults Results) AsDataFrame() data.Frame {
 }
 
 // ConditionEval executes conditions and evaluates the result.
-func (e *Evaluator) ConditionEval(condition *models.Condition, now time.Time, dataService *tsdb.Service) (Results, error) {
-	alertCtx, cancelFn := context.WithTimeout(context.Background(), alertingEvaluationTimeout)
+func (e *evaluatorImpl) ConditionEval(condition *models.Condition, now time.Time, expressionService *expr.Service) (Results, error) {
+	alertCtx, cancelFn := context.WithTimeout(context.Background(), e.cfg.UnifiedAlerting.EvaluationTimeout)
 	defer cancelFn()
 
-	alertExecCtx := AlertExecCtx{OrgID: condition.OrgID, Ctx: alertCtx, ExpressionsEnabled: e.Cfg.ExpressionsEnabled, Log: e.Log}
+	alertExecCtx := AlertExecCtx{OrgID: condition.OrgID, Ctx: alertCtx, ExpressionsEnabled: e.cfg.ExpressionsEnabled, Log: e.log}
 
-	execResult := executeCondition(alertExecCtx, condition, now, dataService)
+	execResult := executeCondition(alertExecCtx, condition, now, expressionService, e.dataSourceCache, e.secretsService, e.cfg)
 
 	evalResults := evaluateExecutionResult(execResult, now)
 	return evalResults, nil
 }
 
 // QueriesAndExpressionsEval executes queries and expressions and returns the result.
-func (e *Evaluator) QueriesAndExpressionsEval(orgID int64, data []models.AlertQuery, now time.Time, dataService *tsdb.Service) (*backend.QueryDataResponse, error) {
-	alertCtx, cancelFn := context.WithTimeout(context.Background(), alertingEvaluationTimeout)
+func (e *evaluatorImpl) QueriesAndExpressionsEval(orgID int64, data []models.AlertQuery, now time.Time, expressionService *expr.Service) (*backend.QueryDataResponse, error) {
+	alertCtx, cancelFn := context.WithTimeout(context.Background(), e.cfg.UnifiedAlerting.EvaluationTimeout)
 	defer cancelFn()
 
-	alertExecCtx := AlertExecCtx{OrgID: orgID, Ctx: alertCtx, ExpressionsEnabled: e.Cfg.ExpressionsEnabled, Log: e.Log}
+	alertExecCtx := AlertExecCtx{OrgID: orgID, Ctx: alertCtx, ExpressionsEnabled: e.cfg.ExpressionsEnabled, Log: e.log}
 
-	execResult, err := executeQueriesAndExpressions(alertExecCtx, data, now, dataService)
+	execResult, err := executeQueriesAndExpressions(alertExecCtx, data, now, expressionService, e.dataSourceCache, e.secretsService, e.cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute conditions: %w", err)
 	}

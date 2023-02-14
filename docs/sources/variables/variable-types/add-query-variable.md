@@ -1,12 +1,15 @@
-+++
-title = "Add a query variable"
-aliases = ["/docs/grafana/latest/variables/add-query-variable.md"]
-weight = 100
-+++
+---
+aliases:
+  - ../add-query-variable.md/
+title: Add a query variable
+weight: 100
+---
 
 # Add a query variable
 
 Query variables allow you to write a data source query that can return a list of metric names, tag values, or keys. For example, a query variable might return a list of server names, sensor IDs, or data centers. The variable values change as they dynamically fetch options with a data source query.
+
+Query variables are generally only supported for strings. If your query return numbers or any other data type, you may need to convert them to strings in order to use them as variables. For the Azure data source, for example, you can use the [tostring](https://docs.microsoft.com/en-us/azure/data-explorer/kusto/query/tostringfunction) function for this purpose.
 
 Query expressions can contain references to other variables and in effect create linked variables. Grafana detects this and automatically refreshes a variable when one of its linked variables change.
 

@@ -1,9 +1,14 @@
-+++
-title = "JWT Authentication"
-description = "Grafana JWT Authentication"
-keywords = ["grafana", "configuration", "documentation", "jwt", "jwk"]
-weight = 250
-+++
+---
+description: Grafana JWT Authentication
+keywords:
+  - grafana
+  - configuration
+  - documentation
+  - jwt
+  - jwk
+title: JWT Authentication
+weight: 250
+---
 
 # JWT authentication
 
@@ -44,7 +49,12 @@ username_claim = sub
 
 # Specify a claim to use as an email to sign in.
 email_claim = sub
+
+# auto-create users if they are not already matched
+# auto_sign_up = true
 ```
+
+If `auto_sign_up` is enabled, then the `sub` claim is used as the "external Auth ID". The `name` claim is used as the user's full name if it is present.
 
 ## Signature verification
 

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
 import { css } from '@emotion/css';
-import { Modal } from '../Modal/Modal';
-import { IconName } from '../../types/icon';
-import { Button } from '../Button';
-import { useStyles2 } from '../../themes';
+import React, { useEffect, useRef, useState } from 'react';
+
 import { GrafanaTheme2 } from '@grafana/data';
-import { HorizontalGroup, Input } from '..';
 import { selectors } from '@grafana/e2e-selectors';
+
+import { HorizontalGroup, Input } from '..';
+import { useStyles2 } from '../../themes';
+import { IconName } from '../../types/icon';
+import { Button, ButtonVariant } from '../Button';
+import { Modal } from '../Modal/Modal';
 
 export interface ConfirmModalProps {
   /** Toggle modal's open/closed state */
@@ -19,8 +21,12 @@ export interface ConfirmModalProps {
   description?: React.ReactNode;
   /** Text for confirm button */
   confirmText: string;
+  /** Variant for confirm button */
+  confirmVariant?: ButtonVariant;
   /** Text for dismiss button */
   dismissText?: string;
+  /** Variant for dismiss button */
+  dismissVariant?: ButtonVariant;
   /** Icon for the modal header */
   icon?: IconName;
   /** Text user needs to fill in before confirming */
@@ -41,8 +47,10 @@ export const ConfirmModal = ({
   body,
   description,
   confirmText,
+  confirmVariant = 'destructive',
   confirmationText,
   dismissText = 'Cancel',
+  dismissVariant = 'secondary',
   alternativeText,
   icon = 'exclamation-triangle',
   onConfirm,
@@ -51,9 +59,17 @@ export const ConfirmModal = ({
 }: ConfirmModalProps): JSX.Element => {
   const [disabled, setDisabled] = useState(Boolean(confirmationText));
   const styles = useStyles2(getStyles);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const onConfirmationTextChange = (event: React.FormEvent<HTMLInputElement>) => {
     setDisabled(confirmationText?.localeCompare(event.currentTarget.value) !== 0);
   };
+
+  useEffect(() => {
+    // for some reason autoFocus property did no work on this button, but this does
+    if (isOpen) {
+      buttonRef.current?.focus();
+    }
+  }, [isOpen]);
 
   return (
     <Modal className={styles.modal} title={title} icon={icon} isOpen={isOpen} onDismiss={onDismiss}>
@@ -69,14 +85,14 @@ export const ConfirmModal = ({
         ) : null}
       </div>
       <Modal.ButtonRow>
-        <Button variant="secondary" onClick={onDismiss} fill="outline">
+        <Button variant={dismissVariant} onClick={onDismiss} fill="outline">
           {dismissText}
         </Button>
         <Button
-          variant="destructive"
+          variant={confirmVariant}
           onClick={onConfirm}
           disabled={disabled}
-          autoFocus
+          ref={buttonRef}
           aria-label={selectors.pages.ConfirmModal.delete}
         >
           {confirmText}

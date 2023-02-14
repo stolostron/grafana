@@ -1,9 +1,13 @@
-+++
-title = "GitHub OAuth2 Authentication"
-description = "Grafana OAuthentication Guide "
-keywords = ["grafana", "configuration", "documentation", "oauth"]
-weight = 800
-+++
+---
+description: 'Grafana OAuthentication Guide '
+keywords:
+  - grafana
+  - configuration
+  - documentation
+  - oauth
+title: GitHub OAuth2 Authentication
+weight: 800
+---
 
 # GitHub OAuth2 Authentication
 
@@ -16,7 +20,7 @@ settings page). When you create the application you will need to specify
 a callback URL. Specify this as callback:
 
 ```bash
-http://<my_grafana_server_name_or_ip>:<grafana_server_port>/login/github
+http://<my_grafana_server_name_or_ip>:<grafana_server_port>/grafana/login/github
 ```
 
 This callback URL must match the full HTTP address that you use in your

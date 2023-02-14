@@ -12,24 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { css, keyframes } from '@emotion/css';
+import cx from 'classnames';
 import * as React from 'react';
 import IoAlert from 'react-icons/lib/io/alert';
 import IoArrowRightA from 'react-icons/lib/io/arrow-right-a';
-import IoNetwork from 'react-icons/lib/io/network';
 import MdFileUpload from 'react-icons/lib/md/file-upload';
-import { css } from '@emotion/css';
-import cx from 'classnames';
+
+import { GrafanaTheme2 } from '@grafana/data';
+import { Icon, stylesFactory, withTheme2 } from '@grafana/ui';
+
+import { autoColor } from '../Theme';
+import { SpanLinkFunc, TNil } from '../types';
+import { TraceSpan } from '../types/trace';
 
 import ReferencesButton from './ReferencesButton';
+import SpanBar from './SpanBar';
+import SpanTreeOffset from './SpanTreeOffset';
+import Ticks from './Ticks';
 import TimelineRow from './TimelineRow';
 import { formatDuration, ViewedBoundsFunctionType } from './utils';
-import SpanTreeOffset from './SpanTreeOffset';
-import SpanBar from './SpanBar';
-import Ticks from './Ticks';
-
-import { TNil } from '../types';
-import { TraceSpan } from '../types/trace';
-import { autoColor, createStyle, Theme, withTheme } from '../Theme';
 
 const spanBarClassName = 'spanBar';
 const spanBarLabelClassName = 'spanBarLabel';
@@ -38,7 +40,19 @@ const nameWrapperMatchingFilterClassName = 'nameWrapperMatchingFilter';
 const viewClassName = 'jaegerView';
 const nameColumnClassName = 'nameColumn';
 
-const getStyles = createStyle((theme: Theme) => {
+const getStyles = stylesFactory((theme: GrafanaTheme2) => {
+  const animations = {
+    flash: keyframes`
+    label: flash;
+    from {
+      background-color: ${autoColor(theme, '#68b9ff')};
+    }
+    to {
+      background-color: default;
+    }
+  `,
+  };
+
   return {
     nameWrapper: css`
       label: nameWrapper;
@@ -152,18 +166,37 @@ const getStyles = createStyle((theme: Theme) => {
     `,
     rowMatchingFilter: css`
       label: rowMatchingFilter;
-      background-color: ${autoColor(theme, '#fffce4')};
+      background-color: ${autoColor(theme, '#fffbde')};
       &:hover .${nameWrapperClassName} {
         background: linear-gradient(
           90deg,
-          ${autoColor(theme, '#fff5e1')},
-          ${autoColor(theme, '#fff5e1')} 75%,
-          ${autoColor(theme, '#ffe6c9')}
+          ${autoColor(theme, '#fffbde')},
+          ${autoColor(theme, '#fffbde')} 75%,
+          ${autoColor(theme, '#f7f1c6')}
         );
       }
       &:hover .${viewClassName} {
-        background-color: ${autoColor(theme, '#fff3d7')};
+        background-color: ${autoColor(theme, '#f7f1c6')};
         outline: 1px solid ${autoColor(theme, '#ddd')};
+      }
+    `,
+    rowFocused: css`
+      label: rowFocused;
+      background-color: ${autoColor(theme, '#cbe7ff')};
+      animation: ${animations.flash} 1s cubic-bezier(0.12, 0, 0.39, 0);
+      & .${nameWrapperClassName}, .${viewClassName}, .${nameWrapperMatchingFilterClassName} {
+        background-color: ${autoColor(theme, '#cbe7ff')};
+        animation: ${animations.flash} 1s cubic-bezier(0.12, 0, 0.39, 0);
+      }
+      & .${spanBarClassName} {
+        opacity: 1;
+      }
+      & .${spanBarLabelClassName} {
+        color: ${autoColor(theme, '#000')};
+      }
+      &:hover .${nameWrapperClassName}, :hover .${viewClassName} {
+        background: ${autoColor(theme, '#d5ebff')};
+        box-shadow: 0 1px 0 ${autoColor(theme, '#ddd')};
       }
     `,
 
@@ -260,12 +293,13 @@ const getStyles = createStyle((theme: Theme) => {
 
 type SpanBarRowProps = {
   className?: string;
-  theme: Theme;
+  theme: GrafanaTheme2;
   color: string;
   columnDivision: number;
   isChildrenExpanded: boolean;
   isDetailExpanded: boolean;
   isMatchingFilter: boolean;
+  isFocused: boolean;
   onDetailToggled: (spanID: string) => void;
   onChildrenToggled: (spanID: string) => void;
   numTicks: number;
@@ -275,6 +309,12 @@ type SpanBarRowProps = {
         viewEnd: number;
         color: string;
         operationName: string;
+        serviceName: string;
+      }
+    | TNil;
+  noInstrumentedServer?:
+    | {
+        color: string;
         serviceName: string;
       }
     | TNil;
@@ -288,9 +328,7 @@ type SpanBarRowProps = {
   removeHoverIndentGuideId: (spanID: string) => void;
   clippingLeft?: boolean;
   clippingRight?: boolean;
-  createSpanLink?: (
-    span: TraceSpan
-  ) => { href: string; onClick?: (e: React.MouseEvent) => void; content: React.ReactNode };
+  createSpanLink?: SpanLinkFunc;
 };
 
 /**
@@ -324,8 +362,10 @@ export class UnthemedSpanBarRow extends React.PureComponent<SpanBarRowProps> {
       isChildrenExpanded,
       isDetailExpanded,
       isMatchingFilter,
+      isFocused,
       numTicks,
       rpc,
+      noInstrumentedServer,
       showErrorIcon,
       getViewedBounds,
       traceStartTime,
@@ -370,6 +410,7 @@ export class UnthemedSpanBarRow extends React.PureComponent<SpanBarRowProps> {
             [styles.rowExpanded]: isDetailExpanded,
             [styles.rowMatchingFilter]: isMatchingFilter,
             [styles.rowExpandedAndMatchingFilter]: isMatchingFilter && isDetailExpanded,
+            [styles.rowFocused]: isFocused,
             [styles.rowClippingLeft]: clippingLeft,
             [styles.rowClippingRight]: clippingRight,
           },
@@ -422,6 +463,13 @@ export class UnthemedSpanBarRow extends React.PureComponent<SpanBarRowProps> {
                     {rpc.serviceName}
                   </span>
                 )}
+                {noInstrumentedServer && (
+                  <span>
+                    <IoArrowRightA />{' '}
+                    <i className={styles.rpcColorMarker} style={{ background: noInstrumentedServer.color }} />
+                    {noInstrumentedServer.serviceName}
+                  </span>
+                )}
               </span>
               <small className={styles.endpointName}>{rpc ? rpc.operationName : operationName}</small>
               <small className={styles.endpointName}> | {label}</small>
@@ -429,27 +477,31 @@ export class UnthemedSpanBarRow extends React.PureComponent<SpanBarRowProps> {
             {createSpanLink &&
               (() => {
                 const link = createSpanLink(span);
-                return (
-                  <a
-                    href={link.href}
-                    // Needs to have target otherwise preventDefault would not work due to angularRouter.
-                    target={'_blank'}
-                    style={{ marginRight: '5px' }}
-                    rel="noopener noreferrer"
-                    onClick={
-                      link.onClick
-                        ? (event) => {
-                            if (!(event.ctrlKey || event.metaKey || event.shiftKey) && link.onClick) {
-                              event.preventDefault();
-                              link.onClick(event);
+                if (link) {
+                  return (
+                    <a
+                      href={link.href}
+                      // Needs to have target otherwise preventDefault would not work due to angularRouter.
+                      target={'_blank'}
+                      style={{ marginRight: '5px' }}
+                      rel="noopener noreferrer"
+                      onClick={
+                        link.onClick
+                          ? (event) => {
+                              if (!(event.ctrlKey || event.metaKey || event.shiftKey) && link.onClick) {
+                                event.preventDefault();
+                                link.onClick(event);
+                              }
                             }
-                          }
-                        : undefined
-                    }
-                  >
-                    {link.content}
-                  </a>
-                );
+                          : undefined
+                      }
+                    >
+                      {link.content}
+                    </a>
+                  );
+                } else {
+                  return null;
+                }
               })()}
 
             {span.references && span.references.length > 1 && (
@@ -458,7 +510,7 @@ export class UnthemedSpanBarRow extends React.PureComponent<SpanBarRowProps> {
                 tooltipText="Contains multiple references"
                 focusSpan={focusSpan}
               >
-                <IoNetwork />
+                <Icon name="link" />
               </ReferencesButton>
             )}
             {span.subsidiarilyReferencedBy && span.subsidiarilyReferencedBy.length > 0 && (
@@ -489,7 +541,6 @@ export class UnthemedSpanBarRow extends React.PureComponent<SpanBarRowProps> {
             rpc={rpc}
             viewStart={viewStart}
             viewEnd={viewEnd}
-            theme={theme}
             getViewedBounds={getViewedBounds}
             color={color}
             shortLabel={label}
@@ -505,4 +556,4 @@ export class UnthemedSpanBarRow extends React.PureComponent<SpanBarRowProps> {
   }
 }
 
-export default withTheme(UnthemedSpanBarRow);
+export default withTheme2(UnthemedSpanBarRow);

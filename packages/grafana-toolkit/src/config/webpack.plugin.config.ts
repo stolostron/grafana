@@ -1,19 +1,20 @@
-const fs = require('fs');
-const util = require('util');
-const path = require('path');
+import * as webpack from 'webpack';
+
+import { getStyleLoaders, getStylesheetEntries, getFileLoaders } from './webpack/loaders';
+
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-const ReplaceInFileWebpackPlugin = require('replace-in-file-webpack-plugin');
-const TerserPlugin = require('terser-webpack-plugin');
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
+const fs = require('fs');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const OptimizeCssAssetsPlugin = require('optimize-css-assets-webpack-plugin');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
+const path = require('path');
+const ReplaceInFileWebpackPlugin = require('replace-in-file-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
+const util = require('util');
 
 const readdirPromise = util.promisify(fs.readdir);
 const accessPromise = util.promisify(fs.access);
-
-import * as webpack from 'webpack';
-import { getStyleLoaders, getStylesheetEntries, getFileLoaders } from './webpack/loaders';
 
 export interface WebpackConfigurationOptions {
   watch?: boolean;
@@ -97,8 +98,9 @@ const getCommonPlugins = (options: WebpackConfigurationOptions) => {
     new CopyWebpackPlugin(
       [
         // If src/README.md exists use it; otherwise the root README
-        { from: hasREADME ? 'README.md' : '../README.md', to: '.', force: true },
+        { from: hasREADME ? 'README.md' : '../README.md', to: '.', force: true, prority: 1 },
         { from: 'plugin.json', to: '.' },
+        { from: '**/README.md', to: '[path]README.md', priority: 0 },
         { from: '../LICENSE', to: '.' },
         { from: '../CHANGELOG.md', to: '.', force: true },
         { from: '**/*.json', to: '.' },
@@ -129,9 +131,10 @@ const getCommonPlugins = (options: WebpackConfigurationOptions) => {
       },
     ]),
     new ForkTsCheckerWebpackPlugin({
-      tsconfig: path.join(process.cwd(), 'tsconfig.json'),
-      // Only report problems in detected in plugin's code
-      reportFiles: ['**/*.{ts,tsx}'],
+      typescript: { configFile: path.join(process.cwd(), 'tsconfig.json') },
+      issue: {
+        include: [{ file: '**/*.{ts,tsx}' }],
+      },
     }),
   ];
 };
@@ -179,12 +182,13 @@ const getBaseWebpackConfig: WebpackConfigurationGetter = async (options) => {
       '@emotion/css',
       'prismjs',
       'slate-plain-serializer',
-      '@grafana/slate-react',
+      'slate-react',
       'react',
       'react-dom',
       'react-redux',
       'redux',
       'rxjs',
+      'react-router',
       'react-router-dom',
       'd3',
       'angular',
@@ -195,7 +199,7 @@ const getBaseWebpackConfig: WebpackConfigurationGetter = async (options) => {
       (context, request, callback) => {
         const prefix = 'grafana/';
         if (request.indexOf(prefix) === 0) {
-          return callback(null, request.substr(prefix.length));
+          return callback(null, request.slice(prefix.length));
         }
 
         // @ts-ignore
@@ -213,15 +217,15 @@ const getBaseWebpackConfig: WebpackConfigurationGetter = async (options) => {
           test: /\.tsx?$/,
           loaders: [
             {
-              loader: 'babel-loader',
+              loader: require.resolve('babel-loader'),
               options: {
-                presets: [['@babel/preset-env', { modules: false }]],
-                plugins: ['angularjs-annotate'],
+                presets: [[require.resolve('@babel/preset-env'), { modules: false }]],
+                plugins: [require.resolve('babel-plugin-angularjs-annotate')],
                 sourceMaps: true,
               },
             },
             {
-              loader: 'ts-loader',
+              loader: require.resolve('ts-loader'),
               options: {
                 onlyCompileBundledFiles: true,
                 transpileOnly: true,
@@ -234,7 +238,7 @@ const getBaseWebpackConfig: WebpackConfigurationGetter = async (options) => {
           test: /\.jsx?$/,
           loaders: [
             {
-              loader: 'babel-loader',
+              loader: require.resolve('babel-loader'),
               options: {
                 presets: [['@babel/preset-env', { modules: false }]],
                 plugins: ['angularjs-annotate'],
@@ -249,7 +253,7 @@ const getBaseWebpackConfig: WebpackConfigurationGetter = async (options) => {
           test: /\.html$/,
           exclude: [/node_modules/],
           use: {
-            loader: 'html-loader',
+            loader: require.resolve('html-loader'),
           },
         },
         ...getFileLoaders(),
@@ -274,7 +278,7 @@ export const loadWebpackConfig: WebpackConfigurationGetter = async (options) => 
       );
     }
     return (configGetter as CustomWebpackConfigurationGetter)(baseConfig, options);
-  } catch (err) {
+  } catch (err: any) {
     if (err.code === 'ENOENT') {
       return baseConfig;
     }

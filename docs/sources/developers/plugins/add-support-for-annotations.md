@@ -1,6 +1,6 @@
-+++
-title = "Add support for annotations"
-+++
+---
+title: Add support for annotations
+---
 
 # Add support for annotations
 
@@ -24,7 +24,7 @@ To enable annotation support for your data source, add the following two lines o
    }
    ```
 
-2. In `datasource.ts`, override the `annotations` property from `DataSourceApi`. For the default behavior, you can set `annotations` to an empty object.
+2. In `datasource.ts`, override the `annotations` property from `DataSourceApi` (or `DataSourceWithBackend` for backend data sources). For the default behavior, you can set `annotations` to an empty object.
 
    **datasource.ts**
 

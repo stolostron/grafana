@@ -1,5 +1,6 @@
 import { ComponentType } from 'react';
 import { Observable } from 'rxjs';
+
 import {
   CustomVariableSupport,
   DataQuery,
@@ -7,24 +8,24 @@ import {
   DataQueryResponse,
   DataSourceApi,
   DataSourceJsonData,
+  DataSourceRef,
   MetricFindValue,
-  QueryEditorProps,
   StandardVariableQuery,
   StandardVariableSupport,
   VariableModel,
   VariableSupportType,
 } from '@grafana/data';
 
+import { LEGACY_VARIABLE_QUERY_EDITOR_NAME } from './editor/LegacyVariableQueryEditor';
 import {
   AdHocVariableModel,
   ConstantVariableModel,
   QueryVariableModel,
   VariableQueryEditorType,
+  VariableQueryEditorProps,
   VariableWithMultiSupport,
   VariableWithOptions,
 } from './types';
-import { VariableQueryProps } from '../../types';
-import { LEGACY_VARIABLE_QUERY_EDITOR_NAME } from './editor/LegacyVariableQueryEditor';
 
 export const isQuery = (model: VariableModel): model is QueryVariableModel => {
   return model.type === 'query';
@@ -60,6 +61,14 @@ function hasObjectProperty(model: VariableModel, property: string): model is Var
   return withProperty.hasOwnProperty(property) && typeof withProperty[property] === 'object';
 }
 
+export function isLegacyAdHocDataSource(datasource: null | DataSourceRef | string): datasource is string {
+  if (datasource === null) {
+    return false;
+  }
+
+  return typeof datasource === 'string';
+}
+
 interface DataSourceWithLegacyVariableSupport<
   TQuery extends DataQuery = DataQuery,
   TOptions extends DataSourceJsonData = DataSourceJsonData
@@ -86,7 +95,7 @@ interface DataSourceWithCustomVariableSupport<
 > extends DataSourceApi<TQuery, TOptions> {
   variables: {
     getType(): VariableSupportType;
-    editor: ComponentType<QueryEditorProps<any, TQuery, TOptions, VariableQuery>>;
+    editor: VariableQueryEditorType;
     query(request: DataQueryRequest<TQuery>): Observable<DataQueryResponse>;
   };
 }
@@ -170,7 +179,7 @@ export function isLegacyQueryEditor<
 >(
   component: VariableQueryEditorType,
   datasource: DataSourceApi<TQuery, TOptions>
-): component is ComponentType<VariableQueryProps> {
+): component is ComponentType<VariableQueryEditorProps> {
   if (!component) {
     return false;
   }
@@ -184,7 +193,7 @@ export function isQueryEditor<
 >(
   component: VariableQueryEditorType,
   datasource: DataSourceApi<TQuery, TOptions>
-): component is ComponentType<QueryEditorProps<DataSourceApi<TQuery, TOptions>, TQuery, TOptions, any>> {
+): component is VariableQueryEditorType {
   if (!component) {
     return false;
   }

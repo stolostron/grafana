@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"net/http"
 	"strings"
 
-	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/util/errutil"
 	"github.com/jmespath/go-jmespath"
 )
@@ -38,7 +37,7 @@ func isEmailAllowed(email string, allowedDomains []string) bool {
 	valid := false
 	for _, domain := range allowedDomains {
 		emailSuffix := fmt.Sprintf("@%s", domain)
-		valid = valid || strings.HasSuffix(email, emailSuffix)
+		valid = valid || strings.HasSuffix(strings.ToLower(email), strings.ToLower(emailSuffix))
 	}
 
 	return valid
@@ -67,8 +66,7 @@ func (s *SocialBase) httpGet(client *http.Client, url string) (response httpGetR
 		err = fmt.Errorf(string(response.Body))
 		return
 	}
-
-	log.Tracef("HTTP GET %s: %s %s", url, r.Status, string(response.Body))
+	s.log.Debug("HTTP GET", "url", url, "status", r.Status, "response_body", string(response.Body))
 
 	err = nil
 	return

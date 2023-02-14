@@ -1,11 +1,15 @@
 import React, { PureComponent } from 'react';
-import { Button, ClipboardButton, Icon, Spinner, Select, Input, LinkButton, Field, Modal } from '@grafana/ui';
+
 import { AppEvents, SelectableValue } from '@grafana/data';
 import { getBackendSrv } from '@grafana/runtime';
-import { DashboardModel, PanelModel } from 'app/features/dashboard/state';
-import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
+import { Button, ClipboardButton, Field, Icon, Input, LinkButton, Modal, Select, Spinner } from '@grafana/ui';
 import { appEvents } from 'app/core/core';
+import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
+import { DashboardModel, PanelModel } from 'app/features/dashboard/state';
+
 import { VariableRefresh } from '../../../variables/types';
+
+import { ShareModalTabProps } from './types';
 
 const snapshotApiUrl = '/api/snapshots';
 
@@ -16,11 +20,7 @@ const expireOptions: Array<SelectableValue<number>> = [
   { label: '7 Days', value: 60 * 60 * 24 * 7 },
 ];
 
-interface Props {
-  dashboard: DashboardModel;
-  panel?: PanelModel;
-  onDismiss(): void;
-}
+interface Props extends ShareModalTabProps {}
 
 interface State {
   isLoading: boolean;
@@ -72,10 +72,6 @@ export class ShareSnapshot extends PureComponent<Props, State> {
     this.dashboard.snapshot = {
       timestamp: new Date(),
     };
-
-    if (!external) {
-      this.dashboard.snapshot.originalUrl = window.location.href;
-    }
 
     this.setState({ isLoading: true });
     this.dashboard.startRefresh();
@@ -130,7 +126,7 @@ export class ShareSnapshot extends PureComponent<Props, State> {
 
     // remove annotation queries
     const annotations = dash.annotations.list.filter((annotation) => annotation.enable);
-    dash.annotations.list = annotations.map((annotation: any) => {
+    dash.annotations.list = annotations.map((annotation) => {
       return {
         name: annotation.name,
         enable: annotation.enable,
@@ -200,14 +196,8 @@ export class ShareSnapshot extends PureComponent<Props, State> {
 
   renderStep1() {
     const { onDismiss } = this.props;
-    const {
-      snapshotName,
-      selectedExpireOption,
-      timeoutSeconds,
-      isLoading,
-      sharingButtonText,
-      externalEnabled,
-    } = this.state;
+    const { snapshotName, selectedExpireOption, timeoutSeconds, isLoading, sharingButtonText, externalEnabled } =
+      this.state;
 
     return (
       <>
@@ -223,10 +213,11 @@ export class ShareSnapshot extends PureComponent<Props, State> {
           </p>
         </div>
         <Field label="Snapshot name">
-          <Input width={30} value={snapshotName} onChange={this.onSnapshotNameChange} />
+          <Input id="snapshot-name-input" width={30} value={snapshotName} onChange={this.onSnapshotNameChange} />
         </Field>
         <Field label="Expire">
           <Select
+            inputId="expire-select-input"
             menuShouldPortal
             width={30}
             options={expireOptions}
@@ -239,7 +230,7 @@ export class ShareSnapshot extends PureComponent<Props, State> {
           description="You might need to configure the timeout value if it takes a long time to collect your dashboard
             metrics."
         >
-          <Input type="number" width={21} value={timeoutSeconds} onChange={this.onTimeoutChange} />
+          <Input id="timeout-input" type="number" width={21} value={timeoutSeconds} onChange={this.onTimeoutChange} />
         </Field>
 
         <Modal.ButtonRow>

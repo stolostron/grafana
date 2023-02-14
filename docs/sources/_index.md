@@ -1,9 +1,15 @@
-+++
-title = "Grafana documentation"
-description = "Guides, Installation and Feature Documentation"
-keywords = ["grafana", "installation", "documentation"]
-aliases = ["/docs/grafana/v1.1", "/docs/grafana/latest/guides/reference/admin", "/docs/grafana/v3.1"]
-+++
+---
+aliases:
+  - /docs/grafana/v1.1/
+  - /docs/grafana/v3.1/
+  - guides/reference/admin/
+description: Guides, Installation and Feature Documentation
+keywords:
+  - grafana
+  - installation
+  - documentation
+title: Grafana documentation
+---
 
 # Grafana documentation
 
@@ -94,7 +100,7 @@ aliases = ["/docs/grafana/v1.1", "/docs/grafana/latest/guides/reference/admin", 
       <img src="/static/img/docs/logos/icon_cloudmonitoring.svg">
       <h5>Google Cloud Monitoring</h5>
     </a>
-    <a href="{{< relref "datasources/cloudwatch.md" >}}" class="nav-cards__item nav-cards__item--ds">
+    <a href="{{< relref "datasources/aws-cloudwatch/_index.md" >}}" class="nav-cards__item nav-cards__item--ds">
       <img src="/static/img/docs/logos/icon_cloudwatch.svg">
       <h5>AWS CloudWatch</h5>
     </a>

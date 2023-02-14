@@ -1,3 +1,4 @@
+import { isEqual } from 'lodash';
 import React, { PureComponent } from 'react';
 import { AlignedData, Range } from 'uplot';
 import {
@@ -11,16 +12,18 @@ import {
 } from '@grafana/data';
 import {
   AxisPlacement,
-  DrawStyle,
+  GraphDrawStyle,
   GraphFieldConfig,
-  PointVisibility,
+  VisibilityMode,
   ScaleDirection,
   ScaleOrientation,
-} from '../uPlot/config';
-import { UPlotConfigBuilder } from '../uPlot/config/UPlotConfigBuilder';
-import { UPlotChart } from '../uPlot/Plot';
+} from '@grafana/schema';
+
 import { Themeable2 } from '../../types';
-import { preparePlotData } from '../uPlot/utils';
+import { UPlotChart } from '../uPlot/Plot';
+import { UPlotConfigBuilder } from '../uPlot/config/UPlotConfigBuilder';
+import { preparePlotData2, getStackingGroups } from '../uPlot/utils';
+
 import { preparePlotFrame } from './utils';
 import { isEqual } from 'lodash';
 
@@ -38,8 +41,8 @@ interface State {
 }
 
 const defaultConfig: GraphFieldConfig = {
-  drawStyle: DrawStyle.Line,
-  showPoints: PointVisibility.Auto,
+  drawStyle: GraphDrawStyle.Line,
+  showPoints: VisibilityMode.Auto,
   axisPlacement: AxisPlacement.Hidden,
 };
 
@@ -50,7 +53,7 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
     const alignedDataFrame = preparePlotFrame(props.sparkline, props.config);
 
     this.state = {
-      data: preparePlotData(alignedDataFrame),
+      data: preparePlotData2(alignedDataFrame, getStackingGroups(alignedDataFrame)),
       alignedDataFrame,
       configBuilder: this.prepareConfig(alignedDataFrame),
     };
@@ -64,7 +67,7 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
 
     return {
       ...state,
-      data: preparePlotData(frame),
+      data: preparePlotData2(frame, getStackingGroups(frame)),
       alignedDataFrame: frame,
     };
   }
@@ -91,6 +94,15 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
 
   getYRange(field: Field) {
     let { min, max } = this.state.alignedDataFrame.fields[1].state?.range!;
+
+    if (min === max) {
+      if (min === 0) {
+        max = 100;
+      } else {
+        min = 0;
+        max! *= 2;
+      }
+    }
 
     return [
       Math.max(min!, field.config.min ?? -Infinity),
@@ -162,7 +174,8 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
 
       const colorMode = getFieldColorModeForField(field);
       const seriesColor = colorMode.getCalculator(field, theme)(0, 0);
-      const pointsMode = customConfig.drawStyle === DrawStyle.Points ? PointVisibility.Always : customConfig.showPoints;
+      const pointsMode =
+        customConfig.drawStyle === GraphDrawStyle.Points ? VisibilityMode.Always : customConfig.showPoints;
 
       builder.addSeries({
         pxAlign: false,

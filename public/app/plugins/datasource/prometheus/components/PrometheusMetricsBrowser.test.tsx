@@ -1,8 +1,11 @@
-import React from 'react';
 import { render, screen, waitFor, waitForElementToBeRemoved } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 
 import { getTheme } from '@grafana/ui';
+
+import PromQlLanguageProvider from '../language_provider';
+
 import {
   buildSelector,
   facetLabels,
@@ -10,7 +13,6 @@ import {
   UnthemedPrometheusMetricsBrowser,
   BrowserProps,
 } from './PrometheusMetricsBrowser';
-import PromQlLanguageProvider from '../language_provider';
 
 describe('buildSelector()', () => {
   it('returns an empty selector for no labels', () => {
@@ -132,7 +134,10 @@ describe('PrometheusMetricsBrowser', () => {
       theme: getTheme(),
       onChange: () => {},
       autoSelect: 0,
-      languageProvider: (mockLanguageProvider as unknown) as PromQlLanguageProvider,
+      languageProvider: mockLanguageProvider as unknown as PromQlLanguageProvider,
+      lastUsedLabels: [],
+      storeLastUsedLabels: () => {},
+      deleteLastUsedLabels: () => {},
     };
 
     return defaults;
@@ -270,7 +275,7 @@ describe('PrometheusMetricsBrowser', () => {
     await screen.findByLabelText('Values for label2');
     expect(await screen.findAllByRole('option', { name: /value/ })).toHaveLength(4);
     // Typing '1' to filter for values
-    await userEvent.type(screen.getByLabelText('Filter expression for label values'), '1');
+    userEvent.type(screen.getByLabelText('Filter expression for label values'), '1');
     expect(screen.getByLabelText('Filter expression for label values')).toHaveValue('1');
     expect(await screen.findAllByRole('option', { name: /value/ })).toHaveLength(3);
     expect(screen.queryByRole('option', { name: 'value2-2' })).not.toBeInTheDocument();

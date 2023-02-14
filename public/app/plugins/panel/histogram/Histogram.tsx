@@ -1,5 +1,6 @@
 import React from 'react';
 import uPlot, { AlignedData } from 'uplot';
+
 import {
   DataFrame,
   formattedValueToString,
@@ -8,24 +9,28 @@ import {
   GrafanaTheme2,
 } from '@grafana/data';
 import {
-  Themeable2,
-  UPlotConfigBuilder,
-  VizLegendOptions,
-  UPlotChart,
-  VizLayout,
-  AxisPlacement,
-  ScaleDirection,
-  ScaleOrientation,
-  LegendDisplayMode,
-  PlotLegend,
-} from '@grafana/ui';
-
-import {
   histogramBucketSizes,
   histogramFrameBucketMaxFieldName,
 } from '@grafana/data/src/transformations/transformers/histogram';
+import {
+  VizLegendOptions,
+  LegendDisplayMode,
+  ScaleDistribution,
+  AxisPlacement,
+  ScaleDirection,
+  ScaleOrientation,
+} from '@grafana/schema';
+import {
+  Themeable2,
+  UPlotConfigBuilder,
+  UPlotChart,
+  VizLayout,
+  PlotLegend,
+  measureText,
+  UPLOT_AXIS_FONT_SIZE,
+} from '@grafana/ui';
+
 import { PanelOptions } from './models.gen';
-import { ScaleDistribution } from '@grafana/ui/src/components/uPlot/models.gen';
 
 function incrRoundDn(num: number, incr: number) {
   return Math.floor(num / incr) * incr;
@@ -123,7 +128,20 @@ const prepConfig = (frame: DataFrame, theme: GrafanaTheme2) => {
     placement: AxisPlacement.Bottom,
     incrs: histogramBucketSizes,
     splits: xSplits,
-    values: (u: uPlot, vals: any[]) => vals.map(xAxisFormatter),
+    values: (u: uPlot, splits: any[]) => {
+      const tickLabels = splits.map(xAxisFormatter);
+
+      const maxWidth = tickLabels.reduce(
+        (curMax, label) => Math.max(measureText(label, UPLOT_AXIS_FONT_SIZE).width, curMax),
+        0
+      );
+
+      const labelSpacing = 10;
+      const maxCount = u.bbox.width / ((maxWidth + labelSpacing) * devicePixelRatio);
+      const keepMod = Math.ceil(tickLabels.length / maxCount);
+
+      return tickLabels.map((label, i) => (i % keepMod === 0 ? label : null));
+    },
     //incrs: () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((mult) => mult * bucketSize),
     //splits: config.xSplits,
     //values: config.xValues,
@@ -203,7 +221,7 @@ const prepConfig = (frame: DataFrame, theme: GrafanaTheme2) => {
 };
 
 const preparePlotData = (frame: DataFrame) => {
-  let data: AlignedData = [] as any;
+  let data = [];
 
   for (const field of frame.fields) {
     if (field.name !== histogramFrameBucketMaxFieldName) {
@@ -222,7 +240,7 @@ const preparePlotData = (frame: DataFrame) => {
     }
   }
 
-  return data;
+  return data as AlignedData;
 };
 
 interface State {

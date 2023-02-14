@@ -1,11 +1,12 @@
 // Libraries
 import { AnyAction, createAction } from '@reduxjs/toolkit';
-import { RefreshPicker } from '@grafana/ui';
+
 import { DataSourceApi, HistoryItem } from '@grafana/data';
+import { RefreshPicker } from '@grafana/ui';
 import { stopQueryState } from 'app/core/utils/explore';
 import { ExploreItemState, ThunkResult } from 'app/types';
-
 import { ExploreId } from 'app/types/explore';
+
 import { importQueries, runQueries } from './query';
 import { changeRefreshInterval } from './time';
 import { createEmptyQueryResponse, loadAndInitDatasource } from './utils';
@@ -35,12 +36,12 @@ export const updateDatasourceInstanceAction = createAction<UpdateDatasourceInsta
  */
 export function changeDatasource(
   exploreId: ExploreId,
-  datasourceName: string,
+  datasourceUid: string,
   options?: { importQueries: boolean }
 ): ThunkResult<void> {
   return async (dispatch, getState) => {
     const orgId = getState().user.orgId;
-    const { history, instance } = await loadAndInitDatasource(orgId, datasourceName);
+    const { history, instance } = await loadAndInitDatasource(orgId, datasourceUid);
     const currentDataSourceInstance = getState().explore[exploreId]!.datasourceInstance;
 
     dispatch(
@@ -92,13 +93,13 @@ export const datasourceReducer = (state: ExploreItemState, action: AnyAction): E
       graphResult: null,
       tableResult: null,
       logsResult: null,
-      latency: 0,
+      logsVolumeDataProvider: undefined,
+      logsVolumeData: undefined,
       queryResponse: createEmptyQueryResponse(),
       loading: false,
       queryKeys: [],
       history,
       datasourceMissing: false,
-      logsHighlighterExpressions: undefined,
     };
   }
 

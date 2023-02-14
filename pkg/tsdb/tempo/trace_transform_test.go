@@ -1,7 +1,7 @@
 package tempo
 
 import (
-	"io/ioutil"
+	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"testing"
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
@@ -106,5 +106,6 @@ var fields = []string{
 	"startTime",
 	"duration",
 	"logs",
+	"references",
 	"tags",
 }
