@@ -7,6 +7,7 @@ ENV GOFLAGS="-mod=mod"
 COPY .git/ ./.git/
 COPY go.mod go.sum embed.go ./
 COPY cue cue
+COPY cue.mod cue.mod/
 COPY public/app/plugins public/app/plugins
 COPY pkg pkg
 COPY build.go package.json ./
