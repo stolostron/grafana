@@ -6,11 +6,12 @@ ENV GOFLAGS="-mod=mod"
 
 COPY .git/ ./.git/
 COPY go.mod go.sum embed.go ./
-COPY cue cue
+COPY Makefile build.go package.json ./
+COPY pkg pkg/
+COPY cue cue/
 COPY cue.mod cue.mod/
-COPY public/app/plugins public/app/plugins
-COPY pkg pkg
-COPY build.go package.json ./
+COPY packages/grafana-schema packages/grafana-schema/
+COPY public/app/plugins public/app/plugins/
 
 RUN go run build.go build
 # Need to copy the generated binaries to a non-platform specific location to handle
