@@ -35,7 +35,6 @@ import { getFrameDisplayName } from './fieldState';
 import { getFieldDisplayValuesProxy } from './getFieldDisplayValuesProxy';
 import { standardFieldConfigEditorRegistry } from './standardFieldConfigEditorRegistry';
 import { getTemplateProxyForField } from './templateProxies';
-import { asHexString } from '../themes/colorManipulator';
 
 interface OverrideProps {
   match: FieldMatcher;
