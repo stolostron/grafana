@@ -25,7 +25,6 @@ import { UPlotConfigBuilder } from '../uPlot/config/UPlotConfigBuilder';
 import { preparePlotData2, getStackingGroups } from '../uPlot/utils';
 
 import { preparePlotFrame } from './utils';
-import { isEqual } from 'lodash';
 
 export interface SparklineProps extends Themeable2 {
   width: number;

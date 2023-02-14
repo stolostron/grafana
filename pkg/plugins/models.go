@@ -265,7 +265,3 @@ type PreloadPlugin struct {
 	Path    string `json:"path"`
 	Version string `json:"version"`
 }
-
-type UpdateInfo struct {
-	PluginZipURL string
-}
