@@ -899,30 +899,3 @@ func (r *alertRulesRegistry) del(k models.AlertRuleKey) (*models.AlertRule, bool
 	}
 	return rule, ok
 }
-
-// overrideCfg is only used on tests.
-func (sch *schedule) overrideCfg(cfg SchedulerCfg) {
-	sch.clock = cfg.C
-	sch.baseInterval = cfg.BaseInterval
-	sch.heartbeat = alerting.NewTicker(cfg.C.Now(), time.Second*0, cfg.C, int64(cfg.BaseInterval.Seconds()))
-	sch.evalAppliedFunc = cfg.EvalAppliedFunc
-	sch.stopAppliedFunc = cfg.StopAppliedFunc
-}
-
-// evalApplied is only used on tests.
-func (sch *schedule) evalApplied(alertDefKey models.AlertRuleKey, now time.Time) {
-	if sch.evalAppliedFunc == nil {
-		return
-	}
-
-	sch.evalAppliedFunc(alertDefKey, now)
-}
-
-// stopApplied is only used on tests.
-func (sch *schedule) stopApplied(alertDefKey models.AlertRuleKey) {
-	if sch.stopAppliedFunc == nil {
-		return
-	}
-
-	sch.stopAppliedFunc(alertDefKey)
-}
