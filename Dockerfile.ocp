@@ -10,6 +10,7 @@ COPY cue cue/
 COPY packages/grafana-schema packages/grafana-schema/
 COPY public/app/plugins public/app/plugins/
 COPY pkg pkg/
+COPY scripts scripts/
 COPY cue.mod cue.mod/
 COPY .bingo .bingo
 
