@@ -13,6 +13,8 @@ COPY pkg pkg/
 COPY cue.mod cue.mod/
 COPY .bingo .bingo
 
+RUN make gen-go
+
 RUN go mod verify
 RUN go run build.go build
 
