@@ -1,7 +1,10 @@
-import React from 'react';
 import { css } from '@emotion/css';
+import React from 'react';
+
 import { Checkbox, Button, Tag, ModalsController } from '@grafana/ui';
+
 import { DecoratedRevisionModel } from '../DashboardSettings/VersionsSettings';
+
 import { RevertDashboardModal } from './RevertDashboardModal';
 
 type VersionsTableProps = {
@@ -25,6 +28,7 @@ export const VersionHistoryTable: React.FC<VersionsTableProps> = ({ versions, on
         <tr key={version.id}>
           <td>
             <Checkbox
+              aria-label={`Toggle selection of version ${version.version}`}
               className={css`
                 display: inline;
               `}

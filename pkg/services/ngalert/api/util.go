@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,25 +12,21 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
+
 	"github.com/grafana/grafana/pkg/api/response"
-	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/accesscontrol"
 	"github.com/grafana/grafana/pkg/services/datasourceproxy"
 	"github.com/grafana/grafana/pkg/services/datasources"
 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
-	"github.com/grafana/grafana/pkg/services/ngalert/eval"
 	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
-	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/tsdb"
-	"github.com/grafana/grafana/pkg/util"
-	"github.com/pkg/errors"
-	"gopkg.in/macaron.v1"
-	"gopkg.in/yaml.v3"
+	"github.com/grafana/grafana/pkg/web"
 )
 
 var searchRegex = regexp.MustCompile(`\{(\w+)\}`)
-
+var errInvalidRecipientFormat = errors.New("invalid recipient (datasource) identifier format. Only integer is expected")
 var NotImplementedResp = ErrResp(http.StatusNotImplemented, errors.New("endpoint not implemented"), "")
 
 func toMacaronPath(path string) string {
@@ -40,12 +37,9 @@ func toMacaronPath(path string) string {
 }
 
 func backendType(ctx *models.ReqContext, cache datasources.CacheService) (apimodels.Backend, error) {
-	recipient := ctx.Params("Recipient")
-	if recipient == apimodels.GrafanaBackend.String() {
-		return apimodels.GrafanaBackend, nil
-	}
+	recipient := web.Params(ctx.Req)[":Recipient"]
 	if datasourceID, err := strconv.ParseInt(recipient, 10, 64); err == nil {
-		if ds, err := cache.GetDatasource(datasourceID, ctx.SignedInUser, ctx.SkipCache); err == nil {
+		if ds, err := cache.GetDatasource(ctx.Req.Context(), datasourceID, ctx.SignedInUser, ctx.SkipCache); err == nil {
 			switch ds.Type {
 			case "loki", "prometheus":
 				return apimodels.LoTexRulerBackend, nil
@@ -56,7 +50,7 @@ func backendType(ctx *models.ReqContext, cache datasources.CacheService) (apimod
 			}
 		}
 	}
-	return 0, fmt.Errorf("unexpected backend type (%v)", recipient)
+	return 0, errInvalidRecipientFormat
 }
 
 // macaron unsafely asserts the http.ResponseWriter is an http.CloseNotifier, which will panic.
@@ -71,19 +65,35 @@ func (w *safeMacaronWrapper) CloseNotify() <-chan bool {
 	return make(chan bool)
 }
 
-// replacedResponseWriter overwrites the underlying responsewriter used by a *models.ReqContext.
-// It's ugly because it needs to replace a value behind a few nested pointers.
-func replacedResponseWriter(ctx *models.ReqContext) (*models.ReqContext, *response.NormalResponse) {
-	resp := response.CreateNormalResponse(make(http.Header), nil, 0)
+// createProxyContext creates a new request context that is provided down to the data source proxy.
+// The request context
+// 1. overwrites the underlying response writer used by a *models.ReqContext because AlertingProxy needs to intercept
+// the response from the data source to analyze it and probably change
+// 2. elevates the current user permissions to Editor if both conditions are met: RBAC is enabled, user does not have Editor role.
+// This is needed to bypass the plugin authorization, which still relies on the legacy roles.
+// This elevation can be considered safe because all upstream calls are protected by the RBAC on web request router level.
+func (p *AlertingProxy) createProxyContext(ctx *models.ReqContext, request *http.Request, response *response.NormalResponse) *models.ReqContext {
 	cpy := *ctx
 	cpyMCtx := *cpy.Context
-	cpyMCtx.Resp = macaron.NewResponseWriter(ctx.Req.Method, &safeMacaronWrapper{resp})
+	cpyMCtx.Resp = web.NewResponseWriter(ctx.Req.Method, &safeMacaronWrapper{response})
 	cpy.Context = &cpyMCtx
-	return &cpy, resp
+	cpy.Req = request
+
+	// If RBAC is enabled, the actions are checked upstream and if the user gets here then it is allowed to do an action against a datasource.
+	// Some data sources require legacy Editor role in order to perform mutating operations. In this case, we elevate permissions for the context that we
+	// will provide downstream.
+	// TODO (yuri) remove this after RBAC for plugins is implemented
+	if !p.ac.IsDisabled() && !ctx.SignedInUser.HasRole(models.ROLE_EDITOR) {
+		newUser := *ctx.SignedInUser
+		newUser.OrgRole = models.ROLE_EDITOR
+		cpy.SignedInUser = &newUser
+	}
+	return &cpy
 }
 
 type AlertingProxy struct {
-	DataProxy *datasourceproxy.DatasourceProxyService
+	DataProxy *datasourceproxy.DataSourceProxyService
+	ac        accesscontrol.AccessControl
 }
 
 // withReq proxies a different request
@@ -102,9 +112,16 @@ func (p *AlertingProxy) withReq(
 	for h, v := range headers {
 		req.Header.Add(h, v)
 	}
-	newCtx, resp := replacedResponseWriter(ctx)
-	newCtx.Req.Request = req
-	p.DataProxy.ProxyDatasourceRequestWithID(newCtx, ctx.ParamsInt64("Recipient"))
+	// this response will be populated by the response from the datasource
+	resp := response.CreateNormalResponse(make(http.Header), nil, 0)
+	proxyContext := p.createProxyContext(ctx, req, resp)
+
+	recipient, err := strconv.ParseInt(web.Params(ctx.Req)[":Recipient"], 10, 64)
+	if err != nil {
+		return ErrResp(http.StatusBadRequest, errInvalidRecipientFormat, "")
+	}
+
+	p.DataProxy.ProxyDatasourceRequestWithID(proxyContext, recipient)
 
 	status := resp.Status()
 	if status >= 400 {
@@ -116,7 +133,10 @@ func (p *AlertingProxy) withReq(
 			var m map[string]interface{}
 			if err := json.Unmarshal(resp.Body(), &m); err == nil {
 				if message, ok := m["message"]; ok {
-					errMessage = message.(string)
+					errMessageStr, isString := message.(string)
+					if isString {
+						errMessage = errMessageStr
+					}
 				}
 			}
 		} else if strings.HasPrefix(resp.Header().Get("Content-Type"), "text/html") {
@@ -173,12 +193,12 @@ func messageExtractor(resp *response.NormalResponse) (interface{}, error) {
 	return map[string]string{"message": string(resp.Body())}, nil
 }
 
-func validateCondition(c ngmodels.Condition, user *models.SignedInUser, skipCache bool, datasourceCache datasources.CacheService) error {
+func validateCondition(ctx context.Context, c ngmodels.Condition, user *models.SignedInUser, skipCache bool, datasourceCache datasources.CacheService) error {
 	if len(c.Data) == 0 {
 		return nil
 	}
 
-	refIDs, err := validateQueriesAndExpressions(c.Data, user, skipCache, datasourceCache)
+	refIDs, err := validateQueriesAndExpressions(ctx, c.Data, user, skipCache, datasourceCache)
 	if err != nil {
 		return err
 	}
@@ -193,7 +213,14 @@ func validateCondition(c ngmodels.Condition, user *models.SignedInUser, skipCach
 	return nil
 }
 
-func validateQueriesAndExpressions(data []ngmodels.AlertQuery, user *models.SignedInUser, skipCache bool, datasourceCache datasources.CacheService) (map[string]struct{}, error) {
+// conditionValidator returns a curried validateCondition that accepts only condition
+func conditionValidator(c *models.ReqContext, cache datasources.CacheService) func(ngmodels.Condition) error {
+	return func(condition ngmodels.Condition) error {
+		return validateCondition(c.Req.Context(), condition, c.SignedInUser, c.SkipCache, cache)
+	}
+}
+
+func validateQueriesAndExpressions(ctx context.Context, data []ngmodels.AlertQuery, user *models.SignedInUser, skipCache bool, datasourceCache datasources.CacheService) (map[string]struct{}, error) {
 	refIDs := make(map[string]struct{})
 	if len(data) == 0 {
 		return nil, nil
@@ -214,7 +241,7 @@ func validateQueriesAndExpressions(data []ngmodels.AlertQuery, user *models.Sign
 			continue
 		}
 
-		_, err = datasourceCache.GetDatasourceByUID(datasourceUID, user, skipCache)
+		_, err = datasourceCache.GetDatasourceByUID(ctx, datasourceUID, user, skipCache)
 		if err != nil {
 			return nil, fmt.Errorf("invalid query %s: %w: %s", query.RefID, err, datasourceUID)
 		}
@@ -223,37 +250,15 @@ func validateQueriesAndExpressions(data []ngmodels.AlertQuery, user *models.Sign
 	return refIDs, nil
 }
 
-func conditionEval(c *models.ReqContext, cmd ngmodels.EvalAlertConditionCommand, datasourceCache datasources.CacheService, dataService *tsdb.Service, cfg *setting.Cfg, log log.Logger) response.Response {
-	evalCond := ngmodels.Condition{
-		Condition: cmd.Condition,
-		OrgID:     c.SignedInUser.OrgId,
-		Data:      cmd.Data,
-	}
-	if err := validateCondition(evalCond, c.SignedInUser, c.SkipCache, datasourceCache); err != nil {
-		return ErrResp(http.StatusBadRequest, err, "invalid condition")
-	}
-
-	now := cmd.Now
-	if now.IsZero() {
-		now = timeNow()
-	}
-
-	evaluator := eval.Evaluator{Cfg: cfg, Log: log}
-	evalResults, err := evaluator.ConditionEval(&evalCond, now, dataService)
-	if err != nil {
-		return ErrResp(http.StatusBadRequest, err, "Failed to evaluate conditions")
-	}
-
-	frame := evalResults.AsDataFrame()
-	return response.JSONStreaming(http.StatusOK, util.DynMap{
-		"instances": []*data.Frame{&frame},
-	})
-}
-
 // ErrorResp creates a response with a visible error
 func ErrResp(status int, err error, msg string, args ...interface{}) *response.NormalResponse {
 	if msg != "" {
 		err = errors.WithMessagef(err, msg, args...)
 	}
-	return response.Error(status, err.Error(), nil)
+	return response.Error(status, err.Error(), err)
+}
+
+// accessForbiddenResp creates a response of forbidden access.
+func accessForbiddenResp() response.Response {
+	return ErrResp(http.StatusForbidden, errors.New("Permission denied"), "")
 }

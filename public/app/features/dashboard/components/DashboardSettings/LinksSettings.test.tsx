@@ -1,8 +1,8 @@
-import React from 'react';
-import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
 import { within } from '@testing-library/dom';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+
 import { selectors } from '@grafana/e2e-selectors';
 
 import { LinksSettings } from './LinksSettings';
@@ -69,7 +69,7 @@ describe('LinksSettings', () => {
 
     expect(screen.getByRole('heading', { name: 'Dashboard links' })).toBeInTheDocument();
     expect(
-      screen.getByLabelText(selectors.components.CallToActionCard.button('Add dashboard link'))
+      screen.getByTestId(selectors.components.CallToActionCard.buttonV2('Add dashboard link'))
     ).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
@@ -80,7 +80,7 @@ describe('LinksSettings', () => {
 
     expect(getTableBodyRows().length).toBe(links.length);
     expect(
-      screen.queryByLabelText(selectors.components.CallToActionCard.button('Add dashboard link'))
+      screen.queryByTestId(selectors.components.CallToActionCard.buttonV2('Add dashboard link'))
     ).not.toBeInTheDocument();
   });
 
@@ -131,7 +131,8 @@ describe('LinksSettings', () => {
 
     expect(getTableBodyRows().length).toBe(links.length);
 
-    userEvent.click(within(getTableBody()).getAllByRole('button', { name: /delete/i })[0]);
+    userEvent.click(within(getTableBody()).getAllByLabelText(/Delete link with title/)[0]);
+    userEvent.click(within(getTableBody()).getByRole('button', { name: 'Delete' }));
 
     expect(getTableBodyRows().length).toBe(links.length - 1);
     expect(within(getTableBody()).queryByText(links[0].title)).not.toBeInTheDocument();

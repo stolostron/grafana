@@ -1,7 +1,9 @@
-import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+
 import { applyFieldOverrides, createTheme, DataFrame, FieldType, toDataFrame } from '@grafana/data';
+
 import { Props, Table } from './Table';
 
 function getDefaultDataFrame(): DataFrame {
@@ -11,7 +13,7 @@ function getDefaultDataFrame(): DataFrame {
       {
         name: 'time',
         type: FieldType.time,
-        values: [1609459200000, 1609462800000, 1609466400000],
+        values: [1609459200000, 1609470000000, 1609462800000, 1609466400000],
         config: {
           custom: {
             filterable: false,
@@ -21,7 +23,7 @@ function getDefaultDataFrame(): DataFrame {
       {
         name: 'temperature',
         type: FieldType.number,
-        values: [10, 11, 12],
+        values: [10, NaN, 11, 12],
         config: {
           custom: {
             filterable: false,
@@ -91,7 +93,11 @@ function getTestContext(propOverrides: Partial<Props> = {}) {
 }
 
 function getTable(): HTMLElement {
-  return screen.getByRole('table');
+  return screen.getAllByRole('table')[0];
+}
+
+function getFooter(): HTMLElement {
+  return screen.getByTestId('table-footer');
 }
 
 function getColumnHeader(name: string | RegExp): HTMLElement {
@@ -100,6 +106,19 @@ function getColumnHeader(name: string | RegExp): HTMLElement {
 
 function getLinks(row: HTMLElement): HTMLElement[] {
   return within(row).getAllByRole('link');
+}
+
+function getRowsData(rows: HTMLElement[]): Object[] {
+  let content = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = getLinks(rows[i])[0];
+    content.push({
+      time: within(rows[i]).getByText(/2021*/).textContent,
+      temperature: row.textContent,
+      link: row.getAttribute('href'),
+    });
+  }
+  return content;
 }
 
 describe('Table', () => {
@@ -122,23 +141,22 @@ describe('Table', () => {
       expect(getColumnHeader(/img/)).toBeInTheDocument();
 
       const rows = within(getTable()).getAllByRole('row');
-      const rowOneLink = () => getLinks(rows[1])[0];
-      const rowTwoLink = () => getLinks(rows[2])[0];
-      const rowThreeLink = () => getLinks(rows[3])[0];
+      expect(rows).toHaveLength(5);
+      expect(getRowsData(rows)).toEqual([
+        { time: '2021-01-01 00:00:00', temperature: '10', link: '10' },
+        { time: '2021-01-01 03:00:00', temperature: 'NaN', link: 'NaN' },
+        { time: '2021-01-01 01:00:00', temperature: '11', link: '11' },
+        { time: '2021-01-01 02:00:00', temperature: '12', link: '12' },
+      ]);
+    });
+  });
 
-      expect(rows).toHaveLength(4);
-      expect(within(rows[1]).getByText('2021-01-01 00:00:00')).toBeInTheDocument();
-      expect(getLinks(rows[1])).toHaveLength(2);
-      expect(within(rows[2]).getByText('2021-01-01 01:00:00')).toBeInTheDocument();
-      expect(getLinks(rows[2])).toHaveLength(2);
-      expect(within(rows[3]).getByText('2021-01-01 02:00:00')).toBeInTheDocument();
-      expect(getLinks(rows[3])).toHaveLength(2);
-      expect(rowOneLink()).toHaveTextContent('10');
-      expect(rowOneLink()).toHaveAttribute('href', '10');
-      expect(rowTwoLink()).toHaveTextContent('11');
-      expect(rowTwoLink()).toHaveAttribute('href', '11');
-      expect(rowThreeLink()).toHaveTextContent('12');
-      expect(rowThreeLink()).toHaveAttribute('href', '12');
+  describe('when mounted with footer', () => {
+    it('then footer should be displayed', () => {
+      const footerValues = ['a', 'b', 'c'];
+      getTestContext({ footerValues });
+      expect(getTable()).toBeInTheDocument();
+      expect(getFooter()).toBeInTheDocument();
     });
   });
 
@@ -150,20 +168,44 @@ describe('Table', () => {
       userEvent.click(within(getColumnHeader(/temperature/)).getByText(/temperature/i));
 
       const rows = within(getTable()).getAllByRole('row');
-      expect(rows).toHaveLength(4);
-      const rowOneLink = () => getLinks(rows[1])[0];
-      const rowTwoLink = () => getLinks(rows[2])[0];
-      const rowThreeLink = () => getLinks(rows[3])[0];
+      expect(rows).toHaveLength(5);
+      expect(getRowsData(rows)).toEqual([
+        { time: '2021-01-01 02:00:00', temperature: '12', link: '12' },
+        { time: '2021-01-01 01:00:00', temperature: '11', link: '11' },
+        { time: '2021-01-01 00:00:00', temperature: '10', link: '10' },
+        { time: '2021-01-01 03:00:00', temperature: 'NaN', link: 'NaN' },
+      ]);
+    });
+  });
 
-      expect(within(rows[1]).getByText('2021-01-01 02:00:00')).toBeInTheDocument();
-      expect(rowOneLink()).toHaveTextContent('12');
-      expect(rowOneLink()).toHaveAttribute('href', '12');
-      expect(within(rows[2]).getByText('2021-01-01 01:00:00')).toBeInTheDocument();
-      expect(rowTwoLink()).toHaveTextContent('11');
-      expect(rowTwoLink()).toHaveAttribute('href', '11');
-      expect(within(rows[3]).getByText('2021-01-01 00:00:00')).toBeInTheDocument();
-      expect(rowThreeLink()).toHaveTextContent('10');
-      expect(rowThreeLink()).toHaveAttribute('href', '10');
+  describe('on filtering', () => {
+    it('the rows should be filtered', () => {
+      getTestContext({
+        data: toDataFrame({
+          name: 'A',
+          fields: [
+            {
+              name: 'number',
+              type: FieldType.number,
+              values: [1, 1, 1, 2, 2, 3, 4, 5],
+              config: {
+                custom: {
+                  filterable: true,
+                },
+              },
+            },
+          ],
+        }),
+      });
+
+      expect(within(getTable()).getAllByRole('row')).toHaveLength(9);
+
+      userEvent.click(within(getColumnHeader(/number/)).getByRole('filterIcon'));
+      userEvent.click(screen.getByLabelText('1'));
+      userEvent.click(screen.getByText('Ok'));
+
+      // 3 + header row
+      expect(within(getTable()).getAllByRole('row')).toHaveLength(4);
     });
   });
 });

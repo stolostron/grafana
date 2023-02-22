@@ -1,9 +1,13 @@
-+++
-title = "HTTP Snapshot API "
-description = "Grafana HTTP API"
-keywords = ["grafana", "http", "documentation", "api", "snapshot"]
-aliases = ["/docs/grafana/latest/http_api/snapshot/"]
-+++
+---
+description: Grafana HTTP API
+keywords:
+  - grafana
+  - http
+  - documentation
+  - api
+  - snapshot
+title: 'HTTP Snapshot API '
+---
 
 # Snapshot API
 
@@ -71,7 +75,7 @@ JSON Body schema:
       "deleteUrl":"myurl/api/snapshots-delete/XXXXXXX",
       "key":"YYYYYYY",
       "url":"myurl/dashboard/snapshot/YYYYYYY",
-      "id": 1,
+      "id": 1
     }
 ```
 

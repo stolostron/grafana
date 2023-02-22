@@ -1,6 +1,7 @@
 /* Prometheus internal models */
 
-import { DataSourceInstanceSettings } from '@grafana/data';
+import { AlertState, DataSourceInstanceSettings } from '@grafana/data';
+
 import {
   PromAlertingRuleState,
   PromRuleType,
@@ -28,7 +29,7 @@ interface RuleBase {
 }
 
 export interface AlertingRule extends RuleBase {
-  alerts: Alert[];
+  alerts?: Alert[];
   labels: {
     [key: string]: string;
   };
@@ -85,6 +86,8 @@ export interface CombinedRule {
 
 export interface CombinedRuleGroup {
   name: string;
+  interval?: string;
+  source_tenants?: string[];
   rules: CombinedRule[];
 }
 
@@ -94,11 +97,11 @@ export interface CombinedRuleNamespace {
   groups: CombinedRuleGroup[];
 }
 
-export interface RuleWithLocation {
+export interface RuleWithLocation<T = RulerRuleDTO> {
   ruleSourceName: string;
   namespace: string;
   group: RulerRuleGroupDTO;
-  rule: RulerRuleDTO;
+  rule: T;
 }
 
 export interface PromRuleWithLocation {
@@ -115,6 +118,7 @@ export interface CloudRuleIdentifier {
   rulerRuleHash: number;
 }
 export interface GrafanaRuleIdentifier {
+  ruleSourceName: 'grafana';
   uid: string;
 }
 
@@ -127,8 +131,58 @@ export interface PrometheusRuleIdentifier {
 }
 
 export type RuleIdentifier = CloudRuleIdentifier | GrafanaRuleIdentifier | PrometheusRuleIdentifier;
-export interface RuleFilterState {
+export interface FilterState {
   queryString?: string;
   dataSource?: string;
   alertState?: string;
+  groupBy?: string[];
+  ruleType?: string;
+}
+
+export interface SilenceFilterState {
+  queryString?: string;
+  silenceState?: string;
+}
+
+interface EvalMatch {
+  metric: string;
+  tags?: any;
+  value: number;
+}
+
+export interface StateHistoryItemData {
+  noData: boolean;
+  evalMatches?: EvalMatch[];
+}
+
+export interface StateHistoryItem {
+  id: number;
+  alertId: number;
+  alertName: string;
+  dashboardId: number;
+  panelId: number;
+  userId: number;
+  newState: AlertState;
+  prevState: AlertState;
+  created: number;
+  updated: number;
+  time: number;
+  timeEnd: number;
+  text: string;
+  tags: any[];
+  login: string;
+  email: string;
+  avatarUrl: string;
+  data: StateHistoryItemData;
+}
+
+export interface RulerDataSourceConfig {
+  dataSourceName: string;
+  apiVersion: 'legacy' | 'config';
+}
+
+export interface PromBasedDataSource {
+  name: string;
+  id: string | number;
+  rulerConfig?: RulerDataSourceConfig;
 }

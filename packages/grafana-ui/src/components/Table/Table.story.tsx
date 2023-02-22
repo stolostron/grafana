@@ -1,10 +1,7 @@
-import React from 'react';
-import { merge } from 'lodash';
-import { Table } from '@grafana/ui';
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 import { Meta, Story } from '@storybook/react';
-import { useTheme2 } from '../../themes';
-import mdx from './Table.mdx';
+import { merge } from 'lodash';
+import React from 'react';
+
 import {
   DataFrame,
   FieldType,
@@ -13,8 +10,16 @@ import {
   ThresholdsConfig,
   ThresholdsMode,
   FieldConfig,
+  formattedValueToString,
 } from '@grafana/data';
+import { Table } from '@grafana/ui';
+
+import { useTheme2 } from '../../themes';
 import { prepDataForStorybook } from '../../utils/storybook/data';
+import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+
+import mdx from './Table.mdx';
+import { FooterItem } from './types';
 
 export default {
   title: 'Visualizations/Table',
@@ -93,6 +98,23 @@ function buildData(theme: GrafanaTheme2, config: Record<string, FieldConfig>): D
   return prepDataForStorybook([data], theme)[0];
 }
 
+function buildFooterData(data: DataFrame): FooterItem[] {
+  const values = data.fields[3].values.toArray();
+  const valueSum = values.reduce((prev, curr) => {
+    return prev + curr;
+  }, 0);
+
+  const valueField = data.fields[3];
+  const displayValue = valueField.display ? valueField.display(valueSum) : valueSum;
+  const val = valueField.display ? formattedValueToString(displayValue) : displayValue;
+
+  const sum = { sum: val };
+  const min = { min: String(5.2) };
+  const valCell = [sum, min];
+
+  return ['Totals', '10', undefined, valCell, '100%'];
+}
+
 const defaultThresholds: ThresholdsConfig = {
   steps: [
     {
@@ -154,4 +176,21 @@ export const ColoredCells: Story = (args) => {
       <Table data={data} height={args.height} width={args.width} {...args} />
     </div>
   );
+};
+
+export const Footer: Story = (args) => {
+  const theme = useTheme2();
+  const data = buildData(theme, {});
+  const footer = buildFooterData(data);
+
+  return (
+    <div className="panel-container" style={{ width: 'auto', height: 'unset' }}>
+      <Table data={data} height={args.height} width={args.width} footerValues={footer} {...args} />
+    </div>
+  );
+};
+
+export const Pagination: Story = (args) => <Basic {...args} />;
+Pagination.args = {
+  pageSize: 10,
 };

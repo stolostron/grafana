@@ -1,15 +1,30 @@
-+++
-title = "Elasticsearch"
-description = "Guide for using Elasticsearch in Grafana"
-keywords = ["grafana", "elasticsearch", "guide"]
-aliases = ["/docs/grafana/latest/features/datasources/elasticsearch"]
-weight = 325
-+++
+---
+aliases:
+  - ../features/datasources/elasticsearch/
+description: Guide for using Elasticsearch in Grafana
+keywords:
+  - grafana
+  - elasticsearch
+  - guide
+title: Elasticsearch
+weight: 325
+---
 
 # Using Elasticsearch in Grafana
 
 Grafana ships with advanced support for Elasticsearch. You can do many types of simple or complex Elasticsearch queries to
 visualize logs or metrics stored in Elasticsearch. You can also annotate your graphs with log events stored in Elasticsearch.
+
+Supported Elasticsearch versions:
+
+- v2.0+ (deprecated)
+- v5.0+ (deprecated)
+- v6.0+ (deprecated)
+- v7.0-v7.9+ (deprecated)
+- v7.10+
+- v8.0+ (experimental)
+
+> **Note:** Deprecated versions (v2.0+, v5.0+, v6.0+, and v7.0-v7.9+) will be removed in the next major release.
 
 ## Adding the data source
 
@@ -20,12 +35,12 @@ visualize logs or metrics stored in Elasticsearch. You can also annotate your gr
 
 > **Note:** If you're not seeing the `Data Sources` link in your side menu it means that your current user does not have the `Admin` role for the current organization.
 
-| Name      | Description                                                                                                                           |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `Name`    | The data source name. This is how you refer to the data source in panels and queries.                                                 |
-| `Default` | Default data source means that it will be pre-selected for new panels.                                                                |
-| `Url`     | The HTTP protocol, IP, and port of your Elasticsearch server.                                                                         |
-| `Access`  | Server (default) = URL needs to be accessible from the Grafana backend/server, Browser = URL needs to be accessible from the browser. |
+| Name      | Description                                                                                                                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Name`    | The data source name. This is how you refer to the data source in panels and queries.                                                                                                                                          |
+| `Default` | Default data source means that it will be pre-selected for new panels.                                                                                                                                                         |
+| `Url`     | The HTTP protocol, IP, and port of your Elasticsearch server.                                                                                                                                                                  |
+| `Access`  | Server (default) = URL needs to be accessible from the Grafana backend/server, Browser = URL needs to be accessible from the browser. **Note**: Browser (direct) access is deprecated and will be removed in a future release. |
 
 Access mode controls how requests to the data source will be handled. Server should be the preferred way if nothing else stated.
 
@@ -143,13 +158,13 @@ types of template variables.
 
 ### Query variable
 
-The Elasticsearch data source supports two types of queries you can use in the _Query_ field of _Query_ variables. The query is written using a custom JSON string.
+The Elasticsearch data source supports two types of queries you can use in the _Query_ field of _Query_ variables. The query is written using a custom JSON string. The field should be mapped as a [keyword](https://www.elastic.co/guide/en/elasticsearch/reference/current/keyword.html#keyword) in the Elasticsearch index mapping. If it is [multi-field](https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-fields.html) with both a `text` and `keyword` type, then use `"field":"fieldname.keyword"`(sometimes`fieldname.raw`) to specify the keyword field in your query.
 
-| Query                                                                | Description                                                                                                                                                           |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `{"find": "fields", "type": "keyword"}`                              | Returns a list of field names with the index type `keyword`.                                                                                                          |
-| `{"find": "terms", "field": "@hostname", "size": 1000}`              | Returns a list of values for a field using term aggregation. Query will use current dashboard time range as time range for query.                                     |
-| `{"find": "terms", "field": "@hostname", "query": '<lucene query>'}` | Returns a list of values for a field using term aggregation and a specified lucene query filter. Query will use current dashboard time range as time range for query. |
+| Query                                                               | Description                                                                                                                                                                   |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{"find": "fields", "type": "keyword"}`                             | Returns a list of field names with the index type `keyword`.                                                                                                                  |
+| `{"find": "terms", "field": "hostname.keyword", "size": 1000}`      | Returns a list of values for a keyword using term aggregation. Query will use current dashboard time range as time range query.                                               |
+| `{"find": "terms", "field": "hostname", "query": '<lucene query>'}` | Returns a list of values for a keyword field using term aggregation and a specified lucene query filter. Query will use current dashboard time range as time range for query. |
 
 There is a default size limit of 500 on terms queries. Set the size property in your query to set a custom limit.
 You can use other variables inside the query. Example query definition for a variable named `$host`.
@@ -274,6 +289,6 @@ For more details on AWS SigV4, refer to the [AWS documentation](https://docs.aws
 
 In order to sign requests to your Amazon Elasticsearch Service domain, SigV4 can be enabled in the Grafana [configuration]({{< relref "../administration/configuration.md#sigv4_auth_enabled" >}}).
 
-Once AWS SigV4 is enabled, it can be configured on the Elasticsearch data source configuration page. Refer to [Cloudwatch authentication]({{<relref "./cloudwatch.md#authentication" >}}) for more information about authentication options.
+Once AWS SigV4 is enabled, it can be configured on the Elasticsearch data source configuration page. Refer to [Cloudwatch authentication]({{< relref "../datasources/aws-cloudwatch/aws-authentication.md" >}}) for more information about authentication options.
 
 {{< figure src="/static/img/docs/v73/elasticsearch-sigv4-config-editor.png" max-width="500px" class="docs-image--no-shadow" caption="SigV4 configuration for AWS Elasticsearch Service" >}}

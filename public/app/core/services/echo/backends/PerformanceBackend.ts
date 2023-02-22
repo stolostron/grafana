@@ -1,4 +1,5 @@
 import { EchoBackend, EchoEvent, EchoEventType } from '@grafana/runtime';
+
 import { backendSrv } from '../../backend_srv';
 
 export interface PerformanceEventPayload {
@@ -35,8 +36,6 @@ export class PerformanceBackend implements EchoBackend<PerformanceEvent, Perform
     if (process.env.NODE_ENV === 'development') {
       console.log('PerformanceBackend flushing:', this.buffer);
     }
-
-    console.log('performance', this.buffer);
 
     backendSrv.post('/api/frontend-metrics', {
       events: this.buffer,

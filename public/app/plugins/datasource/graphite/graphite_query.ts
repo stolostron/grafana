@@ -1,11 +1,13 @@
 import { compact, each, findIndex, flatten, get, join, keyBy, last, map, reduce, without } from 'lodash';
-import { arrayMove } from 'app/core/utils/arrayMove';
-import { Parser } from './parser';
-import { TemplateSrv } from '@grafana/runtime';
+
 import { ScopedVars } from '@grafana/data';
-import { FuncInstance } from './gfunc';
-import { GraphiteSegment } from './types';
+import { TemplateSrv } from '@grafana/runtime';
+import { arrayMove } from 'app/core/utils/arrayMove';
+
 import { GraphiteDatasource } from './datasource';
+import { FuncInstance } from './gfunc';
+import { Parser } from './parser';
+import { GraphiteSegment } from './types';
 
 export type GraphiteTagOperator = '=' | '=~' | '!=' | '!=~';
 
@@ -15,7 +17,7 @@ export type GraphiteTag = {
   value: string;
 };
 
-type GraphiteTarget = {
+export type GraphiteTarget = {
   refId: string | number;
   target: string;
   /**
@@ -180,7 +182,7 @@ export default class GraphiteQuery {
     };
 
     if (!this.target.textEditor) {
-      const metricPath = this.getSegmentPathUpTo(this.segments.length).replace(/\.select metric$/, '');
+      const metricPath = this.getSegmentPathUpTo(this.segments.length).replace(/\.?select metric$/, '');
       this.target.target = reduce(this.functions, wrapFunction, metricPath);
     }
 
@@ -303,11 +305,15 @@ export default class GraphiteQuery {
 
     if (tag.key === this.removeTagValue) {
       this.removeTag(tagIndex);
+      if (this.tags.length === 0) {
+        this.removeFunction(this.getSeriesByTagFunc());
+        this.checkOtherSegmentsIndex = 0;
+        this.seriesByTagUsed = false;
+      }
       return;
     }
 
-    const newTagParam = renderTagString(tag);
-    this.getSeriesByTagFunc()!.params[tagIndex] = newTagParam;
+    this.getSeriesByTagFunc()!.params[tagIndex] = renderTagString(tag);
     this.tags[tagIndex] = tag;
   }
 

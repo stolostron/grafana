@@ -1,10 +1,14 @@
-import React from 'react';
 import { css } from '@emotion/css';
 import { sumBy } from 'lodash';
-import { Modal, ConfirmModal, Button } from '@grafana/ui';
-import { DashboardModel, PanelModel } from '../../state';
-import { useDashboardDelete } from './useDashboardDelete';
+import React from 'react';
 import useAsyncFn from 'react-use/lib/useAsyncFn';
+
+import { Modal, ConfirmModal, Button } from '@grafana/ui';
+import { config } from 'app/core/config';
+
+import { DashboardModel, PanelModel } from '../../state';
+
+import { useDashboardDelete } from './useDashboardDelete';
 
 type DeleteDashboardModalProps = {
   hideModal(): void;
@@ -41,7 +45,7 @@ export const DeleteDashboardModal: React.FC<DeleteDashboardModalProps> = ({ hide
 
 const getModalBody = (panels: PanelModel[], title: string) => {
   const totalAlerts = sumBy(panels, (panel) => (panel.alert ? 1 : 0));
-  return totalAlerts > 0 ? (
+  return totalAlerts > 0 && !config.unifiedAlertingEnabled ? (
     <>
       <p>Do you want to delete this dashboard?</p>
       <p>

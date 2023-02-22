@@ -1,11 +1,13 @@
 import React, { FC } from 'react';
+
 import { DataFrame, DataTransformerID, getFrameDisplayName, SelectableValue } from '@grafana/data';
 import { Field, HorizontalGroup, Select, Switch, VerticalGroup } from '@grafana/ui';
-import { getPanelInspectorStyles } from './styles';
-import { GetDataOptions } from 'app/features/query/state/PanelQueryRunner';
 import { QueryOperationRow } from 'app/core/components/QueryOperationRow/QueryOperationRow';
 import { PanelModel } from 'app/features/dashboard/state';
 import { DetailText } from 'app/features/inspector/DetailText';
+import { GetDataOptions } from 'app/features/query/state/PanelQueryRunner';
+
+import { getPanelInspectorStyles } from './styles';
 
 interface Props {
   options: GetDataOptions;
@@ -132,13 +134,14 @@ export const InspectDataOptions: FC<Props> = ({
                   description="Table data is formatted with options defined in the Field and Override tabs."
                 >
                   <Switch
+                    id="formatted-data-toggle"
                     value={!!options.withFieldConfig}
                     onChange={() => onOptionsChange({ ...options, withFieldConfig: !options.withFieldConfig })}
                   />
                 </Field>
               )}
               <Field label="Download for Excel" description="Adds header to CSV for use with Excel">
-                <Switch value={downloadForExcel} onChange={toggleDownloadForExcel} />
+                <Switch id="excel-toggle" value={downloadForExcel} onChange={toggleDownloadForExcel} />
               </Field>
             </HorizontalGroup>
           </VerticalGroup>

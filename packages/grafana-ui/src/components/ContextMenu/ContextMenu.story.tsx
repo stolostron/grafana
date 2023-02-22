@@ -1,11 +1,13 @@
 import React from 'react';
+
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 import { IconButton } from '../IconButton/IconButton';
-import { ContextMenu } from './ContextMenu';
-import { WithContextMenu } from './WithContextMenu';
-import mdx from './ContextMenu.mdx';
 import { MenuGroup } from '../Menu/MenuGroup';
 import { MenuItem } from '../Menu/MenuItem';
+
+import { ContextMenu } from './ContextMenu';
+import mdx from './ContextMenu.mdx';
+import { WithContextMenu } from './WithContextMenu';
 
 export default {
   title: 'General/ContextMenu',
@@ -24,15 +26,18 @@ const menuItems = [
     items: [
       { label: 'First', ariaLabel: 'First' },
       { label: 'Second', ariaLabel: 'Second' },
+      { label: 'Third', ariaLabel: 'Third' },
+      { label: 'Fourth', ariaLabel: 'Fourth' },
+      { label: 'Fifth', ariaLabel: 'Fifth' },
     ],
   },
 ];
 
 const renderMenuItems = () => {
-  return menuItems?.map((group, index) => (
-    <MenuGroup key={`${group.label}${index}`} label={group.label} ariaLabel={group.label}>
-      {(group.items || []).map((item) => (
-        <MenuItem key={item.label} label={item.label} ariaLabel={item.label} />
+  return menuItems.map((group, index) => (
+    <MenuGroup key={`${group.label}${index}`} label={group.label}>
+      {group.items.map((item) => (
+        <MenuItem key={item.label} label={item.label} />
       ))}
     </MenuGroup>
   ));

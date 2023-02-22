@@ -1,12 +1,18 @@
-+++
-title = "What's New in Grafana v7.3"
-description = "Feature and improvement highlights for Grafana v7.3"
-keywords = ["grafana", "new", "documentation", "7.3", "release notes"]
-aliases = ["/docs/grafana/latest/guides/whats-new-in-v7-3/"]
-weight = -30
-[_build]
-list = false
-+++
+---
+_build:
+  list: false
+aliases:
+  - ../guides/whats-new-in-v7-3/
+description: Feature and improvement highlights for Grafana v7.3
+keywords:
+  - grafana
+  - new
+  - documentation
+  - '7.3'
+  - release notes
+title: What's New in Grafana v7.3
+weight: -30
+---
 
 # What's new in Grafana v7.3
 
@@ -34,7 +40,7 @@ Another new feature that can be seen in the image above is the new image cell di
 
 {{< figure src="/static/img/docs/v73/color_scheme_dropdown.png" max-width="450px" caption="Color scheme" class="pull-right" >}}
 
-A new standard field [color scheme]({{< relref "../panels/standard-options.md#color-scheme" >}}) option has been added. This new option will provide a unified way for all new panels to specify how colors should be assigned.
+A new standard field color scheme option has been added. This new option will provide a unified way for all new panels to specify how colors should be assigned. For more information, refer to [Apply color to series and fields](../panels/working-with-panels/apply-color-to-series.md)
 
 - **Single color**: Specifies a single color. Useful in an override rule.
 - **From thresholds**: Informs Grafana to take color from the matching threshold.
@@ -61,7 +67,7 @@ As this new option is a standard field option it works in every panel. Here is a
 
 In v7.0, we introduced a new table panel and inspect mode with Download CSV enabled. However, CSV export to Excel was removed. Due to a large number of inquiries and requests, this [community contribution from tomdaly](https://github.com/grafana/grafana/pull/27284) brought the feature back.
 
-For more information, refer to [Download raw query results as CSV]({{< relref "../panels/inspect-panel/#download-raw-query-results-as-csv" >}}) in the Grafana documentation.
+For more information, refer to [Download raw query results]({{< relref "../panels/query-a-data-source/download-raw-query-results.md" >}}).
 
 ## Google Cloud monitoring out-of-the-box dashboards
 

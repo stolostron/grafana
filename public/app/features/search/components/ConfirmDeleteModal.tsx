@@ -1,11 +1,12 @@
-import React, { FC } from 'react';
 import { css } from '@emotion/css';
+import React, { FC } from 'react';
+
 import { GrafanaTheme } from '@grafana/data';
 import { ConfirmModal, stylesFactory, useTheme } from '@grafana/ui';
-import { getLocationSrv } from '@grafana/runtime';
+import { deleteFoldersAndDashboards } from 'app/features/manage-dashboards/state/actions';
+
 import { DashboardSection, OnDeleteItems } from '../types';
 import { getCheckedUids } from '../utils';
-import { deleteFoldersAndDashboards } from 'app/features/manage-dashboards/state/actions';
 
 interface Props {
   onDeleteItems: OnDeleteItems;
@@ -32,7 +33,7 @@ export const ConfirmDeleteModal: FC<Props> = ({ results, onDeleteItems, isOpen, 
     text += `selected folder${folderEnding} and dashboard${dashEnding}?\n`;
     subtitle = `All dashboards and alerts of the selected folder${folderEnding} will also be deleted`;
   } else if (folderCount > 0) {
-    text += `selected folder${folderEnding} and all their dashboards and alerts?`;
+    text += `selected folder${folderEnding} and all ${folderCount === 1 ? 'its' : 'their'} dashboards and alerts?`;
   } else {
     text += `selected dashboard${dashEnding}?`;
   }
@@ -40,8 +41,6 @@ export const ConfirmDeleteModal: FC<Props> = ({ results, onDeleteItems, isOpen, 
   const deleteItems = () => {
     deleteFoldersAndDashboards(folders, dashboards).then(() => {
       onDismiss();
-      // Redirect to /dashboard in case folder was deleted from f/:folder.uid
-      getLocationSrv().update({ path: '/dashboards' });
       onDeleteItems(folders, dashboards);
     });
   };

@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { RefreshPicker, defaultIntervals } from '@grafana/ui';
 import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
 
@@ -15,14 +16,18 @@ export type Props = {
 export function RunButton(props: Props) {
   const { isSmall, loading, onRun, onChangeRefreshInterval, refreshInterval, showDropdown, isLive } = props;
   const intervals = getTimeSrv().getValidIntervals(defaultIntervals);
-  let text: string | undefined;
+  let text: string | undefined = loading ? 'Cancel' : 'Run query';
+  let tooltip = '';
+  let width = '108px';
 
   if (isLive) {
     return null;
   }
 
-  if (!isSmall) {
-    text = loading ? 'Cancel' : 'Run query';
+  if (isSmall) {
+    tooltip = text;
+    text = undefined;
+    width = '35px';
   }
 
   return (
@@ -31,11 +36,13 @@ export function RunButton(props: Props) {
       value={refreshInterval}
       isLoading={loading}
       text={text}
+      tooltip={tooltip}
       intervals={intervals}
       isLive={isLive}
       onRefresh={() => onRun(loading)}
       noIntervalPicker={!showDropdown}
       primary={true}
+      width={width}
     />
   );
 }

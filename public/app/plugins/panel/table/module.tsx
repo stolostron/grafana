@@ -1,10 +1,21 @@
-import { PanelPlugin } from '@grafana/data';
-import { TablePanel } from './TablePanel';
-import { PanelOptions, PanelFieldConfig, defaultPanelOptions, defaultPanelFieldConfig } from './models.gen';
-import { tableMigrationHandler, tablePanelChangedHandler } from './migrations';
+import {
+  FieldOverrideContext,
+  FieldType,
+  getFieldDisplayName,
+  PanelPlugin,
+  ReducerID,
+  standardEditorsRegistry,
+} from '@grafana/data';
+import { TableFieldOptions } from '@grafana/schema';
 import { TableCellDisplayMode } from '@grafana/ui';
 
-export const plugin = new PanelPlugin<PanelOptions, PanelFieldConfig>(TablePanel)
+import { PaginationEditor } from './PaginationEditor';
+import { TablePanel } from './TablePanel';
+import { tableMigrationHandler, tablePanelChangedHandler } from './migrations';
+import { PanelOptions, defaultPanelOptions, defaultPanelFieldConfig } from './models.gen';
+import { TableSuggestionsSupplier } from './suggestions';
+
+export const plugin = new PanelPlugin<PanelOptions, TableFieldOptions>(TablePanel)
   .setPanelChangeHandler(tablePanelChangedHandler)
   .setMigrationHandler(tableMigrationHandler)
   .setNoPadding()
@@ -67,18 +78,93 @@ export const plugin = new PanelPlugin<PanelOptions, PanelFieldConfig>(TablePanel
           defaultValue: defaultPanelFieldConfig.displayMode,
         })
         .addBooleanSwitch({
+          path: 'inspect',
+          name: 'Cell value inspect',
+          description: 'Enable cell value inspection in a modal window',
+          defaultValue: false,
+          showIf: (cfg) => {
+            return (
+              cfg.displayMode === TableCellDisplayMode.Auto ||
+              cfg.displayMode === TableCellDisplayMode.JSONView ||
+              cfg.displayMode === TableCellDisplayMode.ColorText ||
+              cfg.displayMode === TableCellDisplayMode.ColorBackground ||
+              cfg.displayMode === TableCellDisplayMode.ColorBackgroundSolid
+            );
+          },
+        })
+        .addBooleanSwitch({
           path: 'filterable',
           name: 'Column filter',
           description: 'Enables/disables field filters in table',
           defaultValue: defaultPanelFieldConfig.filterable,
+        })
+        .addBooleanSwitch({
+          path: 'hidden',
+          name: 'Hide in table',
+          defaultValue: undefined,
+          hideFromDefaults: true,
         });
     },
   })
   .setPanelOptions((builder) => {
-    builder.addBooleanSwitch({
-      path: 'showHeader',
-      name: 'Show header',
-      description: "To display table's header or not to display",
-      defaultValue: defaultPanelOptions.showHeader,
-    });
-  });
+    builder
+      .addBooleanSwitch({
+        path: 'showHeader',
+        category: ['Header and footer'],
+        name: 'Show header',
+        description: "To display table's header or not to display",
+        defaultValue: defaultPanelOptions.showHeader,
+      })
+      .addBooleanSwitch({
+        path: 'footer.show',
+        category: ['Header and footer'],
+        name: 'Show Footer',
+        description: "To display table's footer or not to display",
+        defaultValue: defaultPanelOptions.footer?.show,
+      })
+      .addCustomEditor({
+        id: 'footer.reducer',
+        category: ['Header and footer'],
+        path: 'footer.reducer',
+        name: 'Calculation',
+        description: 'Choose a reducer function / calculation',
+        editor: standardEditorsRegistry.get('stats-picker').editor as any,
+        defaultValue: [ReducerID.sum],
+        showIf: (cfg) => cfg.footer?.show,
+      })
+      .addMultiSelect({
+        path: 'footer.fields',
+        category: ['Header and footer'],
+        name: 'Fields',
+        description: 'Select the fields that should be calculated',
+        settings: {
+          allowCustomValue: false,
+          options: [],
+          placeholder: 'All Numeric Fields',
+          getOptions: async (context: FieldOverrideContext) => {
+            const options = [];
+            if (context && context.data && context.data.length > 0) {
+              const frame = context.data[0];
+              for (const field of frame.fields) {
+                if (field.type === FieldType.number) {
+                  const name = getFieldDisplayName(field, frame, context.data);
+                  const value = field.name;
+                  options.push({ value, label: name } as any);
+                }
+              }
+            }
+            return options;
+          },
+        },
+        defaultValue: '',
+        showIf: (cfg) => cfg.footer?.show,
+      })
+      .addCustomEditor({
+        id: 'footer.enablePagination',
+        category: ['Header and footer'],
+        path: 'footer.enablePagination',
+        name: 'Enable pagination',
+        editor: PaginationEditor,
+      });
+  })
+  .setSuggestionsSupplier(new TableSuggestionsSupplier());

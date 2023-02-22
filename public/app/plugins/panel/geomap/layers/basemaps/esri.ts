@@ -1,5 +1,7 @@
-import { MapLayerRegistryItem, MapLayerOptions, GrafanaTheme2, RegistryItem, Registry } from '@grafana/data';
 import Map from 'ol/Map';
+
+import { MapLayerRegistryItem, MapLayerOptions, GrafanaTheme2, RegistryItem, Registry } from '@grafana/data';
+
 import { xyzTiles, defaultXYZConfig, XYZConfig } from './generic';
 
 interface PublicServiceItem extends RegistryItem {
@@ -66,35 +68,36 @@ export const esriXYZTiles: MapLayerRegistryItem<ESRIXYZConfig> = {
       cfg.attribution = `Tiles © <a href="${base}${svc.slug}/MapServer">ArcGIS</a>`;
     }
     const opts = { ...options, config: cfg as XYZConfig };
-    return xyzTiles.create(map, opts, theme);
-  },
-
-  registerOptionsUI: (builder) => {
-    builder
-      .addSelect({
-        path: 'config.server',
-        name: 'Server instance',
-        settings: {
-          options: publicServiceRegistry.selectOptions().options,
-        },
-      })
-      .addTextInput({
-        path: 'config.url',
-        name: 'URL template',
-        description: 'Must include {x}, {y} or {-y}, and {z} placeholders',
-        settings: {
-          placeholder: defaultXYZConfig.url,
-        },
-        showIf: (cfg) => cfg.config?.server === CUSTOM_SERVICE,
-      })
-      .addTextInput({
-        path: 'config.attribution',
-        name: 'Attribution',
-        settings: {
-          placeholder: defaultXYZConfig.attribution,
-        },
-        showIf: (cfg) => cfg.config?.server === CUSTOM_SERVICE,
-      });
+    return xyzTiles.create(map, opts, theme).then((xyz) => {
+      xyz.registerOptionsUI = (builder) => {
+        builder
+          .addSelect({
+            path: 'config.server',
+            name: 'Server instance',
+            settings: {
+              options: publicServiceRegistry.selectOptions().options,
+            },
+          })
+          .addTextInput({
+            path: 'config.url',
+            name: 'URL template',
+            description: 'Must include {x}, {y} or {-y}, and {z} placeholders',
+            settings: {
+              placeholder: defaultXYZConfig.url,
+            },
+            showIf: (cfg) => cfg.config?.server === CUSTOM_SERVICE,
+          })
+          .addTextInput({
+            path: 'config.attribution',
+            name: 'Attribution',
+            settings: {
+              placeholder: defaultXYZConfig.attribution,
+            },
+            showIf: (cfg) => cfg.config?.server === CUSTOM_SERVICE,
+          });
+      };
+      return xyz;
+    });
   },
 
   defaultOptions: {

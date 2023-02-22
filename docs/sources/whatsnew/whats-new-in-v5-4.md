@@ -1,12 +1,18 @@
-+++
-title = "What's new in Grafana v5.4"
-description = "Feature and improvement highlights for Grafana v5.4"
-keywords = ["grafana", "new", "documentation", "5.4", "release notes"]
-aliases = ["/docs/grafana/latest/guides/whats-new-in-v5-4/"]
-weight = -18
-[_build]
-list = false
-+++
+---
+_build:
+  list: false
+aliases:
+  - ../guides/whats-new-in-v5-4/
+description: Feature and improvement highlights for Grafana v5.4
+keywords:
+  - grafana
+  - new
+  - documentation
+  - '5.4'
+  - release notes
+title: What's new in Grafana v5.4
+weight: -18
+---
 
 # What's new in Grafana v5.4
 
@@ -37,7 +43,7 @@ Additionally, there's now support for disable the sending of `OK` alert notifica
 Grafana v5.3 included built-in support for [Google Stackdriver](https://cloud.google.com/stackdriver/) which enables you to visualize your Stackdriver metrics in Grafana.
 One important feature missing was support for templating queries. This is now included together with a brand new templating query editor for Stackdriver.
 
-The Stackdriver templating query editor lets you choose from a set of different Query Types. This will in turn reveal additional drop downs to help you
+The Stackdriver templating query editor lets you choose from a set of different Query Types. This will in turn reveal additional drop-downs to help you
 find, filter and select the templating values you're interested in, see screenshot for details. The templating query editor also supports chaining multiple variables
 making it easy to define variables that's dependent on other variables.
 

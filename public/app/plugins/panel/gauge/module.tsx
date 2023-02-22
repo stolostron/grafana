@@ -1,14 +1,18 @@
 import { PanelPlugin } from '@grafana/data';
-import { GaugePanel } from './GaugePanel';
-import { GaugeOptions } from './types';
-import { addStandardDataReduceOptions } from '../stat/types';
-import { gaugePanelMigrationHandler, gaugePanelChangedHandler } from './GaugeMigrations';
 import { commonOptionsBuilder } from '@grafana/ui';
+
+import { addOrientationOption, addStandardDataReduceOptions } from '../stat/types';
+
+import { gaugePanelMigrationHandler, gaugePanelChangedHandler } from './GaugeMigrations';
+import { GaugePanel } from './GaugePanel';
+import { GaugeSuggestionsSupplier } from './suggestions';
+import { GaugeOptions } from './types';
 
 export const plugin = new PanelPlugin<GaugeOptions>(GaugePanel)
   .useFieldConfig()
   .setPanelOptions((builder) => {
     addStandardDataReduceOptions(builder);
+    addOrientationOption(builder);
 
     builder
       .addBooleanSwitch({
@@ -27,4 +31,5 @@ export const plugin = new PanelPlugin<GaugeOptions>(GaugePanel)
     commonOptionsBuilder.addTextSizeOptions(builder);
   })
   .setPanelChangeHandler(gaugePanelChangedHandler)
+  .setSuggestionsSupplier(new GaugeSuggestionsSupplier())
   .setMigrationHandler(gaugePanelMigrationHandler);

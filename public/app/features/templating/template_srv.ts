@@ -1,12 +1,16 @@
-import { isString, property, escape } from 'lodash';
+import { escape, isString, property } from 'lodash';
+
 import { deprecationWarning, ScopedVars, TimeRange } from '@grafana/data';
-import { getFilteredVariables, getVariables, getVariableWithName } from '../variables/state/selectors';
-import { variableRegex } from '../variables/utils';
+import { getDataSourceSrv, setTemplateSrv, TemplateSrv as BaseTemplateSrv } from '@grafana/runtime';
+
+import { variableAdapters } from '../variables/adapters';
+import { ALL_VARIABLE_TEXT, ALL_VARIABLE_VALUE } from '../variables/constants';
 import { isAdHoc } from '../variables/guard';
-import { VariableModel } from '../variables/types';
-import { setTemplateSrv, TemplateSrv as BaseTemplateSrv } from '@grafana/runtime';
-import { FormatOptions, formatRegistry } from './formatRegistry';
-import { ALL_VARIABLE_TEXT, ALL_VARIABLE_VALUE } from '../variables/state/types';
+import { getFilteredVariables, getVariables, getVariableWithName } from '../variables/state/selectors';
+import { AdHocVariableFilter, AdHocVariableModel, VariableModel } from '../variables/types';
+import { variableRegex } from '../variables/utils';
+
+import { FormatOptions, formatRegistry, FormatRegistryID } from './formatRegistry';
 
 interface FieldAccessorCache {
   [key: string]: (obj: any) => any;
@@ -91,14 +95,21 @@ export class TemplateSrv implements BaseTemplateSrv {
     this.index[variable.name] = variable;
   }
 
-  getAdhocFilters(datasourceName: string) {
+  getAdhocFilters(datasourceName: string): AdHocVariableFilter[] {
     let filters: any = [];
+    let ds = getDataSourceSrv().getInstanceSettings(datasourceName);
+
+    if (!ds) {
+      return [];
+    }
 
     for (const variable of this.getAdHocVariables()) {
-      if (variable.datasource === null || variable.datasource === datasourceName) {
+      const variableUid = variable.datasource?.uid;
+
+      if (variableUid === ds.uid) {
         filters = filters.concat(variable.filters);
-      } else if (variable.datasource.indexOf('$') === 0) {
-        if (this.replace(variable.datasource) === datasourceName) {
+      } else if (variableUid?.indexOf('$') === 0) {
+        if (this.replace(variableUid) === datasourceName) {
           filters = filters.concat(variable.filters);
         }
       }
@@ -107,11 +118,15 @@ export class TemplateSrv implements BaseTemplateSrv {
     return filters;
   }
 
-  formatValue(value: any, format: any, variable: any, text?: string) {
+  formatValue(value: any, format: any, variable: any, text?: string): string {
     // for some scopedVars there is no variable
     variable = variable || {};
 
     if (value === null || value === undefined) {
+      return '';
+    }
+
+    if (isAdHoc(variable) && format !== FormatRegistryID.queryParam) {
       return '';
     }
 
@@ -125,27 +140,28 @@ export class TemplateSrv implements BaseTemplateSrv {
     }
 
     if (!format) {
-      format = 'glob';
+      format = FormatRegistryID.glob;
     }
 
-    // some formats have arguments that come after ':' character
-    let args = format.split(':');
-    if (args.length > 1) {
-      format = args[0];
-      args = args.slice(1);
-    } else {
-      args = [];
+    const formats = format.split('|');
+    for (let fmt of formats) {
+      // some formats have arguments that come after ':' character
+      let args = fmt.split(':');
+      if (args.length > 1) {
+        fmt = args[0];
+        args = args.slice(1);
+      } else {
+        args = [];
+      }
+      let formatItem = formatRegistry.getIfExists(fmt);
+      if (!formatItem) {
+        console.error(`Variable format ${fmt} not found. Using glob format as fallback.`);
+        formatItem = formatRegistry.get(FormatRegistryID.glob);
+      }
+      const options: FormatOptions = { value, args, text: text ?? value };
+      value = formatItem.formatter(options, variable);
     }
-
-    let formatItem = formatRegistry.getIfExists(format);
-
-    if (!formatItem) {
-      console.error(`Variable format ${format} not found. Using glob format as fallback.`);
-      formatItem = formatRegistry.get('glob');
-    }
-
-    const options: FormatOptions = { value, args, text: text ?? value };
-    return formatItem.formatter(options, variable);
+    return value;
   }
 
   setGrafanaVariable(name: string, value: any) {
@@ -177,10 +193,18 @@ export class TemplateSrv implements BaseTemplateSrv {
     return variableName;
   }
 
-  variableExists(expression: string): boolean {
-    const name = this.getVariableName(expression);
+  containsTemplate(target: string | undefined): boolean {
+    if (!target) {
+      return false;
+    }
+    const name = this.getVariableName(target);
     const variable = name && this.getVariableAtIndex(name);
     return variable !== null && variable !== undefined;
+  }
+
+  variableExists(expression: string): boolean {
+    deprecationWarning('template_srv.ts', 'variableExists', 'containsTemplate');
+    return this.containsTemplate(expression);
   }
 
   highlightVariablesAsHtml(str: string) {
@@ -270,6 +294,13 @@ export class TemplateSrv implements BaseTemplateSrv {
         return match;
       }
 
+      if (fmt === FormatRegistryID.queryParam || isAdHoc(variable)) {
+        const value = variableAdapters.get(variable.type).getValueForUrl(variable);
+        const text = isAdHoc(variable) ? variable.id : variable.current.text;
+
+        return this.formatValue(value, fmt, variable, text);
+      }
+
       const systemValue = this.grafanaVariables[variable.current.value];
       if (systemValue) {
         return this.formatValue(systemValue, fmt, variable);
@@ -282,7 +313,7 @@ export class TemplateSrv implements BaseTemplateSrv {
         value = this.getAllValue(variable);
         text = ALL_VARIABLE_TEXT;
         // skip formatting of custom all values
-        if (variable.allValue && fmt !== 'text' && fmt !== 'queryparam') {
+        if (variable.allValue && fmt !== FormatRegistryID.text) {
           return this.replace(value);
         }
       }
@@ -322,8 +353,8 @@ export class TemplateSrv implements BaseTemplateSrv {
     return this.index[name];
   }
 
-  private getAdHocVariables(): any[] {
-    return this.dependencies.getFilteredVariables(isAdHoc);
+  private getAdHocVariables(): AdHocVariableModel[] {
+    return this.dependencies.getFilteredVariables(isAdHoc) as AdHocVariableModel[];
   }
 }
 

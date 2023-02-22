@@ -1,6 +1,7 @@
-import { promises as fs } from 'fs';
-import { Task, TaskRunner } from '../task';
 import execa = require('execa');
+import { promises as fs } from 'fs';
+
+import { Task, TaskRunner } from '../task';
 
 interface BundeManagedOptions {}
 
@@ -18,7 +19,7 @@ const bundleManagedPluginsRunner: TaskRunner<BundeManagedOptions> = async () => 
               console.log(`[${scope}]: ${plugin} building...`);
               await execa('yarn', ['build'], { cwd: `${MANAGED_PLUGINS_PATH}/${scope}/${plugin}` });
               console.log(`[${scope}]: ${plugin} bundled`);
-            } catch (e) {
+            } catch (e: any) {
               console.log(e.stdout);
             }
           }

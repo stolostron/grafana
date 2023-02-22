@@ -1,15 +1,23 @@
-+++
-title = "Enhanced LDAP Integration"
-description = "Grafana Enhanced LDAP Integration Guide "
-keywords = ["grafana", "configuration", "documentation", "ldap", "active directory", "enterprise"]
-weight = 600
-+++
+---
+description: 'Grafana Enhanced LDAP Integration Guide '
+keywords:
+  - grafana
+  - configuration
+  - documentation
+  - ldap
+  - active directory
+  - enterprise
+title: Enhanced LDAP Integration
+weight: 600
+---
 
 # Enhanced LDAP integration
 
 The enhanced LDAP integration adds additional functionality on top of the [LDAP integration]({{< relref "../auth/ldap.md" >}}) available in the open source edition of Grafana.
 
-> Enhanced LDAP integration is only available in Grafana Enterprise.
+> Enhanced LDAP integration is only available in [Grafana Cloud Advanced](https://grafana.com/docs/grafana-cloud/) and in [Grafana Enterprise]({{< relref "../enterprise" >}}).
+
+> Refer to [Fine-grained access control]({{< relref "../enterprise/access-control/_index.md" >}}) in Grafana Enterprise to understand how you can control access with fine-grained permissions.
 
 > Refer to [Fine-grained access control]({{< relref "../enterprise/access-control/_index.md" >}}) in Grafana Enterprise to understand how you can control access with fine-grained permissions.
 

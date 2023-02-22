@@ -9,18 +9,18 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/tsdb"
 	es "github.com/grafana/grafana/pkg/tsdb/elasticsearch/client"
+	"github.com/grafana/grafana/pkg/tsdb/intervalv2"
 )
 
 type timeSeriesQuery struct {
 	client             es.Client
 	dataQueries        []backend.DataQuery
-	intervalCalculator tsdb.Calculator
+	intervalCalculator intervalv2.Calculator
 }
 
 var newTimeSeriesQuery = func(client es.Client, dataQuery []backend.DataQuery,
-	intervalCalculator tsdb.Calculator) *timeSeriesQuery {
+	intervalCalculator intervalv2.Calculator) *timeSeriesQuery {
 	return &timeSeriesQuery{
 		client:             client,
 		dataQueries:        dataQuery,
@@ -28,7 +28,6 @@ var newTimeSeriesQuery = func(client es.Client, dataQuery []backend.DataQuery,
 	}
 }
 
-// nolint:staticcheck
 func (e *timeSeriesQuery) execute() (*backend.QueryDataResponse, error) {
 	tsQueryParser := newTimeSeriesQueryParser()
 	queries, err := tsQueryParser.parse(e.dataQueries)
@@ -38,8 +37,8 @@ func (e *timeSeriesQuery) execute() (*backend.QueryDataResponse, error) {
 
 	ms := e.client.MultiSearch()
 
-	from := fmt.Sprintf("%d", e.dataQueries[0].TimeRange.From.UnixNano()/int64(time.Millisecond))
-	to := fmt.Sprintf("%d", e.dataQueries[0].TimeRange.To.UnixNano()/int64(time.Millisecond))
+	from := e.dataQueries[0].TimeRange.From.UnixNano() / int64(time.Millisecond)
+	to := e.dataQueries[0].TimeRange.To.UnixNano() / int64(time.Millisecond)
 	result := backend.QueryDataResponse{
 		Responses: backend.Responses{},
 	}
@@ -63,16 +62,15 @@ func (e *timeSeriesQuery) execute() (*backend.QueryDataResponse, error) {
 	return rp.getTimeSeries()
 }
 
-// nolint:staticcheck
-func (e *timeSeriesQuery) processQuery(q *Query, ms *es.MultiSearchRequestBuilder, from, to string,
+func (e *timeSeriesQuery) processQuery(q *Query, ms *es.MultiSearchRequestBuilder, from, to int64,
 	result backend.QueryDataResponse) error {
 	minInterval, err := e.client.GetMinInterval(q.Interval)
 	if err != nil {
 		return err
 	}
-	intrvl := e.intervalCalculator.Calculate(e.dataQueries[0].TimeRange, minInterval)
+	interval := e.intervalCalculator.Calculate(e.dataQueries[0].TimeRange, minInterval, q.MaxDataPoints)
 
-	b := ms.Search(intrvl)
+	b := ms.Search(interval)
 	b.Size(0)
 	filters := b.Query().Bool().Filter()
 	filters.AddDateRangeFilter(e.client.GetTimeField(), to, from, es.DateFormatEpochMS)
@@ -245,7 +243,7 @@ func (bucketAgg BucketAgg) generateSettingsForDSL() map[string]interface{} {
 	return bucketAgg.Settings.MustMap()
 }
 
-func addDateHistogramAgg(aggBuilder es.AggBuilder, bucketAgg *BucketAgg, timeFrom, timeTo string) es.AggBuilder {
+func addDateHistogramAgg(aggBuilder es.AggBuilder, bucketAgg *BucketAgg, timeFrom, timeTo int64) es.AggBuilder {
 	aggBuilder.DateHistogram(bucketAgg.ID, bucketAgg.Field, func(a *es.DateHistogramAgg, b es.AggBuilder) {
 		a.Interval = bucketAgg.Settings.Get("interval").MustString("auto")
 		a.MinDocCount = bucketAgg.Settings.Get("min_doc_count").MustInt(0)
@@ -262,6 +260,12 @@ func addDateHistogramAgg(aggBuilder es.AggBuilder, bucketAgg *BucketAgg, timeFro
 
 		if missing, err := bucketAgg.Settings.Get("missing").String(); err == nil {
 			a.Missing = &missing
+		}
+
+		if timezone, err := bucketAgg.Settings.Get("timeZone").String(); err == nil {
+			if timezone != "utc" {
+				a.TimeZone = timezone
+			}
 		}
 
 		aggBuilder = b
@@ -400,13 +404,14 @@ func (p *timeSeriesQueryParser) parse(tsdbQuery []backend.DataQuery) ([]*Query, 
 		interval := model.Get("interval").MustString("")
 
 		queries = append(queries, &Query{
-			TimeField:  timeField,
-			RawQuery:   rawQuery,
-			BucketAggs: bucketAggs,
-			Metrics:    metrics,
-			Alias:      alias,
-			Interval:   interval,
-			RefID:      q.RefID,
+			TimeField:     timeField,
+			RawQuery:      rawQuery,
+			BucketAggs:    bucketAggs,
+			Metrics:       metrics,
+			Alias:         alias,
+			Interval:      interval,
+			RefID:         q.RefID,
+			MaxDataPoints: q.MaxDataPoints,
 		})
 	}
 

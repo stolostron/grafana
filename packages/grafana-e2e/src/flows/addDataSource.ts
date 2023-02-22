@@ -1,6 +1,8 @@
-import { DeleteDataSourceConfig } from './deleteDataSource';
-import { e2e } from '../index';
 import { v4 as uuidv4 } from 'uuid';
+
+import { e2e } from '../index';
+
+import { DeleteDataSourceConfig } from './deleteDataSource';
 
 export interface AddDataSourceConfig {
   basicAuth: boolean;
@@ -47,7 +49,7 @@ export const addDataSource = (config?: Partial<AddDataSourceConfig>) => {
 
   e2e().logToConsole('Adding data source with name:', name);
   e2e.pages.AddDataSource.visit();
-  e2e.pages.AddDataSource.dataSourcePlugins(type)
+  e2e.pages.AddDataSource.dataSourcePluginsV2(type)
     .scrollIntoView()
     .should('be.visible') // prevents flakiness
     .click();

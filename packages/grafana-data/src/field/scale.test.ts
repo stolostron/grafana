@@ -1,9 +1,10 @@
-import { ThresholdsMode, Field, FieldType } from '../types';
-import { sortThresholds } from './thresholds';
-import { ArrayVector } from '../vector/ArrayVector';
-import { getScaleCalculator } from './scale';
 import { createTheme } from '../themes';
+import { ThresholdsMode, Field, FieldType, FieldColorModeId } from '../types';
 import { getColorForTheme } from '../utils';
+import { ArrayVector } from '../vector/ArrayVector';
+
+import { getScaleCalculator } from './scale';
+import { sortThresholds } from './thresholds';
 
 describe('getScaleCalculator', () => {
   it('should return percent, threshold and color', () => {
@@ -48,5 +49,19 @@ describe('getScaleCalculator', () => {
       color: getColorForTheme('red', theme.v1),
       threshold: undefined,
     });
+  });
+
+  it('should handle min = max', () => {
+    const field: Field = {
+      name: 'test',
+      config: { color: { mode: FieldColorModeId.ContinuousGrYlRd } },
+      type: FieldType.number,
+      values: new ArrayVector([1]),
+    };
+
+    const theme = createTheme();
+    const calc = getScaleCalculator(field, theme);
+
+    expect(calc(1).color).toEqual('rgb(115, 191, 105)');
   });
 });

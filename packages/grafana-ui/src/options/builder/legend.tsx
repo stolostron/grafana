@@ -1,6 +1,5 @@
 import { PanelOptionsEditorBuilder, standardEditorsRegistry, StatsPickerConfigSettings } from '@grafana/data';
-import { LegendDisplayMode } from '../../index';
-import { OptionsWithLegend } from '../models.gen';
+import { LegendDisplayMode, OptionsWithLegend } from '@grafana/schema';
 
 /**
  * @alpha
@@ -37,6 +36,15 @@ export function addLegendOptions<T extends OptionsWithLegend>(
         ],
       },
       showIf: (c) => c.legend.displayMode !== LegendDisplayMode.Hidden,
+    })
+    .addNumberInput({
+      path: 'legend.width',
+      name: 'Width',
+      category: ['Legend'],
+      settings: {
+        placeholder: 'Auto',
+      },
+      showIf: (c) => c.legend.displayMode !== LegendDisplayMode.Hidden && c.legend.placement === 'right',
     });
 
   if (includeLegendCalcs) {

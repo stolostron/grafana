@@ -1,8 +1,14 @@
-+++
-title = "Filter variables with regex"
-keywords = ["grafana", "templating", "documentation", "guide", "template", "variable"]
-weight = 700
-+++
+---
+keywords:
+  - grafana
+  - templating
+  - documentation
+  - guide
+  - template
+  - variable
+title: Filter variables with regex
+weight: 700
+---
 
 # Filter variables with regex
 
@@ -26,7 +32,7 @@ backend_04
 Regex:
 
 ```regex
-/.*[01|02]/
+/(01|02)$/
 ```
 
 Result:

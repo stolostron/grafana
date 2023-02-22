@@ -1,8 +1,12 @@
-+++
-title = "Change name and email"
-keywords = ["grafana", "configuration", "documentation", "home"]
-weight = 100
-+++
+---
+keywords:
+  - grafana
+  - configuration
+  - documentation
+  - home
+title: Change name and email
+weight: 100
+---
 
 # Change Grafana name and email
 
@@ -53,4 +57,4 @@ To change the team name or email, follow these steps:
 
 ## Change user name or email
 
-To learn how to edit your user information, refer to [Grafana user account profile]({{< relref "../../manage-users/user-admin/user-profile.md" >}}).
+To learn how to edit your user information, refer to [Edit your profile]({{< relref "../manage-user-preferences/_index.md#edit-your-profile" >}}).

@@ -1,9 +1,11 @@
-import React from 'react';
-import { range } from 'lodash';
-import { LogRows, PREVIEW_LIMIT } from './LogRows';
 import { mount } from 'enzyme';
+import { range } from 'lodash';
+import React from 'react';
+
 import { LogLevel, LogRowModel, LogsDedupStrategy, MutableDataFrame, LogsSortOrder } from '@grafana/data';
+
 import { LogRow } from './LogRow';
+import { LogRows, PREVIEW_LIMIT } from './LogRows';
 
 describe('LogRows', () => {
   it('renders rows', () => {
@@ -12,7 +14,6 @@ describe('LogRows', () => {
       <LogRows
         logRows={rows}
         dedupStrategy={LogsDedupStrategy.none}
-        highlighterExpressions={[]}
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
@@ -30,12 +31,11 @@ describe('LogRows', () => {
 
   it('renders rows only limited number of rows first', () => {
     const rows: LogRowModel[] = [makeLog({ uid: '1' }), makeLog({ uid: '2' }), makeLog({ uid: '3' })];
-    jest.useFakeTimers();
+    jest.useFakeTimers('modern');
     const wrapper = mount(
       <LogRows
         logRows={rows}
         dedupStrategy={LogsDedupStrategy.none}
-        highlighterExpressions={[]}
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
@@ -67,7 +67,6 @@ describe('LogRows', () => {
         logRows={rows}
         deduplicatedRows={dedupedRows}
         dedupStrategy={LogsDedupStrategy.none}
-        highlighterExpressions={[]}
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
@@ -89,7 +88,6 @@ describe('LogRows', () => {
       <LogRows
         logRows={rows}
         dedupStrategy={LogsDedupStrategy.none}
-        highlighterExpressions={[]}
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
@@ -112,7 +110,6 @@ describe('LogRows', () => {
       <LogRows
         logRows={rows}
         dedupStrategy={LogsDedupStrategy.none}
-        highlighterExpressions={[]}
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}
@@ -137,7 +134,6 @@ describe('LogRows', () => {
       <LogRows
         logRows={rows}
         dedupStrategy={LogsDedupStrategy.none}
-        highlighterExpressions={[]}
         showLabels={false}
         showTime={false}
         wrapLogMessage={true}

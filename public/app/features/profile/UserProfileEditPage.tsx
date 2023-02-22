@@ -1,19 +1,19 @@
 import React from 'react';
 import { connect, ConnectedProps } from 'react-redux';
 import { useMount } from 'react-use';
-import { hot } from 'react-hot-loader';
+
 import { NavModel } from '@grafana/data';
 import { VerticalGroup } from '@grafana/ui';
-
+import Page from 'app/core/components/Page/Page';
+import SharedPreferences from 'app/core/components/SharedPreferences/SharedPreferences';
 import { getNavModel } from 'app/core/selectors/navModel';
 import { StoreState } from 'app/types';
-import Page from 'app/core/components/Page/Page';
-import { changeUserOrg, initUserProfilePage, revokeUserSession, updateUserProfile } from './state/actions';
-import UserProfileEditForm from './UserProfileEditForm';
-import SharedPreferences from 'app/core/components/SharedPreferences/SharedPreferences';
-import { UserTeams } from './UserTeams';
+
 import UserOrganizations from './UserOrganizations';
+import UserProfileEditForm from './UserProfileEditForm';
 import UserSessions from './UserSessions';
+import { UserTeams } from './UserTeams';
+import { changeUserOrg, initUserProfilePage, revokeUserSession, updateUserProfile } from './state/actions';
 
 export interface OwnProps {
   navModel: NavModel;
@@ -78,4 +78,4 @@ export function UserProfileEditPage({
   );
 }
 
-export default hot(module)(connector(UserProfileEditPage));
+export default connector(UserProfileEditPage);

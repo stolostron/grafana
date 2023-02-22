@@ -1,9 +1,12 @@
 import React from 'react';
+
 import { TextArea, InlineFormLabel, Input, Select, HorizontalGroup } from '@grafana/ui';
+
 import { InfluxQuery } from '../types';
+
+import { RESULT_FORMATS, DEFAULT_RESULT_FORMAT } from './constants';
 import { useShadowedState } from './useShadowedState';
 import { useUniqueId } from './useUniqueId';
-import { RESULT_FORMATS, DEFAULT_RESULT_FORMAT } from './constants';
 
 type Props = {
   query: InfluxQuery;
@@ -20,11 +23,14 @@ export const RawInfluxQLEditor = ({ query, onChange, onRunQuery }: Props): JSX.E
   const aliasElementId = useUniqueId();
   const selectElementId = useUniqueId();
 
+  const resultFormat = query.resultFormat ?? DEFAULT_RESULT_FORMAT;
+
   const applyDelayedChangesAndRunQuery = () => {
     onChange({
       ...query,
       query: currentQuery,
       alias: currentAlias,
+      resultFormat,
     });
     onRunQuery();
   };
@@ -51,7 +57,7 @@ export const RawInfluxQLEditor = ({ query, onChange, onRunQuery }: Props): JSX.E
             onChange({ ...query, resultFormat: v.value });
             onRunQuery();
           }}
-          value={query.resultFormat ?? DEFAULT_RESULT_FORMAT}
+          value={resultFormat}
           options={RESULT_FORMATS}
         />
         <InlineFormLabel htmlFor={aliasElementId}>Alias by</InlineFormLabel>

@@ -1,10 +1,12 @@
-+++
-title = "Usage insights"
-description = "Understand how your Grafana instance is used"
-keywords = ["grafana", "usage-insights", "enterprise"]
-aliases = ["/docs/grafana/latest/enterprise/usage-insights/"]
-weight = 200
-+++
+---
+description: Understand how your Grafana instance is used
+keywords:
+  - grafana
+  - usage-insights
+  - enterprise
+title: Usage insights
+weight: 200
+---
 
 # Usage insights
 

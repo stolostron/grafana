@@ -1,8 +1,7 @@
-+++
-title = "Install plugins"
-aliases = ["/docs/grafana/latest/plugins/installation/"]
-weight = 1
-+++
+---
+title: Install plugins
+weight: 1
+---
 
 # Install Grafana plugins
 
@@ -16,6 +15,8 @@ Grafana supports data source, panel, and app plugins. Having panels as plugins m
 On the Installation tab, in the **For** field, click the name of the Grafana instance that you want to install the plugin on.
 
 Grafana Cloud handles the plugin installation automatically.
+
+If you are logged in to Grafana Cloud when you add a plugin, log out and back in again to use the new plugin.
 
 ## Install plugin on local Grafana
 

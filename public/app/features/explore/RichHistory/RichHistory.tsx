@@ -1,17 +1,14 @@
 import React, { PureComponent } from 'react';
 
-//Services & Utils
-import { RICH_HISTORY_SETTING_KEYS, SortOrder } from 'app/core/utils/richHistory';
-import store from 'app/core/store';
-import { Themeable, withTheme, TabbedContainer, TabConfig } from '@grafana/ui';
-
-//Types
-import { RichHistoryQuery, ExploreId } from 'app/types/explore';
 import { SelectableValue } from '@grafana/data';
+import { Themeable, withTheme, TabbedContainer, TabConfig } from '@grafana/ui';
+import { RICH_HISTORY_SETTING_KEYS } from 'app/core/history/richHistoryLocalStorageUtils';
+import store from 'app/core/store';
+import { SortOrder } from 'app/core/utils/richHistory';
+import { RichHistoryQuery, ExploreId } from 'app/types/explore';
 
-//Components
-import { RichHistorySettings } from './RichHistorySettings';
 import { RichHistoryQueriesTab } from './RichHistoryQueriesTab';
+import { RichHistorySettings } from './RichHistorySettings';
 import { RichHistoryStarredTab } from './RichHistoryStarredTab';
 
 export enum Tabs {
@@ -29,7 +26,7 @@ export const sortOrderOptions = [
 
 export interface RichHistoryProps extends Themeable {
   richHistory: RichHistoryQuery[];
-  activeDatasourceInstance: string;
+  activeDatasourceInstance?: string;
   firstTab: Tabs;
   exploreId: ExploreId;
   height: number;
@@ -57,11 +54,13 @@ class UnThemedRichHistory extends PureComponent<RichHistoryProps, RichHistorySta
     };
   }
 
-  onChangeRetentionPeriod = (retentionPeriod: { label: string; value: number }) => {
-    this.setState({
-      retentionPeriod: retentionPeriod.value,
-    });
-    store.set(RICH_HISTORY_SETTING_KEYS.retentionPeriod, retentionPeriod.value);
+  onChangeRetentionPeriod = (retentionPeriod: SelectableValue<number>) => {
+    if (retentionPeriod.value !== undefined) {
+      this.setState({
+        retentionPeriod: retentionPeriod.value,
+      });
+      store.set(RICH_HISTORY_SETTING_KEYS.retentionPeriod, retentionPeriod.value);
+    }
   };
 
   toggleStarredTabAsFirstTab = () => {
