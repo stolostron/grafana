@@ -1,9 +1,11 @@
+import { noop } from 'lodash';
 import { Observable, Subject, of, throwError, concat } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import * as rxJsWebSocket from 'rxjs/webSocket';
-import { LiveStreams } from './live_streams';
+
 import { DataFrame, DataFrameView, formatLabels, Labels } from '@grafana/data';
-import { noop } from 'lodash';
+
+import { LiveStreams } from './live_streams';
 import { LokiTailResponse } from './types';
 
 let fakeSocket: Subject<any>;
@@ -95,8 +97,7 @@ describe('Live Stream Tests', () => {
     fakeSocket = new Observable(() => {
       return () => (unsubscribed = true);
     }) as any;
-    const spy = spyOn(rxJsWebSocket, 'webSocket');
-    spy.and.returnValue(fakeSocket);
+    jest.spyOn(rxJsWebSocket, 'webSocket').mockReturnValue(fakeSocket as rxJsWebSocket.WebSocketSubject<unknown>);
 
     const liveStreams = new LiveStreams();
     const stream1 = liveStreams.getStream(makeTarget('url_to_match'));
@@ -139,6 +140,7 @@ describe('Live Stream Tests', () => {
         return logStreamAfterError;
       })
     ) as any;
+    jest.spyOn(rxJsWebSocket, 'webSocket').mockReturnValue(fakeSocket as rxJsWebSocket.WebSocketSubject<unknown>);
     const liveStreams = new LiveStreams();
     await expect(liveStreams.getStream(makeTarget('url_to_match'), 100)).toEmitValuesWith((received) => {
       const data = received[0];

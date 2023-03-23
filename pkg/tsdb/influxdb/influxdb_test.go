@@ -2,7 +2,7 @@ package influxdb
 
 import (
 	"context"
-	"io/ioutil"
+	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"net/url"
 	"testing"
 
@@ -20,12 +20,12 @@ func TestExecutor_createRequest(t *testing.T) {
 	}
 	query := "SELECT awesomeness FROM somewhere"
 	s := &Service{
-		QueryParser:    &InfluxdbQueryParser{},
-		ResponseParser: &ResponseParser{},
+		queryParser:    &InfluxdbQueryParser{},
+		responseParser: &ResponseParser{},
+		glog:           log.New("test"),
 	}
 
 	t.Run("createRequest with GET httpMode", func(t *testing.T) {
-		glog = log.New("test")
 		req, err := s.createRequest(context.Background(), datasource, query)
 
 		require.NoError(t, err)

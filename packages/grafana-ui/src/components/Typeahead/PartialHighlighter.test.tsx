@@ -1,5 +1,6 @@
-import React from 'react';
 import { mount, ReactWrapper } from 'enzyme';
+import React from 'react';
+
 import { PartialHighlighter } from './PartialHighlighter';
 
 function assertPart(component: ReactWrapper, isHighlighted: boolean, text: string): void {
@@ -44,5 +45,12 @@ describe('PartialHighlighter component', () => {
     assertPart(main.childAt(0), true, 'Lorem');
     assertPart(main.childAt(1), false, ' ipsum dolor sit ');
     assertPart(main.childAt(2), true, 'amet');
+  });
+
+  it('returns null if highlightParts is empty', () => {
+    const component = mount(
+      <PartialHighlighter text="Lorem ipsum dolor sit amet" highlightClassName="highlight" highlightParts={[]} />
+    );
+    expect(component.html()).toBe(null);
   });
 });

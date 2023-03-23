@@ -1,13 +1,10 @@
+import memoizeOne from 'memoize-one';
 import React from 'react';
 import { connect, ConnectedProps } from 'react-redux';
-import memoizeOne from 'memoize-one';
+
 import { DataQuery, ExploreUrlState, EventBusExtended, EventBusSrv } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 import store from 'app/core/store';
-import { lastSavedUrl, cleanupPaneAction } from './state/main';
-import { initializeExplore, refreshExplore } from './state/explorePane';
-import { ExploreId } from 'app/types/explore';
-import { StoreState } from 'app/types';
 import {
   DEFAULT_RANGE,
   ensureQueries,
@@ -16,8 +13,14 @@ import {
   lastUsedDatasourceKeyForOrgId,
   parseUrlState,
 } from 'app/core/utils/explore';
-import { getTimeZone } from '../profile/state/selectors';
+import { StoreState } from 'app/types';
+import { ExploreId } from 'app/types/explore';
+
+import { getFiscalYearStartMonth, getTimeZone } from '../profile/state/selectors';
+
 import Explore from './Explore';
+import { initializeExplore, refreshExplore } from './state/explorePane';
+import { lastSavedUrl, cleanupPaneAction } from './state/main';
 
 interface OwnProps {
   exploreId: ExploreId;
@@ -31,7 +34,7 @@ interface Props extends OwnProps, ConnectedProps<typeof connector> {}
  * This component is responsible for handling initialization of an Explore pane and triggering synchronization
  * of state based on URL changes and preventing any infinite loops.
  */
-export class ExplorePaneContainerUnconnected extends React.PureComponent<Props> {
+class ExplorePaneContainerUnconnected extends React.PureComponent<Props> {
   el: any;
   exploreEvents: EventBusExtended;
 
@@ -44,7 +47,7 @@ export class ExplorePaneContainerUnconnected extends React.PureComponent<Props> 
   }
 
   componentDidMount() {
-    const { initialized, exploreId, initialDatasource, initialQueries, initialRange, originPanelId } = this.props;
+    const { initialized, exploreId, initialDatasource, initialQueries, initialRange, panelsState } = this.props;
     const width = this.el?.offsetWidth ?? 0;
 
     // initialize the whole explore first time we mount and if browser history contains a change in datasource
@@ -56,7 +59,7 @@ export class ExplorePaneContainerUnconnected extends React.PureComponent<Props> 
         initialRange,
         width,
         this.exploreEvents,
-        originPanelId
+        panelsState
       );
     }
   }
@@ -99,20 +102,21 @@ const getTimeRangeFromUrlMemoized = memoizeOne(getTimeRangeFromUrl);
 function mapStateToProps(state: StoreState, props: OwnProps) {
   const urlState = parseUrlState(props.urlQuery);
   const timeZone = getTimeZone(state.user);
+  const fiscalYearStartMonth = getFiscalYearStartMonth(state.user);
 
-  const { datasource, queries, range: urlRange, originPanelId } = (urlState || {}) as ExploreUrlState;
+  const { datasource, queries, range: urlRange, panelsState } = (urlState || {}) as ExploreUrlState;
   const initialDatasource = datasource || store.get(lastUsedDatasourceKeyForOrgId(state.user.orgId));
   const initialQueries: DataQuery[] = ensureQueriesMemoized(queries);
   const initialRange = urlRange
-    ? getTimeRangeFromUrlMemoized(urlRange, timeZone)
-    : getTimeRange(timeZone, DEFAULT_RANGE);
+    ? getTimeRangeFromUrlMemoized(urlRange, timeZone, fiscalYearStartMonth)
+    : getTimeRange(timeZone, DEFAULT_RANGE, fiscalYearStartMonth);
 
   return {
     initialized: state.explore[props.exploreId]?.initialized,
     initialDatasource,
     initialQueries,
     initialRange,
-    originPanelId,
+    panelsState,
   };
 }
 

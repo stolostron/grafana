@@ -112,7 +112,7 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 			Heading:     "DingDing settings",
 			Options: []alerting.NotifierOption{
 				{
-					Label:        "Url",
+					Label:        "URL",
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypeText,
 					Placeholder:  "https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxxx",
@@ -268,7 +268,7 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 			Heading:     "VictorOps settings",
 			Options: []alerting.NotifierOption{
 				{
-					Label:        "Url",
+					Label:        "URL",
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypeText,
 					Placeholder:  "VictorOps url",
@@ -380,8 +380,10 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 					Label:        "Recipient",
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypeText,
-					Description:  "Specify channel or user, use #channel-name, @username (has to be all lowercase, no whitespace), or user/channel Slack ID - required unless you provide a webhook",
+					Description:  "Specify channel, private group, or IM channel (can be an encoded ID or a name) - required unless you provide a webhook",
 					PropertyName: "recipient",
+					Required:     true,
+					DependsOn:    "url",
 				},
 				// Logically, this field should be required when not using a webhook, since the Slack API needs a token.
 				// However, since the UI doesn't allow to say that a field is required or not depending on another field,
@@ -394,6 +396,8 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 					Description:  "Provide a Slack API token (starts with \"xoxb\") - required unless you provide a webhook",
 					PropertyName: "token",
 					Secure:       true,
+					Required:     true,
+					DependsOn:    "url",
 				},
 				{
 					Label:        "Username",
@@ -458,6 +462,16 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 					Placeholder:  "Slack incoming webhook URL",
 					PropertyName: "url",
 					Secure:       true,
+					Required:     true,
+					DependsOn:    "token",
+				},
+				{ // New in 8.4.
+					Label:        "Endpoint URL",
+					Element:      alerting.ElementTypeInput,
+					InputType:    alerting.InputTypeText,
+					Description:  "Optionally provide a custom Slack message API endpoint for non-webhook requests, default is https://slack.com/api/chat.postMessage",
+					Placeholder:  "Slack endpoint url",
+					PropertyName: "endpointUrl",
 				},
 				{ // New in 8.0.
 					Label:        "Title",
@@ -589,19 +603,19 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 		},
 		{
 			Type:        "webhook",
-			Name:        "webhook",
+			Name:        "Webhook",
 			Description: "Sends HTTP POST request to a URL",
 			Heading:     "Webhook settings",
 			Options: []alerting.NotifierOption{
 				{
-					Label:        "Url",
+					Label:        "URL",
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypeText,
 					PropertyName: "url",
 					Required:     true,
 				},
 				{
-					Label:   "Http Method",
+					Label:   "HTTP Method",
 					Element: alerting.ElementTypeSelect,
 					SelectOptions: []alerting.SelectOption{
 						{
@@ -616,16 +630,32 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 					PropertyName: "httpMethod",
 				},
 				{
-					Label:        "Username",
+					Label:        "HTTP Basic Authentication - Username",
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypeText,
 					PropertyName: "username",
 				},
 				{
-					Label:        "Password",
+					Label:        "HTTP Basic Authentication - Password",
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypePassword,
 					PropertyName: "password",
+					Secure:       true,
+				},
+				{ // New in 9.1
+					Label:        "Authorization Header - Scheme",
+					Description:  "Optionally provide a scheme for the Authorization Request Header. Default is Bearer.",
+					Element:      alerting.ElementTypeInput,
+					InputType:    alerting.InputTypeText,
+					PropertyName: "authorization_scheme",
+					Placeholder:  "Bearer",
+				},
+				{ // New in 9.1
+					Label:        "Authorization Header - Credentials",
+					Description:  "Credentials for the Authorization Request header. Only one of HTTP Basic Authentication or Authorization Request Header can be set.",
+					Element:      alerting.ElementTypeInput,
+					InputType:    alerting.InputTypeText,
+					PropertyName: "authorization_credentials",
 					Secure:       true,
 				},
 				{ // New in 8.0. TODO: How to enforce only numbers?
@@ -634,6 +664,30 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypeText,
 					PropertyName: "maxAlerts",
+				},
+			},
+		},
+		{
+			Type:        "wecom",
+			Name:        "WeCom",
+			Description: "Send alerts generated by Grafana to WeCom",
+			Heading:     "WeCom settings",
+			Options: []alerting.NotifierOption{
+				{
+					Label:        "URL",
+					Element:      alerting.ElementTypeInput,
+					InputType:    alerting.InputTypeText,
+					Placeholder:  "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx",
+					PropertyName: "url",
+					Required:     true,
+					Secure:       true,
+				},
+				{
+					Label:        "Message",
+					Description:  "Custom WeCom message. You can use template variables.",
+					Element:      alerting.ElementTypeTextArea,
+					Placeholder:  `{{ template "default.message" . }}`,
+					PropertyName: "message",
 				},
 			},
 		},
@@ -694,6 +748,12 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 					InputType:    alerting.InputTypeText,
 					PropertyName: "avatar_url",
 				},
+				{
+					Label:        "Use Discord's Webhook Username",
+					Description:  "Use the username configured in Discord's webhook settings. Otherwise, the username will be 'Grafana'",
+					Element:      alerting.ElementTypeCheckbox,
+					PropertyName: "use_discord_username",
+				},
 			},
 		},
 		{
@@ -703,12 +763,18 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 			Heading:     "Google Hangouts Chat settings",
 			Options: []alerting.NotifierOption{
 				{
-					Label:        "Url",
+					Label:        "URL",
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypeText,
 					Placeholder:  "Google Hangouts Chat incoming webhook url",
 					PropertyName: "url",
 					Required:     true,
+				},
+				{
+					Label:        "Message",
+					Element:      alerting.ElementTypeTextArea,
+					Placeholder:  `{{ template "default.message" . }}`,
+					PropertyName: "message",
 				},
 			},
 		},
@@ -783,7 +849,7 @@ func GetAvailableNotifiers() []*alerting.NotifierPlugin {
 					Secure:       true,
 				},
 				{
-					Label:        "Alert API Url",
+					Label:        "Alert API URL",
 					Element:      alerting.ElementTypeInput,
 					InputType:    alerting.InputTypeText,
 					Placeholder:  "https://api.opsgenie.com/v2/alerts",

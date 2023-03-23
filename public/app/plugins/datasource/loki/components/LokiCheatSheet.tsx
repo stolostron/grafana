@@ -1,6 +1,8 @@
-import React, { PureComponent } from 'react';
 import { shuffle } from 'lodash';
+import React, { PureComponent } from 'react';
+
 import { QueryEditorHelpProps } from '@grafana/data';
+
 import LokiLanguageProvider from '../language_provider';
 import { LokiQuery } from '../types';
 
@@ -36,7 +38,7 @@ const LOGQL_EXAMPLES = [
 export default class LokiCheatSheet extends PureComponent<QueryEditorHelpProps<LokiQuery>, { userExamples: string[] }> {
   declare userLabelTimer: NodeJS.Timeout;
   state = {
-    userExamples: DEFAULT_EXAMPLES,
+    userExamples: [],
   };
 
   componentDidMount() {
@@ -81,23 +83,28 @@ export default class LokiCheatSheet extends PureComponent<QueryEditorHelpProps<L
 
   render() {
     const { userExamples } = this.state;
+    const hasUserExamples = userExamples.length > 0;
 
     return (
       <div>
         <h2>Loki Cheat Sheet</h2>
         <div className="cheat-sheet-item">
           <div className="cheat-sheet-item__title">See your logs</div>
-          <div className="cheat-sheet-item__label">Start by selecting a log stream from the Log labels selector.</div>
           <div className="cheat-sheet-item__label">
-            Alternatively, you can write a stream selector into the query field:
+            Start by selecting a log stream from the Log browser, or alternatively you can write a stream selector into
+            the query field.
           </div>
-          {this.renderExpression('{job="default/prometheus"}')}
-          {userExamples !== DEFAULT_EXAMPLES && userExamples.length > 0 ? (
+          {hasUserExamples ? (
             <div>
               <div className="cheat-sheet-item__label">Here are some example streams from your logs:</div>
               {userExamples.map((example) => this.renderExpression(example))}
             </div>
-          ) : null}
+          ) : (
+            <div>
+              <div className="cheat-sheet-item__label">Here is an example of a log stream:</div>
+              {this.renderExpression(DEFAULT_EXAMPLES[0])}
+            </div>
+          )}
         </div>
         <div className="cheat-sheet-item">
           <div className="cheat-sheet-item__title">Combine stream selectors</div>

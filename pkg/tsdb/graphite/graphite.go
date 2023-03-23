@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"net/http"
 	"net/url"
 	"path"
@@ -14,37 +14,38 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/context/ctxhttp"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/httpclient"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/plugins"
-	"github.com/grafana/grafana/pkg/plugins/backendplugin"
-	"github.com/grafana/grafana/pkg/plugins/backendplugin/coreplugin"
-	"github.com/grafana/grafana/pkg/registry"
+	"github.com/grafana/grafana/pkg/infra/tracing"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/opentracing/opentracing-go"
+	"github.com/grafana/grafana/pkg/tsdb/legacydata"
 )
 
 type Service struct {
-	logger               log.Logger
-	im                   instancemgmt.InstanceManager
-	BackendPluginManager backendplugin.Manager `inject:""`
-	Cfg                  *setting.Cfg          `inject:""`
-	HTTPClientProvider   httpclient.Provider   `inject:""`
+	logger log.Logger
+	im     instancemgmt.InstanceManager
+	tracer tracing.Tracer
 }
 
-func init() {
-	registry.Register(&registry.Descriptor{
-		Name:         "GraphiteService",
-		InitPriority: registry.Low,
-		Instance:     &Service{},
-	})
+const (
+	TargetFullModelField = "targetFull"
+	TargetModelField     = "target"
+)
+
+func ProvideService(httpClientProvider httpclient.Provider, tracer tracing.Tracer) *Service {
+	return &Service{
+		logger: log.New("tsdb.graphite"),
+		im:     datasource.NewInstanceManager(newInstanceSettings(httpClientProvider)),
+		tracer: tracer,
+	}
 }
 
 type datasourceInfo struct {
@@ -73,20 +74,6 @@ func newInstanceSettings(httpClientProvider httpclient.Provider) datasource.Inst
 
 		return model, nil
 	}
-}
-
-func (s *Service) Init() error {
-	s.logger = log.New("tsdb.graphite")
-	s.im = datasource.NewInstanceManager(newInstanceSettings(s.HTTPClientProvider))
-
-	factory := coreplugin.New(backend.ServeOpts{
-		QueryDataHandler: s,
-	})
-
-	if err := s.BackendPluginManager.RegisterAndStart(context.Background(), "graphite", factory); err != nil {
-		s.logger.Error("Failed to register plugin", "error", err)
-	}
-	return nil
 }
 
 func (s *Service) getDSInfo(pluginCtx backend.PluginContext) (*datasourceInfo, error) {
@@ -134,10 +121,10 @@ func (s *Service) QueryData(ctx context.Context, req *backend.QueryDataRequest) 
 		}
 		s.logger.Debug("graphite", "query", model)
 		currTarget := ""
-		if fullTarget, err := model.Get("targetFull").String(); err == nil {
+		if fullTarget, err := model.Get(TargetFullModelField).String(); err == nil {
 			currTarget = fullTarget
 		} else {
-			currTarget = model.Get("target").MustString()
+			currTarget = model.Get(TargetModelField).MustString()
 		}
 		if currTarget == "" {
 			s.logger.Debug("graphite", "empty query target", model)
@@ -160,28 +147,22 @@ func (s *Service) QueryData(ctx context.Context, req *backend.QueryDataRequest) 
 		s.logger.Debug("Graphite request", "params", formData)
 	}
 
-	graphiteReq, err := s.createRequest(dsInfo, formData)
+	graphiteReq, err := s.createRequest(ctx, dsInfo, formData)
 	if err != nil {
 		return &result, err
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "graphite query")
-	span.SetTag("target", target)
-	span.SetTag("from", from)
-	span.SetTag("until", until)
-	span.SetTag("datasource_id", dsInfo.Id)
-	span.SetTag("org_id", req.PluginContext.OrgID)
+	ctx, span := s.tracer.Start(ctx, "graphite query")
+	span.SetAttributes("target", target, attribute.Key("target").String(target))
+	span.SetAttributes("from", from, attribute.Key("from").String(from))
+	span.SetAttributes("until", until, attribute.Key("until").String(until))
+	span.SetAttributes("datasource_id", dsInfo.Id, attribute.Key("datasource_id").Int64(dsInfo.Id))
+	span.SetAttributes("org_id", req.PluginContext.OrgID, attribute.Key("org_id").Int64(req.PluginContext.OrgID))
 
-	defer span.Finish()
+	defer span.End()
+	s.tracer.Inject(ctx, graphiteReq.Header, span)
 
-	if err := opentracing.GlobalTracer().Inject(
-		span.Context(),
-		opentracing.HTTPHeaders,
-		opentracing.HTTPHeadersCarrier(graphiteReq.Header)); err != nil {
-		return &result, err
-	}
-
-	res, err := ctxhttp.Do(ctx, dsInfo.HTTPClient, graphiteReq)
+	res, err := dsInfo.HTTPClient.Do(graphiteReq)
 	if err != nil {
 		return &result, err
 	}
@@ -270,14 +251,14 @@ func (s *Service) toDataFrames(response *http.Response) (frames data.Frames, err
 	return frames, nil
 }
 
-func (s *Service) createRequest(dsInfo *datasourceInfo, data url.Values) (*http.Request, error) {
+func (s *Service) createRequest(ctx context.Context, dsInfo *datasourceInfo, data url.Values) (*http.Request, error) {
 	u, err := url.Parse(dsInfo.URL)
 	if err != nil {
 		return nil, err
 	}
 	u.Path = path.Join(u.Path, "render")
 
-	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(data.Encode()))
 	if err != nil {
 		s.logger.Info("Failed to create request", "error", err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -306,7 +287,7 @@ func epochMStoGraphiteTime(tr backend.TimeRange) (string, string) {
 /**
  * Graphite should always return timestamp as a number but values might be nil when data is missing
  */
-func parseDataTimePoint(dataTimePoint plugins.DataTimePoint) (time.Time, *float64, error) {
+func parseDataTimePoint(dataTimePoint legacydata.DataTimePoint) (time.Time, *float64, error) {
 	if !dataTimePoint[1].Valid {
 		return time.Time{}, nil, errors.New("failed to parse data point timestamp")
 	}

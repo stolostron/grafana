@@ -1,9 +1,11 @@
 import { map, find, filter, indexOf } from 'lodash';
-import queryPart from './query_part';
-import kbn from 'app/core/utils/kbn';
-import { InfluxQuery, InfluxQueryTag } from './types';
+
 import { ScopedVars } from '@grafana/data';
 import { TemplateSrv } from '@grafana/runtime';
+import kbn from 'app/core/utils/kbn';
+
+import queryPart from './query_part';
+import { InfluxQuery, InfluxQueryTag } from './types';
 
 export default class InfluxQueryModel {
   target: InfluxQuery;
@@ -142,6 +144,7 @@ export default class InfluxQueryModel {
   }
 
   private renderTagCondition(tag: InfluxQueryTag, index: number, interpolate?: boolean) {
+    // FIXME: merge this function with query_builder/renderTagCondition
     let str = '';
     let operator = tag.operator;
     let value = tag.value;

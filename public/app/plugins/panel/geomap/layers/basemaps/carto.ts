@@ -1,7 +1,8 @@
-import { MapLayerRegistryItem, MapLayerOptions, GrafanaTheme2 } from '@grafana/data';
 import Map from 'ol/Map';
-import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
+import XYZ from 'ol/source/XYZ';
+
+import { MapLayerRegistryItem, MapLayerOptions, GrafanaTheme2 } from '@grafana/data';
 
 // https://carto.com/help/building-maps/basemap-list/
 
@@ -50,29 +51,29 @@ export const carto: MapLayerRegistryItem<CartoConfig> = {
         }),
       });
     },
-  }),
 
-  registerOptionsUI: (builder) => {
-    builder
-      .addRadio({
-        path: 'config.theme',
-        name: 'Theme',
-        settings: {
-          options: [
-            { value: LayerTheme.Auto, label: 'Auto', description: 'Match grafana theme' },
-            { value: LayerTheme.Light, label: 'Light' },
-            { value: LayerTheme.Dark, label: 'Dark' },
-          ],
-        },
-        defaultValue: defaultCartoConfig.theme!,
-      })
-      .addBooleanSwitch({
-        path: 'config.showLabels',
-        name: 'Show labels',
-        description: '',
-        defaultValue: defaultCartoConfig.showLabels,
-      });
-  },
+    registerOptionsUI: (builder) => {
+      builder
+        .addRadio({
+          path: 'config.theme',
+          name: 'Theme',
+          settings: {
+            options: [
+              { value: LayerTheme.Auto, label: 'Auto', description: 'Match grafana theme' },
+              { value: LayerTheme.Light, label: 'Light' },
+              { value: LayerTheme.Dark, label: 'Dark' },
+            ],
+          },
+          defaultValue: defaultCartoConfig.theme!,
+        })
+        .addBooleanSwitch({
+          path: 'config.showLabels',
+          name: 'Show labels',
+          description: '',
+          defaultValue: defaultCartoConfig.showLabels,
+        });
+    },
+  }),
 };
 
 export const cartoLayers = [carto];

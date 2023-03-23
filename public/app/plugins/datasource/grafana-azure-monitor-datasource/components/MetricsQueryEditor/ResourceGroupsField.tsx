@@ -1,57 +1,28 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Select } from '@grafana/ui';
+import React, { useCallback, useMemo } from 'react';
+
 import { SelectableValue } from '@grafana/data';
+import { Select } from '@grafana/ui';
 
-import { Field } from '../Field';
-import { findOption, toOption } from '../../utils/common';
 import { AzureQueryEditorFieldProps, AzureMonitorOption } from '../../types';
+import { Field } from '../Field';
 
-const ERROR_SOURCE = 'metrics-resourcegroups';
-const ResourceGroupsField: React.FC<AzureQueryEditorFieldProps> = ({
+import { setResourceGroup } from './setQueryValue';
+
+interface ResourceGroupsFieldProps extends AzureQueryEditorFieldProps {
+  resourceGroups: AzureMonitorOption[];
+}
+
+const ResourceGroupsField: React.FC<ResourceGroupsFieldProps> = ({
   query,
-  datasource,
-  subscriptionId,
+  resourceGroups,
   variableOptionGroup,
   onQueryChange,
   setError,
 }) => {
-  const [resourceGroups, setResourceGroups] = useState<AzureMonitorOption[]>([]);
-
-  useEffect(() => {
-    if (!subscriptionId) {
-      resourceGroups.length > 0 && setResourceGroups([]);
-      return;
-    }
-
-    datasource
-      .getResourceGroups(subscriptionId)
-      .then((results) => {
-        setResourceGroups(results.map(toOption));
-        setError(ERROR_SOURCE, undefined);
-      })
-      .catch((err) => setError(ERROR_SOURCE, err));
-  }, [datasource, resourceGroups.length, setError, subscriptionId]);
-
   const handleChange = useCallback(
     (change: SelectableValue<string>) => {
-      if (!change.value) {
-        return;
-      }
-
-      onQueryChange({
-        ...query,
-        azureMonitor: {
-          ...query.azureMonitor,
-          resourceGroup: change.value,
-          metricDefinition: undefined,
-          resourceName: undefined,
-          metricNamespace: undefined,
-          metricName: undefined,
-          aggregation: undefined,
-          timeGrain: '',
-          dimensionFilters: [],
-        },
-      });
+      const newQuery = setResourceGroup(query, change.value);
+      onQueryChange(newQuery);
     },
     [onQueryChange, query]
   );
@@ -63,10 +34,11 @@ const ResourceGroupsField: React.FC<AzureQueryEditorFieldProps> = ({
       <Select
         menuShouldPortal
         inputId="azure-monitor-metrics-resource-group-field"
-        value={findOption(resourceGroups, query.azureMonitor?.resourceGroup)}
+        value={query.azureMonitor?.resourceGroup}
         onChange={handleChange}
         options={options}
         width={38}
+        allowCustomValue
       />
     </Field>
   );

@@ -1,7 +1,12 @@
-import { TimeSrv } from './TimeSrv';
+import * as H from 'history';
 import { ContextSrvStub } from 'test/specs/helpers';
-import { isDateTime, dateTime } from '@grafana/data';
-import { locationService } from '@grafana/runtime';
+
+import { dateTime, isDateTime } from '@grafana/data';
+import { HistoryWrapper, locationService, setLocationService } from '@grafana/runtime';
+
+import { beforeEach } from '../../../../test/lib/common';
+
+import { TimeSrv } from './TimeSrv';
 
 jest.mock('app/core/core', () => ({
   appEvents: {
@@ -12,6 +17,7 @@ jest.mock('app/core/core', () => ({
 describe('timeSrv', () => {
   let timeSrv: TimeSrv;
   let _dashboard: any;
+  let locationUpdates: H.Location[] = [];
 
   beforeEach(() => {
     _dashboard = {
@@ -20,8 +26,14 @@ describe('timeSrv', () => {
       refresh: false,
       timeRangeUpdated: jest.fn(() => {}),
     };
+
     timeSrv = new TimeSrv(new ContextSrvStub() as any);
     timeSrv.init(_dashboard);
+
+    locationUpdates = [];
+    const history = new HistoryWrapper();
+    history.getHistory().listen((x) => locationUpdates.push(x));
+    setLocationService(history);
   });
 
   describe('timeRange', () => {
@@ -219,6 +231,27 @@ describe('timeSrv', () => {
       timeSrv.setTime({ from: 'now-1h', to: 'now-10s' });
       expect(_dashboard.refresh).toBe('10s');
     });
+
+    it('should update location only once for consecutive calls with the same range', () => {
+      timeSrv.setTime({ from: 'now-1h', to: 'now-10s' });
+      timeSrv.setTime({ from: 'now-1h', to: 'now-10s' });
+
+      expect(locationUpdates.length).toBe(1);
+    });
+
+    it('should update location so that bool params are preserved', () => {
+      locationService.partial({ kiosk: true });
+
+      timeSrv.setTime({ from: 'now-1h', to: 'now-10s' });
+      timeSrv.setTime({ from: 'now-1h', to: 'now-10s' });
+
+      expect(locationUpdates[1].search).toEqual('?kiosk&from=now-1h&to=now-10s');
+    });
+
+    it('should not change the URL if the updateUrl param is false', () => {
+      timeSrv.setTime({ from: '1644340584281', to: '1644340584281' }, false);
+      expect(locationUpdates.length).toBe(0);
+    });
   });
 
   describe('pauseAutoRefresh', () => {
@@ -240,6 +273,44 @@ describe('timeSrv', () => {
       timeSrv.previousAutoRefresh = '10s';
       timeSrv.resumeAutoRefresh();
       expect(_dashboard.refresh).toBe('10s');
+    });
+  });
+
+  describe('isRefreshOutsideThreshold', () => {
+    const originalNow = Date.now;
+
+    beforeEach(() => {
+      Date.now = jest.fn(() => 60000);
+    });
+
+    afterEach(() => {
+      Date.now = originalNow;
+    });
+
+    describe('when called and current time range is absolute', () => {
+      it('then it should return false', () => {
+        timeSrv.setTime({ from: dateTime(), to: dateTime() });
+
+        expect(timeSrv.isRefreshOutsideThreshold(0, 0.05)).toBe(false);
+      });
+    });
+
+    describe('when called and current time range is relative', () => {
+      describe('and last refresh is within threshold', () => {
+        it('then it should return false', () => {
+          timeSrv.setTime({ from: 'now-1m', to: 'now' });
+
+          expect(timeSrv.isRefreshOutsideThreshold(57001, 0.05)).toBe(false);
+        });
+      });
+
+      describe('and last refresh is outside the threshold', () => {
+        it('then it should return true', () => {
+          timeSrv.setTime({ from: 'now-1m', to: 'now' });
+
+          expect(timeSrv.isRefreshOutsideThreshold(57000, 0.05)).toBe(true);
+        });
+      });
     });
   });
 });

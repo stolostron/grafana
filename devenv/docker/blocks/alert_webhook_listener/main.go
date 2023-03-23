@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
+	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"log"
 	"net/http"
+	"strings"
 )
 
 func hello(w http.ResponseWriter, r *http.Request) {
@@ -14,7 +15,8 @@ func hello(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	line := fmt.Sprintf("webbhook: -> %s", string(body))
+	safeBody := strings.Replace(string(body), "\n", "", -1)
+	line := fmt.Sprintf("webbhook: -> %s", safeBody)
 	fmt.Println(line)
 	if _, err := io.WriteString(w, line); err != nil {
 		log.Printf("Failed to write: %v", err)
@@ -23,5 +25,6 @@ func hello(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/", hello)
+	//nolint:gosec
 	log.Fatal(http.ListenAndServe(":3010", nil))
 }

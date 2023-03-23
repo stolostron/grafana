@@ -1,8 +1,8 @@
-+++
-title = "Administration"
-description = "Administration"
-weight = 40
-+++
+---
+description: Administration
+title: Administration
+weight: 40
+---
 
 # Administration
 
@@ -12,3 +12,4 @@ This section includes information for Grafana administrators, team administrator
 - [Configuration]({{< relref "configuration" >}})
 - [Configure Docker image]({{< relref "configure-docker" >}})
 - [Security]({{< relref "security" >}})
+- [Service accounts]({{< relref "service-accounts" >}})

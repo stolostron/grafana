@@ -23,6 +23,33 @@ export enum PromRuleType {
   Alerting = 'alerting',
   Recording = 'recording',
 }
+export enum PromApplication {
+  Lotex = 'Lotex',
+  Mimir = 'Mimir',
+  Prometheus = 'Prometheus',
+}
+
+export interface PromBuildInfoResponse {
+  data: {
+    application?: string;
+    version: string;
+    revision: string;
+    features?: {
+      ruler_config_api?: 'true' | 'false';
+      alertmanager_config_api?: 'true' | 'false';
+      query_sharding?: 'true' | 'false';
+      federated_rules?: 'true' | 'false';
+    };
+  };
+  status: 'success';
+}
+
+export interface PromApiFeatures {
+  application?: PromApplication;
+  features: {
+    rulerApiEnabled: boolean;
+  };
+}
 
 interface PromRuleDTOBase {
   health: string;
@@ -42,7 +69,7 @@ export interface PromAlertingRuleDTO extends PromRuleDTOBase {
     value: string;
   }>;
   labels: Labels;
-  annotations: Annotations;
+  annotations?: Annotations;
   duration?: number; // for
   state: PromAlertingRuleState;
   type: PromRuleType.Alerting;
@@ -99,6 +126,12 @@ export enum GrafanaAlertStateDecision {
   NoData = 'NoData',
   KeepLastState = 'KeepLastState',
   OK = 'OK',
+  Error = 'Error',
+}
+
+export interface AlertDataQuery extends DataQuery {
+  maxDataPoints?: number;
+  intervalMs?: number;
 }
 
 export interface AlertQuery {
@@ -106,7 +139,7 @@ export interface AlertQuery {
   queryType: string;
   relativeTimeRange?: RelativeTimeRange;
   datasourceUid: string;
-  model: DataQuery;
+  model: AlertDataQuery;
 }
 
 export interface PostableGrafanaRuleDefinition {
@@ -118,6 +151,7 @@ export interface PostableGrafanaRuleDefinition {
   data: AlertQuery[];
 }
 export interface GrafanaRuleDefinition extends PostableGrafanaRuleDefinition {
+  id?: string;
   uid: string;
   namespace_uid: string;
   namespace_id: number;
@@ -144,6 +178,7 @@ export type PostableRuleDTO = RulerAlertingRuleDTO | RulerRecordingRuleDTO | Pos
 export type RulerRuleGroupDTO<R = RulerRuleDTO> = {
   name: string;
   interval?: string;
+  source_tenants?: string[];
   rules: R[];
 };
 

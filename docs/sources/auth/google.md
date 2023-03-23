@@ -1,9 +1,13 @@
-+++
-title = "Google OAuth2 Authentication"
-description = "Grafana OAuthentication Guide "
-keywords = ["grafana", "configuration", "documentation", "oauth"]
-weight = 600
-+++
+---
+description: 'Grafana OAuthentication Guide '
+keywords:
+  - grafana
+  - configuration
+  - documentation
+  - oauth
+title: Google OAuth2 Authentication
+weight: 600
+---
 
 # Google OAuth2 Authentication
 
@@ -51,3 +55,6 @@ You may allow users to sign-up via Google authentication by setting the
 `allow_sign_up` option to `true`. When this option is set to `true`, any
 user successfully authenticating via Google authentication will be
 automatically signed up.
+
+You may specify a domain to be passed as `hd` query parameter accepted by Google's
+OAuth 2.0 authentication API. Refer to Google's OAuth [documentation](https://developers.google.com/identity/openid-connect/openid-connect#hd-param).

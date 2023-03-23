@@ -1,9 +1,12 @@
-+++
-title = "Requirements"
-description = "Requirements for Grafana"
-keywords = ["grafana", "installation", "documentation"]
-weight = 100
-+++
+---
+description: Requirements for Grafana
+keywords:
+  - grafana
+  - installation
+  - documentation
+title: Requirements
+weight: 100
+---
 
 # Grafana requirements
 
@@ -33,7 +36,7 @@ Minimum recommended CPU: 1
 
 Some features might require more memory or CPUs. Features require more resources include:
 
-- [Server side rendering of images]({{< relref "../administration/image_rendering/#requirements" >}})
+- [Server side rendering of images](https://grafana.com/grafana/plugins/grafana-image-renderer#requirements)
 - [Alerting]({{< relref "../alerting" >}})
 - [Data source proxy]({{< relref "../http_api/data_source" >}})
 

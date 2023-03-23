@@ -1,4 +1,5 @@
 import React, { PureComponent } from 'react';
+
 import { NavigationKey } from '../types';
 
 export interface Props extends Omit<React.HTMLProps<HTMLInputElement>, 'onChange' | 'value'> {
@@ -28,7 +29,7 @@ export class VariableInput extends PureComponent<Props> {
         ref={(instance) => {
           if (instance) {
             instance.focus();
-            instance.setAttribute('style', `width:${Math.max(instance.width, 80)}px`);
+            instance.setAttribute('style', `width:${Math.max(instance.width, 150)}px`);
           }
         }}
         type="text"

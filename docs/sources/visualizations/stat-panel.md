@@ -1,10 +1,17 @@
-+++
-title = "Stat"
-description = "Stat panel documentation"
-keywords = ["grafana", "docs", "stat panel"]
-aliases = ["/docs/grafana/latest/features/panels/stat/", "/docs/grafana/latest/features/panels/singlestat/", "/docs/grafana/latest/reference/singlestat/", "/docs/grafana/latest/panels/visualizations/stat-panel/"]
-weight = 900
-+++
+---
+aliases:
+  - ../features/panels/singlestat/
+  - ../features/panels/stat/
+  - ../panels/visualizations/stat-panel/
+  - ../reference/singlestat/
+description: Stat panel documentation
+keywords:
+  - grafana
+  - docs
+  - stat panel
+title: Stat
+weight: 900
+---
 
 # Stat
 
@@ -41,7 +48,7 @@ Choose how Grafana displays your data.
 
 Show a calculated value based on all rows.
 
-- **Calculation -** Select a reducer function that Grafana will use to reduce many fields to a single value. For a list of available calculations, refer to [List of calculations]({{< relref "../panels/calculations-list.md" >}}).
+- **Calculation -** Select a reducer function that Grafana will use to reduce many fields to a single value. For a list of available calculations, refer to [Calculation types]({{< relref "../panels/calculation-types.md" >}}).
 - **Fields -** Select the fields display in the panel.
 
 #### All values

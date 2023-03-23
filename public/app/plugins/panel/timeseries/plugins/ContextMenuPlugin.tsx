@@ -1,5 +1,8 @@
-import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { css as cssCore, Global } from '@emotion/react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useClickAway } from 'react-use';
+
+import { CartesianCoords2D, DataFrame, getFieldDisplayName, InterpolateFunction, TimeZone } from '@grafana/data';
 import {
   ContextMenu,
   GraphContextMenuHeader,
@@ -9,10 +12,7 @@ import {
   MenuGroup,
   MenuItem,
   UPlotConfigBuilder,
-  usePlotContext,
 } from '@grafana/ui';
-import { CartesianCoords2D, DataFrame, getFieldDisplayName, InterpolateFunction, TimeZone } from '@grafana/data';
-import { useClickAway } from 'react-use';
 import { pluginLog } from '@grafana/ui/src/components/uPlot/utils';
 
 type ContextMenuSelectionCoords = { viewport: CartesianCoords2D; plotCanvas: CartesianCoords2D };
@@ -40,7 +40,6 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
   replaceVariables,
   ...otherProps
 }) => {
-  const plotCtx = usePlotContext();
   const plotCanvas = useRef<HTMLDivElement>();
   const [coords, setCoords] = useState<ContextMenuSelectionCoords | null>(null);
   const [point, setPoint] = useState<ContextMenuSelectionPoint | null>(null);
@@ -61,8 +60,9 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
 
   // Add uPlot hooks to the config, or re-add when the config changed
   useLayoutEffect(() => {
+    let bbox: DOMRect | undefined = undefined;
+
     const onMouseCapture = (e: MouseEvent) => {
-      const bbox = plotCtx.getCanvasBoundingBox();
       let update = {
         viewport: {
           x: e.clientX,
@@ -84,6 +84,11 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
       }
       setCoords(update);
     };
+
+    // cache uPlot plotting area bounding box
+    config.addHook('syncRect', (u, rect) => {
+      bbox = rect;
+    });
 
     config.addHook('init', (u) => {
       const canvas = u.over;
@@ -132,12 +137,12 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
             const seriesIdx = i + 1;
             const dataIdx = u.cursor.idx;
             pluginLog('ContextMenuPlugin', false, seriesIdx, dataIdx);
-            setPoint({ seriesIdx, dataIdx: dataIdx || null });
+            setPoint({ seriesIdx, dataIdx: dataIdx ?? null });
           });
         });
       }
     });
-  }, [config, openMenu, setCoords, setPoint, plotCtx]);
+  }, [config, openMenu, setCoords, setPoint]);
 
   const defaultItems = useMemo(() => {
     return otherProps.defaultItems
@@ -147,7 +152,7 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
             items: i.items.map((j) => {
               return {
                 ...j,
-                onClick: (e: React.SyntheticEvent<HTMLElement>) => {
+                onClick: (e?: React.SyntheticEvent<HTMLElement>) => {
                   if (!coords) {
                     return;
                   }
@@ -235,7 +240,7 @@ export const ContextMenuView: React.FC<ContextMenuProps> = ({
     const { seriesIdx, dataIdx } = selection.point;
     const xFieldFmt = xField.display!;
 
-    if (seriesIdx && dataIdx) {
+    if (seriesIdx && dataIdx !== null) {
       const field = data.fields[seriesIdx];
 
       const displayValue = field.display!(field.values.get(dataIdx));
@@ -277,13 +282,12 @@ export const ContextMenuView: React.FC<ContextMenuProps> = ({
 
   const renderMenuGroupItems = () => {
     return items?.map((group, index) => (
-      <MenuGroup key={`${group.label}${index}`} label={group.label} ariaLabel={group.label}>
+      <MenuGroup key={`${group.label}${index}`} label={group.label}>
         {(group.items || []).map((item) => (
           <MenuItem
             key={item.label}
             url={item.url}
             label={item.label}
-            ariaLabel={item.label}
             target={item.target}
             icon={item.icon}
             active={item.active}

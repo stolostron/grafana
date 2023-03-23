@@ -15,7 +15,7 @@ exports[`Render LokiQueryEditor with legend should render 1`] = `
             "refId": "A",
           }
         }
-        queryType="range"
+        resolution={1}
         runOnBlur={true}
       />
       <div
@@ -80,7 +80,7 @@ exports[`Render LokiQueryEditor with legend should update timerange 1`] = `
             "refId": "A",
           }
         }
-        queryType="range"
+        resolution={1}
         runOnBlur={true}
       />
       <div

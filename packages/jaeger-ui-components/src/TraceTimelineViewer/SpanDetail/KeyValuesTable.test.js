@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import React from 'react';
 import { shallow } from 'enzyme';
+import React from 'react';
 
 import CopyIcon from '../../common/CopyIcon';
-
-import KeyValuesTable, { LinkValue, getStyles } from './KeyValuesTable';
-import { UIDropdown, UIIcon } from '../../uiElementsContext';
 import { ubInlineBlock } from '../../uberUtilityStyles';
-import { defaultTheme } from '../../Theme';
+
+import KeyValuesTable, { LinkValue } from './KeyValuesTable';
 
 describe('LinkValue', () => {
   const title = 'titleValue';
@@ -36,12 +34,6 @@ describe('LinkValue', () => {
     expect(wrapper.find('a').prop('href')).toBe(href);
     expect(wrapper.find('a').prop('title')).toBe(title);
     expect(wrapper.find('a').text()).toMatch(/childrenText/);
-  });
-
-  it('renders correct Icon', () => {
-    const styles = getStyles(defaultTheme);
-    expect(wrapper.find(UIIcon).hasClass(styles.linkIcon)).toBe(true);
-    expect(wrapper.find(UIIcon).prop('type')).toBe('export');
   });
 });
 
@@ -92,38 +84,6 @@ describe('<KeyValuesTable>', () => {
     expect(anchor.closest('tr').find('td').first().text()).toBe('span.kind');
   });
 
-  it('renders multiple links correctly', () => {
-    wrapper.setProps({
-      linksGetter: (array, i) =>
-        array[i].key === 'span.kind'
-          ? [
-              { url: `http://example.com/1?kind=${encodeURIComponent(array[i].value)}`, text: 'Example 1' },
-              { url: `http://example.com/2?kind=${encodeURIComponent(array[i].value)}`, text: 'Example 2' },
-            ]
-          : [],
-    });
-    const dropdown = wrapper.find(UIDropdown);
-    const overlay = shallow(dropdown.prop('overlay'));
-    // We have some wrappers here that dynamically inject specific component so we need to traverse a bit
-    // here
-    const menu = shallow(
-      overlay.prop('children')({
-        Menu({ children }) {
-          return <div>{children}</div>;
-        },
-      })
-    );
-    const anchors = menu.find(LinkValue);
-    expect(anchors).toHaveLength(2);
-    const firstAnchor = anchors.first();
-    expect(firstAnchor.prop('href')).toBe('http://example.com/1?kind=client');
-    expect(firstAnchor.children().text()).toBe('Example 1');
-    const secondAnchor = anchors.last();
-    expect(secondAnchor.prop('href')).toBe('http://example.com/2?kind=client');
-    expect(secondAnchor.children().text()).toBe('Example 2');
-    expect(dropdown.closest('tr').find('td').first().text()).toBe('span.kind');
-  });
-
   it('renders a <CopyIcon /> with correct copyText for each data element', () => {
     const copyIcons = wrapper.find(CopyIcon);
     expect(copyIcons.length).toBe(data.length);
@@ -141,5 +101,23 @@ describe('<KeyValuesTable>', () => {
         expect(valueDiv.html()).toMatch(`"${data[i].value}"`);
       }
     });
+  });
+
+  it('properly escapes values', () => {
+    const data = [
+      {
+        key: 'jsonkey',
+        value: JSON.stringify({
+          '<img src=x onerror=alert(1)>': '<img src=x onerror=alert(1)>',
+          url: 'https://example.com"id=x tabindex=1 onfocus=alert(1)',
+        }),
+      },
+    ];
+    const wrapper = shallow(<KeyValuesTable data={data} />);
+    const el = wrapper.find(`.${ubInlineBlock}`);
+    expect(el.length).toBe(1);
+    expect(el.html().replace(/\n/g, '')).toMatch(
+      `<div class=\"css-7kp13n\"><div class=\"json-markup\">{    <span class=\"json-markup-key\">\"&lt;img src=x onerror=alert(1)&gt;\":</span> <span class=\"json-markup-string\">\"&lt;img src=x onerror=alert(1)&gt;\"</span>,    <span class=\"json-markup-key\">\"url\":</span> <span class=\"json-markup-string\">\"<a href=\"https://example.com%22id=x%20tabindex=1%20onfocus=alert(1)\">https://example.com&quot;id=x tabindex=1 onfocus=alert(1)</a>\"</span>}</div></div>`
+    );
   });
 });

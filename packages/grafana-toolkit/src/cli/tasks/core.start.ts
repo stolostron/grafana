@@ -1,5 +1,6 @@
 //@ts-ignore
 import concurrently from 'concurrently';
+
 import { Task, TaskRunner } from './task';
 
 interface StartTaskOptions {
@@ -17,11 +18,11 @@ const startTaskRunner: TaskRunner<StartTaskOptions> = async ({ watchThemes, noTs
     },
     hot
       ? {
-          command: 'webpack-dev-server --progress --colors --config scripts/webpack/webpack.hot.js',
+          command: 'webpack serve --progress --color --config scripts/webpack/webpack.hot.js',
           name: 'Dev server',
         }
       : {
-          command: `webpack --progress --colors --watch --env.noTsCheck=${noTsCheckArg} --config scripts/webpack/webpack.dev.js`,
+          command: `webpack --progress --color --watch --env noTsCheck=${noTsCheckArg} --config scripts/webpack/webpack.dev.js`,
           name: 'Webpack',
         },
   ];

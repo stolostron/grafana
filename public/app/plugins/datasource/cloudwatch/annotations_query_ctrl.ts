@@ -1,5 +1,6 @@
 import { defaultsDeep } from 'lodash';
-import { AnnotationQuery } from './types';
+
+import { CloudWatchAnnotationQuery } from './types';
 
 export class CloudWatchAnnotationsQueryCtrl {
   static templateUrl = 'partials/annotations.editor.html';
@@ -17,7 +18,7 @@ export class CloudWatchAnnotationsQueryCtrl {
       region: 'default',
       id: '',
       alias: '',
-      statistics: ['Average'],
+      statistic: 'Average',
       matchExact: true,
       prefixMatching: false,
       actionPrefix: '',
@@ -27,7 +28,7 @@ export class CloudWatchAnnotationsQueryCtrl {
     this.onChange = this.onChange.bind(this);
   }
 
-  onChange(query: AnnotationQuery) {
+  onChange(query: CloudWatchAnnotationQuery) {
     Object.assign(this.annotation, query);
   }
 }

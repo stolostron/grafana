@@ -1,28 +1,37 @@
-import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { css } from '@emotion/css';
+import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
+
 import { GrafanaTheme2 } from '@grafana/data';
 import { Alert, LoadingPlaceholder, useStyles2, withErrorBoundary } from '@grafana/ui';
-import { useDispatch } from 'react-redux';
-import { Redirect } from 'react-router-dom';
 import { Receiver } from 'app/plugins/datasource/alertmanager/types';
+
 import { useCleanup } from '../../../core/hooks/useCleanup';
-import { AlertingPageWrapper } from './components/AlertingPageWrapper';
+
 import { AlertManagerPicker } from './components/AlertManagerPicker';
+import { AlertingPageWrapper } from './components/AlertingPageWrapper';
+import { NoAlertManagerWarning } from './components/NoAlertManagerWarning';
 import { AmRootRoute } from './components/amroutes/AmRootRoute';
 import { AmSpecificRouting } from './components/amroutes/AmSpecificRouting';
+import { MuteTimingsTable } from './components/amroutes/MuteTimingsTable';
 import { useAlertManagerSourceName } from './hooks/useAlertManagerSourceName';
+import { useAlertManagersByPermission } from './hooks/useAlertManagerSources';
 import { useUnifiedAlertingSelector } from './hooks/useUnifiedAlertingSelector';
 import { fetchAlertManagerConfigAction, updateAlertManagerConfigAction } from './state/actions';
 import { AmRouteReceiver, FormAmRoute } from './types/amroutes';
 import { amRouteToFormAmRoute, formAmRouteToAmRoute, stringsToSelectableValues } from './utils/amroutes';
+import { isVanillaPrometheusAlertManagerDataSource } from './utils/datasource';
 import { initialAsyncRequestState } from './utils/redux';
 
 const AmRoutes: FC = () => {
   const dispatch = useDispatch();
   const styles = useStyles2(getStyles);
   const [isRootRouteEditMode, setIsRootRouteEditMode] = useState(false);
+  const alertManagers = useAlertManagersByPermission('notification');
+  const [alertManagerSourceName, setAlertManagerSourceName] = useAlertManagerSourceName(alertManagers);
 
-  const [alertManagerSourceName, setAlertManagerSourceName] = useAlertManagerSourceName();
+  const readOnly = alertManagerSourceName ? isVanillaPrometheusAlertManagerDataSource(alertManagerSourceName) : true;
+
   const amConfigs = useUnifiedAlertingSelector((state) => state.amConfigs);
 
   const fetchConfig = useCallback(() => {
@@ -35,8 +44,11 @@ const AmRoutes: FC = () => {
     fetchConfig();
   }, [fetchConfig]);
 
-  const { result, loading: resultLoading, error: resultError } =
-    (alertManagerSourceName && amConfigs[alertManagerSourceName]) || initialAsyncRequestState;
+  const {
+    result,
+    loading: resultLoading,
+    error: resultError,
+  } = (alertManagerSourceName && amConfigs[alertManagerSourceName]) || initialAsyncRequestState;
 
   const config = result?.alertmanager_config;
   const [rootRoute, id2ExistingRoute] = useMemo(() => amRouteToFormAmRoute(config?.route), [config?.route]);
@@ -55,7 +67,12 @@ const AmRoutes: FC = () => {
 
   useCleanup((state) => state.unifiedAlerting.saveAMConfig);
   const handleSave = (data: Partial<FormAmRoute>) => {
+    if (!result) {
+      return;
+    }
+
     const newData = formAmRouteToAmRoute(
+      alertManagerSourceName,
       {
         ...rootRoute,
         ...data,
@@ -85,12 +102,20 @@ const AmRoutes: FC = () => {
   };
 
   if (!alertManagerSourceName) {
-    return <Redirect to="/alerting/routes" />;
+    return (
+      <AlertingPageWrapper pageId="am-routes">
+        <NoAlertManagerWarning availableAlertManagers={alertManagers} />
+      </AlertingPageWrapper>
+    );
   }
 
   return (
     <AlertingPageWrapper pageId="am-routes">
-      <AlertManagerPicker current={alertManagerSourceName} onChange={setAlertManagerSourceName} />
+      <AlertManagerPicker
+        current={alertManagerSourceName}
+        onChange={setAlertManagerSourceName}
+        dataSources={alertManagers}
+      />
       {resultError && !resultLoading && (
         <Alert severity="error" title="Error loading Alertmanager config">
           {resultError.message || 'Unknown error.'}
@@ -110,11 +135,15 @@ const AmRoutes: FC = () => {
           />
           <div className={styles.break} />
           <AmSpecificRouting
+            alertManagerSourceName={alertManagerSourceName}
             onChange={handleSave}
+            readOnly={readOnly}
             onRootRouteEdit={enterRootRouteEditMode}
             receivers={receivers}
             routes={rootRoute}
           />
+          <div className={styles.break} />
+          <MuteTimingsTable alertManagerSourceName={alertManagerSourceName} />
         </>
       )}
     </AlertingPageWrapper>
@@ -128,6 +157,5 @@ const getStyles = (theme: GrafanaTheme2) => ({
     width: 100%;
     height: 0;
     margin-bottom: ${theme.spacing(2)};
-    border-bottom: solid 1px ${theme.colors.border.medium};
   `,
 });

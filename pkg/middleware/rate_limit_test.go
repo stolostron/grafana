@@ -9,9 +9,9 @@ import (
 	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/setting"
 
+	"github.com/grafana/grafana/pkg/web"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/macaron.v1"
 )
 
 type execFunc func() *httptest.ResponseRecorder
@@ -31,12 +31,9 @@ func rateLimiterScenario(t *testing.T, desc string, rps int, burst int, fn rateL
 
 		cfg := setting.NewCfg()
 
-		m := macaron.New()
-		m.Use(macaron.Renderer(macaron.RenderOptions{
-			Directory: "",
-			Delims:    macaron.Delims{Left: "[[", Right: "]]"},
-		}))
-		m.Use(getContextHandler(t, cfg).Middleware)
+		m := web.New()
+		m.UseMiddleware(web.Renderer("../../public/views", "[[", "]]"))
+		m.Use(getContextHandler(t, cfg, nil, nil).Middleware)
 		m.Get("/foo", RateLimit(rps, burst, func() time.Time { return currentTime }), defaultHandler)
 
 		fn(func() *httptest.ResponseRecorder {

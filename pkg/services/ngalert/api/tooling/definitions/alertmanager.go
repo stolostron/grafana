@@ -1,21 +1,35 @@
 package definitions
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/go-openapi/strfmt"
-	"github.com/pkg/errors"
 	amv2 "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/pkg/labels"
+	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/services/ngalert/models"
+	"github.com/grafana/grafana/pkg/services/secrets"
 	"github.com/grafana/grafana/pkg/util"
 )
+
+// swagger:route POST /api/alertmanager/grafana/config/api/v1/alerts alertmanager RoutePostGrafanaAlertingConfig
+//
+// sets an Alerting config
+//
+//     Responses:
+//       201: Ack
+//       400: ValidationError
 
 // swagger:route POST /api/alertmanager/{Recipient}/config/api/v1/alerts alertmanager RoutePostAlertingConfig
 //
@@ -23,6 +37,14 @@ import (
 //
 //     Responses:
 //       201: Ack
+//       400: ValidationError
+
+// swagger:route GET /api/alertmanager/grafana/config/api/v1/alerts alertmanager RouteGetGrafanaAlertingConfig
+//
+// gets an Alerting config
+//
+//     Responses:
+//       200: GettableUserConfig
 //       400: ValidationError
 
 // swagger:route GET /api/alertmanager/{Recipient}/config/api/v1/alerts alertmanager RouteGetAlertingConfig
@@ -33,12 +55,28 @@ import (
 //       200: GettableUserConfig
 //       400: ValidationError
 
+// swagger:route DELETE /api/alertmanager/grafana/config/api/v1/alerts alertmanager RouteDeleteGrafanaAlertingConfig
+//
+// deletes the Alerting config for a tenant
+//
+//     Responses:
+//       200: Ack
+//       400: ValidationError
+
 // swagger:route DELETE /api/alertmanager/{Recipient}/config/api/v1/alerts alertmanager RouteDeleteAlertingConfig
 //
 // deletes the Alerting config for a tenant
 //
 //     Responses:
 //       200: Ack
+//       400: ValidationError
+
+// swagger:route GET /api/alertmanager/grafana/api/v2/status alertmanager RouteGetGrafanaAMStatus
+//
+// get alertmanager status and configuration
+//
+//     Responses:
+//       200: GettableStatus
 //       400: ValidationError
 
 // swagger:route GET /api/alertmanager/{Recipient}/api/v2/status alertmanager RouteGetAMStatus
@@ -49,12 +87,28 @@ import (
 //       200: GettableStatus
 //       400: ValidationError
 
+// swagger:route GET /api/alertmanager/grafana/api/v2/alerts alertmanager RouteGetGrafanaAMAlerts
+//
+// get alertmanager alerts
+//
+//     Responses:
+//       200: gettableAlerts
+//       400: ValidationError
+
 // swagger:route GET /api/alertmanager/{Recipient}/api/v2/alerts alertmanager RouteGetAMAlerts
 //
 // get alertmanager alerts
 //
 //     Responses:
-//       200: GettableAlerts
+//       200: gettableAlerts
+//       400: ValidationError
+
+// swagger:route POST /api/alertmanager/grafana/api/v2/alerts alertmanager RoutePostGrafanaAMAlerts
+//
+// create alertmanager alerts
+//
+//     Responses:
+//       200: Ack
 //       400: ValidationError
 
 // swagger:route POST /api/alertmanager/{Recipient}/api/v2/alerts alertmanager RoutePostAMAlerts
@@ -65,12 +119,56 @@ import (
 //       200: Ack
 //       400: ValidationError
 
+// swagger:route GET /api/alertmanager/grafana/api/v2/alerts/groups alertmanager RouteGetGrafanaAMAlertGroups
+//
+// get alertmanager alerts
+//
+//     Responses:
+//       200: alertGroups
+//       400: ValidationError
+
 // swagger:route GET /api/alertmanager/{Recipient}/api/v2/alerts/groups alertmanager RouteGetAMAlertGroups
 //
 // get alertmanager alerts
 //
 //     Responses:
-//       200: AlertGroups
+//       200: alertGroups
+//       400: ValidationError
+
+// swagger:route POST /api/alertmanager/grafana/config/api/v1/receivers/test alertmanager RoutePostTestGrafanaReceivers
+//
+// Test Grafana managed receivers without saving them.
+//
+//     Responses:
+//
+//       200: Ack
+//       207: MultiStatus
+//       400: ValidationError
+//       403: PermissionDenied
+//       404: AlertManagerNotFound
+//       408: Failure
+//       409: AlertManagerNotReady
+
+// swagger:route POST /api/alertmanager/{Recipient}/config/api/v1/receivers/test alertmanager RoutePostTestReceivers
+//
+// Test Grafana managed receivers without saving them.
+//
+//     Responses:
+//
+//       200: Ack
+//       207: MultiStatus
+//       400: ValidationError
+//       403: PermissionDenied
+//       404: AlertManagerNotFound
+//       408: Failure
+//       409: AlertManagerNotReady
+
+// swagger:route GET /api/alertmanager/grafana/api/v2/silences alertmanager RouteGetGrafanaSilences
+//
+// get silences
+//
+//     Responses:
+//       200: gettableSilences
 //       400: ValidationError
 
 // swagger:route GET /api/alertmanager/{Recipient}/api/v2/silences alertmanager RouteGetSilences
@@ -78,7 +176,15 @@ import (
 // get silences
 //
 //     Responses:
-//       200: GettableSilences
+//       200: gettableSilences
+//       400: ValidationError
+
+// swagger:route POST /api/alertmanager/grafana/api/v2/silences alertmanager RouteCreateGrafanaSilence
+//
+// create silence
+//
+//     Responses:
+//       201: gettableSilence
 //       400: ValidationError
 
 // swagger:route POST /api/alertmanager/{Recipient}/api/v2/silences alertmanager RouteCreateSilence
@@ -86,7 +192,15 @@ import (
 // create silence
 //
 //     Responses:
-//       201: GettableSilence
+//       201: gettableSilence
+//       400: ValidationError
+
+// swagger:route GET /api/alertmanager/grafana/api/v2/silence/{SilenceId} alertmanager RouteGetGrafanaSilence
+//
+// get silence
+//
+//     Responses:
+//       200: gettableSilence
 //       400: ValidationError
 
 // swagger:route GET /api/alertmanager/{Recipient}/api/v2/silence/{SilenceId} alertmanager RouteGetSilence
@@ -94,7 +208,15 @@ import (
 // get silence
 //
 //     Responses:
-//       200: GettableSilence
+//       200: gettableSilence
+//       400: ValidationError
+
+// swagger:route DELETE /api/alertmanager/grafana/api/v2/silence/{SilenceId} alertmanager RouteDeleteGrafanaSilence
+//
+// delete silence
+//
+//     Responses:
+//       200: Ack
 //       400: ValidationError
 
 // swagger:route DELETE /api/alertmanager/{Recipient}/api/v2/silence/{SilenceId} alertmanager RouteDeleteSilence
@@ -105,19 +227,72 @@ import (
 //       200: Ack
 //       400: ValidationError
 
-// swagger:parameters RouteCreateSilence
+// swagger:model
+type PermissionDenied struct{}
+
+// swagger:model
+type AlertManagerNotFound struct{}
+
+// swagger:model
+type AlertManagerNotReady struct{}
+
+// swagger:model
+type MultiStatus struct{}
+
+// swagger:parameters RoutePostTestReceivers RoutePostTestGrafanaReceivers
+type TestReceiversConfigParams struct {
+	// in:body
+	Body TestReceiversConfigBodyParams
+}
+
+type TestReceiversConfigBodyParams struct {
+	Alert     *TestReceiversConfigAlertParams `yaml:"alert,omitempty" json:"alert,omitempty"`
+	Receivers []*PostableApiReceiver          `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+}
+
+func (c *TestReceiversConfigBodyParams) ProcessConfig(encrypt EncryptFn) error {
+	return processReceiverConfigs(c.Receivers, encrypt)
+}
+
+type TestReceiversConfigAlertParams struct {
+	Annotations model.LabelSet `yaml:"annotations,omitempty" json:"annotations,omitempty"`
+	Labels      model.LabelSet `yaml:"labels,omitempty" json:"labels,omitempty"`
+}
+
+// swagger:model
+type TestReceiversResult struct {
+	Alert      TestReceiversConfigAlertParams `json:"alert"`
+	Receivers  []TestReceiverResult           `json:"receivers"`
+	NotifiedAt time.Time                      `json:"notified_at"`
+}
+
+// swagger:model
+type TestReceiverResult struct {
+	Name    string                     `json:"name"`
+	Configs []TestReceiverConfigResult `json:"grafana_managed_receiver_configs"`
+}
+
+// swagger:model
+type TestReceiverConfigResult struct {
+	Name   string `json:"name"`
+	UID    string `json:"uid"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+// swagger:parameters RouteCreateSilence RouteCreateGrafanaSilence
 type CreateSilenceParams struct {
 	// in:body
 	Silence PostableSilence
 }
 
-// swagger:parameters RouteGetSilence RouteDeleteSilence
+// swagger:parameters RouteGetSilence RouteDeleteSilence RouteGetGrafanaSilence RouteDeleteGrafanaSilence
 type GetDeleteSilenceParams struct {
 	// in:path
 	SilenceId string
 }
 
-// swagger:parameters RouteGetSilences
+// swagger:parameters RouteGetSilences RouteGetGrafanaSilences
 type GetSilencesParams struct {
 	// in:query
 	Filter []string `json:"filter"`
@@ -157,7 +332,7 @@ func (s *GettableStatus) UnmarshalJSON(b []byte) error {
 	s.Cluster = amStatus.Cluster
 	s.Config = &PostableApiAlertingConfig{Config: Config{
 		Global:       c.Global,
-		Route:        c.Route,
+		Route:        AsGrafanaRoute(c.Route),
 		InhibitRules: c.InhibitRules,
 		Templates:    c.Templates,
 	}}
@@ -196,31 +371,31 @@ func NewGettableStatus(cfg *PostableApiAlertingConfig) *GettableStatus {
 	}
 }
 
-// swagger:model
+// swagger:model postableSilence
 type PostableSilence = amv2.PostableSilence
 
-// swagger:model
+// swagger:model gettableSilences
 type GettableSilences = amv2.GettableSilences
 
-// swagger:model
+// swagger:model gettableSilence
 type GettableSilence = amv2.GettableSilence
 
-// swagger:model
+// swagger:model gettableAlerts
 type GettableAlerts = amv2.GettableAlerts
 
-// swagger:model
+// swagger:model gettableAlert
 type GettableAlert = amv2.GettableAlert
 
-// swagger:model
+// swagger:model alertGroups
 type AlertGroups = amv2.AlertGroups
 
-// swagger:model
+// swagger:model alertGroup
 type AlertGroup = amv2.AlertGroup
 
-// swagger:model
+// swagger:model receiver
 type Receiver = amv2.Receiver
 
-// swagger:parameters RouteGetAMAlerts RouteGetAMAlertGroups
+// swagger:parameters RouteGetAMAlerts RouteGetAMAlertGroups RouteGetGrafanaAMAlerts RouteGetGrafanaAMAlertGroups
 type AlertsParams struct {
 
 	// Show active alerts
@@ -252,20 +427,20 @@ type AlertsParams struct {
 	Receivers string `json:"receiver"`
 }
 
-// swagger:parameters RoutePostAMAlerts
+// swagger:parameters RoutePostAMAlerts RoutePostGrafanaAMAlerts
 type PostableAlerts struct {
 	// in:body
 	PostableAlerts []amv2.PostableAlert `yaml:"" json:""`
 }
 
-// swagger:parameters RoutePostAlertingConfig
+// swagger:parameters RoutePostAlertingConfig RoutePostGrafanaAlertingConfig
 type BodyAlertingConfig struct {
 	// in:body
 	Body PostableUserConfig
 }
 
 // alertmanager routes
-// swagger:parameters RoutePostAlertingConfig RouteGetAlertingConfig RouteDeleteAlertingConfig RouteGetAMStatus RouteGetAMAlerts RoutePostAMAlerts RouteGetAMAlertGroups RouteGetSilences RouteCreateSilence RouteGetSilence RouteDeleteSilence RoutePostAlertingConfig
+// swagger:parameters RoutePostAlertingConfig RouteGetAlertingConfig RouteDeleteAlertingConfig RouteGetAMStatus RouteGetAMAlerts RoutePostAMAlerts RouteGetAMAlertGroups RouteGetSilences RouteCreateSilence RouteGetSilence RouteDeleteSilence RoutePostAlertingConfig RoutePostTestReceivers
 // ruler routes
 // swagger:parameters RouteGetRulesConfig RoutePostNameRulesConfig RouteGetNamespaceRulesConfig RouteDeleteNamespaceRulesConfig RouteGetRulegGroupConfig RouteDeleteRuleGroupConfig
 // prom routes
@@ -273,10 +448,9 @@ type BodyAlertingConfig struct {
 // testing routes
 // swagger:parameters RouteTestReceiverConfig RouteTestRuleConfig
 type DatasourceReference struct {
-	// Recipient should be "grafana" for requests to be handled by grafana
-	// and the numeric datasource id for requests to be forwarded to a datasource
+	// Recipient should be the numeric datasource id
 	// in:path
-	Recipient string
+	Recipient int
 }
 
 // swagger:model
@@ -344,40 +518,8 @@ func (c *PostableUserConfig) GetGrafanaReceiverMap() map[string]*PostableGrafana
 }
 
 // ProcessConfig parses grafana receivers, encrypts secrets and assigns UUIDs (if they are missing)
-func (c *PostableUserConfig) ProcessConfig() error {
-	seenUIDs := make(map[string]struct{})
-	// encrypt secure settings for storing them in DB
-	for _, r := range c.AlertmanagerConfig.Receivers {
-		switch r.Type() {
-		case GrafanaReceiverType:
-			for _, gr := range r.PostableGrafanaReceivers.GrafanaManagedReceivers {
-				for k, v := range gr.SecureSettings {
-					encryptedData, err := util.Encrypt([]byte(v), setting.SecretKey)
-					if err != nil {
-						return fmt.Errorf("failed to encrypt secure settings: %w", err)
-					}
-					gr.SecureSettings[k] = base64.StdEncoding.EncodeToString(encryptedData)
-				}
-				if gr.UID == "" {
-					retries := 5
-					for i := 0; i < retries; i++ {
-						gen := util.GenerateShortUID()
-						_, ok := seenUIDs[gen]
-						if !ok {
-							gr.UID = gen
-							break
-						}
-					}
-					if gr.UID == "" {
-						return fmt.Errorf("all %d attempts to generate UID for receiver have failed; please retry", retries)
-					}
-				}
-				seenUIDs[gr.UID] = struct{}{}
-			}
-		default:
-		}
-	}
-	return nil
+func (c *PostableUserConfig) ProcessConfig(encrypt EncryptFn) error {
+	return processReceiverConfigs(c.AlertmanagerConfig.Receivers, encrypt)
 }
 
 // MarshalYAML implements yaml.Marshaller.
@@ -420,8 +562,9 @@ func (c *PostableUserConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // swagger:model
 type GettableUserConfig struct {
-	TemplateFiles      map[string]string         `yaml:"template_files" json:"template_files"`
-	AlertmanagerConfig GettableApiAlertingConfig `yaml:"alertmanager_config" json:"alertmanager_config"`
+	TemplateFiles           map[string]string            `yaml:"template_files" json:"template_files"`
+	TemplateFileProvenances map[string]models.Provenance `yaml:"template_file_provenances,omitempty" json:"template_file_provenances,omitempty"`
+	AlertmanagerConfig      GettableApiAlertingConfig    `yaml:"alertmanager_config" json:"alertmanager_config"`
 
 	// amSimple stores a map[string]interface of the decoded alertmanager config.
 	// This enables circumventing the underlying alertmanager secret type
@@ -531,7 +674,7 @@ func (c *GettableApiAlertingConfig) validate() error {
 		return fmt.Errorf("cannot mix Alertmanager & Grafana receiver types")
 	}
 
-	for _, receiver := range AllReceivers(c.Route) {
+	for _, receiver := range AllReceivers(c.Route.AsAMRoute()) {
 		_, ok := receivers[receiver]
 		if !ok {
 			return fmt.Errorf("unexpected receiver (%s) is undefined", receiver)
@@ -543,10 +686,106 @@ func (c *GettableApiAlertingConfig) validate() error {
 
 // Config is the top-level configuration for Alertmanager's config files.
 type Config struct {
-	Global       *config.GlobalConfig  `yaml:"global,omitempty" json:"global,omitempty"`
-	Route        *config.Route         `yaml:"route,omitempty" json:"route,omitempty"`
-	InhibitRules []*config.InhibitRule `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
-	Templates    []string              `yaml:"templates" json:"templates"`
+	Global            *config.GlobalConfig      `yaml:"global,omitempty" json:"global,omitempty"`
+	Route             *Route                    `yaml:"route,omitempty" json:"route,omitempty"`
+	InhibitRules      []*config.InhibitRule     `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
+	MuteTimeIntervals []config.MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	Templates         []string                  `yaml:"templates" json:"templates"`
+}
+
+// A Route is a node that contains definitions of how to handle alerts. This is modified
+// from the upstream alertmanager in that it adds the ObjectMatchers property.
+type Route struct {
+	Receiver string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
+
+	GroupByStr []string          `yaml:"group_by,omitempty" json:"group_by,omitempty"`
+	GroupBy    []model.LabelName `yaml:"-" json:"-"`
+	GroupByAll bool              `yaml:"-" json:"-"`
+	// Deprecated. Remove before v1.0 release.
+	Match map[string]string `yaml:"match,omitempty" json:"match,omitempty"`
+	// Deprecated. Remove before v1.0 release.
+	MatchRE           config.MatchRegexps `yaml:"match_re,omitempty" json:"match_re,omitempty"`
+	Matchers          config.Matchers     `yaml:"matchers,omitempty" json:"matchers,omitempty"`
+	ObjectMatchers    ObjectMatchers      `yaml:"object_matchers,omitempty" json:"object_matchers,omitempty"`
+	MuteTimeIntervals []string            `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
+	Continue          bool                `yaml:"continue" json:"continue,omitempty"`
+	Routes            []*Route            `yaml:"routes,omitempty" json:"routes,omitempty"`
+
+	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
+	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
+	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
+
+	Provenance models.Provenance `yaml:"provenance,omitempty" json:"provenance,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for Route. This is a copy of alertmanager's upstream except it removes validation on the label key.
+func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Route
+	if err := unmarshal((*plain)(r)); err != nil {
+		return err
+	}
+
+	return r.validateChild()
+}
+
+// AsAMRoute returns an Alertmanager route from a Grafana route. The ObjectMatchers are converted to Matchers.
+func (r *Route) AsAMRoute() *config.Route {
+	amRoute := &config.Route{
+		Receiver:          r.Receiver,
+		GroupByStr:        r.GroupByStr,
+		GroupBy:           r.GroupBy,
+		GroupByAll:        r.GroupByAll,
+		Match:             r.Match,
+		MatchRE:           r.MatchRE,
+		Matchers:          append(r.Matchers, r.ObjectMatchers...),
+		MuteTimeIntervals: r.MuteTimeIntervals,
+		Continue:          r.Continue,
+
+		GroupWait:      r.GroupWait,
+		GroupInterval:  r.GroupInterval,
+		RepeatInterval: r.RepeatInterval,
+
+		Routes: make([]*config.Route, 0, len(r.Routes)),
+	}
+	for _, rt := range r.Routes {
+		amRoute.Routes = append(amRoute.Routes, rt.AsAMRoute())
+	}
+
+	return amRoute
+}
+
+// AsGrafanaRoute returns a Grafana route from an Alertmanager route. The Matchers are converted to ObjectMatchers.
+func AsGrafanaRoute(r *config.Route) *Route {
+	gRoute := &Route{
+		Receiver:          r.Receiver,
+		GroupByStr:        r.GroupByStr,
+		GroupBy:           r.GroupBy,
+		GroupByAll:        r.GroupByAll,
+		Match:             r.Match,
+		MatchRE:           r.MatchRE,
+		ObjectMatchers:    ObjectMatchers(r.Matchers),
+		MuteTimeIntervals: r.MuteTimeIntervals,
+		Continue:          r.Continue,
+
+		GroupWait:      r.GroupWait,
+		GroupInterval:  r.GroupInterval,
+		RepeatInterval: r.RepeatInterval,
+
+		Routes: make([]*Route, 0, len(r.Routes)),
+	}
+	for _, rt := range r.Routes {
+		gRoute.Routes = append(gRoute.Routes, AsGrafanaRoute(rt))
+	}
+
+	return gRoute
+}
+
+func (r *Route) ResourceType() string {
+	return "route"
+}
+
+func (r *Route) ResourceID() string {
+	return ""
 }
 
 // Config is the entrypoint for the embedded Alertmanager config with the exception of receivers.
@@ -571,22 +810,9 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("no routes provided")
 	}
 
-	// Route is a recursive structure that includes validation in the yaml unmarshaler.
-	// Therefore, we'll redirect json -> yaml to utilize these.
-	b, err := yaml.Marshal(c.Route)
+	err := c.Route.Validate()
 	if err != nil {
-		return errors.Wrap(err, "marshaling route to yaml for validation")
-	}
-	err = yaml.Unmarshal(b, c.Route)
-	if err != nil {
-		return errors.Wrap(err, "unmarshaling route for validations")
-	}
-
-	if len(c.Route.Receiver) == 0 {
-		return fmt.Errorf("root route must specify a default receiver")
-	}
-	if len(c.Route.Match) > 0 || len(c.Route.MatchRE) > 0 {
-		return fmt.Errorf("root route must not have any matchers")
+		return err
 	}
 
 	for _, r := range c.InhibitRules {
@@ -595,6 +821,33 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 		}
 	}
 
+	tiNames := make(map[string]struct{})
+	for _, mt := range c.MuteTimeIntervals {
+		if mt.Name == "" {
+			return fmt.Errorf("missing name in mute time interval")
+		}
+		if _, ok := tiNames[mt.Name]; ok {
+			return fmt.Errorf("mute time interval %q is not unique", mt.Name)
+		}
+		tiNames[mt.Name] = struct{}{}
+	}
+	return checkTimeInterval(c.Route, tiNames)
+}
+
+func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
+	for _, sr := range r.Routes {
+		if err := checkTimeInterval(sr, timeIntervals); err != nil {
+			return err
+		}
+	}
+	if len(r.MuteTimeIntervals) == 0 {
+		return nil
+	}
+	for _, mt := range r.MuteTimeIntervals {
+		if _, ok := timeIntervals[mt]; !ok {
+			return fmt.Errorf("undefined time interval %q used in route", mt)
+		}
+	}
 	return nil
 }
 
@@ -661,7 +914,7 @@ func (c *PostableApiAlertingConfig) validate() error {
 		}
 	}
 
-	for _, receiver := range AllReceivers(c.Route) {
+	for _, receiver := range AllReceivers(c.Route.AsAMRoute()) {
 		_, ok := receivers[receiver]
 		if !ok {
 			return fmt.Errorf("unexpected receiver (%s) is undefined", receiver)
@@ -704,12 +957,13 @@ func AllReceivers(route *config.Route) (res []string) {
 }
 
 type GettableGrafanaReceiver struct {
-	UID                   string           `json:"uid"`
-	Name                  string           `json:"name"`
-	Type                  string           `json:"type"`
-	DisableResolveMessage bool             `json:"disableResolveMessage"`
-	Settings              *simplejson.Json `json:"settings"`
-	SecureFields          map[string]bool  `json:"secureFields"`
+	UID                   string            `json:"uid"`
+	Name                  string            `json:"name"`
+	Type                  string            `json:"type"`
+	DisableResolveMessage bool              `json:"disableResolveMessage"`
+	Settings              *simplejson.Json  `json:"settings"`
+	SecureFields          map[string]bool   `json:"secureFields"`
+	Provenance            models.Provenance `json:"provenance,omitempty"`
 }
 
 type PostableGrafanaReceiver struct {
@@ -719,22 +973,6 @@ type PostableGrafanaReceiver struct {
 	DisableResolveMessage bool              `json:"disableResolveMessage"`
 	Settings              *simplejson.Json  `json:"settings"`
 	SecureSettings        map[string]string `json:"secureSettings"`
-}
-
-func (r *PostableGrafanaReceiver) GetDecryptedSecret(key string) (string, error) {
-	storedValue, ok := r.SecureSettings[key]
-	if !ok {
-		return "", nil
-	}
-	decodeValue, err := base64.StdEncoding.DecodeString(storedValue)
-	if err != nil {
-		return "", err
-	}
-	decryptedValue, err := util.Decrypt(decodeValue, setting.SecretKey)
-	if err != nil {
-		return "", err
-	}
-	return string(decryptedValue), nil
 }
 
 type ReceiverType int
@@ -910,4 +1148,148 @@ type GettableGrafanaReceivers struct {
 
 type PostableGrafanaReceivers struct {
 	GrafanaManagedReceivers []*PostableGrafanaReceiver `yaml:"grafana_managed_receiver_configs,omitempty" json:"grafana_managed_receiver_configs,omitempty"`
+}
+
+type EncryptFn func(ctx context.Context, payload []byte, scope secrets.EncryptionOptions) ([]byte, error)
+
+func processReceiverConfigs(c []*PostableApiReceiver, encrypt EncryptFn) error {
+	seenUIDs := make(map[string]struct{})
+	// encrypt secure settings for storing them in DB
+	for _, r := range c {
+		switch r.Type() {
+		case GrafanaReceiverType:
+			for _, gr := range r.PostableGrafanaReceivers.GrafanaManagedReceivers {
+				for k, v := range gr.SecureSettings {
+					encryptedData, err := encrypt(context.Background(), []byte(v), secrets.WithoutScope())
+					if err != nil {
+						return fmt.Errorf("failed to encrypt secure settings: %w", err)
+					}
+					gr.SecureSettings[k] = base64.StdEncoding.EncodeToString(encryptedData)
+				}
+				if gr.UID == "" {
+					retries := 5
+					for i := 0; i < retries; i++ {
+						gen := util.GenerateShortUID()
+						_, ok := seenUIDs[gen]
+						if !ok {
+							gr.UID = gen
+							break
+						}
+					}
+					if gr.UID == "" {
+						return fmt.Errorf("all %d attempts to generate UID for receiver have failed; please retry", retries)
+					}
+				}
+				seenUIDs[gr.UID] = struct{}{}
+			}
+		default:
+		}
+	}
+	return nil
+}
+
+// ObjectMatchers is Matchers with a different Unmarshal and Marshal methods that accept matchers as objects
+// that have already been parsed.
+type ObjectMatchers labels.Matchers
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface for Matchers.
+func (m *ObjectMatchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var rawMatchers [][3]string
+	if err := unmarshal(&rawMatchers); err != nil {
+		return err
+	}
+	for _, rawMatcher := range rawMatchers {
+		var matchType labels.MatchType
+		switch rawMatcher[1] {
+		case "=":
+			matchType = labels.MatchEqual
+		case "!=":
+			matchType = labels.MatchNotEqual
+		case "=~":
+			matchType = labels.MatchRegexp
+		case "!~":
+			matchType = labels.MatchNotRegexp
+		default:
+			return fmt.Errorf("unsupported match type %q in matcher", rawMatcher[1])
+		}
+
+		// When Prometheus serializes a matcher, the value gets wrapped in quotes:
+		// https://github.com/prometheus/alertmanager/blob/main/pkg/labels/matcher.go#L77
+		// Remove these quotes so that we are matching against the right value.
+		//
+		// This is a stop-gap solution which will be superceded by https://github.com/grafana/grafana/issues/50040.
+		//
+		// The ngalert migration converts matchers into the Prom-style, quotes included.
+		// The UI then stores the quotes into ObjectMatchers without removing them.
+		// This approach allows these extra quotes to be stored in the database, and fixes them at read time.
+		// This works because the database stores matchers as JSON text.
+		//
+		// There is a subtle bug here, where users might intentionally add quotes to matchers. This method can remove such quotes.
+		// Since ObjectMatchers will be deprecated entirely, this bug will go away naturally with time.
+		rawMatcher[2] = strings.TrimPrefix(rawMatcher[2], "\"")
+		rawMatcher[2] = strings.TrimSuffix(rawMatcher[2], "\"")
+
+		matcher, err := labels.NewMatcher(matchType, rawMatcher[0], rawMatcher[2])
+		if err != nil {
+			return err
+		}
+		*m = append(*m, matcher)
+	}
+	sort.Sort(labels.Matchers(*m))
+	return nil
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for Matchers.
+func (m *ObjectMatchers) UnmarshalJSON(data []byte) error {
+	var rawMatchers [][3]string
+	if err := json.Unmarshal(data, &rawMatchers); err != nil {
+		return err
+	}
+	for _, rawMatcher := range rawMatchers {
+		var matchType labels.MatchType
+		switch rawMatcher[1] {
+		case "=":
+			matchType = labels.MatchEqual
+		case "!=":
+			matchType = labels.MatchNotEqual
+		case "=~":
+			matchType = labels.MatchRegexp
+		case "!~":
+			matchType = labels.MatchNotRegexp
+		default:
+			return fmt.Errorf("unsupported match type %q in matcher", rawMatcher[1])
+		}
+
+		rawMatcher[2] = strings.TrimPrefix(rawMatcher[2], "\"")
+		rawMatcher[2] = strings.TrimSuffix(rawMatcher[2], "\"")
+
+		matcher, err := labels.NewMatcher(matchType, rawMatcher[0], rawMatcher[2])
+		if err != nil {
+			return err
+		}
+		*m = append(*m, matcher)
+	}
+	sort.Sort(labels.Matchers(*m))
+	return nil
+}
+
+// MarshalYAML implements the yaml.Marshaler interface for Matchers.
+func (m ObjectMatchers) MarshalYAML() (interface{}, error) {
+	result := make([][3]string, len(m))
+	for i, matcher := range m {
+		result[i] = [3]string{matcher.Name, matcher.Type.String(), matcher.Value}
+	}
+	return result, nil
+}
+
+// MarshalJSON implements the json.Marshaler interface for Matchers.
+func (m ObjectMatchers) MarshalJSON() ([]byte, error) {
+	if len(m) == 0 {
+		return nil, nil
+	}
+	result := make([][3]string, len(m))
+	for i, matcher := range m {
+		result[i] = [3]string{matcher.Name, matcher.Type.String(), matcher.Value}
+	}
+	return json.Marshal(result)
 }

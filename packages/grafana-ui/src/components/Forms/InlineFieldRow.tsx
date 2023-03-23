@@ -1,7 +1,9 @@
-import React, { FC, HTMLProps, ReactNode } from 'react';
 import { css, cx } from '@emotion/css';
-import { useStyles } from '../../themes';
+import React, { FC, HTMLProps, ReactNode } from 'react';
+
 import { GrafanaTheme } from '@grafana/data';
+
+import { useStyles } from '../../themes';
 
 export interface Props extends Omit<HTMLProps<HTMLDivElement>, 'css'> {
   children: ReactNode | ReactNode[];
@@ -24,6 +26,7 @@ const getStyles = (theme: GrafanaTheme) => {
       flex-direction: row;
       flex-wrap: wrap;
       align-content: flex-start;
+      row-gap: ${theme.spacing.xs};
     `,
   };
 };

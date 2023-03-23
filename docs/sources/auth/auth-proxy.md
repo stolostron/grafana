@@ -1,10 +1,15 @@
-+++
-title = "Auth Proxy"
-description = "Grafana Auth Proxy Guide "
-keywords = ["grafana", "configuration", "documentation", "proxy"]
-aliases = ["/docs/grafana/latest/tutorials/authproxy/"]
-weight = 200
-+++
+---
+aliases:
+  - ../tutorials/authproxy/
+description: 'Grafana Auth Proxy Guide '
+keywords:
+  - grafana
+  - configuration
+  - documentation
+  - proxy
+title: Auth Proxy
+weight: 200
+---
 
 # Auth Proxy Authentication
 
@@ -32,6 +37,8 @@ whitelist =
 # Optionally define more headers to sync other user attributes
 # Example `headers = Name:X-WEBAUTH-NAME Role:X-WEBAUTH-ROLE Email:X-WEBAUTH-EMAIL Groups:X-WEBAUTH-GROUPS`
 headers =
+# Non-ASCII strings in header values are encoded using quoted-printable encoding
+;headers_encoded = false
 # Check out docs on this for more details on the below setting
 enable_login_token = false
 ```

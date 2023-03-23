@@ -2,6 +2,7 @@ import { FieldConfigOptionsRegistry } from '../field/FieldConfigOptionsRegistry'
 import { standardFieldConfigEditorRegistry } from '../field/standardFieldConfigEditorRegistry';
 import { FieldConfigProperty, FieldConfigPropertyItem } from '../types/fieldOverrides';
 import { FieldConfigEditorBuilder } from '../utils/OptionsUIBuilders';
+
 import { SetFieldConfigOptionsArgs } from './PanelPlugin';
 
 /**
@@ -72,6 +73,13 @@ export function createFieldConfigRegistry<TFieldConfigOptions>(
       for (let extensionProperty of standardOptionsExtensions[fieldConfigProp.category[0]]) {
         registry.register(extensionProperty);
       }
+    }
+  }
+
+  // assert that field configs do not use array path syntax
+  for (const item of registry.list()) {
+    if (item.path.indexOf('[') > 0) {
+      throw new Error(`[${pluginName}] Field config paths do not support arrays: ${item.id}`);
     }
   }
 

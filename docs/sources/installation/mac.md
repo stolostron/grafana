@@ -1,9 +1,15 @@
-+++
-title = "Install on macOS"
-description = "Installing Grafana on macOS"
-keywords = ["grafana", "configuration", "documentation", "mac", "homebrew", "osx"]
-weight = 500
-+++
+---
+description: Installing Grafana on macOS
+keywords:
+  - grafana
+  - configuration
+  - documentation
+  - mac
+  - homebrew
+  - osx
+title: Install on macOS
+weight: 500
+---
 
 # Install on macOS
 
@@ -23,7 +29,10 @@ Use [Homebrew](http://brew.sh/) to install the most recent released version of G
    brew install grafana
    ```
 
-   The brew page downloads and untars the files into `/usr/local/Cellar/grafana/version`.
+   The brew page downloads and untars the files into:
+
+   - `/usr/local/Cellar/grafana/[version]` (Homebrew v2)
+   - `/opt/homebrew/Cellar/grafana/[version]` (Homebrew v3)
 
 1. Start Grafana using the command:
    ```bash
