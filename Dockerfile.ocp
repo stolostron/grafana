@@ -28,6 +28,7 @@ COPY public/app/plugins public/app/plugins/
 COPY pkg pkg/
 COPY scripts scripts/
 COPY conf conf/
+COPY .github .github/
 
 RUN make gen-go
 
