@@ -1,18 +1,32 @@
 # Golang build container
-FROM registry.ci.openshift.org/stolostron/builder:go1.18-linux AS builder
+FROM registry.ci.openshift.org/stolostron/builder:go1.19-linux AS builder
 
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 ENV GOFLAGS="-mod=mod"
 
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn .yarn
+COPY packages packages
+COPY plugins-bundled plugins-bundled
+
+COPY tsconfig.json .eslintrc .editorconfig .browserslistrc .prettierrc.js babel.config.json .linguirc ./
+COPY public public
+COPY scripts scripts
+COPY emails emails
+
+COPY go.* ./
+COPY .bingo .bingo
+
 COPY .git/ ./.git/
-COPY go.mod go.sum embed.go Makefile build.go package.json ./
+
+COPY embed.go Makefile build.go package.json ./
 COPY cue cue/
+COPY cue.mod cue.mod
 COPY packages/grafana-schema packages/grafana-schema/
 COPY public/app/plugins public/app/plugins/
 COPY pkg pkg/
 COPY scripts scripts/
-COPY cue.mod cue.mod/
-COPY .bingo .bingo
+COPY conf conf/
 
 RUN make gen-go
 
