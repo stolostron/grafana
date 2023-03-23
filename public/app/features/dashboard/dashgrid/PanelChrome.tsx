@@ -1,6 +1,7 @@
 import classNames from 'classnames';
 import React, { PureComponent } from 'react';
 import { Subscription } from 'rxjs';
+
 import {
   AbsoluteTimeRange,
   AnnotationChangeEvent,

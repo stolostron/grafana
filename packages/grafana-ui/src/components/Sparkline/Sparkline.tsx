@@ -1,6 +1,7 @@
 import { isEqual } from 'lodash';
 import React, { PureComponent } from 'react';
 import { AlignedData, Range } from 'uplot';
+
 import {
   compareDataFrameStructures,
   DataFrame,

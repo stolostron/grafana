@@ -201,9 +201,6 @@ const getStyles = (theme: GrafanaTheme) => {
     rowChild: css`
       margin: 0 ${theme.spacing.sm} 0 0;
     `,
-    tooltip: css`
-      margin: 0 ${theme.spacing.xs};
-    `,
     clearButton: css`
       margin-top: ${theme.spacing.sm};
     `,

@@ -35,8 +35,6 @@ To access Loki settings, click the **Configuration** (gear) icon, then click **D
 
 > **Note:** To troubleshoot configuration and other issues, check the log file located at /var/log/grafana/grafana.log on Unix systems or in <grafana_install_dir>/data/log on other platforms and manual installations.
 
-> **Note:** To troubleshoot configuration and other issues, check the log file located at /var/log/grafana/grafana.log on Unix systems or in <grafana_install_dir>/data/log on other platforms and manual installations.
-
 ### Derived fields
 
 The Derived Fields configuration allows you to:

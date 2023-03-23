@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil" //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"net/http"
 	"net/url"
 	"os"

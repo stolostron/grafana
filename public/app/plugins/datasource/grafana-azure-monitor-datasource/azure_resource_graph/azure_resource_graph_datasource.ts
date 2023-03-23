@@ -8,6 +8,9 @@ import { interpolateVariable } from '../utils/common';
 import { AzureMonitorQuery, AzureDataSourceJsonData, AzureQueryType } from '../types';
 import { interpolateVariable } from '../utils/common';
 
+import { AzureMonitorQuery, AzureDataSourceJsonData, AzureQueryType } from '../types';
+import { interpolateVariable } from '../utils/common';
+
 export default class AzureResourceGraphDatasource extends DataSourceWithBackend<
   AzureMonitorQuery,
   AzureDataSourceJsonData

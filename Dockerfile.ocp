@@ -4,6 +4,21 @@ FROM registry.ci.openshift.org/stolostron/builder:go1.18-linux AS builder
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 ENV GOFLAGS="-mod=mod"
 
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn .yarn
+COPY packages packages
+COPY plugins-bundled plugins-bundled
+
+RUN yarn install
+
+COPY tsconfig.json .eslintrc .editorconfig .browserslistrc .prettierrc.js babel.config.json .linguirc ./
+COPY public public
+COPY tools tools
+COPY scripts scripts
+COPY emails emails
+
+RUN yarn build
+
 COPY .git/ ./.git/
 COPY go.mod go.sum embed.go Makefile build.go package.json ./
 COPY cue cue/

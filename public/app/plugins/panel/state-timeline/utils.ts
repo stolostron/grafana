@@ -41,6 +41,11 @@ import { preparePlotData2, getStackingGroups } from '../../../../../packages/gra
 import { getConfig, TimelineCoreOptions } from './timeline';
 import { TimelineFieldConfig, TimelineOptions } from './types';
 
+import { preparePlotData2, getStackingGroups } from '../../../../../packages/grafana-ui/src/components/uPlot/utils';
+
+import { getConfig, TimelineCoreOptions } from './timeline';
+import { TimelineFieldConfig, TimelineOptions } from './types';
+
 const defaultConfig: TimelineFieldConfig = {
   lineWidth: 0,
   fillOpacity: 80,

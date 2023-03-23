@@ -118,18 +118,6 @@ export class LokiQueryField extends React.PureComponent<LokiQueryFieldProps, Lok
     }
   }
 
-  componentDidUpdate(prevProps: LokiQueryFieldProps) {
-    const {
-      range,
-      datasource: { languageProvider },
-    } = this.props;
-    const refreshLabels = shouldRefreshLabels(range, prevProps.range);
-    // We want to refresh labels when range changes (we round up intervals to a minute)
-    if (refreshLabels) {
-      languageProvider.fetchLabels();
-    }
-  }
-
   onChangeLabelBrowser = (selector: string) => {
     this.onChangeQuery(selector, true);
     this.setState({ labelBrowserVisible: false });

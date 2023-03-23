@@ -25,10 +25,6 @@ This topic also contains important information about [migrating from earlier Doc
 
 > **Note:** You can use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-logs) to avoid the overhead of installing, maintaining, and scaling your observability stack. The free forever plan includes Grafana, 10K Prometheus series, 50 GB logs, and more.[Create a free account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-grafana-install&plcmt=in-text).
 
-## Hosted Grafana
-
-You can run Grafana on your own hardware or use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-dashboards-grafana) and get Grafana without the overhead of installing, maintaining, and scaling your observability stack. The free forever plan includes Grafana, 10K Prometheus series, 50 GB logs and more. [Create a free account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-grafana-docker&plcmt=in-text).
-
 ## Alpine image (recommended)
 
 **Grafana Enterprise edition**: `grafana/grafana-enterprise:<version>`

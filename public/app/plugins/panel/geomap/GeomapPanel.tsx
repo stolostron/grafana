@@ -24,6 +24,7 @@ import {
   DataHoverEvent,
   DataFrame,
   FrameGeometrySourceMode,
+  textUtil,
 } from '@grafana/data';
 import { config } from '@grafana/runtime';
 import { PanelContext, PanelContextRoot, stylesFactory } from '@grafana/ui';
@@ -321,12 +322,7 @@ export class GeomapPanel extends Component<Props, State> {
         selected: layers.length - 1, // the top layer
         actions: this.actions,
       });
-
-      if (handler.legend) {
-        legends.push(<div key={`${this.counter++}`}>{handler.legend}</div>);
-      }
     }
-    this.setState({ bottomLeft: legends });
 
     this.setState({ legends: this.getLegends() });
   };
@@ -493,6 +489,10 @@ export class GeomapPanel extends Component<Props, State> {
     const item = geomapLayerRegistry.getIfExists(options.type);
     if (!item) {
       return Promise.reject('unknown layer: ' + options.type);
+    }
+
+    if (options.config?.attribution) {
+      options.config.attribution = textUtil.sanitizeTextPanelContent(options.config.attribution);
     }
 
     const handler = await item.create(map, options, config.theme2);

@@ -159,8 +159,6 @@ compilation-stats.json
 
 # auto generated Go files
 *_gen.go
-!pkg/server/wire_gen.go
-!pkg/cmd/grafana-cli/runner/wire_gen.go
 !pkg/services/featuremgmt/toggles_gen.go
 
 # Auto-generated localisation files
