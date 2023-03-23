@@ -29,7 +29,7 @@ COPY pkg pkg/
 COPY scripts scripts/
 COPY conf conf/
 
-RUN make gen-go
+# RUN make gen-go
 
 RUN go mod verify
 RUN go run build.go build
