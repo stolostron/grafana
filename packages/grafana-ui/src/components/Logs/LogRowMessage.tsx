@@ -7,6 +7,8 @@ import tinycolor from 'tinycolor2';
 
 import { LogRowModel, findHighlightChunksInText, GrafanaTheme2 } from '@grafana/data';
 
+// @ts-ignore
+
 import { withTheme2 } from '../../themes/index';
 import { Themeable2 } from '../../types/theme';
 
@@ -14,6 +16,8 @@ import { LogMessageAnsi } from './LogMessageAnsi';
 import { LogRowContext } from './LogRowContext';
 import { LogRowContextQueryErrors, HasMoreContextRows, LogRowContextRows } from './LogRowContextProvider';
 import { getLogRowStyles } from './getLogRowStyles';
+
+//Components
 
 export const MAX_CHARACTERS = 100000;
 
@@ -116,8 +120,6 @@ class UnThemedLogRowMessage extends PureComponent<Props> {
     const style = getLogRowStyles(theme, row.logLevel);
     const { hasAnsi, raw } = row;
     const restructuredEntry = restructureLog(raw, prettifyLogMessage);
-
-    const highlightClassName = cx([style.logsRowMatchHighLight]);
     const styles = getStyles(theme);
 
     return (
@@ -141,7 +143,7 @@ class UnThemedLogRowMessage extends PureComponent<Props> {
             />
           )}
           <span className={cx(styles.positionRelative, { [styles.rowWithContext]: contextIsOpen })}>
-            {renderLogMessage(hasAnsi, restructuredEntry, row.searchWords, highlightClassName)}
+            {renderLogMessage(hasAnsi, restructuredEntry, row.searchWords, style.logsRowMatchHighLight)}
           </span>
           {showContextToggle?.(row) && (
             <span

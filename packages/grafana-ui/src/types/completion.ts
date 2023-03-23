@@ -1,5 +1,4 @@
-import { Value } from 'slate';
-import { Editor } from 'slate-react';
+import { Value, Editor as CoreEditor } from 'slate';
 
 import { SearchFunctionType } from '../utils';
 

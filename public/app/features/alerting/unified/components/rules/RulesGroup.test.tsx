@@ -8,7 +8,7 @@ import { contextSrv } from 'app/core/services/context_srv';
 import { configureStore } from 'app/store/configureStore';
 import { CombinedRuleGroup, CombinedRuleNamespace } from 'app/types/unified-alerting';
 
-import { mockCombinedRule, mockDataSource } from '../../mocks';
+import { disableRBAC, mockCombinedRule, mockDataSource } from '../../mocks';
 
 import { RulesGroup } from './RulesGroup';
 
@@ -79,6 +79,8 @@ describe('Rules group tests', () => {
       groups: [group],
     };
 
+    disableRBAC();
+
     it('When ruler enabled should display delete and edit group buttons', () => {
       // Arrange
       hasRulerMock.mockReturnValue(true);
@@ -105,13 +107,13 @@ describe('Rules group tests', () => {
       expect(ui.editGroupButton.query()).not.toBeInTheDocument();
     });
 
-    it('Delete button click should display confirmation modal', () => {
+    it('Delete button click should display confirmation modal', async () => {
       // Arrange
       hasRulerMock.mockReturnValue(true);
 
       // Act
       renderRulesGroup(namespace, group);
-      userEvent.click(ui.deleteGroupButton.get());
+      await userEvent.click(ui.deleteGroupButton.get());
 
       // Assert
       expect(ui.confirmDeleteModal.header.get()).toBeInTheDocument();

@@ -49,12 +49,6 @@ const (
 	ApplicationName  = "Grafana"
 )
 
-// This constant corresponds to the default value for ldap_sync_ttl in .ini files
-// it is used for comparison and has to be kept in sync
-const (
-	authProxySyncTTL = 60
-)
-
 // zoneInfo names environment variable for setting the path to look for the timezone database in go
 const zoneInfo = "ZONEINFO"
 
@@ -442,6 +436,15 @@ type Cfg struct {
 
 	// Query history
 	QueryHistoryEnabled bool
+
+	DashboardPreviews DashboardPreviewsSettings
+
+	// Access Control
+	RBACEnabled         bool
+	RBACPermissionCache bool
+	// Undocumented option as a backup in case removing builtin-role assignment
+	// fails
+	RBACBuiltInRoleAssignmentEnabled bool
 }
 
 type CommandLineArgs struct {
@@ -924,6 +927,7 @@ func (cfg *Cfg) Load(args CommandLineArgs) error {
 	if err := readAuthSettings(iniFile, cfg); err != nil {
 		return err
 	}
+	readAccessControlSettings(iniFile, cfg)
 	if err := cfg.readRenderingSettings(iniFile); err != nil {
 		return err
 	}
@@ -1004,6 +1008,8 @@ func (cfg *Cfg) Load(args CommandLineArgs) error {
 	}
 
 	cfg.readDataSourcesSettings()
+
+	cfg.DashboardPreviews = readDashboardPreviewsSettings(iniFile)
 
 	if VerifyEmailEnabled && !cfg.Smtp.Enabled {
 		cfg.Logger.Warn("require_email_validation is enabled but smtp is disabled")
@@ -1241,27 +1247,16 @@ func readAuthSettings(iniFile *ini.File, cfg *Cfg) (err error) {
 	auth := iniFile.Section("auth")
 
 	cfg.LoginCookieName = valueAsString(auth, "login_cookie_name", "grafana_session")
-	maxInactiveDaysVal := auth.Key("login_maximum_inactive_lifetime_days").MustString("")
-	if maxInactiveDaysVal != "" {
-		maxInactiveDaysVal = fmt.Sprintf("%sd", maxInactiveDaysVal)
-		cfg.Logger.Warn("[Deprecated] the configuration setting 'login_maximum_inactive_lifetime_days' is deprecated, please use 'login_maximum_inactive_lifetime_duration' instead")
-	} else {
-		maxInactiveDaysVal = "7d"
-	}
-	maxInactiveDurationVal := valueAsString(auth, "login_maximum_inactive_lifetime_duration", maxInactiveDaysVal)
+
+	const defaultMaxInactiveLifetime = "7d"
+	maxInactiveDurationVal := valueAsString(auth, "login_maximum_inactive_lifetime_duration", defaultMaxInactiveLifetime)
 	cfg.LoginMaxInactiveLifetime, err = gtime.ParseDuration(maxInactiveDurationVal)
 	if err != nil {
 		return err
 	}
 
-	maxLifetimeDaysVal := auth.Key("login_maximum_lifetime_days").MustString("")
-	if maxLifetimeDaysVal != "" {
-		maxLifetimeDaysVal = fmt.Sprintf("%sd", maxLifetimeDaysVal)
-		cfg.Logger.Warn("[Deprecated] the configuration setting 'login_maximum_lifetime_days' is deprecated, please use 'login_maximum_lifetime_duration' instead")
-	} else {
-		maxLifetimeDaysVal = "30d"
-	}
-	maxLifetimeDurationVal := valueAsString(auth, "login_maximum_lifetime_duration", maxLifetimeDaysVal)
+	const defaultMaxLifetime = "30d"
+	maxLifetimeDurationVal := valueAsString(auth, "login_maximum_lifetime_duration", defaultMaxLifetime)
 	cfg.LoginMaxLifetime, err = gtime.ParseDuration(maxLifetimeDurationVal)
 	if err != nil {
 		return err
@@ -1321,15 +1316,7 @@ func readAuthSettings(iniFile *ini.File, cfg *Cfg) (err error) {
 	cfg.AuthProxyAutoSignUp = authProxy.Key("auto_sign_up").MustBool(true)
 	cfg.AuthProxyEnableLoginToken = authProxy.Key("enable_login_token").MustBool(false)
 
-	ldapSyncVal := authProxy.Key("ldap_sync_ttl").MustInt()
-	syncVal := authProxy.Key("sync_ttl").MustInt()
-
-	if ldapSyncVal != authProxySyncTTL {
-		cfg.AuthProxySyncTTL = ldapSyncVal
-		cfg.Logger.Warn("[Deprecated] the configuration setting 'ldap_sync_ttl' is deprecated, please use 'sync_ttl' instead")
-	} else {
-		cfg.AuthProxySyncTTL = syncVal
-	}
+	cfg.AuthProxySyncTTL = authProxy.Key("sync_ttl").MustInt()
 
 	cfg.AuthProxyWhitelist = valueAsString(authProxy, "whitelist", "")
 
@@ -1346,6 +1333,13 @@ func readAuthSettings(iniFile *ini.File, cfg *Cfg) (err error) {
 	cfg.AuthProxyHeadersEncoded = authProxy.Key("headers_encoded").MustBool(false)
 
 	return nil
+}
+
+func readAccessControlSettings(iniFile *ini.File, cfg *Cfg) {
+	rbac := iniFile.Section("rbac")
+	cfg.RBACEnabled = rbac.Key("enabled").MustBool(true)
+	cfg.RBACPermissionCache = rbac.Key("permission_cache").MustBool(true)
+	cfg.RBACBuiltInRoleAssignmentEnabled = rbac.Key("builtin_role_assignment_enabled").MustBool(false)
 }
 
 func readUserSettings(iniFile *ini.File, cfg *Cfg) error {

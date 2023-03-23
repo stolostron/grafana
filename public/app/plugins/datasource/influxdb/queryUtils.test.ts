@@ -1,4 +1,5 @@
 import { cloneDeep } from 'lodash';
+
 import { buildRawQuery, normalizeQuery, changeSelectPart, changeGroupByPart } from './queryUtils';
 import { InfluxQuery } from './types';
 

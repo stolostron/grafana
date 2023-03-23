@@ -119,7 +119,7 @@ export function flotToGraphOptions(angular: any): { fieldConfig: FieldConfigSour
       if (!seriesOverride.alias) {
         continue; // the matcher config
       }
-      const aliasIsRegex = seriesOverride.alias.startsWith('/') && seriesOverride.alias.endsWith('/');
+      const aliasIsRegex = /^([/~@;%#'])(.*?)\1([gimsuy]*)$/.test(seriesOverride.alias);
       const rule: ConfigOverrideRule = {
         matcher: {
           id: aliasIsRegex ? FieldMatcherID.byRegexp : FieldMatcherID.byName,
@@ -348,6 +348,26 @@ export function flotToGraphOptions(angular: any): { fieldConfig: FieldConfigSour
 
     if (angular.legend.sideWidth) {
       options.legend.width = angular.legend.sideWidth;
+    }
+  }
+
+  const tooltipConfig = angular.tooltip;
+  if (tooltipConfig) {
+    if (tooltipConfig.shared !== undefined) {
+      options.tooltip.mode = tooltipConfig.shared ? TooltipDisplayMode.Multi : TooltipDisplayMode.Single;
+    }
+
+    if (tooltipConfig.sort !== undefined && tooltipConfig.shared) {
+      switch (tooltipConfig.sort) {
+        case 1:
+          options.tooltip.sort = SortOrder.Ascending;
+          break;
+        case 2:
+          options.tooltip.sort = SortOrder.Descending;
+          break;
+        default:
+          options.tooltip.sort = SortOrder.None;
+      }
     }
   }
 

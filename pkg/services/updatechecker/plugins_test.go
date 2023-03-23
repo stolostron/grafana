@@ -2,7 +2,7 @@ package updatechecker
 
 import (
 	"context"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"
@@ -154,7 +154,7 @@ func TestPluginUpdateChecker_checkForUpdates(t *testing.T) {
 			httpClient: &fakeHTTPClient{
 				fakeResp: jsonResp,
 			},
-			log: &fakeLogger{},
+			log: log.NewNopLogger(),
 		}
 
 		svc.checkForUpdates(context.Background())
@@ -215,11 +215,3 @@ func (pr fakePluginStore) Plugins(_ context.Context, _ ...plugins.Type) []plugin
 	}
 	return result
 }
-
-type fakeLogger struct {
-	log.Logger
-}
-
-func (l *fakeLogger) Debug(_ string, _ ...interface{}) {}
-
-func (l *fakeLogger) Warn(_ string, _ ...interface{}) {}

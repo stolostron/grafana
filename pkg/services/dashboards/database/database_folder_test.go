@@ -14,7 +14,7 @@ import (
 	"github.com/grafana/grafana/pkg/services/sqlstore"
 )
 
-func TestDashboardFolderDataAccess(t *testing.T) {
+func TestIntegrationDashboardFolderDataAccess(t *testing.T) {
 	t.Run("Testing DB", func(t *testing.T) {
 		var sqlStore *sqlstore.SQLStore
 		var folder, dashInRoot, childDash *models.Dashboard
@@ -23,6 +23,7 @@ func TestDashboardFolderDataAccess(t *testing.T) {
 
 		setup := func() {
 			sqlStore = sqlstore.InitTestDB(t)
+			sqlStore.Cfg.RBACEnabled = false
 			dashboardStore = ProvideDashboardStore(sqlStore)
 			folder = insertTestDashboard(t, dashboardStore, "1 test dash folder", 1, 0, true, "prod", "webapp")
 			dashInRoot = insertTestDashboard(t, dashboardStore, "test dash 67", 1, 0, false, "prod", "webapp")
@@ -337,10 +338,10 @@ func TestDashboardFolderDataAccess(t *testing.T) {
 				})
 
 				t.Run("should have admin permission in folders", func(t *testing.T) {
-					query := &models.HasAdminPermissionInDashboardsOrFoldersQuery{
+					query := &models.HasAdminPermissionInFoldersQuery{
 						SignedInUser: &models.SignedInUser{UserId: adminUser.Id, OrgId: 1, OrgRole: models.ROLE_ADMIN},
 					}
-					err := sqlStore.HasAdminPermissionInDashboardsOrFolders(context.Background(), query)
+					err := sqlStore.HasAdminPermissionInFolders(context.Background(), query)
 					require.NoError(t, err)
 					require.True(t, query.Result)
 				})
@@ -403,10 +404,10 @@ func TestDashboardFolderDataAccess(t *testing.T) {
 				})
 
 				t.Run("should not have admin permission in folders", func(t *testing.T) {
-					query := &models.HasAdminPermissionInDashboardsOrFoldersQuery{
+					query := &models.HasAdminPermissionInFoldersQuery{
 						SignedInUser: &models.SignedInUser{UserId: adminUser.Id, OrgId: 1, OrgRole: models.ROLE_EDITOR},
 					}
-					err := sqlStore.HasAdminPermissionInDashboardsOrFolders(context.Background(), query)
+					err := sqlStore.HasAdminPermissionInFolders(context.Background(), query)
 					require.NoError(t, err)
 					require.False(t, query.Result)
 				})
@@ -471,10 +472,10 @@ func TestDashboardFolderDataAccess(t *testing.T) {
 				})
 
 				t.Run("should not have admin permission in folders", func(t *testing.T) {
-					query := &models.HasAdminPermissionInDashboardsOrFoldersQuery{
+					query := &models.HasAdminPermissionInFoldersQuery{
 						SignedInUser: &models.SignedInUser{UserId: adminUser.Id, OrgId: 1, OrgRole: models.ROLE_VIEWER},
 					}
-					err := sqlStore.HasAdminPermissionInDashboardsOrFolders(context.Background(), query)
+					err := sqlStore.HasAdminPermissionInFolders(context.Background(), query)
 					require.NoError(t, err)
 					require.False(t, query.Result)
 				})

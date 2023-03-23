@@ -2,12 +2,11 @@ import React, { FC, useMemo } from 'react';
 
 import { useStyles2 } from '@grafana/ui';
 import { AlertLabel } from 'app/features/alerting/unified/components/AlertLabel';
-import { Alert, PromRuleWithLocation } from 'app/types/unified-alerting';
+import { PromRuleWithLocation } from 'app/types/unified-alerting';
 
 import { AlertInstances } from '../AlertInstances';
 import { getStyles } from '../UnifiedAlertList';
 import { GroupedRules, UnifiedAlertListOptions } from '../types';
-import { filterAlerts } from '../util';
 
 type GroupedModeProps = {
   rules: PromRuleWithLocation[];
@@ -20,7 +19,7 @@ const GroupedModeView: FC<GroupedModeProps> = ({ rules, options }) => {
   const groupBy = options.groupBy;
 
   const groupedRules = useMemo<GroupedRules>(() => {
-    const groupedRules = new Map<string, Alert[]>();
+    const groupedRules = new Map();
 
     const hasInstancesWithMatchingLabels = (rule: PromRuleWithLocation) =>
       groupBy ? alertHasEveryLabel(rule, groupBy) : true;
@@ -34,19 +33,8 @@ const GroupedModeView: FC<GroupedModeProps> = ({ rules, options }) => {
       });
     });
 
-    // Remove groups having no instances
-    // This is different from filtering Rules without instances that we do in UnifiedAlertList
-    const filteredGroupedRules = Array.from(groupedRules.entries()).reduce((acc, [groupKey, groupAlerts]) => {
-      const filteredAlerts = filterAlerts(options, groupAlerts);
-      if (filteredAlerts.length > 0) {
-        acc.set(groupKey, filteredAlerts);
-      }
-
-      return acc;
-    }, new Map<string, Alert[]>());
-
-    return filteredGroupedRules;
-  }, [groupBy, rules, options]);
+    return groupedRules;
+  }, [groupBy, rules]);
 
   return (
     <>

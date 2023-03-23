@@ -1,5 +1,6 @@
 ---
 aliases:
+  - /docs/grafana/latest/panels/working-with-panels/organize-dashboard/
   - /docs/sources/panels/working-with-panels/organize-dashboard/
 title: Organize a dashboard
 weight: 80
@@ -18,7 +19,7 @@ You can place any panel in any location you want and controls its size. The chan
 
 1. Hover your cursor over the panel, and click-and-drag the panel to its new location.
 
-1. To resize a panel, click the zoom in (+) and zoom out (-) icons.
+1. To resize a penal, click the zoom in (+) and zoom out (-) icons.
 
 ![](/static/img/docs/animated_gifs/drag_drop.gif)
 

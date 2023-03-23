@@ -1,5 +1,4 @@
 import * as emotion from '@emotion/css';
-import * as emotionReact from '@emotion/react';
 import * as d3 from 'd3';
 import jquery from 'jquery';
 import _ from 'lodash'; // eslint-disable-line lodash/import-scope
@@ -14,10 +13,10 @@ import * as rxjs from 'rxjs';
 import * as rxjsOperators from 'rxjs/operators';
 import slate from 'slate';
 import slatePlain from 'slate-plain-serializer';
-import slateReact from 'slate-react';
 
 import * as grafanaData from '@grafana/data';
 import * as grafanaRuntime from '@grafana/runtime';
+import slateReact from '@grafana/slate-react';
 import * as grafanaUIraw from '@grafana/ui';
 import config from 'app/core/config';
 import { appEvents, contextSrv } from 'app/core/core';

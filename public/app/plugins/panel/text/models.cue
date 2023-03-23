@@ -26,7 +26,7 @@ Panel: {
 
                     For markdown syntax help: [commonmark.org/help](https://commonmark.org/help/)
                     """
-                }
+                } @cuetsy(kind="interface")
             }
         ]
     ]

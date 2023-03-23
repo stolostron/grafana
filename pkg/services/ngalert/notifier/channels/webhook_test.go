@@ -281,7 +281,7 @@ func TestWebhookNotifier(t *testing.T) {
 			ctx := notify.WithGroupKey(context.Background(), "alertname")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"alertname": ""})
 			ctx = notify.WithReceiverName(ctx, "my_receiver")
-			pn := NewWebHookNotifier(cfg, webhookSender, tmpl)
+			pn := NewWebHookNotifier(cfg, webhookSender, &UnavailableImageStore{}, tmpl)
 			ok, err := pn.Notify(ctx, c.alerts...)
 			if c.expMsgError != nil {
 				require.False(t, ok)
@@ -300,7 +300,6 @@ func TestWebhookNotifier(t *testing.T) {
 			require.Equal(t, c.expUsername, webhookSender.Webhook.User)
 			require.Equal(t, c.expPassword, webhookSender.Webhook.Password)
 			require.Equal(t, c.expHttpMethod, webhookSender.Webhook.HttpMethod)
-			require.Equal(t, c.expHeaders, webhookSender.Webhook.HttpHeader)
 		})
 	}
 }

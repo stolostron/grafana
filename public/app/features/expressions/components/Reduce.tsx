@@ -75,7 +75,7 @@ export const Reduce: FC<Props> = ({ labelWidth, onChange, refIds, query }) => {
         <Select menuShouldPortal onChange={onRefIdChange} options={refIds} value={query.expression} width={20} />
       </InlineField>
       <InlineField label="Mode" labelWidth={labelWidth}>
-        <Select menuShouldPortal onChange={onModeChanged} options={reducerMode} value={mode} width={25} />
+        <Select onChange={onModeChanged} options={reducerMode} value={mode} width={25} />
       </InlineField>
       {replaceWithNumber()}
     </InlineFieldRow>

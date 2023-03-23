@@ -1,6 +1,7 @@
 import { isEqual } from 'lodash';
 import React, { PureComponent } from 'react';
 import { AlignedData, Range } from 'uplot';
+
 import {
   compareDataFrameStructures,
   DataFrame,
@@ -45,6 +46,7 @@ const defaultConfig: GraphFieldConfig = {
   axisPlacement: AxisPlacement.Hidden,
 };
 
+/** @internal */
 export class Sparkline extends PureComponent<SparklineProps, State> {
   constructor(props: SparklineProps) {
     super(props);

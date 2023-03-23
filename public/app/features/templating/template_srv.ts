@@ -161,7 +161,16 @@ export class TemplateSrv implements BaseTemplateSrv {
       const options: FormatOptions = { value, args, text: text ?? value };
       value = formatItem.formatter(options, variable);
     }
-    return value;
+
+    let formatItem = formatRegistry.getIfExists(format);
+
+    if (!formatItem) {
+      console.error(`Variable format ${format} not found. Using glob format as fallback.`);
+      formatItem = formatRegistry.get(FormatRegistryID.glob);
+    }
+
+    const options: FormatOptions = { value, args, text: text ?? value };
+    return formatItem.formatter(options, variable);
   }
 
   setGrafanaVariable(name: string, value: any) {

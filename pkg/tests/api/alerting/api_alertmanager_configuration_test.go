@@ -3,7 +3,7 @@ package alerting
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"net/http"
 	"regexp"
 	"testing"

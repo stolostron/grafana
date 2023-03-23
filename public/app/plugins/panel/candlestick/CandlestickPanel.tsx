@@ -46,9 +46,7 @@ export const CandlestickPanel: React.FC<CandlestickPanelProps> = ({
 
   const theme = useTheme2();
 
-  const info = useMemo(() => {
-    return prepareCandlestickFields(data?.series, options, theme, timeRange);
-  }, [data, options, theme, timeRange]);
+  const info = useMemo(() => prepareCandlestickFields(data?.series, options, theme), [data, options, theme]);
 
   const { renderers, tweakScale, tweakAxis } = useMemo(() => {
     let tweakScale = (opts: ScaleProps, forField: Field) => opts;
@@ -215,7 +213,15 @@ export const CandlestickPanel: React.FC<CandlestickPanelProps> = ({
   }, [options, data.structureRev]);
 
   if (!info) {
-    return <PanelDataErrorView panelId={id} data={data} needsTimeField={true} needsNumberField={true} />;
+    return (
+      <PanelDataErrorView
+        panelId={id}
+        fieldConfig={fieldConfig}
+        data={data}
+        needsTimeField={true}
+        needsNumberField={true}
+      />
+    );
   }
 
   const enableAnnotationCreation = Boolean(canAddAnnotations && canAddAnnotations());

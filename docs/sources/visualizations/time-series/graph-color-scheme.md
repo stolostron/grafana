@@ -1,6 +1,7 @@
 ---
 aliases:
-  - ../../panels/visualizations/time-series/graph-color-scheme/
+  - /docs/grafana/latest/panels/visualizations/time-series/graph-color-scheme/
+  - /docs/grafana/latest/visualizations/time-series/graph-color-scheme/
 keywords:
   - grafana
   - time series panel
@@ -15,7 +16,7 @@ weight: 400
 
 # Graph and color schemes
 
-To set the graph and color schemes, refer to [Apply color to series and fields]({{< relref "../../panels/working-with-panels/apply-color-to-series.md" >}}).
+To set the graph and color schemes, refer to [Apply color to series and fields]({{< relref "../../panels/working-with-panels/apply-color-to-series/" >}}).
 
 ## Classic palette
 

@@ -1,13 +1,13 @@
 import { css, cx } from '@emotion/css';
 import classnames from 'classnames';
 import { debounce } from 'lodash';
-import React, { Context, PureComponent } from 'react';
-import { Value } from 'slate';
+import React, { Context } from 'react';
+import { Value, Editor as CoreEditor } from 'slate';
 import Plain from 'slate-plain-serializer';
-import { Editor, Plugin } from 'slate-react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
+import { Editor, Plugin } from '@grafana/slate-react';
 
 import {
   makeValue,
@@ -66,8 +66,8 @@ export interface QueryFieldState {
  * This component can only process strings. Internally it uses Slate Value.
  * Implement props.onTypeahead to use suggestions, see PromQueryField.tsx as an example.
  */
-export class UnThemedQueryField extends PureComponent<QueryFieldProps, QueryFieldState> {
-  plugins: Array<Plugin<Editor>>;
+export class UnThemedQueryField extends React.PureComponent<QueryFieldProps, QueryFieldState> {
+  plugins: Plugin[];
   runOnChangeDebounced: Function;
   lastExecutedValue: Value | null = null;
   mounted = false;

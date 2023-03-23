@@ -5,7 +5,11 @@ import { config } from '@grafana/runtime';
 import { alertInstanceKey } from 'app/features/alerting/unified/utils/rules';
 import { SortOrder } from 'app/plugins/panel/alertlist/types';
 import { Alert, CombinedRule, FilterState, RulesSource, SilenceFilterState } from 'app/types/unified-alerting';
-import { GrafanaAlertState, PromAlertingRuleState } from 'app/types/unified-alerting-dto';
+import {
+  GrafanaAlertState,
+  PromAlertingRuleState,
+  mapStateWithReasonToBaseState,
+} from 'app/types/unified-alerting-dto';
 
 import { ALERTMANAGER_NAME_QUERY_KEY } from './constants';
 import { getRulesSourceName } from './datasource';
@@ -126,7 +130,10 @@ const alertStateSortScore = {
 export function sortAlerts(sortOrder: SortOrder, alerts: Alert[]): Alert[] {
   // Make sure to handle tie-breaks because API returns alert instances in random order every time
   if (sortOrder === SortOrder.Importance) {
-    return sortBy(alerts, (alert) => [alertStateSortScore[alert.state], alertInstanceKey(alert).toLocaleLowerCase()]);
+    return sortBy(alerts, (alert) => [
+      alertStateSortScore[mapStateWithReasonToBaseState(alert.state)],
+      alertInstanceKey(alert).toLocaleLowerCase(),
+    ]);
   } else if (sortOrder === SortOrder.TimeAsc) {
     return sortBy(alerts, (alert) => [
       new Date(alert.activeAt) || new Date(),
@@ -144,22 +151,4 @@ export function sortAlerts(sortOrder: SortOrder, alerts: Alert[]): Alert[] {
   }
 
   return result;
-}
-
-// keep retrying fn if it's error passes shouldRetry(error) and timeout has not elapsed yet
-export function retryWhile<T, E = Error>(
-  fn: () => Promise<T>,
-  shouldRetry: (e: E) => boolean,
-  timeout: number, // milliseconds, how long to keep retrying
-  pause = 1000 // milliseconds, pause between retries
-): Promise<T> {
-  const start = new Date().getTime();
-  const makeAttempt = (): Promise<T> =>
-    fn().catch((e) => {
-      if (shouldRetry(e) && new Date().getTime() - start < timeout) {
-        return new Promise((resolve) => setTimeout(resolve, pause)).then(makeAttempt);
-      }
-      throw e;
-    });
-  return makeAttempt();
 }

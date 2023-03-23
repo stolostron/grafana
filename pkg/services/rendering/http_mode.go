@@ -28,8 +28,6 @@ var netClient = &http.Client{
 	Transport: netTransport,
 }
 
-const authTokenHeader = "X-Auth-Token" //#nosec G101 -- This is a false positive
-
 var (
 	remoteVersionFetchInterval   time.Duration = time.Second * 15
 	remoteVersionFetchRetries    uint          = 4
@@ -48,7 +46,8 @@ func (rs *RenderingService) renderViaHTTP(ctx context.Context, renderKey string,
 	}
 
 	queryParams := rendererURL.Query()
-	queryParams.Add("url", rs.getURL(opts.Path))
+	url := rs.getURL(opts.Path)
+	queryParams.Add("url", url)
 	queryParams.Add("renderKey", renderKey)
 	queryParams.Add("width", strconv.Itoa(opts.Width))
 	queryParams.Add("height", strconv.Itoa(opts.Height))
@@ -76,7 +75,7 @@ func (rs *RenderingService) renderViaHTTP(ctx context.Context, renderKey string,
 		}
 	}()
 
-	err = rs.readFileResponse(reqContext, resp, filePath)
+	err = rs.readFileResponse(reqContext, resp, filePath, url)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +95,8 @@ func (rs *RenderingService) renderCSVViaHTTP(ctx context.Context, renderKey stri
 	}
 
 	queryParams := rendererURL.Query()
-	queryParams.Add("url", rs.getURL(opts.Path))
+	url := rs.getURL(opts.Path)
+	queryParams.Add("url", url)
 	queryParams.Add("renderKey", renderKey)
 	queryParams.Add("domain", rs.domain)
 	queryParams.Add("timezone", isoTimeOffsetToPosixTz(opts.Timezone))
@@ -127,7 +127,7 @@ func (rs *RenderingService) renderCSVViaHTTP(ctx context.Context, renderKey stri
 	}
 	downloadFileName := params["filename"]
 
-	err = rs.readFileResponse(reqContext, resp, filePath)
+	err = rs.readFileResponse(reqContext, resp, filePath, url)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (rs *RenderingService) doRequest(ctx context.Context, url *url.URL, headers
 	return resp, nil
 }
 
-func (rs *RenderingService) readFileResponse(ctx context.Context, resp *http.Response, filePath string) error {
+func (rs *RenderingService) readFileResponse(ctx context.Context, resp *http.Response, filePath string, url string) error {
 	// check for timeout first
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		rs.log.Info("Rendering timed out")
@@ -168,7 +168,7 @@ func (rs *RenderingService) readFileResponse(ctx context.Context, resp *http.Res
 
 	// if we didn't get a 200 response, something went wrong.
 	if resp.StatusCode != http.StatusOK {
-		rs.log.Error("Remote rendering request failed", "error", resp.Status)
+		rs.log.Error("Remote rendering request failed", "error", resp.Status, "url", url)
 		return fmt.Errorf("remote rendering request failed, status code: %d, status: %s", resp.StatusCode,
 			resp.Status)
 	}

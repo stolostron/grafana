@@ -5,7 +5,6 @@ import { Form, Field, Input, Button, HorizontalGroup, LinkButton, FormAPI } from
 import { getConfig } from 'app/core/config';
 import { useAppNotification } from 'app/core/copy/appNotification';
 import { GrafanaRouteComponentProps } from 'app/core/navigation/types';
-import { w3cStandardEmailValidator } from 'app/features/admin/utils';
 
 import { InnerBox, LoginLayout } from '../Login/LoginLayout';
 import { PasswordField } from '../PasswordField/PasswordField';

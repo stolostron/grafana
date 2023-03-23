@@ -1,5 +1,4 @@
 import { render, RenderResult } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { noop } from 'lodash';
 import React from 'react';
 
@@ -43,6 +42,7 @@ function setup(app: CoreApp): RenderResult & { onRunQuery: jest.Mock } {
     createQuery: jest.fn((q) => q),
     getInitHints: () => [],
     getPrometheusTime: jest.fn((date, roundup) => 123),
+    getQueryHints: jest.fn(() => []),
     languageProvider: {
       start: () => Promise.resolve([]),
       syntax: () => {},

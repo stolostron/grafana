@@ -3,12 +3,11 @@ import { isExpressionReference } from '@grafana/runtime/src/utils/DataSourceWith
 
 export async function updateQueries(
   nextDS: DataSourceApi,
-  nextDSUidOrVariableExpression: string,
   queries: DataQuery[],
   currentDS?: DataSourceApi
 ): Promise<DataQuery[]> {
   let nextQueries = queries;
-  const datasource = { type: nextDS.type, uid: nextDSUidOrVariableExpression };
+  const datasource = { type: nextDS.type, uid: nextDS.uid };
 
   // we are changing data source type
   if (currentDS?.meta.id !== nextDS.meta.id) {

@@ -1,5 +1,6 @@
 ---
 aliases:
+  - /docs/grafana/latest/panels/library-panels/manage-library-panel/
   - /docs/sources/panels/library-panels/manage-library-panel/
 title: Manage Grafana library panels
 weight: 40
@@ -11,7 +12,7 @@ You can adjust library panel configuration at any time.
 
 ## Before you begin
 
-- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel.md" >}}).
+- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel/" >}}).
 
 **To view and manage a library panel**:
 

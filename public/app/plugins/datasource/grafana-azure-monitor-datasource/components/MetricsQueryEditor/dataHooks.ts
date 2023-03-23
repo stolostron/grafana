@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { rangeUtil } from '@grafana/data';
 
@@ -6,6 +6,7 @@ import Datasource from '../../datasource';
 import TimegrainConverter from '../../time_grain_converter';
 import { AzureMonitorErrorish, AzureMonitorOption, AzureMonitorQuery } from '../../types';
 import { hasOption, toOption } from '../../utils/common';
+import { useAsyncState } from '../../utils/useAsyncState';
 
 import { setMetricNamespace, setSubscriptionID } from './setQueryValue';
 
@@ -30,28 +31,6 @@ export type DataHook = (
   setError: SetErrorFn
 ) => AzureMonitorOption[];
 
-export function useAsyncState<T>(asyncFn: () => Promise<T>, setError: Function, dependencies: unknown[]) {
-  // Use the lazy initial state functionality of useState to assign a random ID to the API call
-  // to track where errors come from. See useLastError.
-  const [errorSource] = useState(() => Math.random());
-  const [value, setValue] = useState<T>();
-
-  const finalValue = useMemo(() => value ?? [], [value]);
-
-  useEffect(() => {
-    asyncFn()
-      .then((results) => {
-        setValue(results);
-        setError(errorSource, undefined);
-      })
-      .catch((err) => {
-        setError(errorSource, err);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, dependencies);
-
-  return finalValue;
-}
 export type MetricsMetadataHook = (
   query: AzureMonitorQuery,
   datasource: Datasource,
@@ -184,7 +163,12 @@ export const useMetricNamespaces: DataHook = (query, datasource, onChange, setEr
         return;
       }
 
-      const results = await datasource.getMetricNamespaces(subscription, resourceGroup, metricDefinition, resourceName);
+      const results = await datasource.azureMonitorDatasource.getMetricNamespaces({
+        subscription,
+        resourceGroup,
+        metricDefinition,
+        resourceName,
+      });
       const options = formatOptions(results, metricNamespace);
 
       // Do some cleanup of the query state if need be
@@ -211,13 +195,13 @@ export const useMetricNames: DataHook = (query, datasource, onChange, setError) 
         return;
       }
 
-      const results = await datasource.getMetricNames(
+      const results = await datasource.azureMonitorDatasource.getMetricNames({
         subscription,
         resourceGroup,
         metricDefinition,
         resourceName,
-        metricNamespace
-      );
+        metricNamespace,
+      });
 
       const options = formatOptions(results, metricName);
 
@@ -248,8 +232,8 @@ export const useMetricMetadata = (query: AzureMonitorQuery, datasource: Datasour
       return;
     }
 
-    datasource
-      .getMetricMetadata(subscription, resourceGroup, metricDefinition, resourceName, metricNamespace, metricName)
+    datasource.azureMonitorDatasource
+      .getMetricMetadata({ subscription, resourceGroup, metricDefinition, resourceName, metricNamespace, metricName })
       .then((metadata) => {
         // TODO: Move the aggregationTypes and timeGrain defaults into `getMetricMetadata`
         const aggregations = (metadata.supportedAggTypes || [metadata.primaryAggType]).map((v) => ({

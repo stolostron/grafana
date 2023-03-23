@@ -1,6 +1,8 @@
 import { debounce, sortBy } from 'lodash';
 import React from 'react';
-import { Editor, Plugin as SlatePlugin } from 'slate-react';
+import { Editor as CoreEditor } from 'slate';
+
+import { Plugin as SlatePlugin } from '@grafana/slate-react';
 
 import { Typeahead } from '../components/Typeahead/Typeahead';
 import { CompletionItem, SuggestionsState, TypeaheadInput, TypeaheadOutput } from '../types';
@@ -175,7 +177,7 @@ export function SuggestionsPlugin({
           groupedItems: [],
         };
 
-        editor
+        return editor
           .snapshotSelection()
           .deleteBackward(backward)
           .deleteForward(forward)

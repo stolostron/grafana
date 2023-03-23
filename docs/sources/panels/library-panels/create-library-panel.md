@@ -1,5 +1,6 @@
 ---
 aliases:
+  - /docs/grafana/latest/panels/library-panels/create-library-panel/
   - /docs/sources/panels/library-panels/create-library-panel/
 title: Create a Grafana library panel
 weight: 20
@@ -11,7 +12,7 @@ When you create a library panel, the panel on the source dashboard is converted 
 
 ## Before you begin
 
-- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel.md" >}}).
+- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel/" >}}).
 
 **To create a library panel**:
 

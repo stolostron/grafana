@@ -2,15 +2,10 @@ package channels
 
 import (
 	"context"
-	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/notifications"
-	"github.com/grafana/grafana/pkg/setting"
+	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
 )
 
 // mockTimeNow replaces function timeNow to return constant time.
@@ -55,23 +50,15 @@ func (ns *notificationServiceMock) SendEmailCommandHandler(ctx context.Context, 
 
 func mockNotificationService() *notificationServiceMock { return &notificationServiceMock{} }
 
-func CreateNotificationService(t *testing.T) *notifications.NotificationService {
-	t.Helper()
+type fakeImageStore struct {
+	Images []*ngmodels.Image
+}
 
-	bus := bus.New()
-	cfg := setting.NewCfg()
-	cfg.StaticRootPath = "../../../../../public/"
-	cfg.BuildVersion = "4.0.0"
-	cfg.Smtp.Enabled = true
-	cfg.Smtp.TemplatesPatterns = []string{"emails/*.html", "emails/*.txt"}
-	cfg.Smtp.FromAddress = "from@address.com"
-	cfg.Smtp.FromName = "Grafana Admin"
-	cfg.Smtp.ContentTypes = []string{"text/html", "text/plain"}
-	cfg.Smtp.Host = "localhost:1234"
-	mailer := notifications.NewFakeMailer()
-
-	ns, err := notifications.ProvideService(bus, cfg, mailer, nil)
-	require.NoError(t, err)
-
-	return ns
+func (f *fakeImageStore) GetImage(ctx context.Context, token string) (*ngmodels.Image, error) {
+	for _, img := range f.Images {
+		if img.Token == token {
+			return img, nil
+		}
+	}
+	return nil, ngmodels.ErrImageNotFound
 }

@@ -1,5 +1,6 @@
 ---
 aliases:
+  - /docs/grafana/latest/panels/override-field-values/view-field-override/
   - /docs/sources/panels/override-field-values/view-field-override/
 title: View field overrides
 weight: 20
@@ -11,8 +12,8 @@ You can view field overrides in the panel display options.
 
 ## Before you begin
 
-- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel.md" >}}).
-- [Add a field override]({{< relref "../override-field-values/add-a-field-override.md" >}}).
+- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel/" >}}).
+- [Add a field override]({{< relref "add-a-field-override/" >}}).
 
 **To view field overrides**:
 

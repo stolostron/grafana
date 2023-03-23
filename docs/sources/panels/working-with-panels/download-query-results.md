@@ -1,5 +1,6 @@
 ---
 aliases:
+  - /docs/grafana/latest/panels/working-with-panels/download-query-results/
   - /docs/sources/panels/working-with-panels/download-query-results/
 title: Download query results
 weight: 110
@@ -11,7 +12,7 @@ Grafana generates a text (.txt) file that contains the results of a query, which
 
 ## Before you begin
 
-- [Add a query]({{< relref "../query-a-data-source/add-a-query.md" >}}).
+- [Add a query]({{< relref "../query-a-data-source/add-a-query/" >}}).
 
 **To download query results**:
 

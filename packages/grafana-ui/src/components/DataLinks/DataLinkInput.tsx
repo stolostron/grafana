@@ -5,9 +5,9 @@ import { Popper as ReactPopper } from 'react-popper';
 import usePrevious from 'react-use/lib/usePrevious';
 import { Value } from 'slate';
 import Plain from 'slate-plain-serializer';
-import { Editor } from 'slate-react';
 
 import { DataLinkBuiltInVars, GrafanaTheme2, VariableOrigin, VariableSuggestion } from '@grafana/data';
+import { Editor } from '@grafana/slate-react';
 
 import { makeValue } from '../../index';
 import { SlatePrism } from '../../slate-plugins';

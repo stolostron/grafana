@@ -2,7 +2,7 @@ package notifier
 
 import (
 	"context"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"

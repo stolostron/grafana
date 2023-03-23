@@ -1,4 +1,5 @@
 import { map } from 'lodash';
+
 import { rangeUtil } from '@grafana/data';
 import { VariableWithMultiSupport } from 'app/features/variables/types';
 

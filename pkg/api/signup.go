@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/grafana/grafana/pkg/api/dtos"
 	"github.com/grafana/grafana/pkg/api/response"
@@ -19,7 +18,7 @@ import (
 
 // GET /api/user/signup/options
 func GetSignUpOptions(c *models.ReqContext) response.Response {
-	return response.JSON(200, util.DynMap{
+	return response.JSON(http.StatusOK, util.DynMap{
 		"verifyEmailEnabled": setting.VerifyEmailEnabled,
 		"autoAssignOrg":      setting.AutoAssignOrg,
 	})
@@ -28,8 +27,7 @@ func GetSignUpOptions(c *models.ReqContext) response.Response {
 // POST /api/user/signup
 func (hs *HTTPServer) SignUp(c *models.ReqContext) response.Response {
 	form := dtos.SignUpForm{}
-	var err error
-	if err = web.Bind(c.Req, &form); err != nil {
+	if err := web.Bind(c.Req, &form); err != nil {
 		return response.Error(http.StatusBadRequest, "bad request data", err)
 	}
 	if !setting.AllowUserSignUp {
@@ -42,7 +40,7 @@ func (hs *HTTPServer) SignUp(c *models.ReqContext) response.Response {
 	}
 
 	existing := models.GetUserByLoginQuery{LoginOrEmail: form.Email}
-	if err = hs.SQLStore.GetUserByLogin(c.Req.Context(), &existing); err == nil {
+	if err := hs.SQLStore.GetUserByLogin(c.Req.Context(), &existing); err == nil {
 		return response.Error(422, "User with same email address already exists", nil)
 	}
 
@@ -70,7 +68,7 @@ func (hs *HTTPServer) SignUp(c *models.ReqContext) response.Response {
 
 	metrics.MApiUserSignUpStarted.Inc()
 
-	return response.JSON(200, util.DynMap{"status": "SignUpCreated"})
+	return response.JSON(http.StatusOK, util.DynMap{"status": "SignUpCreated"})
 }
 
 func (hs *HTTPServer) SignUpStep2(c *models.ReqContext) response.Response {
@@ -144,7 +142,7 @@ func (hs *HTTPServer) SignUpStep2(c *models.ReqContext) response.Response {
 
 	metrics.MApiUserSignUpCompleted.Inc()
 
-	return response.JSON(200, apiResponse)
+	return response.JSON(http.StatusOK, apiResponse)
 }
 
 func (hs *HTTPServer) verifyUserSignUpEmail(ctx context.Context, email string, code string) (bool, response.Response) {

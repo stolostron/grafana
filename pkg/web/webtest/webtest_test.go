@@ -2,7 +2,7 @@ package webtest
 
 import (
 	"encoding/json"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"

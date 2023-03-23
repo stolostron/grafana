@@ -10,6 +10,11 @@ import { selectTotal } from '../invites/state/selectors';
 import { setUsersSearchQuery } from './state/reducers';
 import { getUsersSearchQuery } from './state/selectors';
 
+import { selectTotal } from '../invites/state/selectors';
+
+import { setUsersSearchQuery } from './state/reducers';
+import { getUsersSearchQuery } from './state/selectors';
+
 export interface Props {
   searchQuery: string;
   setUsersSearchQuery: typeof setUsersSearchQuery;
@@ -37,10 +42,10 @@ export class UsersActionBar extends PureComponent<Props> {
       { label: 'Users', value: 'users' },
       { label: `Pending Invites (${pendingInvitesCount})`, value: 'invites' },
     ];
-    const canAddToOrg: boolean = contextSrv.hasAccess(AccessControlAction.OrgUsersAdd, canInvite);
+    const canAddToOrg = contextSrv.hasAccess(AccessControlAction.UsersCreate, canInvite);
 
     return (
-      <div className="page-action-bar">
+      <div className="page-action-bar" data-testid="users-action-bar">
         <div className="gf-form gf-form--grow">
           <FilterInput
             value={searchQuery}

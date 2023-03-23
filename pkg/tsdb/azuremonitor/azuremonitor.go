@@ -15,7 +15,6 @@ import (
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/tracing"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/deprecated"
 	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/loganalytics"
 	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/metrics"
 	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/resourcegraph"
@@ -28,13 +27,6 @@ func ProvideService(cfg *setting.Cfg, httpClientProvider *httpclient.Provider, t
 		azureMonitor:       &metrics.AzureMonitorDatasource{Proxy: proxy},
 		azureLogAnalytics:  &loganalytics.AzureLogAnalyticsDatasource{Proxy: proxy},
 		azureResourceGraph: &resourcegraph.AzureResourceGraphDatasource{Proxy: proxy},
-	}
-
-	// Insights Analytics and Application Insights were deprecated in Grafana 8.x and
-	// will be finally removed with Grafana 9
-	if setting.BuildVersion != "" && semver.MustParse(setting.BuildVersion).Compare(semver.MustParse("9.0.0-beta1")) < 0 {
-		executors[deprecated.InsightsAnalytics] = &deprecated.InsightsAnalyticsDatasource{Proxy: proxy}
-		executors[deprecated.AppInsights] = &deprecated.ApplicationInsightsDatasource{Proxy: proxy}
 	}
 
 	im := datasource.NewInstanceManager(NewInstanceSettings(cfg, httpClientProvider, executors))

@@ -14,29 +14,21 @@ export interface Props extends ButtonProps {
   /** A function that returns text to be copied */
   getText(): string;
   /** Callback when the text has been successfully copied */
-  onClipboardCopy?(e: ClipboardEvent): void;
+  onClipboardCopy?(copiedText: string): void;
   /** Callback when there was an error copying the text */
-  onClipboardError?(e: ClipboardEvent): void;
+  onClipboardError?(copiedText: string, error: unknown): void;
 }
-
-const dummyClearFunc = () => {};
 
 export function ClipboardButton({ onClipboardCopy, onClipboardError, children, getText, ...buttonProps }: Props) {
   const buttonRef = useRef<null | HTMLButtonElement>(null);
   const copyTextCallback = useCallback(async () => {
     const textToCopy = getText();
-    // Can be removed in 9.x
-    const dummyEvent: ClipboardEvent = {
-      action: 'copy',
-      clearSelection: dummyClearFunc,
-      text: textToCopy,
-      trigger: buttonRef.current!,
-    };
+
     try {
       await copyText(textToCopy, buttonRef);
-      onClipboardCopy?.(dummyEvent);
-    } catch {
-      onClipboardError?.(dummyEvent);
+      onClipboardCopy?.(textToCopy);
+    } catch (e) {
+      onClipboardError?.(textToCopy, e);
     }
   }, [getText, onClipboardCopy, onClipboardError]);
 

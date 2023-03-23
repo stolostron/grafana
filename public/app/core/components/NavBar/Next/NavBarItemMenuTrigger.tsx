@@ -16,6 +16,8 @@ import { Icon, IconName, Link, useTheme2 } from '@grafana/ui';
 import { NavFeatureHighlight } from '../NavFeatureHighlight';
 import { NavBarItemMenuContext, useNavBarContext } from '../context';
 
+import { getNavMenuPortalContainer } from './NavBarMenuPortalContainer';
+
 export interface NavBarItemMenuTriggerProps extends MenuTriggerProps {
   children: ReactElement;
   item: NavModelItem;
@@ -58,8 +60,7 @@ export function NavBarItemMenuTrigger(props: NavBarItemMenuTriggerProps): ReactE
 
   useEffect(() => {
     // close the menu when changing submenus
-    // or when the state of the overlay changes (i.e hovering outside)
-    if (menuIdOpen !== item.id || !state.isOpen) {
+    if (menuIdOpen !== item.id) {
       state.close();
       setMenuHasFocus(false);
     } else {
@@ -172,6 +173,9 @@ export function NavBarItemMenuTrigger(props: NavBarItemMenuTriggerProps): ReactE
         setMenuIdOpen(item.id);
         state.open();
       }
+      e.target.scrollIntoView({
+        block: 'nearest',
+      });
     },
     onBlurWithin: (e) => {
       if (e.target?.getAttribute('role') === 'menuitem' && !overlayRef.current?.contains(e.relatedTarget)) {
@@ -186,7 +190,7 @@ export function NavBarItemMenuTrigger(props: NavBarItemMenuTriggerProps): ReactE
     <div className={cx(styles.element, 'dropdown')} {...focusWithinProps}>
       {element}
       {state.isOpen && (
-        <OverlayContainer>
+        <OverlayContainer portalContainer={getNavMenuPortalContainer()}>
           <NavBarItemMenuContext.Provider
             value={{
               menuProps,

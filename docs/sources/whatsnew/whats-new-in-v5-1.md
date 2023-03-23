@@ -2,7 +2,8 @@
 _build:
   list: false
 aliases:
-  - ../guides/whats-new-in-v5-1/
+  - /docs/grafana/latest/guides/whats-new-in-v5-1/
+  - /docs/grafana/latest/whatsnew/whats-new-in-v5-1/
 description: Feature and improvement highlights for Grafana v5.1
 keywords:
   - grafana
@@ -90,7 +91,7 @@ copied panel into the current dashboard.
 
 ### Graph Panel
 
-New enhancements include support for multiple series stacking in histogram mode, thresholds for right Y axis, aligning left and right Y-axes to one level and additional units. More information in the [Graph panel documentation]({{< relref "../visualizations/graph-panel.md" >}}).
+New enhancements include support for multiple series stacking in histogram mode, thresholds for right Y axis, aligning left and right Y-axes to one level and additional units. More information in the [Graph panel documentation]({{< relref "../visualizations/graph-panel/" >}}).
 
 ### Table Panel
 

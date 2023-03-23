@@ -1,5 +1,7 @@
+import { FeatureLike } from 'ol/Feature';
 import BaseLayer from 'ol/layer/Base';
 import Units from 'ol/proj/Units';
+import { Subject } from 'rxjs';
 
 import { MapLayerHandler, MapLayerOptions } from '@grafana/data';
 import { HideableFieldConfig } from '@grafana/schema';
@@ -82,4 +84,5 @@ export interface MapLayerState<TConfig = any> extends LayerElement {
   layer: BaseLayer; // the openlayers instance
   onChange: (cfg: MapLayerOptions<TConfig>) => void;
   isBasemap?: boolean;
+  mouseEvents: Subject<FeatureLike | undefined>;
 }

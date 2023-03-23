@@ -44,7 +44,6 @@ export interface AmRoutesExpandedFormProps {
 export const AmRoutesExpandedForm: FC<AmRoutesExpandedFormProps> = ({ onCancel, onSave, receivers, routes }) => {
   const styles = useStyles2(getStyles);
   const formStyles = useStyles2(getFormStyles);
-  const [overrideGrouping, setOverrideGrouping] = useState(routes.groupBy.length > 0);
   const [groupByOptions, setGroupByOptions] = useState(stringsToSelectableValues(routes.groupBy));
   const muteTimingOptions = useMuteTimingOptions();
 
@@ -94,7 +93,6 @@ export const AmRoutesExpandedForm: FC<AmRoutesExpandedFormProps> = ({ onCancel, 
                                     onChange={(value) => onChange(value?.value)}
                                     options={matcherFieldOptions}
                                     aria-label="Operator"
-                                    menuShouldPortal
                                   />
                                 )}
                                 defaultValue={field.operator}
@@ -161,13 +159,9 @@ export const AmRoutesExpandedForm: FC<AmRoutesExpandedFormProps> = ({ onCancel, 
             <Switch id="continue-toggle" {...register('continue')} />
           </Field>
           <Field label="Override grouping">
-            <Switch
-              id="override-grouping-toggle"
-              value={overrideGrouping}
-              onChange={() => setOverrideGrouping((overrideGrouping) => !overrideGrouping)}
-            />
+            <Switch id="override-grouping-toggle" {...register('overrideGrouping')} />
           </Field>
-          {overrideGrouping && (
+          {watch().overrideGrouping && (
             <Field
               label="Group by"
               description="Group alerts when you receive a notification based on labels. If empty it will be inherited from the parent policy."
@@ -176,7 +170,6 @@ export const AmRoutesExpandedForm: FC<AmRoutesExpandedFormProps> = ({ onCancel, 
                 render={({ field: { onChange, ref, ...field } }) => (
                   <MultiSelect
                     aria-label="Group by"
-                    menuShouldPortal
                     {...field}
                     allowCustomValue
                     className={formStyles.input}
@@ -333,7 +326,6 @@ export const AmRoutesExpandedForm: FC<AmRoutesExpandedFormProps> = ({ onCancel, 
               render={({ field: { onChange, ref, ...field } }) => (
                 <MultiSelect
                   aria-label="Mute timings"
-                  menuShouldPortal
                   {...field}
                   className={formStyles.input}
                   onChange={(value) => onChange(mapMultiSelectValueToStrings(value))}

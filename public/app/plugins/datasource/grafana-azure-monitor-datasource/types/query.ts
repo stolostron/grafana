@@ -2,17 +2,13 @@ import { DeprecatedAzureMonitorQuery } from '../components/deprecated/types';
 
 import { GrafanaTemplateVariableQuery } from './templateVariables';
 
+import { GrafanaTemplateVariableQuery } from './templateVariables';
+
 export enum AzureQueryType {
   AzureMonitor = 'Azure Monitor',
   LogAnalytics = 'Azure Log Analytics',
   AzureResourceGraph = 'Azure Resource Graph',
   GrafanaTemplateVariableFn = 'Grafana Template Variable Function',
-}
-
-// DeprecatedAzureQueryType won't be available after Grafana 9
-export enum DeprecatedAzureQueryType {
-  ApplicationInsights = 'Application Insights',
-  InsightsAnalytics = 'Insights Analytics',
 }
 
 /**
@@ -37,6 +33,7 @@ export interface AzureMonitorQuery extends DeprecatedAzureMonitorQuery {
  * Azure Monitor Metrics sub-query properties
  */
 export interface AzureMetricQuery {
+  resourceUri?: string;
   resourceGroup?: string;
 
   /** Resource type */
@@ -84,5 +81,9 @@ export interface AzureResourceGraphQuery {
 export interface AzureMetricDimension {
   dimension: string;
   operator: string;
+  filters?: string[];
+  /**
+   * @deprecated filter is deprecated in favour of filters to support multiselect
+   */
   filter?: string;
 }

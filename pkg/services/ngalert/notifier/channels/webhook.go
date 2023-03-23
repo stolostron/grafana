@@ -4,16 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 
+	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
+	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
+	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/common/model"
-
-	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/notifications"
 )
 
 // WebhookNotifier is responsible for sending
@@ -25,28 +24,18 @@ type WebhookNotifier struct {
 	MaxAlerts  int
 	log        log.Logger
 	ns         notifications.WebhookSender
+	images     ImageStore
 	tmpl       *template.Template
 	orgID      int64
-
-	User     string
-	Password string
-
-	AuthorizationScheme      string
-	AuthorizationCredentials string
 }
 
 type WebhookConfig struct {
 	*NotificationChannelConfig
 	URL        string
+	User       string
+	Password   string
 	HTTPMethod string
 	MaxAlerts  int
-
-	// Authorization Header.
-	AuthorizationScheme      string
-	AuthorizationCredentials string
-	// HTTP Basic Authentication.
-	User     string
-	Password string
 }
 
 func WebHookFactory(fc FactoryConfig) (NotificationChannel, error) {
@@ -57,7 +46,7 @@ func WebHookFactory(fc FactoryConfig) (NotificationChannel, error) {
 			Cfg:    *fc.Config,
 		}
 	}
-	return NewWebHookNotifier(cfg, fc.NotificationService, fc.Template), nil
+	return NewWebHookNotifier(cfg, fc.NotificationService, fc.ImageStore, fc.Template), nil
 }
 
 func NewWebHookConfig(config *NotificationChannelConfig, decryptFunc GetDecryptedValueFn) (*WebhookConfig, error) {
@@ -65,23 +54,11 @@ func NewWebHookConfig(config *NotificationChannelConfig, decryptFunc GetDecrypte
 	if url == "" {
 		return nil, errors.New("could not find url property in settings")
 	}
-
-	user := config.Settings.Get("username").MustString()
-	password := decryptFunc(context.Background(), config.SecureSettings, "password", config.Settings.Get("password").MustString())
-	authorizationScheme := config.Settings.Get("authorization_scheme").MustString("Bearer")
-	authorizationCredentials := decryptFunc(context.Background(), config.SecureSettings, "authorization_credentials", config.Settings.Get("authorization_credentials").MustString())
-
-	if user != "" && password != "" && authorizationScheme != "" && authorizationCredentials != "" {
-		return nil, errors.New("both HTTP Basic Authentication and Authorization Header are set, only 1 is permitted")
-	}
-
 	return &WebhookConfig{
 		NotificationChannelConfig: config,
 		URL:                       url,
-		User:                      user,
-		Password:                  password,
-		AuthorizationScheme:       authorizationScheme,
-		AuthorizationCredentials:  authorizationCredentials,
+		User:                      config.Settings.Get("username").MustString(),
+		Password:                  decryptFunc(context.Background(), config.SecureSettings, "password", config.Settings.Get("password").MustString()),
 		HTTPMethod:                config.Settings.Get("httpMethod").MustString("POST"),
 		MaxAlerts:                 config.Settings.Get("maxAlerts").MustInt(0),
 	}, nil
@@ -89,7 +66,7 @@ func NewWebHookConfig(config *NotificationChannelConfig, decryptFunc GetDecrypte
 
 // NewWebHookNotifier is the constructor for
 // the WebHook notifier.
-func NewWebHookNotifier(config *WebhookConfig, ns notifications.WebhookSender, t *template.Template) *WebhookNotifier {
+func NewWebHookNotifier(config *WebhookConfig, ns notifications.WebhookSender, images ImageStore, t *template.Template) *WebhookNotifier {
 	return &WebhookNotifier{
 		Base: NewBase(&models.AlertNotification{
 			Uid:                   config.UID,
@@ -98,17 +75,16 @@ func NewWebHookNotifier(config *WebhookConfig, ns notifications.WebhookSender, t
 			DisableResolveMessage: config.DisableResolveMessage,
 			Settings:              config.Settings,
 		}),
-		orgID:                    config.OrgID,
-		URL:                      config.URL,
-		User:                     config.User,
-		Password:                 config.Password,
-		AuthorizationScheme:      config.AuthorizationScheme,
-		AuthorizationCredentials: config.AuthorizationCredentials,
-		HTTPMethod:               config.HTTPMethod,
-		MaxAlerts:                config.MaxAlerts,
-		log:                      log.New("alerting.notifier.webhook"),
-		ns:                       ns,
-		tmpl:                     t,
+		orgID:      config.OrgID,
+		URL:        config.URL,
+		User:       config.User,
+		Password:   config.Password,
+		HTTPMethod: config.HTTPMethod,
+		MaxAlerts:  config.MaxAlerts,
+		log:        log.New("alerting.notifier.webhook"),
+		ns:         ns,
+		images:     images,
+		tmpl:       t,
 	}
 }
 
@@ -139,6 +115,17 @@ func (wn *WebhookNotifier) Notify(ctx context.Context, as ...*types.Alert) (bool
 	as, numTruncated := truncateAlerts(wn.MaxAlerts, as)
 	var tmplErr error
 	tmpl, data := TmplText(ctx, wn.tmpl, as, wn.log, &tmplErr)
+
+	// Augment our Alert data with ImageURLs if available.
+	_ = withStoredImages(ctx, wn.log, wn.images,
+		func(index int, image *ngmodels.Image) error {
+			if image != nil && len(image.URL) != 0 {
+				data.Alerts[index].ImageURL = image.URL
+			}
+			return nil
+		},
+		as...)
+
 	msg := &webhookMessage{
 		Version:         "1",
 		ExtendedData:    data,

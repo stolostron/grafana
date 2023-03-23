@@ -5,7 +5,7 @@ import rimrafCallback from 'rimraf';
 import { promisify } from 'util';
 
 import { getPluginId } from '../../config/utils/getPluginId';
-import { assertRootUrlIsValid, getPluginJson } from '../../config/utils/pluginValidation';
+import { getPluginJson } from '../../config/utils/pluginValidation';
 import {
   getJobFolder,
   writeJobStats,

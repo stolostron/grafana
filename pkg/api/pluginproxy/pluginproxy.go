@@ -3,7 +3,7 @@ package pluginproxy
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"

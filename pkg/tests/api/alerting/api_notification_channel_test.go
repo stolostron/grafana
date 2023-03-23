@@ -62,7 +62,10 @@ func TestTestReceivers(t *testing.T) {
 
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.JSONEq(t, `{"traceID":"00000000000000000000000000000000"}`, string(b))
+		res := Response{}
+		err = json.Unmarshal(b, &res)
+		require.NoError(t, err)
+		require.NotEmpty(t, res.TraceID)
 	})
 
 	t.Run("assert working receiver returns OK", func(t *testing.T) {
@@ -772,8 +775,9 @@ func TestNotificationChannels(t *testing.T) {
 
 	{
 		// Create the namespace we'll save our alerts to.
-		_, err := createFolder(t, env.SQLStore, 0, "default")
+		err = createFolder(t, "default", grafanaListedAddr, "grafana", "password")
 		require.NoError(t, err)
+		reloadCachedPermissions(t, grafanaListedAddr, "grafana", "password")
 
 		// Post the alertmanager config.
 		u := fmt.Sprintf("http://grafana:password@%s/api/alertmanager/grafana/config/api/v1/alerts", grafanaListedAddr)
@@ -2228,7 +2232,7 @@ var expNonEmailNotifications = map[string][]string{
 		  "sections": [
 			{
 			  "text": "**Firing**\n\nValue: [ var='A' labels={} value=1 ]\nLabels:\n - alertname = TeamsAlert\nAnnotations:\nSource: http://localhost:3000/alerting/grafana/UID_TeamsAlert/view\nSilence: http://localhost:3000/alerting/silence/new?alertmanager=grafana&matcher=alertname%3DTeamsAlert\n",
-			  "title": "Details"
+			  "title": ""
 			}
 		  ],
 		  "summary": "[FIRING:1] TeamsAlert ",

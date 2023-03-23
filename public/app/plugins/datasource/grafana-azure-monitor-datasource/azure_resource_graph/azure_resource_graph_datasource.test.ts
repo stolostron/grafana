@@ -1,10 +1,7 @@
-import { set, get } from 'lodash';
-
 import { backendSrv } from 'app/core/services/backend_srv';
 import { TemplateSrv } from 'app/features/templating/template_srv';
 
 import createMockQuery from '../__mocks__/query';
-import { createTemplateVariables } from '../__mocks__/utils';
 import { multiVariable, singleVariable, subscriptionsVariable } from '../__mocks__/variables';
 import AzureMonitorDatasource from '../datasource';
 import { AzureQueryType } from '../types';
@@ -16,6 +13,7 @@ const templateSrv = new TemplateSrv({
   getVariableWithName: jest.fn(),
   getFilteredVariables: jest.fn(),
 });
+templateSrv.init([subscriptionsVariable, singleVariable, multiVariable]);
 
 jest.mock('app/core/services/backend_srv');
 jest.mock('@grafana/runtime', () => ({
@@ -95,6 +93,7 @@ describe('AzureResourceGraphDatasource', () => {
       expect(ctx.ds.applyTemplateVariables(target)).toStrictEqual({
         azureResourceGraph: { query: 'Resources | var1-foo', resultFormat: 'table' },
         queryType: 'Azure Resource Graph',
+        refId: undefined,
         subscriptions: [],
       });
     });
@@ -112,6 +111,7 @@ describe('AzureResourceGraphDatasource', () => {
           resultFormat: 'table',
         },
         queryType: 'Azure Resource Graph',
+        refId: undefined,
         subscriptions: [],
       });
     });
@@ -131,6 +131,7 @@ describe('AzureResourceGraphDatasource', () => {
         resultFormat: 'table',
       },
       queryType: 'Azure Resource Graph',
+      refId: undefined,
       subscriptions: ['sub-foo', 'sub-baz'],
     });
   });

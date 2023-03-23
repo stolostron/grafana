@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/grafana/pkg/models"
 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
 	"github.com/grafana/grafana/pkg/web"
+	"gopkg.in/yaml.v3"
 )
 
 var endpoints = map[string]map[string]string{
@@ -61,12 +62,12 @@ func (am *LotexAM) withAMReq(
 	extractor func(*response.NormalResponse) (interface{}, error),
 	headers map[string]string,
 ) response.Response {
-	recipient, err := strconv.ParseInt(web.Params(ctx.Req)[":Recipient"], 10, 64)
-	if err != nil {
-		return ErrResp(http.StatusBadRequest, errInvalidRecipientFormat, "")
+	datasourceUID := web.Params(ctx.Req)[":DatasourceUID"]
+	if datasourceUID == "" {
+		return response.Error(http.StatusBadRequest, "DatasourceUID is invalid", nil)
 	}
 
-	ds, err := am.DataProxy.DataSourceCache.GetDatasource(ctx.Req.Context(), recipient, ctx.SignedInUser, ctx.SkipCache)
+	ds, err := am.DataProxy.DataSourceCache.GetDatasourceByUID(ctx.Req.Context(), datasourceUID, ctx.SignedInUser, ctx.SkipCache)
 	if err != nil {
 		if errors.Is(err, models.ErrDataSourceAccessDenied) {
 			return ErrResp(http.StatusForbidden, err, "Access denied to datasource")

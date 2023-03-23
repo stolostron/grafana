@@ -1,7 +1,7 @@
 package featuremgmt
 
 import (
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 
 	"gopkg.in/yaml.v2"
 )

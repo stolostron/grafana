@@ -2,7 +2,7 @@ package api
 
 import (
 	"errors"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"

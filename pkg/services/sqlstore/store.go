@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/sqlstore/migrator"
 )
 
 type Store interface {
@@ -12,15 +11,15 @@ type Store interface {
 	GetAlertNotifiersUsageStats(ctx context.Context, query *models.GetAlertNotifierUsageStatsQuery) error
 	GetDataSourceStats(ctx context.Context, query *models.GetDataSourceStatsQuery) error
 	GetDataSourceAccessStats(ctx context.Context, query *models.GetDataSourceAccessStatsQuery) error
-	GetDialect() migrator.Dialect
 	GetSystemStats(ctx context.Context, query *models.GetSystemStatsQuery) error
 	DeleteExpiredSnapshots(ctx context.Context, cmd *models.DeleteExpiredSnapshotsCommand) error
 	CreateDashboardSnapshot(ctx context.Context, cmd *models.CreateDashboardSnapshotCommand) error
 	DeleteDashboardSnapshot(ctx context.Context, cmd *models.DeleteDashboardSnapshotCommand) error
-	GetDashboardSnapshot(query *models.GetDashboardSnapshotQuery) error
+	GetDashboardSnapshot(ctx context.Context, query *models.GetDashboardSnapshotQuery) error
 	HasEditPermissionInFolders(ctx context.Context, query *models.HasEditPermissionInFoldersQuery) error
-	SearchDashboardSnapshots(query *models.GetDashboardSnapshotsQuery) error
+	SearchDashboardSnapshots(ctx context.Context, query *models.GetDashboardSnapshotsQuery) error
 	GetOrgByName(name string) (*models.Org, error)
+	CreateOrg(ctx context.Context, cmd *models.CreateOrgCommand) error
 	CreateOrgWithMember(name string, userID int64) (models.Org, error)
 	UpdateOrg(ctx context.Context, cmd *models.UpdateOrgCommand) error
 	UpdateOrgAddress(ctx context.Context, cmd *models.UpdateOrgAddressCommand) error
@@ -62,18 +61,10 @@ type Store interface {
 	GetTeamMembers(ctx context.Context, query *models.GetTeamMembersQuery) error
 	NewSession(ctx context.Context) *DBSession
 	WithDbSession(ctx context.Context, callback DBTransactionFunc) error
-	GetPreferencesWithDefaults(ctx context.Context, query *models.GetPreferencesWithDefaultsQuery) error
-	GetPreferences(ctx context.Context, query *models.GetPreferencesQuery) error
-	SavePreferences(ctx context.Context, cmd *models.SavePreferencesCommand) error
-	PatchPreferences(ctx context.Context, cmd *models.PatchPreferencesCommand) error
 	GetPluginSettings(ctx context.Context, orgID int64) ([]*models.PluginSetting, error)
 	GetPluginSettingById(ctx context.Context, query *models.GetPluginSettingByIdQuery) error
 	UpdatePluginSetting(ctx context.Context, cmd *models.UpdatePluginSettingCmd) error
 	UpdatePluginSettingVersion(ctx context.Context, cmd *models.UpdatePluginSettingVersionCmd) error
-	IsStarredByUserCtx(ctx context.Context, query *models.IsStarredByUserQuery) error
-	StarDashboard(ctx context.Context, cmd *models.StarDashboardCommand) error
-	UnstarDashboard(ctx context.Context, cmd *models.UnstarDashboardCommand) error
-	GetUserStars(ctx context.Context, query *models.GetUserStarsQuery) error
 	GetOrgQuotaByTarget(ctx context.Context, query *models.GetOrgQuotaByTargetQuery) error
 	GetOrgQuotas(ctx context.Context, query *models.GetOrgQuotasQuery) error
 	UpdateOrgQuota(ctx context.Context, cmd *models.UpdateOrgQuotaCmd) error
@@ -105,11 +96,8 @@ type Store interface {
 	GetOrgUsers(ctx context.Context, query *models.GetOrgUsersQuery) error
 	SearchOrgUsers(ctx context.Context, query *models.SearchOrgUsersQuery) error
 	RemoveOrgUser(ctx context.Context, cmd *models.RemoveOrgUserCommand) error
-	GetDashboard(ctx context.Context, query *models.GetDashboardQuery) error
 	GetDashboardTags(ctx context.Context, query *models.GetDashboardTagsQuery) error
 	SearchDashboards(ctx context.Context, query *models.FindPersistedDashboardsQuery) error
-	GetDashboards(ctx context.Context, query *models.GetDashboardsQuery) error
-	GetDashboardUIDById(ctx context.Context, query *models.GetDashboardRefByIdQuery) error
 	GetDataSource(ctx context.Context, query *models.GetDataSourceQuery) error
 	GetDataSources(ctx context.Context, query *models.GetDataSourcesQuery) error
 	GetDataSourcesByType(ctx context.Context, query *models.GetDataSourcesByTypeQuery) error
@@ -140,6 +128,7 @@ type Store interface {
 	AddAPIKey(ctx context.Context, cmd *models.AddApiKeyCommand) error
 	GetApiKeyById(ctx context.Context, query *models.GetApiKeyByIdQuery) error
 	GetApiKeyByName(ctx context.Context, query *models.GetApiKeyByNameQuery) error
+	GetAPIKeyByHash(ctx context.Context, hash string) (*models.ApiKey, error)
 	UpdateTempUserStatus(ctx context.Context, cmd *models.UpdateTempUserStatusCommand) error
 	CreateTempUser(ctx context.Context, cmd *models.CreateTempUserCommand) error
 	UpdateTempUserWithEmailSent(ctx context.Context, cmd *models.UpdateTempUserWithEmailSentCommand) error
@@ -148,7 +137,7 @@ type Store interface {
 	ExpireOldUserInvites(ctx context.Context, cmd *models.ExpireTempUsersCommand) error
 	GetDBHealthQuery(ctx context.Context, query *models.GetDBHealthQuery) error
 	SearchOrgs(ctx context.Context, query *models.SearchOrgsQuery) error
-	HasAdminPermissionInDashboardsOrFolders(ctx context.Context, query *models.HasAdminPermissionInDashboardsOrFoldersQuery) error
+	HasAdminPermissionInFolders(ctx context.Context, query *models.HasAdminPermissionInFoldersQuery) error
 	GetDashboardPermissionsForUser(ctx context.Context, query *models.GetDashboardPermissionsForUserQuery) error
-	GetDashboardSlugById(ctx context.Context, query *models.GetDashboardSlugByIdQuery) error
+	IsAdminOfTeams(ctx context.Context, query *models.IsAdminOfTeamsQuery) error
 }

@@ -3,6 +3,10 @@ import System from 'systemjs/dist/system.js';
 
 import { config } from '../config';
 
+// @ts-ignore
+
+import { config } from '../config';
+
 /**
  * Option to specify a plugin css that should be applied for the dark
  * and the light theme.

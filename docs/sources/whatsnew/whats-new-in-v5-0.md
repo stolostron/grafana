@@ -2,7 +2,8 @@
 _build:
   list: false
 aliases:
-  - ../guides/whats-new-in-v5/
+  - /docs/grafana/latest/guides/whats-new-in-v5/
+  - /docs/grafana/latest/whatsnew/whats-new-in-v5-0/
 description: Feature and improvement highlights for Grafana v5.0
 keywords:
   - grafana
@@ -119,7 +120,7 @@ We also deprecated the `[dashboard.json]` in favor of our new dashboard provisio
 in sync with dashboards in Grafana's database. The dashboard provisioner has multiple advantages over the old
 `[dashboard.json]` feature. Instead of storing the dashboard in memory we now insert the dashboard into the database,
 which makes it possible to star them, use one as the home dashboard, set permissions and other features in Grafana that
-expects the dashboards to exist in the database. More info in the [dashboard provisioning docs]({{< relref "../administration/provisioning.md" >}})
+expects the dashboards to exist in the database. More info in the [dashboard provisioning docs]({{< relref "../administration/provisioning/" >}})
 
 ## Graphite Tags and Integrated Function Docs
 

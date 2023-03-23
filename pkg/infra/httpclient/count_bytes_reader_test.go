@@ -2,7 +2,7 @@ package httpclient
 
 import (
 	"fmt"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"strings"
 	"testing"
 

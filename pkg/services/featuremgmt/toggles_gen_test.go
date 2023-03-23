@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,20 +12,50 @@ import (
 	"unicode"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/grafana/grafana/pkg/services/featuremgmt/strcase"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFeatureToggleFiles(t *testing.T) {
-	// Typescript files
-	verifyAndGenerateFile(t,
-		"../../../packages/grafana-data/src/types/featureToggles.gen.ts",
-		generateTypeScript(),
-	)
+	legacyNames := map[string]bool{
+		"httpclientprovider_azure_auth": true,
+		"service-accounts":              true,
+		"database_metrics":              true,
+		"live-config":                   true,
+		"live-pipeline":                 true,
+		"live-service-web-worker":       true,
+		"prometheus_azure_auth":         true,
+	}
 
-	// Golang files
-	verifyAndGenerateFile(t,
-		"toggles_gen.go",
-		generateRegistry(t),
-	)
+	t.Run("verify files", func(t *testing.T) {
+		// Typescript files
+		verifyAndGenerateFile(t,
+			"../../../packages/grafana-data/src/types/featureToggles.gen.ts",
+			generateTypeScript(),
+		)
+
+		// Golang files
+		verifyAndGenerateFile(t,
+			"toggles_gen.go",
+			generateRegistry(t),
+		)
+	})
+
+	t.Run("check feature naming convention", func(t *testing.T) {
+		invalidNames := make([]string, 0)
+		for _, f := range standardFeatureFlags {
+			if legacyNames[f.Name] {
+				continue
+			}
+
+			if f.Name != strcase.ToLowerCamel(f.Name) {
+				invalidNames = append(invalidNames, f.Name)
+			}
+		}
+
+		require.Empty(t, invalidNames, "%s feature names should be camel cased", invalidNames)
+		// acronyms can be configured as needed via `ConfigureAcronym` function from `./strcase/camel.go`
+	})
 }
 
 func verifyAndGenerateFile(t *testing.T, fpath string, gen string) {
@@ -92,7 +122,6 @@ func isLetterOrNumber(c rune) bool {
 func asCamelCase(key string) string {
 	parts := strings.FieldsFunc(key, isLetterOrNumber)
 	for idx, part := range parts {
-		//nolint:staticcheck
 		parts[idx] = strings.Title(part)
 	}
 	return strings.Join(parts, "")

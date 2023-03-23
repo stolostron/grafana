@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grafana/grafana/pkg/components/apikeygen"
+	apikeygenprefix "github.com/grafana/grafana/pkg/components/apikeygenprefixed"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/network"
 	"github.com/grafana/grafana/pkg/infra/remotecache"
@@ -19,6 +20,7 @@ import (
 	"github.com/grafana/grafana/pkg/middleware/cookies"
 	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/contexthandler/authproxy"
+	"github.com/grafana/grafana/pkg/services/contexthandler/ctxkey"
 	"github.com/grafana/grafana/pkg/services/login"
 	"github.com/grafana/grafana/pkg/services/rendering"
 	"github.com/grafana/grafana/pkg/services/sqlstore"
@@ -29,9 +31,8 @@ import (
 
 const (
 	InvalidUsernamePassword = "invalid username or password"
-	// False positive.
-	//nolint:gosec
-	InvalidAPIKey           = "invalid API key"
+	/* #nosec */
+	InvalidAPIKey = "invalid API key"
 )
 
 const ServiceName = "ContextHandler"
@@ -70,7 +71,7 @@ type ContextHandler struct {
 	GetTime func() time.Time
 }
 
-type reqContextKey struct{}
+type reqContextKey = ctxkey.Key
 
 // FromContext returns the ReqContext value stored in a context.Context, if any.
 func FromContext(c context.Context) *models.ReqContext {
@@ -95,7 +96,7 @@ func (h *ContextHandler) Middleware(mContext *web.Context) {
 	}
 
 	// Inject ReqContext into a request context and replace the request instance in the macaron context
-	mContext.Req = mContext.Req.WithContext(context.WithValue(mContext.Req.Context(), reqContextKey{}, reqContext))
+	mContext.Req = mContext.Req.WithContext(ctxkey.Set(mContext.Req.Context(), reqContext))
 	mContext.Map(mContext.Req)
 
 	traceID := tracing.TraceIDFromContext(mContext.Req.Context(), false)
@@ -186,6 +187,45 @@ func (h *ContextHandler) initContextWithAnonymousUser(reqContext *models.ReqCont
 	return true
 }
 
+func (h *ContextHandler) getPrefixedAPIKey(ctx context.Context, keyString string) (*models.ApiKey, error) {
+	// prefixed decode key
+	decoded, err := apikeygenprefix.Decode(keyString)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := decoded.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	return h.SQLStore.GetAPIKeyByHash(ctx, hash)
+}
+
+func (h *ContextHandler) getAPIKey(ctx context.Context, keyString string) (*models.ApiKey, error) {
+	decoded, err := apikeygen.Decode(keyString)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch key
+	keyQuery := models.GetApiKeyByNameQuery{KeyName: decoded.Name, OrgId: decoded.OrgId}
+	if err := h.SQLStore.GetApiKeyByName(ctx, &keyQuery); err != nil {
+		return nil, err
+	}
+
+	// validate api key
+	isValid, err := apikeygen.IsValid(decoded, keyQuery.Result.Key)
+	if err != nil {
+		return nil, err
+	}
+	if !isValid {
+		return nil, apikeygen.ErrInvalidApiKey
+	}
+
+	return keyQuery.Result, nil
+}
+
 func (h *ContextHandler) initContextWithAPIKey(reqContext *models.ReqContext) bool {
 	header := reqContext.Req.Header.Get("Authorization")
 	parts := strings.SplitN(header, " ", 2)
@@ -206,33 +246,22 @@ func (h *ContextHandler) initContextWithAPIKey(reqContext *models.ReqContext) bo
 	_, span := h.tracer.Start(reqContext.Req.Context(), "initContextWithAPIKey")
 	defer span.End()
 
-	// base64 decode key
-	decoded, err := apikeygen.Decode(keyString)
-	if err != nil {
-		reqContext.JsonApiErr(401, InvalidAPIKey, err)
-		return true
+	var (
+		apikey *models.ApiKey
+		errKey error
+	)
+	if strings.HasPrefix(keyString, apikeygenprefix.GrafanaPrefix) {
+		apikey, errKey = h.getPrefixedAPIKey(reqContext.Req.Context(), keyString) // decode prefixed key
+	} else {
+		apikey, errKey = h.getAPIKey(reqContext.Req.Context(), keyString) // decode legacy api key
 	}
 
-	ctx := WithAuthHTTPHeader(reqContext.Req.Context(), "Authorization")
-	*reqContext.Req = *reqContext.Req.WithContext(ctx)
-
-	// fetch key
-	keyQuery := models.GetApiKeyByNameQuery{KeyName: decoded.Name, OrgId: decoded.OrgId}
-	if err := h.SQLStore.GetApiKeyByName(reqContext.Req.Context(), &keyQuery); err != nil {
-		reqContext.JsonApiErr(401, InvalidAPIKey, err)
-		return true
-	}
-
-	apikey := keyQuery.Result
-
-	// validate api key
-	isValid, err := apikeygen.IsValid(decoded, apikey.Key)
-	if err != nil {
-		reqContext.JsonApiErr(500, "Validating API key failed", err)
-		return true
-	}
-	if !isValid {
-		reqContext.JsonApiErr(401, InvalidAPIKey, err)
+	if errKey != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(errKey, apikeygen.ErrInvalidApiKey) {
+			status = http.StatusUnauthorized
+		}
+		reqContext.JsonApiErr(status, InvalidAPIKey, errKey)
 		return true
 	}
 
@@ -242,7 +271,38 @@ func (h *ContextHandler) initContextWithAPIKey(reqContext *models.ReqContext) bo
 		getTime = time.Now
 	}
 	if apikey.Expires != nil && *apikey.Expires <= getTime().Unix() {
-		reqContext.JsonApiErr(401, "Expired API key", err)
+		reqContext.JsonApiErr(http.StatusUnauthorized, "Expired API key", nil)
+		return true
+	}
+
+	if apikey.ServiceAccountId == nil || *apikey.ServiceAccountId < 1 { //There is no service account attached to the apikey
+		//Use the old APIkey method.  This provides backwards compatibility.
+		reqContext.SignedInUser = &models.SignedInUser{}
+		reqContext.OrgRole = apikey.Role
+		reqContext.ApiKeyId = apikey.Id
+		reqContext.OrgId = apikey.OrgId
+		reqContext.IsSignedIn = true
+		return true
+	}
+
+	//There is a service account attached to the API key
+
+	//Use service account linked to API key as the signed in user
+	querySignedInUser := models.GetSignedInUserQuery{UserId: *apikey.ServiceAccountId, OrgId: apikey.OrgId}
+	if err := h.SQLStore.GetSignedInUserWithCacheCtx(reqContext.Req.Context(), &querySignedInUser); err != nil {
+		reqContext.Logger.Error(
+			"Failed to link API key to service account in",
+			"id", querySignedInUser.UserId,
+			"org", querySignedInUser.OrgId,
+			"err", err,
+		)
+		reqContext.JsonApiErr(http.StatusInternalServerError, "Unable to link API key to service account", err)
+		return true
+	}
+
+	// disabled service accounts are not allowed to access the API
+	if querySignedInUser.Result.IsDisabled {
+		reqContext.JsonApiErr(http.StatusUnauthorized, "Service account is disabled", nil)
 		return true
 	}
 
@@ -292,7 +352,7 @@ func (h *ContextHandler) initContextWithBasicAuth(reqContext *models.ReqContext,
 		return false
 	}
 
-	_, span := h.tracer.Start(reqContext.Req.Context(), "initContextWithBasicAuth")
+	ctx, span := h.tracer.Start(reqContext.Req.Context(), "initContextWithBasicAuth")
 	defer span.End()
 
 	username, password, err := util.DecodeBasicAuthHeader(header)
@@ -309,7 +369,7 @@ func (h *ContextHandler) initContextWithBasicAuth(reqContext *models.ReqContext,
 		Password: password,
 		Cfg:      h.Cfg,
 	}
-	if err := h.authenticator.AuthenticateUser(ctx, &authQuery); err != nil {
+	if err := h.authenticator.AuthenticateUser(reqContext.Req.Context(), &authQuery); err != nil {
 		reqContext.Logger.Debug(
 			"Failed to authorize the user",
 			"username", username,

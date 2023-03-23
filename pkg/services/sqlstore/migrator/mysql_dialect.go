@@ -118,6 +118,14 @@ func (db *MySQLDialect) ColumnCheckSQL(tableName, columnName string) (string, []
 	return sql, args
 }
 
+func (db *MySQLDialect) RenameColumn(table Table, column *Column, newName string) string {
+	quote := db.dialect.Quote
+	return fmt.Sprintf(
+		"ALTER TABLE %s CHANGE %s %s %s",
+		quote(table.Name), quote(column.Name), quote(newName), db.SQLType(column),
+	)
+}
+
 func (db *MySQLDialect) CleanDB() error {
 	tables, err := db.engine.DBMetas()
 	if err != nil {

@@ -1,6 +1,7 @@
 ---
 aliases:
-  - ../../permissions/dashboard_folder_permissions/
+  - /docs/grafana/latest/administration/manage-users-and-permissions/manage-dashboard-permissions/
+  - /docs/grafana/latest/permissions/dashboard_folder_permissions/
 title: Manage dashboard permissions
 weight: 500
 ---
@@ -9,7 +10,7 @@ weight: 500
 
 Dashboard and dasboard folder permissions enable you to grant a viewer the ability to edit and save dashboard changes, or limit an editor's permission to modify a dashboard.
 
-For more information about dashboard permissions, refer to [Dashboard permissions]({{< relref "../about-users-and-permissions/#dashboard-permissions">}}).
+For more information about dashboard permissions, refer to [Dashboard permissions]({{< relref "../about-users-and-permissions/#dashboard-permissions" >}}).
 
 ## Grant dashboard folder permissions
 
@@ -18,7 +19,7 @@ When you grant user permissions for folders, that setting applies to all dashboa
 ### Before you begin
 
 - Ensure you have organization administrator privileges
-- Identify the dashboard folder permissions you want to modify and the users or teams to which you want to grant access. For more information about dashboard permissions, refer to [Dashboard permissions]({{< relref "../about-users-and-permissions/#dashboard-permissions">}}).
+- Identify the dashboard folder permissions you want to modify and the users or teams to which you want to grant access. For more information about dashboard permissions, refer to [Dashboard permissions]({{< relref "../about-users-and-permissions/#dashboard-permissions" >}}).
 
 **To grant dashboard folder permissions**:
 
@@ -65,6 +66,8 @@ By default, the viewer organization role does not allow viewers to create dashbo
 
 This modification is useful for public Grafana installations where you want anonymous users to be able to edit panels and queries but not save or create new dashboards.
 
+> **Note**: If you use Grafana Enterprise and customize users' permissions using RBAC, the RBAC permissions override the functionality enabled by the `viewers_can_edit` flag.
+
 ### Before you begin
 
 - Ensure that you have access to the Grafana server
@@ -73,7 +76,7 @@ This modification is useful for public Grafana installations where you want anon
 
 1. Open the Grafana configuration file.
 
-   For more information about the Grafana configuration file and its location, refer to [Configuration]({{< relref "../../../administration/configuration">}}).
+   For more information about the Grafana configuration file and its location, refer to [Configuration]({{< relref "../../../setup-grafana/configure-grafana/" >}}).
 
 1. Locate the `viewers_can_edit` parameter.
 1. Set the `viewers_can_edit` value to `true`.
@@ -81,7 +84,7 @@ This modification is useful for public Grafana installations where you want anon
 
 ## Edit dashboard permissions
 
-Edit dashboard permissions when you are want to enhance or restrict a user's access to a dashboard. For more information about dashboard permissions, refer to [Dashboard permissions]({{< relref "../about-users-and-permissions/#dashboard-permissions">}}).
+Edit dashboard permissions when you are want to enhance or restrict a user's access to a dashboard. For more information about dashboard permissions, refer to [Dashboard permissions]({{< relref "../about-users-and-permissions/#dashboard-permissions" >}}).
 
 ### Before you begin
 
@@ -141,4 +144,4 @@ Dashboard permissions settings:
 
 Result: You receive an error message that cannot override a higher permission with a lower permission in the same dashboard. User1 has administrator permissions.
 
-> Refer to [Fine-grained access Control]({{< relref "../../../enterprise/access-control/_index.md" >}}) in Grafana Enterprise to understand how to use fine-grained permissions to restrict access to dashboards, folders, administrative functions, and other resources.
+> Refer to [Role-based access Control]({{< relref "../../../enterprise/access-control/" >}}) in Grafana Enterprise to understand how to use RBAC permissions to restrict access to dashboards, folders, administrative functions, and other resources.

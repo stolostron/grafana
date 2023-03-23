@@ -1,8 +1,6 @@
 package migrations
 
 import (
-	"os"
-
 	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/accesscontrol"
 	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/ualert"
@@ -76,13 +74,10 @@ func (*OSSMigrations) AddMigration(mg *Migrator) {
 	accesscontrol.AddMigration(mg)
 	addQueryHistoryMigrations(mg)
 
-	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagAccesscontrol) {
-			accesscontrol.AddTeamMembershipMigrations(mg)
-			accesscontrol.AddDashboardPermissionsMigrator(mg)
-			accesscontrol.AddAlertingPermissionsMigrator(mg)
-		}
-	}
+	accesscontrol.AddTeamMembershipMigrations(mg)
+	accesscontrol.AddDashboardPermissionsMigrator(mg)
+	accesscontrol.AddAlertingPermissionsMigrator(mg)
+
 	addQueryHistoryStarMigrations(mg)
 
 	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
@@ -92,12 +87,15 @@ func (*OSSMigrations) AddMigration(mg *Migrator) {
 		}
 	}
 
-	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagAccesscontrol) {
-			accesscontrol.AddManagedFolderAlertActionsMigration(mg)
-			accesscontrol.AddAdminOnlyMigration(mg)
-		}
-	}
+	addEntityEventsTableMigration(mg)
+
+	addPublicDashboardMigration(mg)
+	ualert.CreateDefaultFoldersForAlertingMigration(mg)
+	addDbFileStorageMigration(mg)
+
+	accesscontrol.AddManagedPermissionsMigration(mg, accesscontrol.ManagedPermissionsMigrationID)
+	accesscontrol.AddManagedFolderAlertActionsMigration(mg)
+	accesscontrol.AddActionNameMigrator(mg)
 }
 
 func addMigrationLogMigrations(mg *Migrator) {

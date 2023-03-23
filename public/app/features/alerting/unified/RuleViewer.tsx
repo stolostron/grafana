@@ -87,7 +87,7 @@ export function RuleViewer({ match }: RuleViewerProps) {
     );
   }, []);
 
-  if (!identifier?.ruleSourceName) {
+  if (!sourceName) {
     return (
       <RuleViewerLayout title={pageTitle}>
         <Alert title={errorTitle}>

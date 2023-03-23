@@ -1,7 +1,6 @@
 import { LanguageMap, languages as prismLanguages } from 'prismjs';
 import React, { ReactNode } from 'react';
 import { Plugin } from 'slate';
-import { Editor } from 'slate-react';
 
 import { QueryEditorProps, QueryHint, isDataFrame, toLegacyResponseData, TimeRange, CoreApp } from '@grafana/data';
 import {

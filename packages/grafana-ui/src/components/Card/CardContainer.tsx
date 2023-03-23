@@ -67,7 +67,7 @@ export const CardContainer = ({
 };
 
 export const getCardContainerStyles = stylesFactory(
-  (theme: GrafanaTheme2, disabled = false, disableHover = false, isSelected) => {
+  (theme: GrafanaTheme2, disabled = false, disableHover = false, isSelected = false) => {
     const isSelectable = isSelected !== undefined;
 
     return {

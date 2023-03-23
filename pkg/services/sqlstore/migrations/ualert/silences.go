@@ -199,7 +199,6 @@ func openReplace(filename string) (*replaceFile, error) {
 		return nil, err
 	}
 
-	//nolint:gosec
 	f, err := os.Create(tmpFilename)
 	if err != nil {
 		return nil, err

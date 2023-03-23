@@ -3,7 +3,7 @@ package updatechecker
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"

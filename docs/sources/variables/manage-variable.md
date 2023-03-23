@@ -1,6 +1,7 @@
 ---
 aliases:
-  - ../reference/templating/
+  - /docs/grafana/latest/reference/templating/
+  - /docs/grafana/latest/variables/manage-variable/
 keywords:
   - grafana
   - templating
@@ -14,7 +15,7 @@ weight: 120
 
 # Manage variables
 
-The variables page lets you [add]({{< relref "variable-types/_index.md" >}}) variables and manage existing variables. It also allows you to [inspect]({{< relref "inspect-variable.md" >}}) variables and identify whether a variable is being referenced (or used) in other variables or dashboard.
+The variables page lets you [add]({{< relref "variable-types/" >}}) variables and manage existing variables. It also allows you to [inspect]({{< relref "inspect-variable/" >}}) variables and identify whether a variable is being referenced (or used) in other variables or dashboard.
 
 ## Move
 

@@ -16,20 +16,20 @@ import (
 
 var dashboardPermissionTranslation = map[models.PermissionType][]string{
 	models.PERMISSION_VIEW: {
-		ac.ActionDashboardsRead,
+		dashboards.ActionDashboardsRead,
 	},
 	models.PERMISSION_EDIT: {
-		ac.ActionDashboardsRead,
-		ac.ActionDashboardsWrite,
-		ac.ActionDashboardsDelete,
+		dashboards.ActionDashboardsRead,
+		dashboards.ActionDashboardsWrite,
+		dashboards.ActionDashboardsDelete,
 	},
 	models.PERMISSION_ADMIN: {
-		ac.ActionDashboardsRead,
-		ac.ActionDashboardsWrite,
-		ac.ActionDashboardsCreate,
-		ac.ActionDashboardsDelete,
-		ac.ActionDashboardsPermissionsRead,
-		ac.ActionDashboardsPermissionsWrite,
+		dashboards.ActionDashboardsRead,
+		dashboards.ActionDashboardsWrite,
+		dashboards.ActionDashboardsCreate,
+		dashboards.ActionDashboardsDelete,
+		dashboards.ActionDashboardsPermissionsRead,
+		dashboards.ActionDashboardsPermissionsWrite,
 	},
 }
 
@@ -38,7 +38,7 @@ var folderPermissionTranslation = map[models.PermissionType][]string{
 		dashboards.ActionFoldersRead,
 	}...),
 	models.PERMISSION_EDIT: append(dashboardPermissionTranslation[models.PERMISSION_EDIT], []string{
-		ac.ActionDashboardsCreate,
+		dashboards.ActionDashboardsCreate,
 		dashboards.ActionFoldersRead,
 		dashboards.ActionFoldersWrite,
 		dashboards.ActionFoldersDelete,
@@ -69,7 +69,6 @@ type dashboard struct {
 	FolderID int64 `xorm:"folder_id"`
 	OrgID    int64 `xorm:"org_id"`
 	IsFolder bool
-	HasAcl   bool `xorm:"has_acl"`
 }
 
 func (m dashboardPermissionsMigrator) Exec(sess *xorm.Session, migrator *migrator.Migrator) error {
@@ -77,8 +76,8 @@ func (m dashboardPermissionsMigrator) Exec(sess *xorm.Session, migrator *migrato
 	m.dialect = migrator.Dialect
 
 	var dashboards []dashboard
-	if err := m.sess.SQL("SELECT id, is_folder, folder_id, org_id, has_acl FROM dashboard").Find(&dashboards); err != nil {
-		return fmt.Errorf("failed to list dashboards: %w", err)
+	if err := m.sess.SQL("SELECT id, is_folder, folder_id, org_id FROM dashboard").Find(&dashboards); err != nil {
+		return err
 	}
 
 	var acl []models.DashboardAcl
@@ -109,7 +108,7 @@ func (m dashboardPermissionsMigrator) migratePermissions(dashboards []dashboard,
 			permissionMap[d.OrgID] = map[string][]*ac.Permission{}
 		}
 
-		if (d.IsFolder || d.FolderID == 0) && len(acls) == 0 && !d.HasAcl {
+		if (d.IsFolder || d.FolderID == 0) && len(acls) == 0 {
 			permissionMap[d.OrgID]["managed:builtins:editor:permissions"] = append(
 				permissionMap[d.OrgID]["managed:builtins:editor:permissions"],
 				m.mapPermission(d.ID, models.PERMISSION_EDIT, d.IsFolder)...,

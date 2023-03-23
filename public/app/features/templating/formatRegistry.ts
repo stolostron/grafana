@@ -33,7 +33,6 @@ export enum FormatRegistryID {
   glob = 'glob',
   text = 'text',
   queryParam = 'queryparam',
-  jsonWithoutQuote = 'jsonwithoutquote',
 }
 
 export const formatRegistry = new Registry<FormatRegistryItem>(() => {
@@ -253,14 +252,6 @@ export const formatRegistry = new Registry<FormatRegistryItem>(() => {
         }
 
         return formatQueryParameter(name, value);
-      },
-    },
-    {
-      id: FormatRegistryID.jsonWithoutQuote,
-      name: 'JSON Without Quote',
-      description: 'JSON stringify value, but the double quotation marks around it are removed.',
-      formatter: ({ value }) => {
-        return JSON.stringify(value).replace(/^"|"$/g, '');
       },
     },
   ];

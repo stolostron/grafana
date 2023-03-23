@@ -35,6 +35,13 @@ export class ExpressionDatasourceApi extends DataSourceWithBackend<ExpressionQue
     return `Expression: ${query.type}`;
   }
 
+  filterQuery(query: ExpressionQuery) {
+    if (query.hide) {
+      return false;
+    }
+    return true;
+  }
+
   query(request: DataQueryRequest<ExpressionQuery>): Observable<DataQueryResponse> {
     let targets = request.targets.map(async (query: ExpressionQuery): Promise<ExpressionQuery> => {
       const ds = await getDataSourceSrv().get(query.datasource);
@@ -69,7 +76,7 @@ export const ExpressionDatasourceUID = '-100';
 export const instanceSettings: DataSourceInstanceSettings = {
   id: -100,
   uid: ExpressionDatasourceUID,
-  name: ExpressionDatasourceRef.type,
+  name: ExpressionDatasourceRef.name,
   type: ExpressionDatasourceRef.type,
   access: 'proxy',
   meta: {

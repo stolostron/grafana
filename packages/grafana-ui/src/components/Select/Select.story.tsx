@@ -305,7 +305,6 @@ export const WidthAuto: Story = (args) => {
     <>
       <div style={{ width: '100%' }}>
         <Select
-          menuShouldPortal
           options={generateOptions()}
           value={value}
           onChange={(v) => {

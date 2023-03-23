@@ -3,7 +3,7 @@ import React, { FC, Fragment, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 
-import { GrafanaTheme2, textUtil, urlUtil } from '@grafana/data';
+import { GrafanaTheme2, urlUtil } from '@grafana/data';
 import { config } from '@grafana/runtime';
 import { Button, ClipboardButton, ConfirmModal, HorizontalGroup, LinkButton, useStyles2 } from '@grafana/ui';
 import { useAppNotification } from 'app/core/copy/appNotification';
@@ -203,8 +203,8 @@ export const RuleDetailsActionButtons: FC<Props> = ({ rule, rulesSource }) => {
           onClipboardCopy={() => {
             notifyApp.success('URL copied!');
           }}
-          onClipboardError={(e) => {
-            notifyApp.error('Error while copying URL', e.text);
+          onClipboardError={(copiedText) => {
+            notifyApp.error('Error while copying URL', copiedText);
           }}
           className={style.button}
           size="sm"

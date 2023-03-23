@@ -3,7 +3,7 @@ package statscollector
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -16,6 +16,19 @@ type memoPrometheusFlavor struct {
 	variants map[string]int64
 
 	memoized time.Time
+}
+
+func (s *Service) collectPrometheusFlavors(ctx context.Context) (map[string]interface{}, error) {
+	m := map[string]interface{}{}
+	variants, err := s.detectPrometheusVariants(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for variant, count := range variants {
+		m["stats.ds.prometheus.flavor."+variant+".count"] = count
+	}
+	return m, nil
 }
 
 func (s *Service) detectPrometheusVariants(ctx context.Context) (map[string]int64, error) {
@@ -60,7 +73,7 @@ func (s *Service) detectPrometheusVariant(ctx context.Context, ds *models.DataSo
 		} `json:"data"`
 	}
 
-	c, err := s.datasources.GetHTTPTransport(ds, s.httpClientProvider)
+	c, err := s.datasources.GetHTTPTransport(ctx, ds, s.httpClientProvider)
 	if err != nil {
 		s.log.Error("Failed to get HTTP client for Prometheus data source", "error", err)
 		return "", err
@@ -77,7 +90,7 @@ func (s *Service) detectPrometheusVariant(ctx context.Context, ds *models.DataSo
 		// Possibly configuration error, the risk of a false positive is
 		// too high.
 		s.log.Debug("Failed to send Prometheus build info request", "error", err)
-		return "", nil
+		return "unreachable", nil
 	}
 	defer func() {
 		err := resp.Body.Close()

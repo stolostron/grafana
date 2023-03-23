@@ -81,7 +81,6 @@ const SubscriptionField: React.FC<SubscriptionFieldProps> = ({
   ) : (
     <Field label="Subscription">
       <Select
-        menuShouldPortal
         value={query.subscription}
         inputId="azure-monitor-subscriptions-field"
         onChange={handleChange}

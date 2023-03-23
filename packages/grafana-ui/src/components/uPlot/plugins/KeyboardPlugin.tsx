@@ -87,7 +87,7 @@ const initHook = (u: uPlot) => {
     window.requestAnimationFrame(handlePressedKeys);
   };
 
-  const onKeyDown = (e: KeyboardEvent) => {
+  vizLayoutViz.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
       // Hide the cursor if the user tabs away
       u.setCursor({ left: -5, top: -5 });
@@ -112,9 +112,9 @@ const initHook = (u: uPlot) => {
         window.requestAnimationFrame(handlePressedKeys);
       }
     }
-  };
+  });
 
-  const onKeyUp = (e: KeyboardEvent) => {
+  vizLayoutViz.addEventListener('keyup', (e) => {
     if (!KNOWN_KEYS.has(e.key)) {
       return;
     }
@@ -129,9 +129,9 @@ const initHook = (u: uPlot) => {
       u.setSelect(u.select);
       dragStartX = null;
     }
-  };
+  });
 
-  const onFocus = () => {
+  vizLayoutViz.addEventListener('focus', (e) => {
     // We only want to initialize the cursor if the user is using keyboard controls
     if (!vizLayoutViz?.matches(':focus-visible')) {
       return;
@@ -141,30 +141,14 @@ const initHook = (u: uPlot) => {
     const drawWidth = parseFloat(u.over.style.width);
     const drawHeight = parseFloat(u.over.style.height);
     u.setCursor({ left: drawWidth / 2, top: drawHeight / 2 });
-  };
+  });
 
-  const onBlur = () => {
+  vizLayoutViz.addEventListener('blur', (e) => {
     keysLastHandledAt = null;
     dragStartX = null;
     pressedKeys.clear();
     u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
-  };
-
-  vizLayoutViz.addEventListener('keydown', onKeyDown);
-  vizLayoutViz.addEventListener('keyup', onKeyUp);
-  vizLayoutViz.addEventListener('focus', onFocus);
-  vizLayoutViz.addEventListener('blur', onBlur);
-
-  const onDestroy = () => {
-    vizLayoutViz?.removeEventListener('keydown', onKeyDown);
-    vizLayoutViz?.removeEventListener('keyup', onKeyUp);
-    vizLayoutViz?.removeEventListener('focus', onFocus);
-    vizLayoutViz?.removeEventListener('blur', onBlur);
-
-    vizLayoutViz = null;
-  };
-
-  (u.hooks.destroy ??= []).push(onDestroy);
+  });
 };
 
 /**

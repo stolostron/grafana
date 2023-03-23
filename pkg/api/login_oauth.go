@@ -13,7 +13,6 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/metrics"
 	"github.com/grafana/grafana/pkg/login"
@@ -68,7 +67,7 @@ func genPKCECode() (string, string, error) {
 	return string(ascii), pkce, nil
 }
 
-func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
+func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) {
 	loginInfo := models.LoginInfo{
 		AuthModule: "oauth",
 	}
@@ -139,7 +138,7 @@ func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
 		}
 
 		ctx.Redirect(connect.AuthCodeURL(state, opts...))
-		return nil
+		return
 	}
 
 	cookieState := ctx.GetCookie(OauthStateCookieName)

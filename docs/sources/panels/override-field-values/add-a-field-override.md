@@ -1,5 +1,6 @@
 ---
 aliases:
+  - /docs/grafana/latest/panels/override-field-values/add-a-field-override/
   - /docs/sources/panels/override-field-values/add-a-field-override/
 title: Add a field override
 weight: 30
@@ -11,7 +12,7 @@ You can override a field when you want to change the display of the value in the
 
 ## Before you begin
 
-- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel.md" >}}).
+- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel/" >}}).
 
 **To add a field override**:
 

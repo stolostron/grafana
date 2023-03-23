@@ -4,7 +4,6 @@ import React, { FC, useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 
 import { GrafanaTheme2 } from '@grafana/data';
-import { config } from '@grafana/runtime';
 import { Badge, ConfirmModal, HorizontalGroup, Icon, Spinner, Tooltip, useStyles2 } from '@grafana/ui';
 import kbn from 'app/core/utils/kbn';
 import { CombinedRuleGroup, CombinedRuleNamespace } from 'app/types/unified-alerting';

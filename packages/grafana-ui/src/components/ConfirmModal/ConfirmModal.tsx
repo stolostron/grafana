@@ -7,6 +7,12 @@ import { selectors } from '@grafana/e2e-selectors';
 import { HorizontalGroup, Input } from '..';
 import { useStyles2 } from '../../themes';
 import { IconName } from '../../types/icon';
+import { Button } from '../Button';
+import { Modal } from '../Modal/Modal';
+
+import { HorizontalGroup, Input } from '..';
+import { useStyles2 } from '../../themes';
+import { IconName } from '../../types/icon';
 import { Button, ButtonVariant } from '../Button';
 import { Modal } from '../Modal/Modal';
 

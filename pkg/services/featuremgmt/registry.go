@@ -14,14 +14,9 @@ var (
 			State:       FeatureStateBeta,
 		},
 		{
-			Name:        "envelopeEncryption",
-			Description: "encrypt secrets",
-			State:       FeatureStateBeta,
-		},
-		{
-			Name:        "httpclientprovider_azure_auth",
-			Description: "Experimental. Allow datasources to configure Azure authentication directly via JsonData",
-			State:       FeatureStateBeta,
+			Name:        "disableEnvelopeEncryption",
+			Description: "Disable envelope encryption (emergency only)",
+			State:       FeatureStateStable,
 		},
 		{
 			Name:        "serviceAccounts",
@@ -39,14 +34,10 @@ var (
 			State:       FeatureStateAlpha,
 		},
 		{
-			Name:        "dashboardPreviewsScheduler",
-			Description: "Schedule automatic updates to dashboard previews",
-			State:       FeatureStateAlpha,
-		},
-		{
-			Name:        "dashboardPreviewsAdmin",
-			Description: "Manage the dashboard previews crawler process from the UI",
-			State:       FeatureStateAlpha,
+			Name:            "dashboardPreviewsAdmin",
+			Description:     "Manage the dashboard previews crawler process from the UI",
+			State:           FeatureStateAlpha,
+			RequiresDevMode: true,
 		},
 		{
 			Name:        "live-config",
@@ -71,10 +62,9 @@ var (
 			FrontendOnly: true,
 		},
 		{
-			Name:            "panelTitleSearch",
-			Description:     "Search for dashboards using panel title",
-			State:           FeatureStateAlpha,
-			RequiresDevMode: true, // only supported in dev mode right now
+			Name:        "panelTitleSearch",
+			Description: "Search for dashboards using panel title",
+			State:       FeatureStateAlpha,
 		},
 		{
 			Name:         "tempoSearch",
@@ -98,21 +88,16 @@ var (
 			Description:  "Loki datasource works as backend datasource",
 			State:        FeatureStateAlpha,
 			FrontendOnly: true,
-		},
-		{
-			Name:        "accesscontrol",
-			Description: "Support robust access control",
-			State:       FeatureStateBeta,
-		},
-		{
-			Name:            "accesscontrol-builtins",
-			Description:     "Simplify access control builtin roles",
-			State:           FeatureStateAlpha,
-			RequiresDevMode: true,
+			Expression:   "true", // Enabled by default
 		},
 		{
 			Name:        "prometheus_azure_auth",
 			Description: "Experimental. Azure authentication for Prometheus datasource",
+			State:       FeatureStateBeta,
+		},
+		{
+			Name:        "prometheusAzureOverrideAudience",
+			Description: "Experimental. Allow override default AAD audience for Azure Prometheus endpoint",
 			State:       FeatureStateBeta,
 		},
 		{
@@ -133,13 +118,8 @@ var (
 			RequiresDevMode: true,
 		},
 		{
-			Name:        "disable_http_request_histogram",
-			Description: "Do not create histograms for http requests",
-			State:       FeatureStateAlpha,
-		},
-		{
-			Name:            "validatedQueries",
-			Description:     "only execute the query saved in a panel",
+			Name:            "publicDashboards",
+			Description:     "enables public access to dashboards",
 			State:           FeatureStateAlpha,
 			RequiresDevMode: true,
 		},
@@ -174,19 +154,15 @@ var (
 			State:       FeatureStateBeta,
 		},
 		{
-			Name:        "saveDashboardDrawer",
-			Description: "Use a drawer to show save dashboard dialog",
-			State:       FeatureStateBeta,
-		},
-		{
 			Name:        "storage",
 			Description: "Configurable storage for dashboards, datasources, and resources",
 			State:       FeatureStateAlpha,
 		},
 		{
-			Name:        "alertProvisioning",
-			Description: "Provisioning-friendly routes for alerting",
-			State:       FeatureStateAlpha,
+			Name:            "export",
+			Description:     "Export grafana instance (to git, etc)",
+			State:           FeatureStateAlpha,
+			RequiresDevMode: true,
 		},
 		{
 			Name:            "storageLocalUpload",
@@ -214,14 +190,52 @@ var (
 			FrontendOnly: true,
 		},
 		{
-			Name:         "persistNotifications",
-			Description:  "PoC Notifications page",
-			State:        FeatureStateAlpha,
-			FrontendOnly: true,
+			Name:        "commandPalette",
+			Description: "Enable command palette",
+			State:       FeatureStateAlpha,
+		},
+		{
+			Name:        "savedItems",
+			Description: "Enable Saved Items in the navbar.",
+			State:       FeatureStateAlpha,
+		},
+		{
+			Name:        "cloudWatchDynamicLabels",
+			Description: "Use dynamic labels instead of alias patterns in CloudWatch datasource",
+			State:       FeatureStateStable,
 		},
 		{
 			Name:        "datasourceQueryMultiStatus",
 			Description: "Introduce HTTP 207 Multi Status for api/ds/query",
+			State:       FeatureStateAlpha,
+		},
+		{
+			Name:            "azureMonitorExperimentalUI",
+			Description:     "Use grafana-experimental UI in Azure Monitor",
+			State:           FeatureStateAlpha,
+			RequiresDevMode: true,
+			FrontendOnly:    true,
+		},
+		{
+			Name:         "traceToMetrics",
+			Description:  "Enable trace to metrics links",
+			State:        FeatureStateAlpha,
+			FrontendOnly: true,
+		},
+		{
+			Name:        "prometheusStreamingJSONParser",
+			Description: "Enable streaming JSON parser for Prometheus datasource",
+			State:       FeatureStateBeta,
+		},
+		{
+			Name:            "validateDashboardsOnSave",
+			Description:     "Validate dashboard JSON POSTed to api/dashboards/db",
+			State:           FeatureStateAlpha,
+			RequiresRestart: true,
+		},
+		{
+			Name:        "prometheusWideSeries",
+			Description: "Enable wide series responses in the Prometheus datasource",
 			State:       FeatureStateAlpha,
 		},
 	}

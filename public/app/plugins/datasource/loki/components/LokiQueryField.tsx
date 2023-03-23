@@ -1,7 +1,6 @@
 import { LanguageMap, languages as prismLanguages } from 'prismjs';
 import React, { ReactNode } from 'react';
 import { Plugin, Node } from 'slate';
-import { Editor } from 'slate-react';
 
 import { QueryEditorProps } from '@grafana/data';
 import {
@@ -18,7 +17,7 @@ import { LocalStorageValueProvider } from 'app/core/components/LocalStorageValue
 
 import { LokiDatasource } from '../datasource';
 import LokiLanguageProvider from '../language_provider';
-import { shouldRefreshLabels } from '../language_utils';
+import { escapeLabelValueInSelector, shouldRefreshLabels } from '../language_utils';
 import { LokiQuery, LokiOptions } from '../types';
 
 import { LokiLabelBrowser } from './LokiLabelBrowser';
@@ -48,17 +47,26 @@ function willApplySuggestion(suggestion: string, { typeaheadContext, typeaheadTe
 
     case 'context-label-values': {
       // Always add quotes and remove existing ones instead
+      let suggestionModified = '';
+
       if (!typeaheadText.match(/^(!?=~?"|")/)) {
-        suggestion = `"${suggestion}`;
+        suggestionModified = '"';
       }
+
+      suggestionModified += escapeLabelValueInSelector(suggestion, typeaheadText);
+
       if (DOMUtil.getNextCharacter() !== '"') {
-        suggestion = `${suggestion}"`;
+        suggestionModified += '"';
       }
+
+      suggestion = suggestionModified;
+
       break;
     }
 
     default:
   }
+
   return suggestion;
 }
 
@@ -74,7 +82,7 @@ interface LokiQueryFieldState {
 }
 
 export class LokiQueryField extends React.PureComponent<LokiQueryFieldProps, LokiQueryFieldState> {
-  plugins: Array<Plugin<Editor>>;
+  plugins: Plugin[];
   _isMounted = false;
 
   constructor(props: LokiQueryFieldProps) {
@@ -104,18 +112,6 @@ export class LokiQueryField extends React.PureComponent<LokiQueryFieldProps, Lok
 
   componentWillUnmount() {
     this._isMounted = false;
-  }
-
-  componentDidUpdate(prevProps: LokiQueryFieldProps) {
-    const {
-      range,
-      datasource: { languageProvider },
-    } = this.props;
-    const refreshLabels = shouldRefreshLabels(range, prevProps.range);
-    // We want to refresh labels when range changes (we round up intervals to a minute)
-    if (refreshLabels) {
-      languageProvider.fetchLabels();
-    }
   }
 
   componentDidUpdate(prevProps: LokiQueryFieldProps) {

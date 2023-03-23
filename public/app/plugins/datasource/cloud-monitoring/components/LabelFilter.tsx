@@ -102,7 +102,6 @@ export const LabelFilter: FunctionComponent<Props> = ({
           return (
             <HorizontalGroup key={index} spacing="xs" width="auto">
               <Select
-                menuShouldPortal
                 aria-label="Filter label key"
                 width={SELECT_WIDTH}
                 allowCustomValue
@@ -118,7 +117,6 @@ export const LabelFilter: FunctionComponent<Props> = ({
                 }}
               />
               <Select
-                menuShouldPortal
                 value={operator}
                 options={operators.map(toOption)}
                 onChange={({ value: operator = '=' }) =>
@@ -128,7 +126,6 @@ export const LabelFilter: FunctionComponent<Props> = ({
                 renderControl={OperatorButton}
               />
               <Select
-                menuShouldPortal
                 aria-label="Filter label value"
                 width={SELECT_WIDTH}
                 formatCreateLabel={(v) => `Use label value: ${v}`}

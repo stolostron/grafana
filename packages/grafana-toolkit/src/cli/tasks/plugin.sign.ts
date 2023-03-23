@@ -1,6 +1,5 @@
 import path from 'path';
 
-import { assertRootUrlIsValid } from '../../config/utils/pluginValidation';
 import { buildManifest, signManifest, saveManifest } from '../../plugins/manifest';
 
 import { getToolkitVersion } from './plugin.utils';

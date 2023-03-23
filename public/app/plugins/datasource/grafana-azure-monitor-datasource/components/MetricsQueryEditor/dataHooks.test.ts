@@ -251,15 +251,15 @@ describe('AzureMonitor: metrics dataHooks', () => {
       .fn()
       .mockResolvedValue([opt('Web server', 'web-server'), opt('Job server', 'job-server')]);
 
-    datasource.getMetricNames = jest
+    datasource.azureMonitorDatasource.getMetricNames = jest
       .fn()
       .mockResolvedValue([opt('Percentage CPU', 'percentage-cpu'), opt('Free memory', 'free-memory')]);
 
-    datasource.getMetricNamespaces = jest
+    datasource.azureMonitorDatasource.getMetricNamespaces = jest
       .fn()
       .mockResolvedValue([opt('Compute Virtual Machine', 'azure/vmc'), opt('Database NS', 'azure/dbns')]);
 
-    const getMetricMetadata = jest.fn().mockResolvedValue({
+    datasource.azureMonitorDatasource.getMetricMetadata = jest.fn().mockResolvedValue({
       primaryAggType: 'Average',
       supportedAggTypes: ['Average'],
       supportedTimeGrains: [
@@ -275,8 +275,6 @@ describe('AzureMonitor: metrics dataHooks', () => {
       ],
       dimensions: [],
     });
-
-    datasource.getMetricMetadata = jest.fn().mockImplementation(getMetricMetadata);
   });
 
   describe.each(testTable)('scenario %#: $name', (scenario) => {
@@ -391,6 +389,7 @@ describe('AzureMonitor: updateSubscriptions', () => {
         azureMonitor: {
           dimensionFilters: [],
           timeGrain: '',
+          resourceUri: '',
         },
       },
     },
@@ -404,6 +403,7 @@ describe('AzureMonitor: updateSubscriptions', () => {
         azureMonitor: {
           dimensionFilters: [],
           timeGrain: '',
+          resourceUri: '',
         },
       },
     },
@@ -418,6 +418,7 @@ describe('AzureMonitor: updateSubscriptions', () => {
         azureMonitor: {
           dimensionFilters: [],
           timeGrain: '',
+          resourceUri: '',
         },
       },
     },

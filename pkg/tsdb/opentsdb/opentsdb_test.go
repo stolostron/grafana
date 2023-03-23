@@ -2,7 +2,7 @@ package opentsdb
 
 import (
 	"context"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"

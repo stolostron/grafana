@@ -10,12 +10,17 @@ import (
 
 	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/setting"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestUserDataAccess(t *testing.T) {
+func TestIntegrationUserDataAccess(t *testing.T) {
 
 	ss := InitTestDB(t)
+	user := &models.SignedInUser{
+		OrgId:       1,
+		Permissions: map[int64]map[string][]string{1: {"users:read": {"global.users:*"}}},
+	}
 
 	t.Run("Testing DB - creates and loads user", func(t *testing.T) {
 		cmd := models.CreateUserCommand{
@@ -119,7 +124,7 @@ func TestUserDataAccess(t *testing.T) {
 		}()
 
 		orgCmd := &models.CreateOrgCommand{Name: "Some Test Org"}
-		err := CreateOrg(context.Background(), orgCmd)
+		err := ss.CreateOrg(context.Background(), orgCmd)
 		require.Nil(t, err)
 
 		cmd := models.CreateUserCommand{
@@ -168,7 +173,7 @@ func TestUserDataAccess(t *testing.T) {
 		})
 
 		// Return the first page of users and a total count
-		query := models.SearchUsersQuery{Query: "", Page: 1, Limit: 3}
+		query := models.SearchUsersQuery{Query: "", Page: 1, Limit: 3, SignedInUser: user}
 		err := ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
@@ -176,7 +181,7 @@ func TestUserDataAccess(t *testing.T) {
 		require.EqualValues(t, query.Result.TotalCount, 5)
 
 		// Return the second page of users and a total count
-		query = models.SearchUsersQuery{Query: "", Page: 2, Limit: 3}
+		query = models.SearchUsersQuery{Query: "", Page: 2, Limit: 3, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
@@ -184,28 +189,28 @@ func TestUserDataAccess(t *testing.T) {
 		require.EqualValues(t, query.Result.TotalCount, 5)
 
 		// Return list of users matching query on user name
-		query = models.SearchUsersQuery{Query: "use", Page: 1, Limit: 3}
+		query = models.SearchUsersQuery{Query: "use", Page: 1, Limit: 3, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
 		require.Len(t, query.Result.Users, 3)
 		require.EqualValues(t, query.Result.TotalCount, 5)
 
-		query = models.SearchUsersQuery{Query: "ser1", Page: 1, Limit: 3}
+		query = models.SearchUsersQuery{Query: "ser1", Page: 1, Limit: 3, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
 		require.Len(t, query.Result.Users, 1)
 		require.EqualValues(t, query.Result.TotalCount, 1)
 
-		query = models.SearchUsersQuery{Query: "USER1", Page: 1, Limit: 3}
+		query = models.SearchUsersQuery{Query: "USER1", Page: 1, Limit: 3, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
 		require.Len(t, query.Result.Users, 1)
 		require.EqualValues(t, query.Result.TotalCount, 1)
 
-		query = models.SearchUsersQuery{Query: "idontexist", Page: 1, Limit: 3}
+		query = models.SearchUsersQuery{Query: "idontexist", Page: 1, Limit: 3, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
@@ -213,7 +218,7 @@ func TestUserDataAccess(t *testing.T) {
 		require.EqualValues(t, query.Result.TotalCount, 0)
 
 		// Return list of users matching query on email
-		query = models.SearchUsersQuery{Query: "ser1@test.com", Page: 1, Limit: 3}
+		query = models.SearchUsersQuery{Query: "ser1@test.com", Page: 1, Limit: 3, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
@@ -221,7 +226,7 @@ func TestUserDataAccess(t *testing.T) {
 		require.EqualValues(t, query.Result.TotalCount, 1)
 
 		// Return list of users matching query on login name
-		query = models.SearchUsersQuery{Query: "loginuser1", Page: 1, Limit: 3}
+		query = models.SearchUsersQuery{Query: "loginuser1", Page: 1, Limit: 3, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
@@ -241,7 +246,7 @@ func TestUserDataAccess(t *testing.T) {
 		})
 
 		isDisabled := false
-		query := models.SearchUsersQuery{IsDisabled: &isDisabled}
+		query := models.SearchUsersQuery{IsDisabled: &isDisabled, SignedInUser: user}
 		err := ss.SearchUsers(context.Background(), &query)
 		require.Nil(t, err)
 
@@ -284,17 +289,12 @@ func TestUserDataAccess(t *testing.T) {
 		})
 		require.Nil(t, err)
 
-		err = ss.SavePreferences(context.Background(), &models.SavePreferencesCommand{
-			UserId: users[1].Id, OrgId: users[0].OrgId, HomeDashboardId: 1, Theme: "dark",
-		})
-		require.Nil(t, err)
-
 		// When the user is deleted
 		err = ss.DeleteUser(context.Background(), &models.DeleteUserCommand{UserId: users[1].Id})
 		require.Nil(t, err)
 
-		query1 := &models.GetOrgUsersQuery{OrgId: users[0].OrgId}
-		err = GetOrgUsersForTest(query1)
+		query1 := &models.GetOrgUsersQuery{OrgId: users[0].OrgId, User: user}
+		err = ss.GetOrgUsersForTest(context.Background(), query1)
 		require.Nil(t, err)
 
 		require.Len(t, query1.Result, 1)
@@ -304,13 +304,6 @@ func TestUserDataAccess(t *testing.T) {
 		require.Nil(t, err)
 
 		require.Len(t, permQuery.Result, 0)
-
-		prefsQuery := &models.GetPreferencesQuery{OrgId: users[0].OrgId, UserId: users[1].Id}
-		err = ss.GetPreferences(context.Background(), prefsQuery)
-		require.Nil(t, err)
-
-		require.EqualValues(t, prefsQuery.Result.OrgId, 0)
-		require.EqualValues(t, prefsQuery.Result.UserId, 0)
 
 		// A user is an org member and has been assigned permissions
 		// Re-init DB
@@ -332,11 +325,6 @@ func TestUserDataAccess(t *testing.T) {
 		err = updateDashboardAcl(t, ss, 1, &models.DashboardAcl{
 			DashboardID: 1, OrgID: users[0].OrgId, UserID: users[1].Id,
 			Permission: models.PERMISSION_EDIT,
-		})
-		require.Nil(t, err)
-
-		err = ss.SavePreferences(context.Background(), &models.SavePreferencesCommand{
-			UserId: users[1].Id, OrgId: users[0].OrgId, HomeDashboardId: 1, Theme: "dark",
 		})
 		require.Nil(t, err)
 
@@ -368,7 +356,7 @@ func TestUserDataAccess(t *testing.T) {
 		require.Nil(t, err)
 
 		isDisabled = true
-		query5 := &models.SearchUsersQuery{IsDisabled: &isDisabled}
+		query5 := &models.SearchUsersQuery{IsDisabled: &isDisabled, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), query5)
 
 		require.Nil(t, err)
@@ -380,7 +368,7 @@ func TestUserDataAccess(t *testing.T) {
 
 		// delete connected org users and permissions
 		query2 := &models.GetOrgUsersQuery{OrgId: users[0].OrgId}
-		err = GetOrgUsersForTest(query2)
+		err = ss.GetOrgUsersForTest(context.Background(), query2)
 		require.Nil(t, err)
 
 		require.Len(t, query2.Result, 1)
@@ -390,13 +378,26 @@ func TestUserDataAccess(t *testing.T) {
 		require.Nil(t, err)
 
 		require.Len(t, permQuery.Result, 0)
+	})
 
-		prefsQuery = &models.GetPreferencesQuery{OrgId: users[0].OrgId, UserId: users[1].Id}
-		err = ss.GetPreferences(context.Background(), prefsQuery)
-		require.Nil(t, err)
+	t.Run("Testing DB - return list of users that the SignedInUser has permission to read", func(t *testing.T) {
+		ss := InitTestDB(t)
+		createFiveTestUsers(t, ss, func(i int) *models.CreateUserCommand {
+			return &models.CreateUserCommand{
+				Email: fmt.Sprint("user", i, "@test.com"),
+				Name:  fmt.Sprint("user", i),
+				Login: fmt.Sprint("loginuser", i),
+			}
+		})
 
-		require.EqualValues(t, prefsQuery.Result.OrgId, 0)
-		require.EqualValues(t, prefsQuery.Result.UserId, 0)
+		testUser := &models.SignedInUser{
+			OrgId:       1,
+			Permissions: map[int64]map[string][]string{1: {"users:read": {"global.users:id:1", "global.users:id:3"}}},
+		}
+		query := models.SearchUsersQuery{SignedInUser: testUser}
+		err := ss.SearchUsers(context.Background(), &query)
+		assert.Nil(t, err)
+		assert.Len(t, query.Result.Users, 2)
 	})
 
 	ss = InitTestDB(t)
@@ -421,7 +422,7 @@ func TestUserDataAccess(t *testing.T) {
 		require.Nil(t, err)
 
 		isDisabled := false
-		query := &models.SearchUsersQuery{IsDisabled: &isDisabled}
+		query := &models.SearchUsersQuery{IsDisabled: &isDisabled, SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), query)
 
 		require.Nil(t, err)
@@ -452,7 +453,7 @@ func TestUserDataAccess(t *testing.T) {
 		err := ss.BatchDisableUsers(context.Background(), &disableCmd)
 		require.Nil(t, err)
 
-		query := models.SearchUsersQuery{}
+		query := models.SearchUsersQuery{SignedInUser: user}
 		err = ss.SearchUsers(context.Background(), &query)
 
 		require.Nil(t, err)
@@ -546,15 +547,17 @@ func TestUserDataAccess(t *testing.T) {
 	})
 }
 
-func GetOrgUsersForTest(query *models.GetOrgUsersQuery) error {
-	query.Result = make([]*models.OrgUserDTO, 0)
-	sess := x.Table("org_user")
-	sess.Join("LEFT ", x.Dialect().Quote("user"), fmt.Sprintf("org_user.user_id=%s.id", x.Dialect().Quote("user")))
-	sess.Where("org_user.org_id=?", query.OrgId)
-	sess.Cols("org_user.org_id", "org_user.user_id", "user.email", "user.login", "org_user.role")
+func (ss *SQLStore) GetOrgUsersForTest(ctx context.Context, query *models.GetOrgUsersQuery) error {
+	return ss.WithDbSession(ctx, func(dbSess *DBSession) error {
+		query.Result = make([]*models.OrgUserDTO, 0)
+		sess := dbSess.Table("org_user")
+		sess.Join("LEFT ", ss.Dialect.Quote("user"), fmt.Sprintf("org_user.user_id=%s.id", ss.Dialect.Quote("user")))
+		sess.Where("org_user.org_id=?", query.OrgId)
+		sess.Cols("org_user.org_id", "org_user.user_id", "user.email", "user.login", "org_user.role")
 
-	err := sess.Find(&query.Result)
-	return err
+		err := sess.Find(&query.Result)
+		return err
+	})
 }
 
 func createFiveTestUsers(t *testing.T, sqlStore *SQLStore, fn func(i int) *models.CreateUserCommand) []models.User {

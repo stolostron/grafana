@@ -1,6 +1,7 @@
 ---
 aliases:
-  - view-user-account-details/
+  - /docs/grafana/latest/administration/manage-users-and-permissions/manage-server-users/view-edit-user-account/
+  - /docs/grafana/latest/administration/manage-users-and-permissions/manage-server-users/view-user-account-details/
 title: View and edit a user account
 weight: 110
 ---

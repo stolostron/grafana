@@ -1,8 +1,8 @@
 import { css } from '@emotion/css';
 import { isString } from 'lodash';
 import React, { CSSProperties } from 'react';
+import SVG from 'react-inlinesvg';
 
-import { SanitizedSVG } from 'app/core/components/SVG/SanitizedSVG';
 import {
   ColorDimensionConfig,
   ResourceDimensionConfig,
@@ -39,7 +39,7 @@ const svgStrokePathClass = css`
 `;
 
 export function IconDisplay(props: CanvasElementProps) {
-  const { width, height, data } = props;
+  const { data } = props;
   if (!data?.path) {
     return null;
   }
@@ -57,11 +57,9 @@ export function IconDisplay(props: CanvasElementProps) {
   };
 
   return (
-    <SanitizedSVG
+    <SVG
       onClick={onClick}
       src={data.path}
-      width={width}
-      height={height}
       style={svgStyle}
       className={svgStyle.strokeWidth ? svgStrokePathClass : undefined}
     />
@@ -79,6 +77,8 @@ export const iconItem: CanvasElementItem<IconConfig, IconData> = {
     placement: {
       width: 50,
       height: 50,
+      top: 0,
+      left: 0,
     },
     ...options,
     config: {

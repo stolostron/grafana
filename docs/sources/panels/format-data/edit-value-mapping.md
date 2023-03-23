@@ -1,5 +1,6 @@
 ---
 aliases:
+  - /docs/grafana/latest/panels/format-data/edit-value-mapping/
   - /docs/sources/panels/format-data/edit-value-mapping/
 title: Edit a value mapping
 weight: 60
@@ -11,7 +12,7 @@ You can change a value mapping at any time.
 
 ## Before you begin
 
-- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel.md" >}}).
+- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel/" >}}).
 - Ensure you have an existing value mapping to edit.
 
 **To edit a value mapping**:

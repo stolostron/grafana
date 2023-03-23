@@ -1,7 +1,8 @@
-import React from 'react';
-import { Plugin } from 'slate-react';
+import { Editor as CoreEditor } from 'slate';
 
-export function RunnerPlugin({ handler }: { handler?: (e: React.KeyboardEvent) => void }): Plugin {
+import { Plugin } from '@grafana/slate-react';
+
+export function RunnerPlugin({ handler }: any): Plugin {
   return {
     onKeyDown(event, editor, next) {
       // Handle enter

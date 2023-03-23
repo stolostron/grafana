@@ -89,13 +89,7 @@ export const LinkSettingsEdit: React.FC<LinkSettingsEditProps> = ({ editLinkIdx,
         <Input name="title" id="title" value={linkSettings.title} onChange={onChange} autoFocus={isNew} />
       </Field>
       <Field label="Type">
-        <Select
-          inputId="link-type-input"
-          value={linkSettings.type}
-          options={linkTypeOptions}
-          onChange={onTypeChange}
-          menuShouldPortal
-        />
+        <Select inputId="link-type-input" value={linkSettings.type} options={linkTypeOptions} onChange={onTypeChange} />
       </Field>
       {linkSettings.type === 'dashboards' && (
         <>

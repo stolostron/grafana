@@ -1,6 +1,7 @@
 ---
 aliases:
-  - ../installation/configure-docker/
+  - /docs/grafana/latest/administration/configure-docker/
+  - /docs/grafana/latest/installation/configure-docker/
 description: Guide for configuring the Grafana Docker image
 keywords:
   - grafana
@@ -13,7 +14,9 @@ weight: 200
 
 # Configure a Grafana Docker image
 
-If you are running Grafana in a Docker image, then you configure Grafana using [environment variables]({{< relref "../administration/configuration.md#configure-with-environment-variables" >}}) rather than directly editing the configuration file. If you want to save your data, then you also need to designate persistent storage or bind mounts for the Grafana container.
+If you are running Grafana in a Docker image, then you configure Grafana using [environment variables]({{< relref "../setup-grafana/configure-grafana/#configure-with-environment-variables" >}}) rather than directly editing the configuration file. If you want to save your data, then you also need to designate persistent storage or bind mounts for the Grafana container.
+
+> **Note:** These examples use the Grafana Enterprise docker image. You can use the Grafana Open Source edition by changing the docker image to `grafana/grafana-oss`.
 
 > **Note:** These examples use the Grafana Enterprise docker image. You can use the Grafana Open Source edition by changing the docker image to `grafana/grafana-oss`.
 
@@ -58,7 +61,7 @@ The following settings are hard-coded when launching the Grafana Docker containe
 
 ## Logging
 
-Logs in the Docker container go to standard out by default, as is common in the Docker world. Change this by setting a different [log mode]({{< relref "../administration/configuration.md#mode" >}}).
+Logs in the Docker container go to standard out by default, as is common in the Docker world. Change this by setting a different [log mode]({{< relref "../setup-grafana/configure-grafana/#mode" >}}).
 
 Example:
 

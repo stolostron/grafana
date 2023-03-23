@@ -3,7 +3,6 @@ import React from 'react';
 import { PanelModel, PanelPlugin } from '@grafana/data';
 import { config } from '@grafana/runtime';
 import { TagsInput } from '@grafana/ui';
-import { PermissionLevelString } from '../../../types';
 
 import {
   ALL_FOLDER,

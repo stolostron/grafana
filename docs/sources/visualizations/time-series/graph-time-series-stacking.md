@@ -1,7 +1,8 @@
 ---
 aliases:
-  - ../../features/panels/histogram/
-  - ../../panels/visualizations/time-series/graph-time-series-stacking/
+  - /docs/grafana/latest/features/panels/histogram/
+  - /docs/grafana/latest/panels/visualizations/time-series/graph-time-series-stacking/
+  - /docs/grafana/latest/visualizations/time-series/graph-time-series-stacking/
 keywords:
   - grafana
   - time series panel
@@ -44,7 +45,7 @@ Enable stacking series on top of each other.
 
 The stacking group option is only available as an override.
 
-For more information about creating field overrides, refer to [About field overrides]({{< relref "../../panels/override-field-values/about-field-overrides.md" >}}).
+For more information about creating field overrides, refer to [About field overrides]({{< relref "../../panels/override-field-values/about-field-overrides/" >}}).
 
 Stack series in the same group. In the Overrides section:
 

@@ -7,7 +7,7 @@ package log
 import (
 	"fmt"
 	"io"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,13 +18,12 @@ import (
 
 	gokitlog "github.com/go-kit/log"
 	"github.com/go-stack/stack"
-	"github.com/mattn/go-isatty"
-	"gopkg.in/ini.v1"
-
 	"github.com/grafana/grafana/pkg/infra/log/level"
 	"github.com/grafana/grafana/pkg/infra/log/term"
 	"github.com/grafana/grafana/pkg/util"
 	"github.com/grafana/grafana/pkg/util/errutil"
+	"github.com/mattn/go-isatty"
+	"gopkg.in/ini.v1"
 )
 
 var (
@@ -182,11 +181,6 @@ func (cl *ConcreteLogger) Debug(msg string, args ...interface{}) {
 	_ = cl.log(msg, level.DebugValue(), args...)
 }
 
-func (cl *ConcreteLogger) Log(ctx ...interface{}) error {
-	logger := gokitlog.With(&cl.SwapLogger, "t", gokitlog.TimestampFormat(now, logTimeFormat))
-	return logger.Log(ctx...)
-}
-
 func (cl *ConcreteLogger) Error(msg string, args ...interface{}) {
 	_ = cl.log(msg, level.ErrorValue(), args...)
 }
@@ -196,7 +190,10 @@ func (cl *ConcreteLogger) Info(msg string, args ...interface{}) {
 }
 
 func (cl *ConcreteLogger) log(msg string, logLevel level.Value, args ...interface{}) error {
-	return cl.Log(append([]interface{}{level.Key(), logLevel, "msg", msg}, args...)...)
+	logger := gokitlog.With(&cl.SwapLogger, "t", gokitlog.TimestampFormat(now, logTimeFormat))
+	args = append([]interface{}{level.Key(), logLevel, "msg", msg}, args...)
+
+	return logger.Log(args...)
 }
 
 func (cl *ConcreteLogger) New(ctx ...interface{}) *ConcreteLogger {
@@ -381,6 +378,11 @@ func ReadLoggingConfig(modes []string, logsPath string, cfg *ini.File) error {
 		return err
 	}
 
+	logEnabled := cfg.Section("log").Key("enabled").MustBool(true)
+	if !logEnabled {
+		return nil
+	}
+
 	defaultLevelName, _ := getLogLevelFromConfig("log", "info", cfg)
 	defaultFilters := getFilters(util.SplitString(cfg.Section("log").Key("filters").String()))
 
@@ -449,7 +451,9 @@ func ReadLoggingConfig(modes []string, logsPath string, cfg *ini.File) error {
 	}
 
 	var err error
-	root.gokitLogActivated, err = isNewLoggerActivated(cfg)
+	isOldLoggerActivated, err := isOldLoggerActivated(cfg)
+	root.gokitLogActivated = !isOldLoggerActivated
+
 	if err != nil {
 		return err
 	}
@@ -462,13 +466,13 @@ func ReadLoggingConfig(modes []string, logsPath string, cfg *ini.File) error {
 
 // This would be removed eventually, no need to make a fancy design.
 // For the sake of important cycle I just copied the function
-func isNewLoggerActivated(cfg *ini.File) (bool, error) {
+func isOldLoggerActivated(cfg *ini.File) (bool, error) {
 	section := cfg.Section("feature_toggles")
 	toggles, err := readFeatureTogglesFromInitFile(section)
 	if err != nil {
 		return false, err
 	}
-	return toggles["newlog"], nil
+	return toggles["oldlog"], nil
 }
 
 func readFeatureTogglesFromInitFile(featureTogglesSection *ini.Section) (map[string]bool, error) {

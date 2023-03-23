@@ -1,4 +1,6 @@
 ---
+aliases:
+  - /docs/grafana/latest/administration/manage-users-and-permissions/manage-server-users/force-user-logout/
 title: Force a user to logout from Grafana
 weight: 90
 ---

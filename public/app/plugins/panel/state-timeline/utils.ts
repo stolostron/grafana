@@ -41,6 +41,11 @@ import { preparePlotData2, getStackingGroups } from '../../../../../packages/gra
 import { getConfig, TimelineCoreOptions } from './timeline';
 import { TimelineFieldConfig, TimelineOptions } from './types';
 
+import { preparePlotData2, getStackingGroups } from '../../../../../packages/grafana-ui/src/components/uPlot/utils';
+
+import { getConfig, TimelineCoreOptions } from './timeline';
+import { TimelineFieldConfig, TimelineOptions } from './types';
+
 const defaultConfig: TimelineFieldConfig = {
   lineWidth: 0,
   fillOpacity: 80,
@@ -402,9 +407,11 @@ export function prepareTimelineFields(
       refFieldPseudoMax: timeRange.to.valueOf(),
     });
 
-    if (nulledFrame !== frame) {
-      changed = true;
-    }
+    // Mark the field state as having a null threhold applied
+    frame.fields[0].state = {
+      ...frame.fields[0].state,
+      nullThresholdApplied: true,
+    };
 
     const fields: Field[] = [];
     for (let field of nullToValue(nulledFrame).fields) {

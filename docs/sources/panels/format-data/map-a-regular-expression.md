@@ -1,5 +1,6 @@
 ---
 aliases:
+  - /docs/grafana/latest/panels/format-data/map-a-regular-expression/
   - /docs/sources/panels/format-data/map-a-regular-expression/
 title: Map a regular expression
 weight: 40
@@ -11,7 +12,7 @@ Map a regular expression when you want to format the text and color of a regular
 
 ## Before you begin
 
-- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel.md" >}}).
+- [Add a panel to a dashboard]({{< relref "../working-with-panels/add-panel/" >}}).
 
 **To map a regular expression**:
 

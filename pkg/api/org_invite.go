@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/grafana/grafana/pkg/api/dtos"
 	"github.com/grafana/grafana/pkg/api/response"
@@ -31,7 +29,7 @@ func (hs *HTTPServer) GetPendingOrgInvites(c *models.ReqContext) response.Respon
 		invite.Url = setting.ToAbsUrl("invite/" + invite.Code)
 	}
 
-	return response.JSON(200, query.Result)
+	return response.JSON(http.StatusOK, query.Result)
 }
 
 func (hs *HTTPServer) AddOrgInvite(c *models.ReqContext) response.Response {
@@ -53,15 +51,6 @@ func (hs *HTTPServer) AddOrgInvite(c *models.ReqContext) response.Response {
 			return response.Error(500, "Failed to query db for existing user check", err)
 		}
 	} else {
-		// Evaluate permissions for adding an existing user to the organization
-		userIDScope := ac.Scope("users", "id", strconv.Itoa(int(userQuery.Result.Id)))
-		hasAccess, err := hs.AccessControl.Evaluate(c.Req.Context(), c.SignedInUser, ac.EvalPermission(ac.ActionOrgUsersAdd, userIDScope))
-		if err != nil {
-			return response.Error(http.StatusInternalServerError, "Failed to evaluate permissions", err)
-		}
-		if !hasAccess {
-			return response.Error(http.StatusForbidden, "Permission denied: not permitted to add an existing user to this organisation", err)
-		}
 		return hs.inviteExistingUserToOrg(c, userQuery.Result, &inviteDto)
 	}
 
@@ -146,7 +135,7 @@ func (hs *HTTPServer) inviteExistingUserToOrg(c *models.ReqContext, user *models
 		}
 	}
 
-	return response.JSON(200, util.DynMap{
+	return response.JSON(http.StatusOK, util.DynMap{
 		"message": fmt.Sprintf("Existing Grafana user %s added to org %s", user.NameOrFallback(), c.OrgName),
 		"userId":  user.Id,
 	})
@@ -177,7 +166,7 @@ func (hs *HTTPServer) GetInviteInfoByCode(c *models.ReqContext) response.Respons
 		return response.Error(404, "Invite not found", nil)
 	}
 
-	return response.JSON(200, dtos.InviteInfo{
+	return response.JSON(http.StatusOK, dtos.InviteInfo{
 		Email:     invite.Email,
 		Name:      invite.Name,
 		Username:  invite.Email,
@@ -187,19 +176,11 @@ func (hs *HTTPServer) GetInviteInfoByCode(c *models.ReqContext) response.Respons
 
 func (hs *HTTPServer) CompleteInvite(c *models.ReqContext) response.Response {
 	completeInvite := dtos.CompleteInviteForm{}
-	var err error
-	if err = web.Bind(c.Req, &completeInvite); err != nil {
+	if err := web.Bind(c.Req, &completeInvite); err != nil {
 		return response.Error(http.StatusBadRequest, "bad request data", err)
 	}
-
-	completeInvite.Email, err = ValidateAndNormalizeEmail(completeInvite.Email)
-	if err != nil {
-		return response.Error(http.StatusBadRequest, "Invalid email address provided", nil)
-	}
-
-	completeInvite.Username = strings.TrimSpace(completeInvite.Username)
-
 	query := models.GetTempUserByCodeQuery{Code: completeInvite.InviteCode}
+
 	if err := hs.SQLStore.GetTempUserByCode(c.Req.Context(), &query); err != nil {
 		if errors.Is(err, models.ErrTempUserNotFound) {
 			return response.Error(http.StatusNotFound, "Invite not found", nil)
@@ -256,7 +237,7 @@ func (hs *HTTPServer) CompleteInvite(c *models.ReqContext) response.Response {
 	metrics.MApiUserSignUpCompleted.Inc()
 	metrics.MApiUserSignUpInvite.Inc()
 
-	return response.JSON(200, util.DynMap{
+	return response.JSON(http.StatusOK, util.DynMap{
 		"message": "User created and logged in",
 		"id":      user.Id,
 	})
