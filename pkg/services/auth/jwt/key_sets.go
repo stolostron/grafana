@@ -9,15 +9,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
+	jose "gopkg.in/square/go-jose.v2"
+
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/remotecache"
-	jose "gopkg.in/square/go-jose.v2"
 )
 
 var ErrFailedToParsePemFile = errors.New("failed to parse pem-encoded file")
@@ -83,7 +83,7 @@ func (s *AuthService) initKeySet() error {
 			}
 		}()
 
-		data, err := ioutil.ReadAll(file)
+		data, err := io.ReadAll(file)
 		if err != nil {
 			return err
 		}

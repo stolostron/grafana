@@ -18,7 +18,7 @@ Grafana allows you to query, visualize, alert on and understand your metrics no 
 ## Get started
 
 - [Get Grafana](https://grafana.com/get)
-- [Installation guides](http://docs.grafana.org/installation/)
+- [Installation guides](https://grafana.com/docs/grafana/latest/setup-grafana/installation/)
 
 Unsure if Grafana is for you? Watch Grafana in action on [play.grafana.org](https://play.grafana.org/)!
 
@@ -45,5 +45,3 @@ If you're interested in contributing to the Grafana project:
 ## License
 
 Grafana is distributed under [AGPL-3.0-only](LICENSE). For Apache-2.0 exceptions, see [LICENSING.md](https://github.com/grafana/grafana/blob/HEAD/LICENSING.md).
-
-### Rebuild Image: Wed Feb 22 12:58:58 EST 2023

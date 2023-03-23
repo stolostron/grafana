@@ -1,9 +1,14 @@
 import { DataFrame, Field, FieldColorMode } from '@grafana/data';
-import { LineStyle, VisibilityMode } from '@grafana/schema';
+import { LineStyle, ScaleDimensionConfig, VisibilityMode } from '@grafana/schema';
 import { VizLegendItem } from '@grafana/ui';
-import { ScaleDimensionConfig } from 'app/features/dimensions';
+import { DimensionSupplier } from 'app/features/dimensions';
 
-import { ScatterLineMode } from './models.gen';
+import {
+  ScatterFieldConfig as GeneratedScatterFieldConfig,
+  ScatterSeriesConfig as GeneratedScatterSeriesConfig,
+  defaultScatterFieldConfig as generatedDefaultScatterFieldConfig,
+  PanelOptions as GeneratedPanelOptions,
+} from './panelcfg.gen';
 
 /**
  * @internal
@@ -26,6 +31,20 @@ export interface LegendInfo {
   openEditor?: (evt: any) => void;
 }
 
+export interface ScatterFieldConfig extends GeneratedScatterFieldConfig {
+  pointSymbol?: DimensionSupplier<string>;
+}
+
+export const defaultScatterFieldConfig: Partial<ScatterFieldConfig> = {
+  ...generatedDefaultScatterFieldConfig,
+};
+
+export interface ScatterSeriesConfig extends ScatterFieldConfig, GeneratedScatterSeriesConfig {}
+
+export interface PanelOptions extends Omit<GeneratedPanelOptions, 'series'> {
+  series: ScatterSeriesConfig[];
+}
+
 // Using field where we will need formatting/scale/axis info
 // Use raw or DimensionValues when the values can be used directly
 export interface ScatterSeries {
@@ -37,20 +56,21 @@ export interface ScatterSeries {
   x: (frame: DataFrame) => Field;
   y: (frame: DataFrame) => Field;
 
-  legend: (frame: DataFrame) => VizLegendItem[]; // could be single if symbol is constant
+  legend: () => VizLegendItem[]; // could be single if symbol is constant
 
-  line: ScatterLineMode;
+  showLine: boolean;
   lineWidth: number;
   lineStyle: LineStyle;
   lineColor: (frame: DataFrame) => CanvasRenderingContext2D['strokeStyle'];
 
-  point: VisibilityMode;
+  showPoints: VisibilityMode;
   pointSize: DimensionValues<number>;
   pointColor: DimensionValues<CanvasRenderingContext2D['strokeStyle']>;
   pointSymbol: DimensionValues<string>; // single field, multiple symbols.... kinda equals multiple series
 
   label: VisibilityMode;
   labelValue: DimensionValues<string>;
+  show: boolean;
 
   hints: {
     pointSize: ScaleDimensionConfig;
@@ -59,3 +79,5 @@ export interface ScatterSeries {
     };
   };
 }
+
+export { ScatterShow, SeriesMapping, XYDimensionConfig } from './panelcfg.gen';

@@ -12,7 +12,6 @@ import (
 
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/util/errutil"
 )
 
 var (
@@ -21,12 +20,13 @@ var (
 )
 
 type Migrator struct {
-	DBEngine   *xorm.Engine
-	Dialect    Dialect
-	migrations []Migration
-	Logger     log.Logger
-	Cfg        *setting.Cfg
-	isLocked   atomic.Bool
+	DBEngine     *xorm.Engine
+	Dialect      Dialect
+	migrations   []Migration
+	migrationIds map[string]struct{}
+	Logger       log.Logger
+	Cfg          *setting.Cfg
+	isLocked     atomic.Bool
 }
 
 type MigrationLog struct {
@@ -43,6 +43,7 @@ func NewMigrator(engine *xorm.Engine, cfg *setting.Cfg) *Migrator {
 	mg.DBEngine = engine
 	mg.Logger = log.New("migrator")
 	mg.migrations = make([]Migration, 0)
+	mg.migrationIds = make(map[string]struct{})
 	mg.Dialect = NewDialect(mg.DBEngine)
 	mg.Cfg = cfg
 	return mg
@@ -53,8 +54,24 @@ func (mg *Migrator) MigrationsCount() int {
 }
 
 func (mg *Migrator) AddMigration(id string, m Migration) {
+	if _, ok := mg.migrationIds[id]; ok {
+		panic(fmt.Sprintf("migration id conflict: %s", id))
+	}
+
 	m.SetId(id)
 	mg.migrations = append(mg.migrations, m)
+	mg.migrationIds[id] = struct{}{}
+}
+
+func (mg *Migrator) GetMigrationIDs(excludeNotLogged bool) []string {
+	result := make([]string, 0, len(mg.migrations))
+	for _, migration := range mg.migrations {
+		if migration.SkipMigrationLog() && excludeNotLogged {
+			continue
+		}
+		result = append(result, migration.Id())
+	}
+	return result
 }
 
 func (mg *Migrator) GetMigrationIDs(excludeNotLogged bool) []string {
@@ -74,7 +91,7 @@ func (mg *Migrator) GetMigrationLog() (map[string]MigrationLog, error) {
 
 	exists, err := mg.DBEngine.IsTableExist(new(MigrationLog))
 	if err != nil {
-		return nil, errutil.Wrap("failed to check table existence", err)
+		return nil, fmt.Errorf("%v: %w", "failed to check table existence", err)
 	}
 	if !exists {
 		return logMap, nil
@@ -169,7 +186,7 @@ func (mg *Migrator) run() (err error) {
 			return err
 		})
 		if err != nil {
-			return errutil.Wrap(fmt.Sprintf("migration failed (id = %s)", m.Id()), err)
+			return fmt.Errorf("%v: %w", fmt.Sprintf("migration failed (id = %s)", m.Id()), err)
 		}
 	}
 
@@ -231,7 +248,7 @@ func (mg *Migrator) InTransaction(callback dbTransactionFunc) error {
 
 	if err := callback(sess); err != nil {
 		if rollErr := sess.Rollback(); rollErr != nil {
-			return errutil.Wrapf(err, "failed to roll back transaction due to error: %s", rollErr)
+			return fmt.Errorf("failed to roll back transaction due to error: %s: %w", rollErr, err)
 		}
 
 		return err
@@ -245,7 +262,7 @@ func (mg *Migrator) InTransaction(callback dbTransactionFunc) error {
 }
 
 func casRestoreOnErr(lock *atomic.Bool, o, n bool, casErr error, f func(LockCfg) error, lockCfg LockCfg) error {
-	if !lock.CAS(o, n) {
+	if !lock.CompareAndSwap(o, n) {
 		return casErr
 	}
 	if err := f(lockCfg); err != nil {

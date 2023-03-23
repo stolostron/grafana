@@ -6,14 +6,14 @@ import (
 	"io"
 	"net/http"
 
+	liveDto "github.com/grafana/grafana-plugin-sdk-go/live"
+
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
 	"github.com/grafana/grafana/pkg/services/live"
 	"github.com/grafana/grafana/pkg/services/live/convert"
 	"github.com/grafana/grafana/pkg/services/live/pushurl"
 	"github.com/grafana/grafana/pkg/setting"
-
-	liveDto "github.com/grafana/grafana-plugin-sdk-go/live"
 	"github.com/grafana/grafana/pkg/web"
 )
 
@@ -45,10 +45,10 @@ func (g *Gateway) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (g *Gateway) Handle(ctx *models.ReqContext) {
+func (g *Gateway) Handle(ctx *contextmodel.ReqContext) {
 	streamID := web.Params(ctx.Req)[":streamId"]
 
-	stream, err := g.GrafanaLive.ManagedStreamRunner.GetOrCreateStream(ctx.SignedInUser.OrgId, liveDto.ScopeStream, streamID)
+	stream, err := g.GrafanaLive.ManagedStreamRunner.GetOrCreateStream(ctx.SignedInUser.OrgID, liveDto.ScopeStream, streamID)
 	if err != nil {
 		logger.Error("Error getting stream", "error", err)
 		ctx.Resp.WriteHeader(http.StatusInternalServerError)
@@ -94,6 +94,42 @@ func (g *Gateway) Handle(ctx *models.ReqContext) {
 			return
 		}
 	}
+
+	ctx.Resp.WriteHeader(http.StatusOK)
+}
+
+func (g *Gateway) HandlePipelinePush(ctx *contextmodel.ReqContext) {
+	channelID := web.Params(ctx.Req)["*"]
+
+	body, err := io.ReadAll(ctx.Req.Body)
+	if err != nil {
+		logger.Error("Error reading body", "error", err)
+		ctx.Resp.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	logger.Debug("Live channel push request",
+		"protocol", "http",
+		"channel", channelID,
+		"bodyLength", len(body),
+	)
+
+	ruleFound, err := g.GrafanaLive.Pipeline.ProcessInput(ctx.Req.Context(), ctx.OrgID, channelID, body)
+	if err != nil {
+		logger.Error("Pipeline input processing error", "error", err, "body", string(body))
+		if errors.Is(err, liveDto.ErrInvalidChannelID) {
+			ctx.Resp.WriteHeader(http.StatusBadRequest)
+		} else {
+			ctx.Resp.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+	if !ruleFound {
+		logger.Error("No conversion rule for a channel", "error", err, "channel", channelID)
+		ctx.Resp.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	ctx.Resp.WriteHeader(http.StatusOK)
 }
 
 func (g *Gateway) HandlePipelinePush(ctx *models.ReqContext) {

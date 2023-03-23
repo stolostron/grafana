@@ -5,16 +5,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grafana/grafana/pkg/infra/db"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/pluginsettings"
 	"github.com/grafana/grafana/pkg/services/secrets"
-	"github.com/grafana/grafana/pkg/services/sqlstore"
 )
 
-func ProvideService(store *sqlstore.SQLStore, secretsService secrets.Service) *Service {
+func ProvideService(db db.DB, secretsService secrets.Service) *Service {
 	s := &Service{
-		sqlStore: store,
+		db: db,
 		decryptionCache: secureJSONDecryptionCache{
 			cache: make(map[int64]cachedDecryptedJSON),
 		},
@@ -26,7 +25,7 @@ func ProvideService(store *sqlstore.SQLStore, secretsService secrets.Service) *S
 }
 
 type Service struct {
-	sqlStore        *sqlstore.SQLStore
+	db              db.DB
 	decryptionCache secureJSONDecryptionCache
 	secretsService  secrets.Service
 
@@ -43,24 +42,20 @@ type secureJSONDecryptionCache struct {
 	sync.Mutex
 }
 
-func (s *Service) GetPluginSettings(ctx context.Context, args *pluginsettings.GetArgs) ([]*pluginsettings.DTO, error) {
-	ps, err := s.sqlStore.GetPluginSettings(ctx, args.OrgID)
+func (s *Service) GetPluginSettings(ctx context.Context, args *pluginsettings.GetArgs) ([]*pluginsettings.InfoDTO, error) {
+	ps, err := s.getPluginSettingsInfo(ctx, args.OrgID)
 	if err != nil {
 		return nil, err
 	}
 
-	var result []*pluginsettings.DTO
+	result := make([]*pluginsettings.InfoDTO, 0, len(ps))
 	for _, p := range ps {
-		result = append(result, &pluginsettings.DTO{
-			ID:             p.Id,
-			OrgID:          p.OrgId,
-			PluginID:       p.PluginId,
-			PluginVersion:  p.PluginVersion,
-			JSONData:       p.JsonData,
-			SecureJSONData: p.SecureJsonData,
-			Enabled:        p.Enabled,
-			Pinned:         p.Pinned,
-			Updated:        p.Updated,
+		result = append(result, &pluginsettings.InfoDTO{
+			OrgID:         p.OrgID,
+			PluginID:      p.PluginID,
+			PluginVersion: p.PluginVersion,
+			Enabled:       p.Enabled,
+			Pinned:        p.Pinned,
 		})
 	}
 
@@ -68,12 +63,12 @@ func (s *Service) GetPluginSettings(ctx context.Context, args *pluginsettings.Ge
 }
 
 func (s *Service) GetPluginSettingByPluginID(ctx context.Context, args *pluginsettings.GetByPluginIDArgs) (*pluginsettings.DTO, error) {
-	query := &models.GetPluginSettingByIdQuery{
+	query := &pluginsettings.GetPluginSettingByIdQuery{
 		OrgId:    args.OrgID,
 		PluginId: args.PluginID,
 	}
 
-	err := s.sqlStore.GetPluginSettingById(ctx, query)
+	err := s.getPluginSettingById(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +92,7 @@ func (s *Service) UpdatePluginSetting(ctx context.Context, args *pluginsettings.
 		return err
 	}
 
-	return s.sqlStore.UpdatePluginSetting(ctx, &models.UpdatePluginSettingCmd{
+	return s.updatePluginSetting(ctx, &pluginsettings.UpdatePluginSettingCmd{
 		Enabled:                 args.Enabled,
 		Pinned:                  args.Pinned,
 		JsonData:                args.JSONData,
@@ -110,7 +105,7 @@ func (s *Service) UpdatePluginSetting(ctx context.Context, args *pluginsettings.
 }
 
 func (s *Service) UpdatePluginSettingPluginVersion(ctx context.Context, args *pluginsettings.UpdatePluginVersionArgs) error {
-	return s.sqlStore.UpdatePluginSettingVersion(ctx, &models.UpdatePluginSettingVersionCmd{
+	return s.updatePluginSettingVersion(ctx, &pluginsettings.UpdatePluginSettingVersionCmd{
 		PluginVersion: args.PluginVersion,
 		PluginId:      args.PluginID,
 		OrgId:         args.OrgID,
@@ -137,4 +132,103 @@ func (s *Service) DecryptedValues(ps *pluginsettings.DTO) map[string]string {
 	}
 
 	return json
+}
+
+func (s *Service) getPluginSettingsInfo(ctx context.Context, orgID int64) ([]*pluginsettings.PluginSettingInfo, error) {
+	sql := `SELECT org_id, plugin_id, enabled, pinned, plugin_version FROM plugin_setting `
+	params := make([]interface{}, 0)
+
+	if orgID != 0 {
+		sql += "WHERE org_id=?"
+		params = append(params, orgID)
+	}
+
+	var rslt []*pluginsettings.PluginSettingInfo
+	err := s.db.WithDbSession(ctx, func(sess *db.Session) error {
+		return sess.SQL(sql, params...).Find(&rslt)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return rslt, nil
+}
+
+func (s *Service) getPluginSettingById(ctx context.Context, query *pluginsettings.GetPluginSettingByIdQuery) error {
+	return s.db.WithDbSession(ctx, func(sess *db.Session) error {
+		pluginSetting := pluginsettings.PluginSetting{OrgId: query.OrgId, PluginId: query.PluginId}
+		has, err := sess.Get(&pluginSetting)
+		if err != nil {
+			return err
+		} else if !has {
+			return pluginsettings.ErrPluginSettingNotFound
+		}
+		query.Result = &pluginSetting
+		return nil
+	})
+}
+
+func (s *Service) updatePluginSetting(ctx context.Context, cmd *pluginsettings.UpdatePluginSettingCmd) error {
+	return s.db.WithTransactionalDbSession(ctx, func(sess *db.Session) error {
+		var pluginSetting pluginsettings.PluginSetting
+
+		exists, err := sess.Where("org_id=? and plugin_id=?", cmd.OrgId, cmd.PluginId).Get(&pluginSetting)
+		if err != nil {
+			return err
+		}
+		sess.UseBool("enabled")
+		sess.UseBool("pinned")
+		if !exists {
+			pluginSetting = pluginsettings.PluginSetting{
+				PluginId:       cmd.PluginId,
+				OrgId:          cmd.OrgId,
+				Enabled:        cmd.Enabled,
+				Pinned:         cmd.Pinned,
+				JsonData:       cmd.JsonData,
+				PluginVersion:  cmd.PluginVersion,
+				SecureJsonData: cmd.EncryptedSecureJsonData,
+				Created:        time.Now(),
+				Updated:        time.Now(),
+			}
+
+			// add state change event on commit success
+			sess.PublishAfterCommit(&pluginsettings.PluginStateChangedEvent{
+				PluginId: cmd.PluginId,
+				OrgId:    cmd.OrgId,
+				Enabled:  cmd.Enabled,
+			})
+
+			_, err = sess.Insert(&pluginSetting)
+			return err
+		}
+
+		for key, encryptedData := range cmd.EncryptedSecureJsonData {
+			pluginSetting.SecureJsonData[key] = encryptedData
+		}
+
+		// add state change event on commit success
+		if pluginSetting.Enabled != cmd.Enabled {
+			sess.PublishAfterCommit(&pluginsettings.PluginStateChangedEvent{
+				PluginId: cmd.PluginId,
+				OrgId:    cmd.OrgId,
+				Enabled:  cmd.Enabled,
+			})
+		}
+
+		pluginSetting.Updated = time.Now()
+		pluginSetting.Enabled = cmd.Enabled
+		pluginSetting.JsonData = cmd.JsonData
+		pluginSetting.Pinned = cmd.Pinned
+		pluginSetting.PluginVersion = cmd.PluginVersion
+
+		_, err = sess.ID(pluginSetting.Id).Update(&pluginSetting)
+		return err
+	})
+}
+
+func (s *Service) updatePluginSettingVersion(ctx context.Context, cmd *pluginsettings.UpdatePluginSettingVersionCmd) error {
+	return s.db.WithTransactionalDbSession(ctx, func(sess *db.Session) error {
+		_, err := sess.Exec("UPDATE plugin_setting SET plugin_version=? WHERE org_id=? AND plugin_id=?", cmd.PluginVersion, cmd.OrgId, cmd.PluginId)
+		return err
+	})
 }

@@ -4,7 +4,6 @@
  *
  *Do not manually edit these files, please find ngalert/api/swagger-codegen/ for commands on how to generate them.
  */
-
 package api
 
 import (
@@ -13,210 +12,457 @@ import (
 	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/api/routing"
 	"github.com/grafana/grafana/pkg/middleware"
-	"github.com/grafana/grafana/pkg/models"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
 	"github.com/grafana/grafana/pkg/services/ngalert/metrics"
 	"github.com/grafana/grafana/pkg/web"
 )
 
-type ProvisioningApiForkingService interface {
-	RouteDeleteContactpoints(*models.ReqContext) response.Response
-	RouteDeleteTemplate(*models.ReqContext) response.Response
-	RouteGetContactpoints(*models.ReqContext) response.Response
-	RouteGetMuteTiming(*models.ReqContext) response.Response
-	RouteGetMuteTimings(*models.ReqContext) response.Response
-	RouteGetPolicyTree(*models.ReqContext) response.Response
-	RouteGetTemplate(*models.ReqContext) response.Response
-	RouteGetTemplates(*models.ReqContext) response.Response
-	RoutePostContactpoints(*models.ReqContext) response.Response
-	RoutePutContactpoint(*models.ReqContext) response.Response
-	RoutePutPolicyTree(*models.ReqContext) response.Response
-	RoutePutTemplate(*models.ReqContext) response.Response
+type ProvisioningApi interface {
+	RouteDeleteAlertRule(*contextmodel.ReqContext) response.Response
+	RouteDeleteContactpoints(*contextmodel.ReqContext) response.Response
+	RouteDeleteMuteTiming(*contextmodel.ReqContext) response.Response
+	RouteDeleteTemplate(*contextmodel.ReqContext) response.Response
+	RouteGetAlertRule(*contextmodel.ReqContext) response.Response
+	RouteGetAlertRuleExport(*contextmodel.ReqContext) response.Response
+	RouteGetAlertRuleGroup(*contextmodel.ReqContext) response.Response
+	RouteGetAlertRuleGroupExport(*contextmodel.ReqContext) response.Response
+	RouteGetAlertRules(*contextmodel.ReqContext) response.Response
+	RouteGetAlertRulesExport(*contextmodel.ReqContext) response.Response
+	RouteGetContactpoints(*contextmodel.ReqContext) response.Response
+	RouteGetMuteTiming(*contextmodel.ReqContext) response.Response
+	RouteGetMuteTimings(*contextmodel.ReqContext) response.Response
+	RouteGetPolicyTree(*contextmodel.ReqContext) response.Response
+	RouteGetTemplate(*contextmodel.ReqContext) response.Response
+	RouteGetTemplates(*contextmodel.ReqContext) response.Response
+	RoutePostAlertRule(*contextmodel.ReqContext) response.Response
+	RoutePostContactpoints(*contextmodel.ReqContext) response.Response
+	RoutePostMuteTiming(*contextmodel.ReqContext) response.Response
+	RoutePutAlertRule(*contextmodel.ReqContext) response.Response
+	RoutePutAlertRuleGroup(*contextmodel.ReqContext) response.Response
+	RoutePutContactpoint(*contextmodel.ReqContext) response.Response
+	RoutePutMuteTiming(*contextmodel.ReqContext) response.Response
+	RoutePutPolicyTree(*contextmodel.ReqContext) response.Response
+	RoutePutTemplate(*contextmodel.ReqContext) response.Response
+	RouteResetPolicyTree(*contextmodel.ReqContext) response.Response
 }
 
-func (f *ForkedProvisioningApi) RouteDeleteContactpoints(ctx *models.ReqContext) response.Response {
-	return f.forkRouteDeleteContactpoints(ctx)
+func (f *ProvisioningApiHandler) RouteDeleteAlertRule(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	uIDParam := web.Params(ctx.Req)[":UID"]
+	return f.handleRouteDeleteAlertRule(ctx, uIDParam)
 }
-
-func (f *ForkedProvisioningApi) RouteDeleteTemplate(ctx *models.ReqContext) response.Response {
-	return f.forkRouteDeleteTemplate(ctx)
+func (f *ProvisioningApiHandler) RouteDeleteContactpoints(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	uIDParam := web.Params(ctx.Req)[":UID"]
+	return f.handleRouteDeleteContactpoints(ctx, uIDParam)
 }
-
-func (f *ForkedProvisioningApi) RouteGetContactpoints(ctx *models.ReqContext) response.Response {
-	return f.forkRouteGetContactpoints(ctx)
+func (f *ProvisioningApiHandler) RouteDeleteMuteTiming(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	nameParam := web.Params(ctx.Req)[":name"]
+	return f.handleRouteDeleteMuteTiming(ctx, nameParam)
 }
-
-func (f *ForkedProvisioningApi) RouteGetMuteTiming(ctx *models.ReqContext) response.Response {
-	return f.forkRouteGetMuteTiming(ctx)
+func (f *ProvisioningApiHandler) RouteDeleteTemplate(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	nameParam := web.Params(ctx.Req)[":name"]
+	return f.handleRouteDeleteTemplate(ctx, nameParam)
 }
-
-func (f *ForkedProvisioningApi) RouteGetMuteTimings(ctx *models.ReqContext) response.Response {
-	return f.forkRouteGetMuteTimings(ctx)
+func (f *ProvisioningApiHandler) RouteGetAlertRule(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	uIDParam := web.Params(ctx.Req)[":UID"]
+	return f.handleRouteGetAlertRule(ctx, uIDParam)
 }
-
-func (f *ForkedProvisioningApi) RouteGetPolicyTree(ctx *models.ReqContext) response.Response {
-	return f.forkRouteGetPolicyTree(ctx)
+func (f *ProvisioningApiHandler) RouteGetAlertRuleExport(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	uIDParam := web.Params(ctx.Req)[":UID"]
+	return f.handleRouteGetAlertRuleExport(ctx, uIDParam)
 }
-
-func (f *ForkedProvisioningApi) RouteGetTemplate(ctx *models.ReqContext) response.Response {
-	return f.forkRouteGetTemplate(ctx)
+func (f *ProvisioningApiHandler) RouteGetAlertRuleGroup(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	folderUIDParam := web.Params(ctx.Req)[":FolderUID"]
+	groupParam := web.Params(ctx.Req)[":Group"]
+	return f.handleRouteGetAlertRuleGroup(ctx, folderUIDParam, groupParam)
 }
-
-func (f *ForkedProvisioningApi) RouteGetTemplates(ctx *models.ReqContext) response.Response {
-	return f.forkRouteGetTemplates(ctx)
+func (f *ProvisioningApiHandler) RouteGetAlertRuleGroupExport(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	folderUIDParam := web.Params(ctx.Req)[":FolderUID"]
+	groupParam := web.Params(ctx.Req)[":Group"]
+	return f.handleRouteGetAlertRuleGroupExport(ctx, folderUIDParam, groupParam)
 }
-
-func (f *ForkedProvisioningApi) RoutePostContactpoints(ctx *models.ReqContext) response.Response {
+func (f *ProvisioningApiHandler) RouteGetAlertRules(ctx *contextmodel.ReqContext) response.Response {
+	return f.handleRouteGetAlertRules(ctx)
+}
+func (f *ProvisioningApiHandler) RouteGetAlertRulesExport(ctx *contextmodel.ReqContext) response.Response {
+	return f.handleRouteGetAlertRulesExport(ctx)
+}
+func (f *ProvisioningApiHandler) RouteGetContactpoints(ctx *contextmodel.ReqContext) response.Response {
+	return f.handleRouteGetContactpoints(ctx)
+}
+func (f *ProvisioningApiHandler) RouteGetMuteTiming(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	nameParam := web.Params(ctx.Req)[":name"]
+	return f.handleRouteGetMuteTiming(ctx, nameParam)
+}
+func (f *ProvisioningApiHandler) RouteGetMuteTimings(ctx *contextmodel.ReqContext) response.Response {
+	return f.handleRouteGetMuteTimings(ctx)
+}
+func (f *ProvisioningApiHandler) RouteGetPolicyTree(ctx *contextmodel.ReqContext) response.Response {
+	return f.handleRouteGetPolicyTree(ctx)
+}
+func (f *ProvisioningApiHandler) RouteGetTemplate(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	nameParam := web.Params(ctx.Req)[":name"]
+	return f.handleRouteGetTemplate(ctx, nameParam)
+}
+func (f *ProvisioningApiHandler) RouteGetTemplates(ctx *contextmodel.ReqContext) response.Response {
+	return f.handleRouteGetTemplates(ctx)
+}
+func (f *ProvisioningApiHandler) RoutePostAlertRule(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Request Body
+	conf := apimodels.ProvisionedAlertRule{}
+	if err := web.Bind(ctx.Req, &conf); err != nil {
+		return response.Error(http.StatusBadRequest, "bad request data", err)
+	}
+	return f.handleRoutePostAlertRule(ctx, conf)
+}
+func (f *ProvisioningApiHandler) RoutePostContactpoints(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Request Body
 	conf := apimodels.EmbeddedContactPoint{}
 	if err := web.Bind(ctx.Req, &conf); err != nil {
 		return response.Error(http.StatusBadRequest, "bad request data", err)
 	}
-	return f.forkRoutePostContactpoints(ctx, conf)
+	return f.handleRoutePostContactpoints(ctx, conf)
 }
-
-func (f *ForkedProvisioningApi) RoutePutContactpoint(ctx *models.ReqContext) response.Response {
+func (f *ProvisioningApiHandler) RoutePostMuteTiming(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Request Body
+	conf := apimodels.MuteTimeInterval{}
+	if err := web.Bind(ctx.Req, &conf); err != nil {
+		return response.Error(http.StatusBadRequest, "bad request data", err)
+	}
+	return f.handleRoutePostMuteTiming(ctx, conf)
+}
+func (f *ProvisioningApiHandler) RoutePutAlertRule(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	uIDParam := web.Params(ctx.Req)[":UID"]
+	// Parse Request Body
+	conf := apimodels.ProvisionedAlertRule{}
+	if err := web.Bind(ctx.Req, &conf); err != nil {
+		return response.Error(http.StatusBadRequest, "bad request data", err)
+	}
+	return f.handleRoutePutAlertRule(ctx, conf, uIDParam)
+}
+func (f *ProvisioningApiHandler) RoutePutAlertRuleGroup(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	folderUIDParam := web.Params(ctx.Req)[":FolderUID"]
+	groupParam := web.Params(ctx.Req)[":Group"]
+	// Parse Request Body
+	conf := apimodels.AlertRuleGroup{}
+	if err := web.Bind(ctx.Req, &conf); err != nil {
+		return response.Error(http.StatusBadRequest, "bad request data", err)
+	}
+	return f.handleRoutePutAlertRuleGroup(ctx, conf, folderUIDParam, groupParam)
+}
+func (f *ProvisioningApiHandler) RoutePutContactpoint(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	uIDParam := web.Params(ctx.Req)[":UID"]
+	// Parse Request Body
 	conf := apimodels.EmbeddedContactPoint{}
 	if err := web.Bind(ctx.Req, &conf); err != nil {
 		return response.Error(http.StatusBadRequest, "bad request data", err)
 	}
-	return f.forkRoutePutContactpoint(ctx, conf)
+	return f.handleRoutePutContactpoint(ctx, conf, uIDParam)
 }
-
-func (f *ForkedProvisioningApi) RoutePutPolicyTree(ctx *models.ReqContext) response.Response {
+func (f *ProvisioningApiHandler) RoutePutMuteTiming(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	nameParam := web.Params(ctx.Req)[":name"]
+	// Parse Request Body
+	conf := apimodels.MuteTimeInterval{}
+	if err := web.Bind(ctx.Req, &conf); err != nil {
+		return response.Error(http.StatusBadRequest, "bad request data", err)
+	}
+	return f.handleRoutePutMuteTiming(ctx, conf, nameParam)
+}
+func (f *ProvisioningApiHandler) RoutePutPolicyTree(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Request Body
 	conf := apimodels.Route{}
 	if err := web.Bind(ctx.Req, &conf); err != nil {
 		return response.Error(http.StatusBadRequest, "bad request data", err)
 	}
-	return f.forkRoutePutPolicyTree(ctx, conf)
+	return f.handleRoutePutPolicyTree(ctx, conf)
 }
-
-func (f *ForkedProvisioningApi) RoutePutTemplate(ctx *models.ReqContext) response.Response {
-	conf := apimodels.MessageTemplateContent{}
+func (f *ProvisioningApiHandler) RoutePutTemplate(ctx *contextmodel.ReqContext) response.Response {
+	// Parse Path Parameters
+	nameParam := web.Params(ctx.Req)[":name"]
+	// Parse Request Body
+	conf := apimodels.NotificationTemplateContent{}
 	if err := web.Bind(ctx.Req, &conf); err != nil {
 		return response.Error(http.StatusBadRequest, "bad request data", err)
 	}
-	return f.forkRoutePutTemplate(ctx, conf)
+	return f.handleRoutePutTemplate(ctx, conf, nameParam)
+}
+func (f *ProvisioningApiHandler) RouteResetPolicyTree(ctx *contextmodel.ReqContext) response.Response {
+	return f.handleRouteResetPolicyTree(ctx)
 }
 
-func (api *API) RegisterProvisioningApiEndpoints(srv ProvisioningApiForkingService, m *metrics.API) {
+func (api *API) RegisterProvisioningApiEndpoints(srv ProvisioningApi, m *metrics.API) {
 	api.RouteRegister.Group("", func(group routing.RouteRegister) {
 		group.Delete(
-			toMacaronPath("/api/provisioning/contact-points/{ID}"),
-			api.authorize(http.MethodDelete, "/api/provisioning/contact-points/{ID}"),
+			toMacaronPath("/api/v1/provisioning/alert-rules/{UID}"),
+			api.authorize(http.MethodDelete, "/api/v1/provisioning/alert-rules/{UID}"),
 			metrics.Instrument(
 				http.MethodDelete,
-				"/api/provisioning/contact-points/{ID}",
+				"/api/v1/provisioning/alert-rules/{UID}",
+				srv.RouteDeleteAlertRule,
+				m,
+			),
+		)
+		group.Delete(
+			toMacaronPath("/api/v1/provisioning/contact-points/{UID}"),
+			api.authorize(http.MethodDelete, "/api/v1/provisioning/contact-points/{UID}"),
+			metrics.Instrument(
+				http.MethodDelete,
+				"/api/v1/provisioning/contact-points/{UID}",
 				srv.RouteDeleteContactpoints,
 				m,
 			),
 		)
 		group.Delete(
-			toMacaronPath("/api/provisioning/templates/{name}"),
-			api.authorize(http.MethodDelete, "/api/provisioning/templates/{name}"),
+			toMacaronPath("/api/v1/provisioning/mute-timings/{name}"),
+			api.authorize(http.MethodDelete, "/api/v1/provisioning/mute-timings/{name}"),
 			metrics.Instrument(
 				http.MethodDelete,
-				"/api/provisioning/templates/{name}",
+				"/api/v1/provisioning/mute-timings/{name}",
+				srv.RouteDeleteMuteTiming,
+				m,
+			),
+		)
+		group.Delete(
+			toMacaronPath("/api/v1/provisioning/templates/{name}"),
+			api.authorize(http.MethodDelete, "/api/v1/provisioning/templates/{name}"),
+			metrics.Instrument(
+				http.MethodDelete,
+				"/api/v1/provisioning/templates/{name}",
 				srv.RouteDeleteTemplate,
 				m,
 			),
 		)
 		group.Get(
-			toMacaronPath("/api/provisioning/contact-points"),
-			api.authorize(http.MethodGet, "/api/provisioning/contact-points"),
+			toMacaronPath("/api/v1/provisioning/alert-rules/{UID}"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/alert-rules/{UID}"),
 			metrics.Instrument(
 				http.MethodGet,
-				"/api/provisioning/contact-points",
+				"/api/v1/provisioning/alert-rules/{UID}",
+				srv.RouteGetAlertRule,
+				m,
+			),
+		)
+		group.Get(
+			toMacaronPath("/api/v1/provisioning/alert-rules/{UID}/export"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/alert-rules/{UID}/export"),
+			metrics.Instrument(
+				http.MethodGet,
+				"/api/v1/provisioning/alert-rules/{UID}/export",
+				srv.RouteGetAlertRuleExport,
+				m,
+			),
+		)
+		group.Get(
+			toMacaronPath("/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}"),
+			metrics.Instrument(
+				http.MethodGet,
+				"/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}",
+				srv.RouteGetAlertRuleGroup,
+				m,
+			),
+		)
+		group.Get(
+			toMacaronPath("/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}/export"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}/export"),
+			metrics.Instrument(
+				http.MethodGet,
+				"/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}/export",
+				srv.RouteGetAlertRuleGroupExport,
+				m,
+			),
+		)
+		group.Get(
+			toMacaronPath("/api/v1/provisioning/alert-rules"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/alert-rules"),
+			metrics.Instrument(
+				http.MethodGet,
+				"/api/v1/provisioning/alert-rules",
+				srv.RouteGetAlertRules,
+				m,
+			),
+		)
+		group.Get(
+			toMacaronPath("/api/v1/provisioning/alert-rules/export"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/alert-rules/export"),
+			metrics.Instrument(
+				http.MethodGet,
+				"/api/v1/provisioning/alert-rules/export",
+				srv.RouteGetAlertRulesExport,
+				m,
+			),
+		)
+		group.Get(
+			toMacaronPath("/api/v1/provisioning/contact-points"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/contact-points"),
+			metrics.Instrument(
+				http.MethodGet,
+				"/api/v1/provisioning/contact-points",
 				srv.RouteGetContactpoints,
 				m,
 			),
 		)
 		group.Get(
-			toMacaronPath("/api/provisioning/mute-timings/{name}"),
-			api.authorize(http.MethodGet, "/api/provisioning/mute-timings/{name}"),
+			toMacaronPath("/api/v1/provisioning/mute-timings/{name}"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/mute-timings/{name}"),
 			metrics.Instrument(
 				http.MethodGet,
-				"/api/provisioning/mute-timings/{name}",
+				"/api/v1/provisioning/mute-timings/{name}",
 				srv.RouteGetMuteTiming,
 				m,
 			),
 		)
 		group.Get(
-			toMacaronPath("/api/provisioning/mute-timings"),
-			api.authorize(http.MethodGet, "/api/provisioning/mute-timings"),
+			toMacaronPath("/api/v1/provisioning/mute-timings"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/mute-timings"),
 			metrics.Instrument(
 				http.MethodGet,
-				"/api/provisioning/mute-timings",
+				"/api/v1/provisioning/mute-timings",
 				srv.RouteGetMuteTimings,
 				m,
 			),
 		)
 		group.Get(
-			toMacaronPath("/api/provisioning/policies"),
-			api.authorize(http.MethodGet, "/api/provisioning/policies"),
+			toMacaronPath("/api/v1/provisioning/policies"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/policies"),
 			metrics.Instrument(
 				http.MethodGet,
-				"/api/provisioning/policies",
+				"/api/v1/provisioning/policies",
 				srv.RouteGetPolicyTree,
 				m,
 			),
 		)
 		group.Get(
-			toMacaronPath("/api/provisioning/templates/{name}"),
-			api.authorize(http.MethodGet, "/api/provisioning/templates/{name}"),
+			toMacaronPath("/api/v1/provisioning/templates/{name}"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/templates/{name}"),
 			metrics.Instrument(
 				http.MethodGet,
-				"/api/provisioning/templates/{name}",
+				"/api/v1/provisioning/templates/{name}",
 				srv.RouteGetTemplate,
 				m,
 			),
 		)
 		group.Get(
-			toMacaronPath("/api/provisioning/templates"),
-			api.authorize(http.MethodGet, "/api/provisioning/templates"),
+			toMacaronPath("/api/v1/provisioning/templates"),
+			api.authorize(http.MethodGet, "/api/v1/provisioning/templates"),
 			metrics.Instrument(
 				http.MethodGet,
-				"/api/provisioning/templates",
+				"/api/v1/provisioning/templates",
 				srv.RouteGetTemplates,
 				m,
 			),
 		)
 		group.Post(
-			toMacaronPath("/api/provisioning/contact-points"),
-			api.authorize(http.MethodPost, "/api/provisioning/contact-points"),
+			toMacaronPath("/api/v1/provisioning/alert-rules"),
+			api.authorize(http.MethodPost, "/api/v1/provisioning/alert-rules"),
 			metrics.Instrument(
 				http.MethodPost,
-				"/api/provisioning/contact-points",
+				"/api/v1/provisioning/alert-rules",
+				srv.RoutePostAlertRule,
+				m,
+			),
+		)
+		group.Post(
+			toMacaronPath("/api/v1/provisioning/contact-points"),
+			api.authorize(http.MethodPost, "/api/v1/provisioning/contact-points"),
+			metrics.Instrument(
+				http.MethodPost,
+				"/api/v1/provisioning/contact-points",
 				srv.RoutePostContactpoints,
 				m,
 			),
 		)
+		group.Post(
+			toMacaronPath("/api/v1/provisioning/mute-timings"),
+			api.authorize(http.MethodPost, "/api/v1/provisioning/mute-timings"),
+			metrics.Instrument(
+				http.MethodPost,
+				"/api/v1/provisioning/mute-timings",
+				srv.RoutePostMuteTiming,
+				m,
+			),
+		)
 		group.Put(
-			toMacaronPath("/api/provisioning/contact-points/{ID}"),
-			api.authorize(http.MethodPut, "/api/provisioning/contact-points/{ID}"),
+			toMacaronPath("/api/v1/provisioning/alert-rules/{UID}"),
+			api.authorize(http.MethodPut, "/api/v1/provisioning/alert-rules/{UID}"),
 			metrics.Instrument(
 				http.MethodPut,
-				"/api/provisioning/contact-points/{ID}",
+				"/api/v1/provisioning/alert-rules/{UID}",
+				srv.RoutePutAlertRule,
+				m,
+			),
+		)
+		group.Put(
+			toMacaronPath("/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}"),
+			api.authorize(http.MethodPut, "/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}"),
+			metrics.Instrument(
+				http.MethodPut,
+				"/api/v1/provisioning/folder/{FolderUID}/rule-groups/{Group}",
+				srv.RoutePutAlertRuleGroup,
+				m,
+			),
+		)
+		group.Put(
+			toMacaronPath("/api/v1/provisioning/contact-points/{UID}"),
+			api.authorize(http.MethodPut, "/api/v1/provisioning/contact-points/{UID}"),
+			metrics.Instrument(
+				http.MethodPut,
+				"/api/v1/provisioning/contact-points/{UID}",
 				srv.RoutePutContactpoint,
 				m,
 			),
 		)
 		group.Put(
-			toMacaronPath("/api/provisioning/policies"),
-			api.authorize(http.MethodPut, "/api/provisioning/policies"),
+			toMacaronPath("/api/v1/provisioning/mute-timings/{name}"),
+			api.authorize(http.MethodPut, "/api/v1/provisioning/mute-timings/{name}"),
 			metrics.Instrument(
 				http.MethodPut,
-				"/api/provisioning/policies",
+				"/api/v1/provisioning/mute-timings/{name}",
+				srv.RoutePutMuteTiming,
+				m,
+			),
+		)
+		group.Put(
+			toMacaronPath("/api/v1/provisioning/policies"),
+			api.authorize(http.MethodPut, "/api/v1/provisioning/policies"),
+			metrics.Instrument(
+				http.MethodPut,
+				"/api/v1/provisioning/policies",
 				srv.RoutePutPolicyTree,
 				m,
 			),
 		)
 		group.Put(
-			toMacaronPath("/api/provisioning/templates/{name}"),
-			api.authorize(http.MethodPut, "/api/provisioning/templates/{name}"),
+			toMacaronPath("/api/v1/provisioning/templates/{name}"),
+			api.authorize(http.MethodPut, "/api/v1/provisioning/templates/{name}"),
 			metrics.Instrument(
 				http.MethodPut,
-				"/api/provisioning/templates/{name}",
+				"/api/v1/provisioning/templates/{name}",
 				srv.RoutePutTemplate,
+				m,
+			),
+		)
+		group.Delete(
+			toMacaronPath("/api/v1/provisioning/policies"),
+			api.authorize(http.MethodDelete, "/api/v1/provisioning/policies"),
+			metrics.Instrument(
+				http.MethodDelete,
+				"/api/v1/provisioning/policies",
+				srv.RouteResetPolicyTree,
 				m,
 			),
 		)

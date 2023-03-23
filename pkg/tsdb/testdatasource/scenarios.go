@@ -13,8 +13,8 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/util/errutil"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 	predictablePulseQuery             queryType = "predictable_pulse"
 	predictableCSVWaveQuery           queryType = "predictable_csv_wave"
 	streamingClientQuery              queryType = "streaming_client"
-	flightPath                        queryType = "flight_path"
+	simulation                        queryType = "simulation"
 	usaQueryKey                       queryType = "usa"
 	liveQuery                         queryType = "live"
 	grafanaAPIQuery                   queryType = "grafana_api"
@@ -40,9 +40,11 @@ const (
 	serverError500Query               queryType = "server_error_500"
 	logsQuery                         queryType = "logs"
 	nodeGraphQuery                    queryType = "node_graph"
+	flameGraphQuery                   queryType = "flame_graph"
 	rawFrameQuery                     queryType = "raw_frame"
 	csvFileQueryType                  queryType = "csv_file"
 	csvContentQueryType               queryType = "csv_content"
+	traceType                         queryType = "trace"
 )
 
 type queryType string
@@ -135,9 +137,9 @@ Timestamps will line up evenly on timeStepSeconds (For example, 60 seconds means
 	})
 
 	s.registerScenario(&Scenario{
-		ID:      string(flightPath),
-		Name:    "Flight path",
-		handler: s.handleFlightPathScenario,
+		ID:      string(simulation),
+		Name:    "Simulation",
+		handler: s.sims.QueryData,
 	})
 
 	s.registerScenario(&Scenario{
@@ -197,6 +199,11 @@ Timestamps will line up evenly on timeStepSeconds (For example, 60 seconds means
 	})
 
 	s.registerScenario(&Scenario{
+		ID:   string(flameGraphQuery),
+		Name: "Flame Graph",
+	})
+
+	s.registerScenario(&Scenario{
 		ID:   string(rawFrameQuery),
 		Name: "Raw Frames",
 	})
@@ -211,6 +218,11 @@ Timestamps will line up evenly on timeStepSeconds (For example, 60 seconds means
 		ID:      string(csvContentQueryType),
 		Name:    "CSV Content",
 		handler: s.handleCsvContentScenario,
+	})
+
+	s.registerScenario(&Scenario{
+		ID:   string(traceType),
+		Name: "Trace",
 	})
 
 	s.queryMux.HandleFunc("", s.handleFallbackScenario)
@@ -640,6 +652,7 @@ func (s *Service) handleLogsScenario(ctx context.Context, req *backend.QueryData
 }
 
 func RandomWalk(query backend.DataQuery, model *simplejson.Json, index int) *data.Frame {
+	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 	timeWalkerMs := query.TimeRange.From.UnixNano() / int64(time.Millisecond)
 	to := query.TimeRange.To.UnixNano() / int64(time.Millisecond)
 	startValue := model.Get("startValue").MustFloat64(rand.Float64() * 100)
@@ -692,6 +705,7 @@ func RandomWalk(query backend.DataQuery, model *simplejson.Json, index int) *dat
 }
 
 func randomWalkTable(query backend.DataQuery, model *simplejson.Json) *data.Frame {
+	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 	timeWalkerMs := query.TimeRange.From.UnixNano() / int64(time.Millisecond)
 	to := query.TimeRange.To.UnixNano() / int64(time.Millisecond)
 	withNil := model.Get("withNil").MustBool(false)
@@ -787,7 +801,7 @@ func predictableCSVWave(query backend.DataQuery, model *simplejson.Json) ([]*dat
 			default:
 				f, err := strconv.ParseFloat(rawValue, 64)
 				if err != nil {
-					return nil, errutil.Wrapf(err, "failed to parse value '%v' into nullable float", rawValue)
+					return nil, fmt.Errorf("failed to parse value '%v' into nullable float: %w", rawValue, err)
 				}
 				val = &f
 			}
@@ -904,6 +918,7 @@ func predictablePulse(query backend.DataQuery, model *simplejson.Json) (*data.Fr
 }
 
 func randomHeatmapData(query backend.DataQuery, fnBucketGen func(index int) float64) *data.Frame {
+	rand := rand.New(rand.NewSource(time.Now().UnixNano()))
 	frame := data.NewFrame("data", data.NewField("time", nil, []*time.Time{}))
 	for i := 0; i < 10; i++ {
 		frame.Fields = append(frame.Fields, data.NewField(strconv.FormatInt(int64(fnBucketGen(i)), 10), nil, []*float64{}))

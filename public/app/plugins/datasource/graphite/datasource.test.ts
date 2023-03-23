@@ -2,12 +2,13 @@ import { isArray } from 'lodash';
 import { of } from 'rxjs';
 import { createFetchResponse } from 'test/helpers/createFetchResponse';
 
-import { AbstractLabelMatcher, AbstractLabelOperator, dateTime, getFrameDisplayName } from '@grafana/data';
+import { AbstractLabelMatcher, AbstractLabelOperator, getFrameDisplayName, dateTime } from '@grafana/data';
 import { backendSrv } from 'app/core/services/backend_srv'; // will use the version in __mocks__
 import { TemplateSrv } from 'app/features/templating/template_srv';
 
 import { fromString } from './configuration/parseLokiLabelMappings';
 import { GraphiteDatasource } from './datasource';
+import { GraphiteQuery, GraphiteQueryType } from './types';
 import { DEFAULT_GRAPHITE_VERSION } from './versions';
 
 jest.mock('@grafana/runtime', () => ({
@@ -195,13 +196,21 @@ describe('graphiteDatasource', () => {
     });
 
     const options = {
-      annotation: {
-        tags: 'tag1',
-      },
+      targets: [
+        {
+          fromAnnotations: true,
+          tags: ['tag1'],
+          queryType: 'tags',
+        },
+      ],
+
       range: {
-        from: dateTime(1432288354),
-        to: dateTime(1432288401),
-        raw: { from: 'now-24h', to: 'now' },
+        from: '2022-06-06T07:03:03.109Z',
+        to: '2022-06-07T07:03:03.109Z',
+        raw: {
+          from: '2022-06-06T07:03:03.109Z',
+          to: '2022-06-07T07:03:03.109Z',
+        },
       },
     };
 
@@ -220,7 +229,7 @@ describe('graphiteDatasource', () => {
         fetchMock.mockImplementation((options: any) => {
           return of(createFetchResponse(response));
         });
-        await ctx.ds.annotationQuery(options).then((data: any) => {
+        await ctx.ds.annotationEvents(options.range, options.targets[0]).then((data: any) => {
           results = data;
         });
       });
@@ -249,7 +258,7 @@ describe('graphiteDatasource', () => {
           return of(createFetchResponse(response));
         });
 
-        await ctx.ds.annotationQuery(options).then((data: any) => {
+        await ctx.ds.annotationEvents(options.range, options.targets[0]).then((data: any) => {
           results = data;
         });
       });
@@ -266,7 +275,7 @@ describe('graphiteDatasource', () => {
       fetchMock.mockImplementation((options: any) => {
         return of(createFetchResponse('zzzzzzz'));
       });
-      await ctx.ds.annotationQuery(options).then((data: any) => {
+      await ctx.ds.annotationEvents(options.range, options.targets[0]).then((data: any) => {
         results = data;
       });
       expect(results).toEqual([]);
@@ -533,6 +542,191 @@ describe('graphiteDatasource', () => {
       expect(requestOptions.url).toBe('/api/datasources/proxy/1/metrics/expand');
       expect(requestOptions.params.query).toBe('*.servers.*');
       expect(results).not.toBe(null);
+    });
+
+    it('should fetch from /metrics/find endpoint when queryType is default or query is string', async () => {
+      const stringQuery = 'query';
+      ctx.ds.metricFindQuery(stringQuery).then((data: any) => {
+        results = data;
+      });
+      expect(requestOptions.url).toBe('/api/datasources/proxy/1/metrics/find');
+      expect(results).not.toBe(null);
+
+      const objectQuery = {
+        queryType: GraphiteQueryType.Default,
+        target: 'query',
+        refId: 'A',
+        datasource: ctx.ds,
+      };
+      const data = await ctx.ds.metricFindQuery(objectQuery);
+      expect(requestOptions.url).toBe('/api/datasources/proxy/1/metrics/find');
+      expect(data).toBeTruthy();
+    });
+
+    it('should fetch from /render endpoint when queryType is value', async () => {
+      fetchMock.mockImplementation((options: any) => {
+        requestOptions = options;
+        return of(
+          createFetchResponse([
+            {
+              target: 'query',
+              datapoints: [
+                [10, 1],
+                [12, 1],
+              ],
+            },
+          ])
+        );
+      });
+
+      const fq: GraphiteQuery = {
+        queryType: GraphiteQueryType.Value,
+        target: 'query',
+        refId: 'A',
+        datasource: ctx.ds,
+      };
+      const data = await ctx.ds.metricFindQuery(fq);
+      expect(requestOptions.url).toBe('/api/datasources/proxy/1/render');
+      expect(data).toBeTruthy();
+    });
+
+    it('should return values of a query when queryType is GraphiteQueryType.Value', async () => {
+      fetchMock.mockImplementation((options: any) => {
+        requestOptions = options;
+        return of(
+          createFetchResponse([
+            {
+              target: 'query',
+              datapoints: [
+                [10, 1],
+                [12, 1],
+              ],
+            },
+          ])
+        );
+      });
+
+      const fq: GraphiteQuery = {
+        queryType: GraphiteQueryType.Value,
+        target: 'query',
+        refId: 'A',
+        datasource: ctx.ds,
+      };
+      const data = await ctx.ds.metricFindQuery(fq);
+      expect(requestOptions.url).toBe('/api/datasources/proxy/1/render');
+      expect(data[0].value).toBe(10);
+      expect(data[0].text).toBe('10');
+      expect(data[1].value).toBe(12);
+      expect(data[1].text).toBe('12');
+    });
+
+    it('should return metric names when queryType is GraphiteQueryType.MetricName', async () => {
+      fetchMock.mockImplementation((options: any) => {
+        requestOptions = options;
+        return of(
+          createFetchResponse([
+            {
+              target: 'apps.backend.backend_01',
+              datapoints: [
+                [10, 1],
+                [12, 1],
+              ],
+            },
+            {
+              target: 'apps.backend.backend_02',
+              datapoints: [
+                [10, 1],
+                [12, 1],
+              ],
+            },
+          ])
+        );
+      });
+
+      const fq: GraphiteQuery = {
+        queryType: GraphiteQueryType.MetricName,
+        target: 'apps.backend.*',
+        refId: 'A',
+        datasource: ctx.ds,
+      };
+      const data = await ctx.ds.metricFindQuery(fq);
+      expect(requestOptions.url).toBe('/api/datasources/proxy/1/render');
+      expect(data[0].text).toBe('apps.backend.backend_01');
+      expect(data[1].text).toBe('apps.backend.backend_02');
+    });
+  });
+
+  describe('exporting to abstract query', () => {
+    async function assertQueryExport(target: string, labelMatchers: AbstractLabelMatcher[]): Promise<void> {
+      let abstractQueries = await ctx.ds.exportToAbstractQueries([
+        {
+          refId: 'A',
+          target,
+        },
+      ]);
+      expect(abstractQueries).toMatchObject([
+        {
+          refId: 'A',
+          labelMatchers: labelMatchers,
+        },
+      ]);
+    }
+
+    beforeEach(() => {
+      ctx.ds.getImportQueryConfiguration = jest.fn().mockReturnValue({
+        loki: {
+          mappings: ['servers.(cluster).(server).*'].map(fromString),
+        },
+      });
+
+      ctx.ds.createFuncInstance = jest.fn().mockImplementation((name: string) => ({
+        name,
+        params: [],
+        def: {
+          name,
+          params: [{ multiple: true }],
+        },
+        updateText: () => {},
+      }));
+    });
+
+    it('extracts metric name based on configuration', async () => {
+      await assertQueryExport('interpolate(alias(servers.west.001.cpu,1,2))', [
+        { name: 'cluster', operator: AbstractLabelOperator.Equal, value: 'west' },
+        { name: 'server', operator: AbstractLabelOperator.Equal, value: '001' },
+      ]);
+
+      await assertQueryExport('interpolate(alias(servers.east.001.request.POST.200,1,2))', [
+        { name: 'cluster', operator: AbstractLabelOperator.Equal, value: 'east' },
+        { name: 'server', operator: AbstractLabelOperator.Equal, value: '001' },
+      ]);
+
+      await assertQueryExport('interpolate(alias(servers.*.002.*,1,2))', [
+        { name: 'server', operator: AbstractLabelOperator.Equal, value: '002' },
+      ]);
+    });
+
+    it('extracts tags', async () => {
+      await assertQueryExport("interpolate(seriesByTag('cluster=west', 'server=002'), inf))", [
+        { name: 'cluster', operator: AbstractLabelOperator.Equal, value: 'west' },
+        { name: 'server', operator: AbstractLabelOperator.Equal, value: '002' },
+      ]);
+      await assertQueryExport("interpolate(seriesByTag('foo=bar', 'server=002'), inf))", [
+        { name: 'foo', operator: AbstractLabelOperator.Equal, value: 'bar' },
+        { name: 'server', operator: AbstractLabelOperator.Equal, value: '002' },
+      ]);
+    });
+
+    it('extracts regular expressions', async () => {
+      await assertQueryExport('interpolate(alias(servers.eas*.{001,002}.request.POST.200,1,2))', [
+        { name: 'cluster', operator: AbstractLabelOperator.EqualRegEx, value: '^eas.*' },
+        { name: 'server', operator: AbstractLabelOperator.EqualRegEx, value: '^(001|002)' },
+      ]);
+    });
+
+    it('does not extract metrics when the config does not match', async () => {
+      await assertQueryExport('interpolate(alias(test.west.001.cpu))', []);
+      await assertQueryExport('interpolate(alias(servers.west.001))', []);
     });
   });
 

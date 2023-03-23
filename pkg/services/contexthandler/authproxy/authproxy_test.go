@@ -7,22 +7,23 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/grafana/grafana/pkg/services/login/loginservice"
-
-	"github.com/grafana/grafana/pkg/infra/remotecache"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/ldap"
-	"github.com/grafana/grafana/pkg/services/multildap"
-	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/web"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/grafana/pkg/infra/remotecache"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	"github.com/grafana/grafana/pkg/services/ldap"
+	"github.com/grafana/grafana/pkg/services/login/loginservice"
+	"github.com/grafana/grafana/pkg/services/multildap"
+	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/web"
 )
 
 const hdrName = "markelog"
 const id int64 = 42
 
-func prepareMiddleware(t *testing.T, remoteCache *remotecache.RemoteCache, configureReq func(*http.Request, *setting.Cfg)) (*AuthProxy, *models.ReqContext) {
+func prepareMiddleware(t *testing.T, remoteCache *remotecache.RemoteCache, configureReq func(*http.Request, *setting.Cfg)) (*AuthProxy, *contextmodel.ReqContext) {
 	t.Helper()
 
 	req, err := http.NewRequest("POST", "http://example.com", nil)
@@ -37,17 +38,17 @@ func prepareMiddleware(t *testing.T, remoteCache *remotecache.RemoteCache, confi
 		req.Header.Set(cfg.AuthProxyHeaderName, hdrName)
 	}
 
-	ctx := &models.ReqContext{
+	ctx := &contextmodel.ReqContext{
 		Context: &web.Context{Req: req},
 	}
 
 	loginService := loginservice.LoginServiceMock{
-		ExpectedUser: &models.User{
-			Id: id,
+		ExpectedUser: &user.User{
+			ID: id,
 		},
 	}
 
-	return ProvideAuthProxy(cfg, remoteCache, loginService, nil), ctx
+	return ProvideAuthProxy(cfg, remoteCache, loginService, nil, nil), ctx
 }
 
 func TestMiddlewareContext(t *testing.T) {

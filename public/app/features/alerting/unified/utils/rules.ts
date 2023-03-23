@@ -16,6 +16,8 @@ import {
 } from 'app/types/unified-alerting';
 import {
   GrafanaAlertState,
+  GrafanaAlertStateWithReason,
+  mapStateWithReasonToBaseState,
   PromAlertingRuleState,
   PromRuleType,
   RulerAlertingRuleDTO,
@@ -25,6 +27,10 @@ import {
 } from 'app/types/unified-alerting-dto';
 
 import { State } from '../components/StateTag';
+import { RuleHealth } from '../search/rulesSearchParser';
+
+import { RULER_NOT_SUPPORTED_MSG } from './constants';
+import { AsyncRequestState } from './redux';
 
 import { RULER_NOT_SUPPORTED_MSG } from './constants';
 import { AsyncRequestState } from './redux';
@@ -33,8 +39,8 @@ export function isAlertingRule(rule: Rule | undefined): rule is AlertingRule {
   return typeof rule === 'object' && rule.type === PromRuleType.Alerting;
 }
 
-export function isRecordingRule(rule: Rule): rule is RecordingRule {
-  return rule.type === PromRuleType.Recording;
+export function isRecordingRule(rule: Rule | undefined): rule is RecordingRule {
+  return typeof rule === 'object' && rule.type === PromRuleType.Recording;
 }
 
 export function isAlertingRulerRule(rule?: RulerRuleDTO): rule is RulerAlertingRuleDTO {
@@ -65,11 +71,31 @@ export function isCloudRuleIdentifier(identifier: RuleIdentifier): identifier is
   return 'rulerRuleHash' in identifier;
 }
 
+export function isPromRuleType(ruleType: string): ruleType is PromRuleType {
+  return Object.values<string>(PromRuleType).includes(ruleType);
+}
+
 export function isPrometheusRuleIdentifier(identifier: RuleIdentifier): identifier is PrometheusRuleIdentifier {
   return 'ruleHash' in identifier;
 }
 
-export function alertStateToReadable(state: PromAlertingRuleState | GrafanaAlertState | AlertState): string {
+export function getRuleHealth(health: string): RuleHealth | undefined {
+  switch (health) {
+    case 'ok':
+      return RuleHealth.Ok;
+    case 'nodata':
+      return RuleHealth.NoData;
+    case 'error':
+    case 'err': // Prometheus-compat data sources
+      return RuleHealth.Error;
+    case 'unknown':
+      return RuleHealth.Unknown;
+    default:
+      return undefined;
+  }
+}
+
+export function alertStateToReadable(state: PromAlertingRuleState | GrafanaAlertStateWithReason | AlertState): string {
   if (state === PromAlertingRuleState.Inactive) {
     return 'Normal';
   }
@@ -89,7 +115,18 @@ export const flattenRules = (rules: RuleNamespace[]) => {
   }, []);
 };
 
-export const alertStateToState: Record<PromAlertingRuleState | GrafanaAlertState | AlertState, State> = {
+export function alertStateToState(state: PromAlertingRuleState | GrafanaAlertStateWithReason | AlertState): State {
+  let key: PromAlertingRuleState | GrafanaAlertState | AlertState;
+  if (Object.values(AlertState).includes(state as AlertState)) {
+    key = state as AlertState;
+  } else {
+    key = mapStateWithReasonToBaseState(state as GrafanaAlertStateWithReason | PromAlertingRuleState);
+  }
+
+  return alertStateToStateMap[key];
+}
+
+const alertStateToStateMap: Record<PromAlertingRuleState | GrafanaAlertState | AlertState, State> = {
   [PromAlertingRuleState.Inactive]: 'good',
   [PromAlertingRuleState.Firing]: 'bad',
   [PromAlertingRuleState.Pending]: 'warning',
@@ -111,7 +148,9 @@ export function getFirstActiveAt(promRule: AlertingRule) {
     return null;
   }
   return promRule.alerts.reduce((prev, alert) => {
-    if (alert.activeAt && alert.state !== GrafanaAlertState.Normal) {
+    const isNotNormal =
+      mapStateWithReasonToBaseState(alert.state as GrafanaAlertStateWithReason) !== GrafanaAlertState.Normal;
+    if (alert.activeAt && isNotNormal) {
       const activeAt = new Date(alert.activeAt);
       if (prev === null || prev.getTime() > activeAt.getTime()) {
         return activeAt;
@@ -129,4 +168,19 @@ export function getFirstActiveAt(promRule: AlertingRule) {
  */
 export function isFederatedRuleGroup(group: CombinedRuleGroup) {
   return Array.isArray(group.source_tenants);
+}
+
+export function getRuleName(rule: RulerRuleDTO) {
+  if (isGrafanaRulerRule(rule)) {
+    return rule.grafana_alert.title;
+  }
+  if (isAlertingRulerRule(rule)) {
+    return rule.alert;
+  }
+
+  if (isRecordingRulerRule(rule)) {
+    return rule.record;
+  }
+
+  return '';
 }

@@ -233,7 +233,6 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
           {filtered.length} / {xforms.length} &nbsp;&nbsp;
           <IconButton
             name="times"
-            surface="header"
             onClick={() => {
               this.setState({ search: '' });
             }}
@@ -251,7 +250,6 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
       suffix = (
         <IconButton
           name="times"
-          surface="header"
           onClick={() => {
             this.setState({ showPicker: false });
           }}
@@ -382,7 +380,7 @@ function TransformationCard({ transform, onClick }: TransformationCardProps) {
       onClick={onClick}
     >
       <Card.Heading>{transform.name}</Card.Heading>
-      <Card.Meta>{transform.description}</Card.Meta>
+      <Card.Description>{transform.description}</Card.Description>
       {transform.state && (
         <Card.Tags>
           <PluginStateInfo state={transform.state} />

@@ -1,8 +1,6 @@
 package migrations
 
 import (
-	"os"
-
 	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/accesscontrol"
 	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/ualert"
@@ -44,7 +42,7 @@ func (*OSSMigrations) AddMigration(mg *Migrator) {
 	addTestDataMigrations(mg)
 	addDashboardVersionMigration(mg)
 	addTeamMigrations(mg)
-	addDashboardAclMigrations(mg) // Do NOT add more migrations to this function.
+	addDashboardACLMigrations(mg) // Do NOT add more migrations to this function.
 	addTagMigration(mg)
 	addLoginAttemptMigrations(mg)
 	addUserAuthMigrations(mg)
@@ -76,28 +74,45 @@ func (*OSSMigrations) AddMigration(mg *Migrator) {
 	accesscontrol.AddMigration(mg)
 	addQueryHistoryMigrations(mg)
 
-	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagAccesscontrol) {
-			accesscontrol.AddTeamMembershipMigrations(mg)
-			accesscontrol.AddDashboardPermissionsMigrator(mg)
-			accesscontrol.AddAlertingPermissionsMigrator(mg)
-		}
-	}
+	accesscontrol.AddTeamMembershipMigrations(mg)
+	accesscontrol.AddDashboardPermissionsMigrator(mg)
+	accesscontrol.AddAlertingPermissionsMigrator(mg)
+
 	addQueryHistoryStarMigrations(mg)
+
+	addCorrelationsMigrations(mg)
 
 	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
 		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagDashboardComments) || mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagAnnotationComments) {
 			addCommentGroupMigrations(mg)
 			addCommentMigrations(mg)
 		}
-	}
 
-	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagAccesscontrol) {
-			accesscontrol.AddManagedFolderAlertActionsMigration(mg)
-			accesscontrol.AddAdminOnlyMigration(mg)
+		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagEntityStore) {
+			addEntityStoreMigrations(mg)
 		}
 	}
+
+	addEntityEventsTableMigration(mg)
+
+	addPublicDashboardMigration(mg)
+	ualert.CreateDefaultFoldersForAlertingMigration(mg)
+	addDbFileStorageMigration(mg)
+
+	accesscontrol.AddManagedPermissionsMigration(mg, accesscontrol.ManagedPermissionsMigrationID)
+	accesscontrol.AddManagedFolderAlertActionsMigration(mg)
+	accesscontrol.AddActionNameMigrator(mg)
+	addPlaylistUIDMigration(mg)
+
+	ualert.UpdateRuleGroupIndexMigration(mg)
+	accesscontrol.AddManagedFolderAlertActionsRepeatMigration(mg)
+	accesscontrol.AddAdminOnlyMigration(mg)
+	accesscontrol.AddSeedAssignmentMigrations(mg)
+	accesscontrol.AddManagedFolderAlertActionsRepeatFixedMigration(mg)
+
+	AddExternalAlertmanagerToDatasourceMigration(mg)
+
+	addFolderMigrations(mg)
 }
 
 func addMigrationLogMigrations(mg *Migrator) {

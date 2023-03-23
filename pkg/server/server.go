@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"net"
 	"os"
 	"path/filepath"
@@ -15,15 +14,13 @@ import (
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
 
 	"github.com/grafana/grafana/pkg/api"
-	_ "github.com/grafana/grafana/pkg/api/docs/definitions"
 	_ "github.com/grafana/grafana/pkg/extensions"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/metrics"
-	"github.com/grafana/grafana/pkg/login"
-	"github.com/grafana/grafana/pkg/login/social"
+	"github.com/grafana/grafana/pkg/infra/usagestats/statscollector"
 	"github.com/grafana/grafana/pkg/registry"
+	"github.com/grafana/grafana/pkg/services/accesscontrol"
 	"github.com/grafana/grafana/pkg/services/provisioning"
-
 	"github.com/grafana/grafana/pkg/setting"
 	"golang.org/x/sync/errgroup"
 )
@@ -41,7 +38,9 @@ type Options struct {
 // New returns a new instance of Server.
 func New(opts Options, cfg *setting.Cfg, httpServer *api.HTTPServer, roleRegistry accesscontrol.RoleRegistry,
 	provisioningService provisioning.ProvisioningService, backgroundServiceProvider registry.BackgroundServiceRegistry,
+	usageStatsProvidersRegistry registry.UsageStatsProvidersRegistry, statsCollectorService *statscollector.Service,
 ) (*Server, error) {
+	statsCollectorService.RegisterProviders(usageStatsProvidersRegistry.GetServices())
 	s, err := newServer(opts, cfg, httpServer, roleRegistry, provisioningService, backgroundServiceProvider)
 	if err != nil {
 		return nil, err
@@ -113,15 +112,15 @@ func (s *Server) init() error {
 	}
 	s.isInitialized = true
 
-	s.writePIDFile()
+	if err := s.writePIDFile(); err != nil {
+		return err
+	}
+
 	if err := metrics.SetEnvironmentInformation(s.cfg.MetricsGrafanaEnvironmentInfo); err != nil {
 		return err
 	}
 
-	login.ProvideService(s.HTTPServer.SQLStore, s.HTTPServer.Login)
-	social.ProvideService(s.cfg)
-
-	if err := s.roleRegistry.RegisterFixedRoles(); err != nil {
+	if err := s.roleRegistry.RegisterFixedRoles(s.context); err != nil {
 		return err
 	}
 
@@ -195,36 +194,28 @@ func (s *Server) Shutdown(ctx context.Context, reason string) error {
 	return err
 }
 
-// ExitCode returns an exit code for a given error.
-func (s *Server) ExitCode(runError error) int {
-	if runError != nil {
-		s.log.Error("Server shutdown", "error", runError)
-		return 1
-	}
-	return 0
-}
-
 // writePIDFile retrieves the current process ID and writes it to file.
-func (s *Server) writePIDFile() {
+func (s *Server) writePIDFile() error {
 	if s.pidFile == "" {
-		return
+		return nil
 	}
 
 	// Ensure the required directory structure exists.
 	err := os.MkdirAll(filepath.Dir(s.pidFile), 0700)
 	if err != nil {
 		s.log.Error("Failed to verify pid directory", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to verify pid directory: %s", err)
 	}
 
 	// Retrieve the PID and write it to file.
 	pid := strconv.Itoa(os.Getpid())
-	if err := ioutil.WriteFile(s.pidFile, []byte(pid), 0644); err != nil {
+	if err := os.WriteFile(s.pidFile, []byte(pid), 0644); err != nil {
 		s.log.Error("Failed to write pidfile", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to write pidfile: %s", err)
 	}
 
 	s.log.Info("Writing PID file", "path", s.pidFile, "pid", pid)
+	return nil
 }
 
 // notifySystemd sends state notifications to systemd.

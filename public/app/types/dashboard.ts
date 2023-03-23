@@ -1,6 +1,6 @@
 import { DataQuery } from '@grafana/data';
+import { Dashboard } from '@grafana/schema';
 import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
-import { VariableModel } from 'app/features/variables/types';
 
 import { DashboardAcl } from './acl';
 
@@ -11,6 +11,8 @@ export interface DashboardDTO {
 }
 
 export interface DashboardMeta {
+  slug?: string;
+  uid?: string;
   canSave?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -27,6 +29,7 @@ export interface DashboardMeta {
   isStarred?: boolean;
   showSettings?: boolean;
   expires?: string;
+  isFolder?: boolean;
   isSnapshot?: boolean;
   folderTitle?: string;
   folderUrl?: string;
@@ -38,6 +41,10 @@ export interface DashboardMeta {
   fromFile?: boolean;
   hasUnsavedFolderChange?: boolean;
   annotationsPermissions?: AnnotationsPermissions;
+  publicDashboardAccessToken?: string;
+  publicDashboardUid?: string;
+  publicDashboardEnabled?: boolean;
+  dashboardNotFound?: boolean;
 }
 
 export interface AnnotationActions {
@@ -51,12 +58,10 @@ export interface AnnotationsPermissions {
   organization: AnnotationActions;
 }
 
-export interface DashboardDataDTO {
+// FIXME: This should not override Dashboard types
+export interface DashboardDataDTO extends Dashboard {
   title: string;
   uid: string;
-  templating: {
-    list: VariableModel[];
-  };
   panels?: any[];
 }
 
@@ -64,7 +69,9 @@ export enum DashboardRoutes {
   Home = 'home-dashboard',
   New = 'new-dashboard',
   Normal = 'normal-dashboard',
+  Path = 'path-dashboard',
   Scripted = 'scripted-dashboard',
+  Public = 'public-dashboard',
 }
 
 export enum DashboardInitPhase {
@@ -81,7 +88,6 @@ export interface DashboardInitError {
 }
 
 export enum KioskMode {
-  Off = 'off',
   TV = 'tv',
   Full = 'full',
 }

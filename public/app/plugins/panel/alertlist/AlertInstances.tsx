@@ -1,13 +1,15 @@
 import { css } from '@emotion/css';
 import { noop } from 'lodash';
 import pluralize from 'pluralize';
-import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { GrafanaTheme2, PanelProps } from '@grafana/data';
 import { Icon, useStyles2 } from '@grafana/ui';
 import { AlertInstancesTable } from 'app/features/alerting/unified/components/rules/AlertInstancesTable';
 import { sortAlerts } from 'app/features/alerting/unified/utils/misc';
 import { Alert } from 'app/types/unified-alerting';
+
+import { DEFAULT_PER_PAGE_PAGINATION } from '../../../core/constants';
 
 import { GroupMode, UnifiedAlertListOptions } from './types';
 import { filterAlerts } from './util';
@@ -17,7 +19,7 @@ interface Props {
   options: PanelProps<UnifiedAlertListOptions>['options'];
 }
 
-export const AlertInstances: FC<Props> = ({ alerts, options }) => {
+export const AlertInstances = ({ alerts, options }: Props) => {
   // when custom grouping is enabled, we will always uncollapse the list of alert instances
   const defaultShowInstances = options.groupMode === GroupMode.Custom ? true : options.showInstances;
   const [displayInstances, setDisplayInstances] = useState<boolean>(defaultShowInstances);
@@ -54,7 +56,12 @@ export const AlertInstances: FC<Props> = ({ alerts, options }) => {
           {hiddenInstances > 0 && <span>, {`${hiddenInstances} hidden by filters`}</span>}
         </div>
       )}
-      {displayInstances && <AlertInstancesTable instances={filteredAlerts} />}
+      {displayInstances && (
+        <AlertInstancesTable
+          instances={filteredAlerts}
+          pagination={{ itemsPerPage: 2 * DEFAULT_PER_PAGE_PAGINATION }}
+        />
+      )}
     </div>
   );
 };

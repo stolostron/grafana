@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+
+	"github.com/grafana/grafana/pkg/infra/db"
 	glog "github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/registry"
-	"github.com/grafana/grafana/pkg/services/sqlstore"
+	"github.com/grafana/grafana/pkg/services/secrets"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
@@ -28,8 +30,14 @@ const (
 	ServiceName = "RemoteCache"
 )
 
-func ProvideService(cfg *setting.Cfg, sqlStore *sqlstore.SQLStore) (*RemoteCache, error) {
-	client, err := createClient(cfg.RemoteCacheOptions, sqlStore)
+func ProvideService(cfg *setting.Cfg, sqlStore db.DB, secretsService secrets.Service) (*RemoteCache, error) {
+	var codec codec
+	if cfg.RemoteCacheOptions.Encryption {
+		codec = &encryptionCodec{secretsService}
+	} else {
+		codec = &gobCodec{}
+	}
+	client, err := createClient(cfg.RemoteCacheOptions, sqlStore, codec)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +53,7 @@ func ProvideService(cfg *setting.Cfg, sqlStore *sqlstore.SQLStore) (*RemoteCache
 // CacheStorage allows the caller to set, get and delete items in the cache.
 // Cached items are stored as byte arrays and marshalled using "encoding/gob"
 // so any struct added to the cache needs to be registered with `remotecache.Register`
-// ex `remotecache.Register(CacheableStruct{})``
+// ex `remotecache.Register(CacheableStruct{})`
 type CacheStorage interface {
 	// Get reads object from Cache
 	Get(ctx context.Context, key string) (interface{}, error)
@@ -55,13 +63,17 @@ type CacheStorage interface {
 
 	// Delete object from cache
 	Delete(ctx context.Context, key string) error
+
+	// Count returns the number of items in the cache.
+	// Optionaly a prefix can be provided to only count items with that prefix
+	Count(ctx context.Context, prefix string) (int64, error)
 }
 
 // RemoteCache allows Grafana to cache data outside its own process
 type RemoteCache struct {
 	log      log.Logger
 	client   CacheStorage
-	SQLStore *sqlstore.SQLStore
+	SQLStore db.DB
 	Cfg      *setting.Cfg
 }
 
@@ -84,6 +96,11 @@ func (ds *RemoteCache) Delete(ctx context.Context, key string) error {
 	return ds.client.Delete(ctx, key)
 }
 
+// Count returns the number of items in the cache.
+func (ds *RemoteCache) Count(ctx context.Context, prefix string) (int64, error) {
+	return ds.client.Count(ctx, prefix)
+}
+
 // Run starts the backend processes for cache clients.
 func (ds *RemoteCache) Run(ctx context.Context) error {
 	// create new interface if more clients need GC jobs
@@ -96,20 +113,24 @@ func (ds *RemoteCache) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func createClient(opts *setting.RemoteCacheOptions, sqlstore *sqlstore.SQLStore) (CacheStorage, error) {
-	if opts.Name == redisCacheType {
-		return newRedisStorage(opts)
+func createClient(opts *setting.RemoteCacheOptions, sqlstore db.DB, codec codec) (cache CacheStorage, err error) {
+	switch opts.Name {
+	case redisCacheType:
+		cache, err = newRedisStorage(opts, codec)
+	case memcachedCacheType:
+		cache = newMemcachedStorage(opts, codec)
+	case databaseCacheType:
+		cache = newDatabaseCache(sqlstore, codec)
+	default:
+		return nil, ErrInvalidCacheType
 	}
-
-	if opts.Name == memcachedCacheType {
-		return newMemcachedStorage(opts), nil
+	if err != nil {
+		return cache, err
 	}
-
-	if opts.Name == databaseCacheType {
-		return newDatabaseCache(sqlstore), nil
+	if opts.Prefix != "" {
+		cache = &prefixCacheStorage{cache: cache, prefix: opts.Prefix}
 	}
-
-	return nil, ErrInvalidCacheType
+	return cache, nil
 }
 
 // Register records a type, identified by a value for that type, under its
@@ -126,13 +147,61 @@ type cachedItem struct {
 	Val interface{}
 }
 
-func encodeGob(item *cachedItem) ([]byte, error) {
+type codec interface {
+	Encode(context.Context, *cachedItem) ([]byte, error)
+	Decode(context.Context, []byte, *cachedItem) error
+}
+
+type gobCodec struct{}
+
+func (c *gobCodec) Encode(_ context.Context, item *cachedItem) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 	err := gob.NewEncoder(buf).Encode(item)
 	return buf.Bytes(), err
 }
 
-func decodeGob(data []byte, out *cachedItem) error {
+func (c *gobCodec) Decode(_ context.Context, data []byte, out *cachedItem) error {
 	buf := bytes.NewBuffer(data)
 	return gob.NewDecoder(buf).Decode(&out)
+}
+
+type encryptionCodec struct {
+	secretsService secrets.Service
+}
+
+func (c *encryptionCodec) Encode(ctx context.Context, item *cachedItem) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	err := gob.NewEncoder(buf).Encode(item)
+	if err != nil {
+		return nil, err
+	}
+	return c.secretsService.Encrypt(ctx, buf.Bytes(), secrets.WithoutScope())
+}
+
+func (c *encryptionCodec) Decode(ctx context.Context, data []byte, out *cachedItem) error {
+	decrypted, err := c.secretsService.Decrypt(ctx, data)
+	if err != nil {
+		return err
+	}
+	buf := bytes.NewBuffer(decrypted)
+	return gob.NewDecoder(buf).Decode(&out)
+}
+
+type prefixCacheStorage struct {
+	cache  CacheStorage
+	prefix string
+}
+
+func (pcs *prefixCacheStorage) Get(ctx context.Context, key string) (interface{}, error) {
+	return pcs.cache.Get(ctx, pcs.prefix+key)
+}
+func (pcs *prefixCacheStorage) Set(ctx context.Context, key string, value interface{}, expire time.Duration) error {
+	return pcs.cache.Set(ctx, pcs.prefix+key, value, expire)
+}
+func (pcs *prefixCacheStorage) Delete(ctx context.Context, key string) error {
+	return pcs.cache.Delete(ctx, pcs.prefix+key)
+}
+
+func (pcs *prefixCacheStorage) Count(ctx context.Context, prefix string) (int64, error) {
+	return pcs.cache.Count(ctx, pcs.prefix)
 }

@@ -9,11 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/plugins"
+	"github.com/grafana/grafana/pkg/setting"
 )
 
 func TestGetUrl(t *testing.T) {
@@ -102,6 +104,22 @@ func TestRenderErrorImage(t *testing.T) {
 	})
 }
 
+type unavailableRendererManager struct{}
+
+func (m unavailableRendererManager) Renderer(_ context.Context) *plugins.Plugin { return nil }
+
+func TestRenderUnavailableError(t *testing.T) {
+	rs := RenderingService{
+		Cfg:                   &setting.Cfg{},
+		log:                   log.New("test"),
+		RendererPluginManager: unavailableRendererManager{},
+	}
+	opts := Opts{ErrorOpts: ErrorOpts{ErrorRenderUnavailable: true}}
+	result, err := rs.Render(context.Background(), opts, nil)
+	assert.Equal(t, ErrRenderUnavailable, err)
+	assert.Nil(t, result)
+}
+
 func TestRenderLimitImage(t *testing.T) {
 	path, err := filepath.Abs("../../../")
 	require.NoError(t, err)
@@ -144,6 +162,22 @@ func TestRenderLimitImage(t *testing.T) {
 			assert.Equal(t, tc.expected, result.FilePath)
 		})
 	}
+}
+
+func TestRenderLimitImageError(t *testing.T) {
+	rs := RenderingService{
+		Cfg:             &setting.Cfg{},
+		inProgressCount: 2,
+		log:             log.New("test"),
+	}
+	opts := Opts{
+		ErrorOpts:       ErrorOpts{ErrorConcurrentLimitReached: true},
+		ConcurrentLimit: 1,
+		Theme:           models.ThemeDark,
+	}
+	result, err := rs.Render(context.Background(), opts, nil)
+	assert.Equal(t, ErrConcurrentLimitReached, err)
+	assert.Nil(t, result)
 }
 
 func TestRenderingServiceGetRemotePluginVersion(t *testing.T) {

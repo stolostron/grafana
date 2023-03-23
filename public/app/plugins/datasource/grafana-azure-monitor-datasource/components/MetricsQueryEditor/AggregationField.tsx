@@ -1,9 +1,10 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 
 import { SelectableValue } from '@grafana/data';
 import { Select } from '@grafana/ui';
 
 import { AzureQueryEditorFieldProps, AzureMonitorOption } from '../../types';
+import { addValueToOptions } from '../../utils/common';
 import { Field } from '../Field';
 
 import { setAggregation } from './setQueryValue';
@@ -32,20 +33,16 @@ const AggregationField: React.FC<AggregationFieldProps> = ({
     [onQueryChange, query]
   );
 
-  const options = useMemo(
-    () => [...aggregationOptions, variableOptionGroup],
-    [aggregationOptions, variableOptionGroup]
-  );
+  const options = addValueToOptions(aggregationOptions, variableOptionGroup, query.azureMonitor?.aggregation);
 
   return (
     <Field label="Aggregation">
       <Select
         menuShouldPortal
         inputId="azure-monitor-metrics-aggregation-field"
-        value={query.azureMonitor?.aggregation}
+        value={query.azureMonitor?.aggregation || null}
         onChange={handleChange}
         options={options}
-        width={38}
         isLoading={isLoading}
       />
     </Field>

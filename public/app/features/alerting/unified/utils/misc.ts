@@ -1,16 +1,20 @@
 import { sortBy } from 'lodash';
 
-import { urlUtil, UrlQueryMap, Labels } from '@grafana/data';
-import { config } from '@grafana/runtime';
+import { UrlQueryMap, Labels, DataSourceInstanceSettings, DataSourceJsonData } from '@grafana/data';
 import { alertInstanceKey } from 'app/features/alerting/unified/utils/rules';
 import { SortOrder } from 'app/plugins/panel/alertlist/types';
 import { Alert, CombinedRule, FilterState, RulesSource, SilenceFilterState } from 'app/types/unified-alerting';
-import { GrafanaAlertState, PromAlertingRuleState } from 'app/types/unified-alerting-dto';
+import {
+  GrafanaAlertState,
+  PromAlertingRuleState,
+  mapStateWithReasonToBaseState,
+} from 'app/types/unified-alerting-dto';
 
 import { ALERTMANAGER_NAME_QUERY_KEY } from './constants';
 import { getRulesSourceName } from './datasource';
 import { getMatcherQueryParams } from './matchers';
 import * as ruleId from './rule-id';
+import { createUrl } from './url';
 
 export function createViewLink(ruleSource: RulesSource, rule: CombinedRule, returnTo: string): string {
   const sourceName = getRulesSourceName(ruleSource);
@@ -18,18 +22,16 @@ export function createViewLink(ruleSource: RulesSource, rule: CombinedRule, retu
   const paramId = encodeURIComponent(ruleId.stringifyIdentifier(identifier));
   const paramSource = encodeURIComponent(sourceName);
 
-  return urlUtil.renderUrl(`${config.appSubUrl}/alerting/${paramSource}/${paramId}/view`, { returnTo });
+  return createUrl(`/alerting/${paramSource}/${paramId}/view`, { returnTo });
 }
 
 export function createExploreLink(dataSourceName: string, query: string) {
-  return urlUtil.renderUrl(`${config.appSubUrl}/explore`, {
-    left: JSON.stringify([
-      'now-1h',
-      'now',
-      dataSourceName,
-      { datasource: dataSourceName, expr: query },
-      { ui: [true, true, true, 'none'] },
-    ]),
+  return createUrl(`/explore`, {
+    left: JSON.stringify({
+      datasource: dataSourceName,
+      queries: [{ refId: 'A', datasource: dataSourceName, expr: query }],
+      range: { from: 'now-1h', to: 'now' },
+    }),
   });
 }
 
@@ -91,7 +93,15 @@ export function makeLabelBasedSilenceLink(alertManagerSourceName: string, labels
   const matcherParams = getMatcherQueryParams(labels);
   matcherParams.forEach((value, key) => silenceUrlParams.append(key, value));
 
-  return `${config.appSubUrl}/alerting/silence/new?${silenceUrlParams.toString()}`;
+  return createUrl('/alerting/silence/new', silenceUrlParams);
+}
+
+export function makeDataSourceLink<T extends DataSourceJsonData>(dataSource: DataSourceInstanceSettings<T>) {
+  return createUrl(`/datasources/edit/${dataSource.uid}`);
+}
+
+export function makeFolderLink(folderUID: string): string {
+  return createUrl(`/dashboards/f/${folderUID}`);
 }
 
 // keep retrying fn if it's error passes shouldRetry(error) and timeout has not elapsed yet
@@ -126,7 +136,10 @@ const alertStateSortScore = {
 export function sortAlerts(sortOrder: SortOrder, alerts: Alert[]): Alert[] {
   // Make sure to handle tie-breaks because API returns alert instances in random order every time
   if (sortOrder === SortOrder.Importance) {
-    return sortBy(alerts, (alert) => [alertStateSortScore[alert.state], alertInstanceKey(alert).toLocaleLowerCase()]);
+    return sortBy(alerts, (alert) => [
+      alertStateSortScore[mapStateWithReasonToBaseState(alert.state)],
+      alertInstanceKey(alert).toLocaleLowerCase(),
+    ]);
   } else if (sortOrder === SortOrder.TimeAsc) {
     return sortBy(alerts, (alert) => [
       new Date(alert.activeAt) || new Date(),
@@ -144,22 +157,4 @@ export function sortAlerts(sortOrder: SortOrder, alerts: Alert[]): Alert[] {
   }
 
   return result;
-}
-
-// keep retrying fn if it's error passes shouldRetry(error) and timeout has not elapsed yet
-export function retryWhile<T, E = Error>(
-  fn: () => Promise<T>,
-  shouldRetry: (e: E) => boolean,
-  timeout: number, // milliseconds, how long to keep retrying
-  pause = 1000 // milliseconds, pause between retries
-): Promise<T> {
-  const start = new Date().getTime();
-  const makeAttempt = (): Promise<T> =>
-    fn().catch((e) => {
-      if (shouldRetry(e) && new Date().getTime() - start < timeout) {
-        return new Promise((resolve) => setTimeout(resolve, pause)).then(makeAttempt);
-      }
-      throw e;
-    });
-  return makeAttempt();
 }

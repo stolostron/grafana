@@ -1,8 +1,22 @@
 import { from, of, OperatorFunction } from 'rxjs';
 import { map, mergeMap } from 'rxjs/operators';
 
-import { FieldType, getFieldDisplayName, isDataFrame, MetricFindValue, PanelData } from '@grafana/data';
-import { getProcessedDataFrames } from 'app/features/query/state/runRequest';
+import {
+  FieldType,
+  getFieldDisplayName,
+  getProcessedDataFrames,
+  isDataFrame,
+  MetricFindValue,
+  PanelData,
+} from '@grafana/data';
+
+import { ThunkDispatch } from '../../../types';
+import { validateVariableSelectionState } from '../state/actions';
+import { toKeyedAction } from '../state/keyedVariablesReducer';
+import { QueryVariableModel } from '../types';
+import { getTemplatedRegex, toKeyedVariableIdentifier, toVariablePayload } from '../utils';
+
+import { updateVariableOptions } from './reducer';
 
 import { ThunkDispatch } from '../../../types';
 import { validateVariableSelectionState } from '../state/actions';

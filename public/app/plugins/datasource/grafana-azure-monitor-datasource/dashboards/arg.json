@@ -3998,7 +3998,7 @@
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 0,
+        "sort": 5,
         "type": "query"
       }
     ]
@@ -4009,7 +4009,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Azure Resources Overview",
+  "title": "Azure / Resources Overview",
   "uid": "Mtwt2BV7k",
   "version": 3
 }

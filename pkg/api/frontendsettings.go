@@ -2,31 +2,35 @@ package api
 
 import (
 	"context"
-	"strconv"
+	"fmt"
+	"net/http"
 
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/plugins"
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	"github.com/grafana/grafana/pkg/services/datasources"
+	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/licensing"
 	"github.com/grafana/grafana/pkg/services/pluginsettings"
+	"github.com/grafana/grafana/pkg/services/secrets/kvstore"
 	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/tsdb/grafanads"
 	"github.com/grafana/grafana/pkg/util"
 )
 
-func (hs *HTTPServer) GetFrontendSettings(c *models.ReqContext) {
+func (hs *HTTPServer) GetFrontendSettings(c *contextmodel.ReqContext) {
 	settings, err := hs.getFrontendSettingsMap(c)
 	if err != nil {
 		c.JsonApiErr(400, "Failed to get frontend settings", err)
 		return
 	}
 
-	c.JSON(200, settings)
+	c.JSON(http.StatusOK, settings)
 }
 
 // getFrontendSettingsMap returns a json object with all the settings needed for front end initialisation.
-func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]interface{}, error) {
-	enabledPlugins, err := hs.enabledPlugins(c.Req.Context(), c.OrgId)
+func (hs *HTTPServer) getFrontendSettingsMap(c *contextmodel.ReqContext) (map[string]interface{}, error) {
+	enabledPlugins, err := hs.enabledPlugins(c.Req.Context(), c.OrgID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +63,11 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 			continue
 		}
 
+		hideFromList := panel.HideFromList
+		if panel.ID == "flamegraph" {
+			hideFromList = !hs.Features.IsEnabled(featuremgmt.FlagFlameGraph)
+		}
+
 		panels[panel.ID] = plugins.PanelDTO{
 			ID:            panel.ID,
 			Name:          panel.Name,
@@ -66,7 +75,7 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 			Module:        panel.Module,
 			BaseURL:       panel.BaseURL,
 			SkipDataQuery: panel.SkipDataQuery,
-			HideFromList:  panel.HideFromList,
+			HideFromList:  hideFromList,
 			ReleaseState:  string(panel.State),
 			Signature:     string(panel.Signature),
 			Sort:          getPanelSort(panel.ID),
@@ -85,6 +94,7 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 	}
 
 	hasAccess := accesscontrol.HasAccess(hs.AccessControl, c)
+	secretsManagerPluginEnabled := kvstore.EvaluateRemoteSecretsPlugin(c.Req.Context(), hs.secretsPluginManager, hs.Cfg) == nil
 
 	jsonObj := map[string]interface{}{
 		"defaultDatasource":                   defaultDS,
@@ -96,6 +106,8 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 		"allowOrgCreate":                      (setting.AllowUserOrgCreate && c.IsSignedIn) || c.IsGrafanaAdmin,
 		"authProxyEnabled":                    setting.AuthProxyEnabled,
 		"ldapEnabled":                         hs.Cfg.LDAPEnabled,
+		"jwtHeaderName":                       hs.Cfg.JWTAuthHeaderName,
+		"jwtUrlLogin":                         hs.Cfg.JWTAuthURLLogin,
 		"alertingEnabled":                     setting.AlertingEnabled,
 		"alertingErrorOrTimeout":              setting.AlertingErrorOrTimeout,
 		"alertingNoDataOrNullValues":          setting.AlertingNoDataOrNullValues,
@@ -104,11 +116,15 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 		"autoAssignOrg":                       setting.AutoAssignOrg,
 		"verifyEmailEnabled":                  setting.VerifyEmailEnabled,
 		"sigV4AuthEnabled":                    setting.SigV4AuthEnabled,
+		"azureAuthEnabled":                    setting.AzureAuthEnabled,
+		"rbacEnabled":                         hs.Cfg.RBACEnabled,
 		"exploreEnabled":                      setting.ExploreEnabled,
 		"helpEnabled":                         setting.HelpEnabled,
 		"profileEnabled":                      setting.ProfileEnabled,
 		"queryHistoryEnabled":                 hs.Cfg.QueryHistoryEnabled,
 		"googleAnalyticsId":                   setting.GoogleAnalyticsId,
+		"googleAnalytics4Id":                  setting.GoogleAnalytics4Id,
+		"GoogleAnalytics4SendManualPageViews": setting.GoogleAnalytics4SendManualPageViews,
 		"rudderstackWriteKey":                 setting.RudderstackWriteKey,
 		"rudderstackDataPlaneUrl":             setting.RudderstackDataPlaneUrl,
 		"rudderstackSdkUrl":                   setting.RudderstackSdkUrl,
@@ -128,6 +144,19 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 		"editorsCanAdmin":                     hs.Cfg.EditorsCanAdmin,
 		"disableSanitizeHtml":                 hs.Cfg.DisableSanitizeHtml,
 		"pluginsToPreload":                    pluginsToPreload,
+		"auth": map[string]interface{}{
+			"OAuthSkipOrgRoleUpdateSync": hs.Cfg.OAuthSkipOrgRoleUpdateSync,
+			"SAMLSkipOrgRoleSync":        hs.Cfg.SectionWithEnvOverrides("auth.saml").Key("skip_org_role_sync").MustBool(false),
+			"LDAPSkipOrgRoleSync":        hs.Cfg.LDAPSkipOrgRoleSync,
+			"GithubSkipOrgRoleSync":      hs.Cfg.GithubSkipOrgRoleSync,
+			"GoogleSkipOrgRoleSync":      hs.Cfg.GoogleSkipOrgRoleSync,
+			"JWTAuthSkipOrgRoleSync":     hs.Cfg.JWTAuthSkipOrgRoleSync,
+			"GrafanaComSkipOrgRoleSync":  hs.Cfg.GrafanaComSkipOrgRoleSync,
+			"GitLabSkipOrgRoleSync":      hs.Cfg.GitLabSkipOrgRoleSync,
+			"AzureADSkipOrgRoleSync":     hs.Cfg.AzureADSkipOrgRoleSync,
+			"OktaSkipOrgRoleSync":        hs.Cfg.OktaSkipOrgRoleSync,
+			"DisableSyncLock":            hs.Cfg.DisableSyncLock,
+		},
 		"buildInfo": map[string]interface{}{
 			"hideVersion":   hideVersion,
 			"version":       version,
@@ -146,10 +175,13 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 			"enabledFeatures": hs.License.EnabledFeatures(),
 		},
 		"featureToggles":                   hs.Features.GetEnabled(c.Req.Context()),
-		"rendererAvailable":                hs.RenderService.IsAvailable(),
+		"anonymousEnabled":                 hs.Cfg.AnonymousEnabled,
+		"rendererAvailable":                hs.RenderService.IsAvailable(c.Req.Context()),
 		"rendererVersion":                  hs.RenderService.Version(),
+		"secretsManagerPluginEnabled":      secretsManagerPluginEnabled,
 		"http2Enabled":                     hs.Cfg.Protocol == setting.HTTP2Scheme,
 		"sentry":                           hs.Cfg.Sentry,
+		"grafanaJavascriptAgent":           hs.Cfg.GrafanaJavascriptAgent,
 		"pluginCatalogURL":                 hs.Cfg.PluginCatalogURL,
 		"pluginAdminEnabled":               hs.Cfg.PluginAdminEnabled,
 		"pluginAdminExternalManageEnabled": hs.Cfg.PluginAdminEnabled && hs.Cfg.PluginAdminExternalManageEnabled,
@@ -157,6 +189,7 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 		"expressionsEnabled":               hs.Cfg.ExpressionsEnabled,
 		"awsAllowedAuthProviders":          hs.Cfg.AWSAllowedAuthProviders,
 		"awsAssumeRoleEnabled":             hs.Cfg.AWSAssumeRoleEnabled,
+		"supportBundlesEnabled":            isSupportBundlesEnabled(hs),
 		"azure": map[string]interface{}{
 			"cloud":                  hs.Cfg.Azure.Cloud,
 			"managedIdentityEnabled": hs.Cfg.Azure.ManagedIdentityEnabled,
@@ -171,6 +204,22 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 			"enabled": hs.Cfg.SectionWithEnvOverrides("reporting").Key("enabled").MustBool(true),
 		},
 		"unifiedAlertingEnabled": hs.Cfg.UnifiedAlerting.Enabled,
+		"unifiedAlerting": map[string]interface{}{
+			"minInterval": hs.Cfg.UnifiedAlerting.MinInterval.String(),
+		},
+		"oauth":                   hs.getEnabledOAuthProviders(),
+		"samlEnabled":             hs.samlEnabled(),
+		"samlName":                hs.samlName(),
+		"tokenExpirationDayLimit": hs.Cfg.SATokenExpirationDayLimit,
+		"snapshotEnabled":         hs.Cfg.SnapshotEnabled,
+	}
+
+	if hs.pluginsCDNService != nil && hs.pluginsCDNService.IsEnabled() {
+		cdnBaseURL, err := hs.pluginsCDNService.BaseURL()
+		if err != nil {
+			return nil, fmt.Errorf("plugins cdn base url: %w", err)
+		}
+		jsonObj["pluginsCDNBaseURL"] = cdnBaseURL
 	}
 
 	if hs.ThumbService != nil {
@@ -187,23 +236,30 @@ func (hs *HTTPServer) getFrontendSettingsMap(c *models.ReqContext) (map[string]i
 	return jsonObj, nil
 }
 
-func (hs *HTTPServer) getFSDataSources(c *models.ReqContext, enabledPlugins EnabledPlugins) (map[string]plugins.DataSourceDTO, error) {
-	orgDataSources := make([]*models.DataSource, 0)
+func isSupportBundlesEnabled(hs *HTTPServer) bool {
+	return hs.Cfg.SectionWithEnvOverrides("support_bundles").Key("enabled").MustBool(false) &&
+		hs.Features.IsEnabled(featuremgmt.FlagSupportBundles)
+}
 
-	if c.OrgId != 0 {
-		query := models.GetDataSourcesQuery{OrgId: c.OrgId, DataSourceLimit: hs.Cfg.DataSourceLimit}
-		err := hs.SQLStore.GetDataSources(c.Req.Context(), &query)
-
+func (hs *HTTPServer) getFSDataSources(c *contextmodel.ReqContext, enabledPlugins EnabledPlugins) (map[string]plugins.DataSourceDTO, error) {
+	orgDataSources := make([]*datasources.DataSource, 0)
+	if c.OrgID != 0 {
+		query := datasources.GetDataSourcesQuery{OrgId: c.OrgID, DataSourceLimit: hs.Cfg.DataSourceLimit}
+		err := hs.DataSourcesService.GetDataSources(c.Req.Context(), &query)
 		if err != nil {
 			return nil, err
 		}
 
-		filtered, err := hs.filterDatasourcesByQueryPermission(c.Req.Context(), c.SignedInUser, query.Result)
-		if err != nil {
-			return nil, err
+		if c.IsPublicDashboardView {
+			// If RBAC is enabled, it will filter out all datasources for a public user, so we need to skip it
+			orgDataSources = query.Result
+		} else {
+			filtered, err := hs.filterDatasourcesByQueryPermission(c.Req.Context(), c.SignedInUser, query.Result)
+			if err != nil {
+				return nil, err
+			}
+			orgDataSources = filtered
 		}
-
-		orgDataSources = filtered
 	}
 
 	dataSources := make(map[string]plugins.DataSourceDTO)
@@ -211,8 +267,8 @@ func (hs *HTTPServer) getFSDataSources(c *models.ReqContext, enabledPlugins Enab
 	for _, ds := range orgDataSources {
 		url := ds.Url
 
-		if ds.Access == models.DS_ACCESS_PROXY {
-			url = "/api/datasources/proxy/" + strconv.FormatInt(ds.Id, 10)
+		if ds.Access == datasources.DS_ACCESS_PROXY {
+			url = "/api/datasources/proxy/uid/" + ds.Uid
 		}
 
 		dsDTO := plugins.DataSourceDTO{
@@ -223,6 +279,7 @@ func (hs *HTTPServer) getFSDataSources(c *models.ReqContext, enabledPlugins Enab
 			URL:       url,
 			IsDefault: ds.IsDefault,
 			Access:    string(ds.Access),
+			ReadOnly:  ds.ReadOnly,
 		}
 
 		plugin, exists := enabledPlugins.Get(plugins.DataSource, ds.Type)
@@ -245,35 +302,50 @@ func (hs *HTTPServer) getFSDataSources(c *models.ReqContext, enabledPlugins Enab
 			dsDTO.JSONData = ds.JsonData.MustMap()
 		}
 
-		if ds.Access == models.DS_ACCESS_DIRECT {
+		if ds.Access == datasources.DS_ACCESS_DIRECT {
 			if ds.BasicAuth {
+				password, err := hs.DataSourcesService.DecryptedBasicAuthPassword(c.Req.Context(), ds)
+				if err != nil {
+					return nil, err
+				}
+
 				dsDTO.BasicAuth = util.GetBasicAuthHeader(
 					ds.BasicAuthUser,
-					hs.DataSourcesService.DecryptedBasicAuthPassword(ds),
+					password,
 				)
 			}
 			if ds.WithCredentials {
 				dsDTO.WithCredentials = ds.WithCredentials
 			}
 
-			if ds.Type == models.DS_INFLUXDB_08 {
+			if ds.Type == datasources.DS_INFLUXDB_08 {
+				password, err := hs.DataSourcesService.DecryptedPassword(c.Req.Context(), ds)
+				if err != nil {
+					return nil, err
+				}
+
 				dsDTO.Username = ds.User
-				dsDTO.Password = hs.DataSourcesService.DecryptedPassword(ds)
+				dsDTO.Password = password
 				dsDTO.URL = url + "/db/" + ds.Database
 			}
 
-			if ds.Type == models.DS_INFLUXDB {
+			if ds.Type == datasources.DS_INFLUXDB {
+				password, err := hs.DataSourcesService.DecryptedPassword(c.Req.Context(), ds)
+				if err != nil {
+					return nil, err
+				}
+
 				dsDTO.Username = ds.User
-				dsDTO.Password = hs.DataSourcesService.DecryptedPassword(ds)
+				dsDTO.Password = password
 				dsDTO.URL = url
 			}
 		}
 
-		if (ds.Type == models.DS_INFLUXDB) || (ds.Type == models.DS_ES) {
+		if (ds.Type == datasources.DS_INFLUXDB) || (ds.Type == datasources.DS_ES) {
 			dsDTO.Database = ds.Database
 		}
 
-		if ds.Type == models.DS_PROMETHEUS {
+		if ds.Type == datasources.DS_PROMETHEUS {
 			// add unproxied server URL for link to Prometheus web UI
 			ds.JsonData.Set("directUrl", ds.Url)
 		}
@@ -396,8 +468,8 @@ func (hs *HTTPServer) enabledPlugins(ctx context.Context, orgID int64) (EnabledP
 	return ep, nil
 }
 
-func (hs *HTTPServer) pluginSettings(ctx context.Context, orgID int64) (map[string]*pluginsettings.DTO, error) {
-	pluginSettings := make(map[string]*pluginsettings.DTO)
+func (hs *HTTPServer) pluginSettings(ctx context.Context, orgID int64) (map[string]*pluginsettings.InfoDTO, error) {
+	pluginSettings := make(map[string]*pluginsettings.InfoDTO)
 
 	// fill settings from database
 	if pss, err := hs.PluginSettings.GetPluginSettings(ctx, &pluginsettings.GetArgs{OrgID: orgID}); err != nil {
@@ -416,11 +488,12 @@ func (hs *HTTPServer) pluginSettings(ctx context.Context, orgID int64) (map[stri
 		}
 
 		// add new setting which is enabled depending on if AutoEnabled: true
-		pluginSetting := &pluginsettings.DTO{
-			PluginID: plugin.ID,
-			OrgID:    orgID,
-			Enabled:  plugin.AutoEnabled,
-			Pinned:   plugin.AutoEnabled,
+		pluginSetting := &pluginsettings.InfoDTO{
+			PluginID:      plugin.ID,
+			OrgID:         orgID,
+			Enabled:       plugin.AutoEnabled,
+			Pinned:        plugin.AutoEnabled,
+			PluginVersion: plugin.Info.Version,
 		}
 
 		pluginSettings[plugin.ID] = pluginSetting
@@ -434,10 +507,12 @@ func (hs *HTTPServer) pluginSettings(ctx context.Context, orgID int64) (map[stri
 		}
 
 		// add new setting which is enabled by default
-		pluginSetting := &pluginsettings.DTO{
-			PluginID: plugin.ID,
-			OrgID:    orgID,
-			Enabled:  true,
+		pluginSetting := &pluginsettings.InfoDTO{
+			PluginID:      plugin.ID,
+			OrgID:         orgID,
+			Enabled:       true,
+			Pinned:        false,
+			PluginVersion: plugin.Info.Version,
 		}
 
 		// if plugin is included in an app, check app settings
@@ -452,4 +527,15 @@ func (hs *HTTPServer) pluginSettings(ctx context.Context, orgID int64) (map[stri
 	}
 
 	return pluginSettings, nil
+}
+
+func (hs *HTTPServer) getEnabledOAuthProviders() map[string]interface{} {
+	providers := make(map[string]interface{})
+	for key, oauth := range hs.SocialService.GetOAuthInfoProviders() {
+		providers[key] = map[string]string{
+			"name": oauth.Name,
+			"icon": oauth.Icon,
+		}
+	}
+	return providers
 }

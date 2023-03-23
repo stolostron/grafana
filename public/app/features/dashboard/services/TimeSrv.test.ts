@@ -2,9 +2,7 @@ import * as H from 'history';
 import { ContextSrvStub } from 'test/specs/helpers';
 
 import { dateTime, isDateTime } from '@grafana/data';
-import { HistoryWrapper, locationService, setLocationService } from '@grafana/runtime';
-
-import { beforeEach } from '../../../../test/lib/common';
+import { config, HistoryWrapper, locationService, setLocationService } from '@grafana/runtime';
 
 import { TimeSrv } from './TimeSrv';
 
@@ -85,6 +83,37 @@ describe('timeSrv', () => {
       timeSrv.init(_dashboard);
 
       expect(timeSrv.refresh).toBe(false);
+    });
+
+    describe('public dashboard', () => {
+      beforeEach(() => {
+        _dashboard = {
+          time: { from: 'now-6h', to: 'now' },
+          getTimezone: jest.fn(() => 'browser'),
+          refresh: false,
+          timeRangeUpdated: jest.fn(() => {}),
+        };
+
+        locationService.push('/d/id?from=now-24h&to=now');
+        config.isPublicDashboardView = true;
+        timeSrv = new TimeSrv(new ContextSrvStub());
+      });
+
+      it("should ignore from and to if it's a public dashboard and time picker is hidden", () => {
+        timeSrv.init({ ..._dashboard, timepicker: { hidden: true } });
+        const time = timeSrv.timeRange();
+
+        expect(time.raw.from).toBe('now-6h');
+        expect(time.raw.to).toBe('now');
+      });
+
+      it("should not ignore from and to if it's a public dashboard but time picker is not hidden", () => {
+        timeSrv.init({ ..._dashboard, timepicker: { hidden: false } });
+        const time = timeSrv.timeRange();
+
+        expect(time.raw.from).toBe('now-24h');
+        expect(time.raw.to).toBe('now');
+      });
     });
 
     it('should handle formatted dates without time', () => {
@@ -255,24 +284,56 @@ describe('timeSrv', () => {
   });
 
   describe('pauseAutoRefresh', () => {
-    it('should set refresh to empty value', () => {
+    it('should set autoRefreshPaused to true', () => {
       _dashboard.refresh = '10s';
       timeSrv.pauseAutoRefresh();
-      expect(_dashboard.refresh).toBe('');
-    });
-
-    it('should set previousAutoRefresh value', () => {
-      _dashboard.refresh = '10s';
-      timeSrv.pauseAutoRefresh();
-      expect(timeSrv.previousAutoRefresh).toBe('10s');
+      expect(timeSrv.autoRefreshPaused).toBe(true);
     });
   });
 
   describe('resumeAutoRefresh', () => {
     it('should set refresh to empty value', () => {
-      timeSrv.previousAutoRefresh = '10s';
+      timeSrv.autoRefreshPaused = true;
       timeSrv.resumeAutoRefresh();
-      expect(_dashboard.refresh).toBe('10s');
+      expect(timeSrv.autoRefreshPaused).toBe(false);
+    });
+  });
+
+  describe('isRefreshOutsideThreshold', () => {
+    const originalNow = Date.now;
+
+    beforeEach(() => {
+      Date.now = jest.fn(() => 60000);
+    });
+
+    afterEach(() => {
+      Date.now = originalNow;
+    });
+
+    describe('when called and current time range is absolute', () => {
+      it('then it should return false', () => {
+        timeSrv.setTime({ from: dateTime(), to: dateTime() });
+
+        expect(timeSrv.isRefreshOutsideThreshold(0, 0.05)).toBe(false);
+      });
+    });
+
+    describe('when called and current time range is relative', () => {
+      describe('and last refresh is within threshold', () => {
+        it('then it should return false', () => {
+          timeSrv.setTime({ from: 'now-1m', to: 'now' });
+
+          expect(timeSrv.isRefreshOutsideThreshold(57001, 0.05)).toBe(false);
+        });
+      });
+
+      describe('and last refresh is outside the threshold', () => {
+        it('then it should return true', () => {
+          timeSrv.setTime({ from: 'now-1m', to: 'now' });
+
+          expect(timeSrv.isRefreshOutsideThreshold(57000, 0.05)).toBe(true);
+        });
+      });
     });
   });
 

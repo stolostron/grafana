@@ -1,5 +1,4 @@
 import { render, RenderResult } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { noop } from 'lodash';
 import React from 'react';
 
@@ -7,7 +6,6 @@ import { CoreApp } from '@grafana/data';
 
 import { PrometheusDatasource } from '../datasource';
 
-import { testIds as regularTestIds } from './PromQueryEditor';
 import { PromQueryEditorByApp } from './PromQueryEditorByApp';
 import { testIds as alertingTestIds } from './PromQueryEditorForAlerting';
 
@@ -23,26 +21,12 @@ jest.mock('./monaco-query-field/MonacoQueryFieldLazy', () => {
   };
 });
 
-jest.mock('@grafana/runtime', () => {
-  const runtime = jest.requireActual('@grafana/runtime');
-  return {
-    __esModule: true,
-    ...runtime,
-    config: {
-      ...runtime.config,
-      featureToggles: {
-        ...runtime.config.featureToggles,
-        promQueryBuilder: true,
-      },
-    },
-  };
-});
-
 function setup(app: CoreApp): RenderResult & { onRunQuery: jest.Mock } {
   const dataSource = {
     createQuery: jest.fn((q) => q),
     getInitHints: () => [],
     getPrometheusTime: jest.fn((date, roundup) => 123),
+    getQueryHints: jest.fn(() => []),
     languageProvider: {
       start: () => Promise.resolve([]),
       syntax: () => {},
@@ -70,10 +54,9 @@ function setup(app: CoreApp): RenderResult & { onRunQuery: jest.Mock } {
 
 describe('PromQueryEditorByApp', () => {
   it('should render simplified query editor for cloud alerting', () => {
-    const { getByTestId, queryByTestId } = setup(CoreApp.CloudAlerting);
+    const { getByTestId } = setup(CoreApp.CloudAlerting);
 
     expect(getByTestId(alertingTestIds.editor)).toBeInTheDocument();
-    expect(queryByTestId(regularTestIds.editor)).toBeNull();
   });
 
   it('should render editor selector for unkown apps', () => {

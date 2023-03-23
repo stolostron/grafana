@@ -8,12 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
+
+	"github.com/gobwas/glob"
 
 	// TODO: replace deprecated `golang.org/x/crypto` package https://github.com/grafana/grafana/issues/46050
 	// nolint:staticcheck
@@ -27,7 +29,8 @@ import (
 )
 
 // Soon we can fetch keys from:
-//  https://grafana.com/api/plugins/ci/keys
+//
+//	https://grafana.com/api/plugins/ci/keys
 const publicKeyText = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 Version: OpenPGP.js v4.10.1
 Comment: https://openpgpjs.org
@@ -51,6 +54,8 @@ N1c5v9v/4h6qeA==
 =DNbR
 -----END PGP PUBLIC KEY BLOCK-----
 `
+
+var runningWindows = runtime.GOOS == "windows"
 
 // pluginManifest holds details for the file manifest
 type pluginManifest struct {
@@ -109,12 +114,7 @@ func Calculate(mlog log.Logger, plugin *plugins.Plugin) (plugins.Signature, erro
 		}, err
 	}
 
-	manifestPath := filepath.Join(plugin.PluginDir, "MANIFEST.txt")
-
-	// nolint:gosec
-	// We can ignore the gosec G304 warning on this one because `manifestPath` is based
-	// on plugin the folder structure on disk and not user input.
-	byteValue, err := ioutil.ReadFile(manifestPath)
+	byteValue := plugin.Manifest()
 	if err != nil || len(byteValue) < 10 {
 		mlog.Debug("Plugin is unsigned", "id", plugin.ID)
 		return plugins.Signature{
@@ -200,8 +200,12 @@ func verifyHash(mlog log.Logger, pluginID string, path string, hash string) erro
 	// on the path provided in a manifest file for a plugin and not user input.
 	f, err := os.Open(path)
 	if err != nil {
+		if os.IsPermission(err) {
+			mlog.Warn("Could not open plugin file due to lack of permissions", "plugin", pluginID, "path", path)
+			return errors.New("permission denied when attempting to read plugin file")
+		}
 		mlog.Warn("Plugin file listed in the manifest was not found", "plugin", pluginID, "path", path)
-		return fmt.Errorf("plugin file listed in the manifest was not found")
+		return errors.New("plugin file listed in the manifest was not found")
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
@@ -211,12 +215,12 @@ func verifyHash(mlog log.Logger, pluginID string, path string, hash string) erro
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return fmt.Errorf("could not calculate plugin file checksum")
+		return errors.New("could not calculate plugin file checksum")
 	}
 	sum := hex.EncodeToString(h.Sum(nil))
 	if sum != hash {
 		mlog.Warn("Plugin file checksum does not match signature checksum", "plugin", pluginID, "path", path)
-		return fmt.Errorf("plugin file checksum does not match signature checksum")
+		return errors.New("plugin file checksum does not match signature checksum")
 	}
 
 	return nil
@@ -262,6 +266,11 @@ func pluginFilesRequiringVerification(plugin *plugins.Plugin) ([]string, error) 
 			return nil
 		}
 
+		// Ignoring unsigned Chromium debug.log so it doesn't invalidate the signature for Renderer plugin running on Windows
+		if runningWindows && plugin.IsRenderer() && strings.HasSuffix(path, filepath.Join("chrome-win", "debug.log")) {
+			return nil
+		}
+
 		// verify that file is within plugin directory
 		file, err := filepath.Rel(plugin.PluginDir, path)
 		if err != nil {
@@ -293,6 +302,18 @@ func urlMatch(specs []string, target string, signatureType plugins.SignatureType
 
 		if specURL.Scheme == targetURL.Scheme && specURL.Host == targetURL.Host &&
 			path.Clean(specURL.RequestURI()) == path.Clean(targetURL.RequestURI()) {
+			return true, nil
+		}
+
+		if signatureType != plugins.PrivateGlobSignature {
+			continue
+		}
+
+		sp, err := glob.Compile(spec, '/', '.')
+		if err != nil {
+			return false, err
+		}
+		if match := sp.Match(target); match {
 			return true, nil
 		}
 	}

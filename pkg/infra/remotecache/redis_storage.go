@@ -9,14 +9,15 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/util/errutil"
 )
 
 const redisCacheType = "redis"
 
 type redisStorage struct {
-	c *redis.Client
+	c     *redis.Client
+	codec codec
 }
 
 // parseRedisConnStr parses k=v pairs in csv and builds a redis Options object
@@ -43,13 +44,13 @@ func parseRedisConnStr(connStr string) (*redis.Options, error) {
 		case "db":
 			i, err := strconv.Atoi(connVal)
 			if err != nil {
-				return nil, errutil.Wrap("value for db in redis connection string must be a number", err)
+				return nil, fmt.Errorf("%v: %w", "value for db in redis connection string must be a number", err)
 			}
 			options.DB = i
 		case "pool_size":
 			i, err := strconv.Atoi(connVal)
 			if err != nil {
-				return nil, errutil.Wrap("value for pool_size in redis connection string must be a number", err)
+				return nil, fmt.Errorf("%v: %w", "value for pool_size in redis connection string must be a number", err)
 			}
 			options.PoolSize = i
 		case "ssl":
@@ -77,18 +78,18 @@ func parseRedisConnStr(connStr string) (*redis.Options, error) {
 	return options, nil
 }
 
-func newRedisStorage(opts *setting.RemoteCacheOptions) (*redisStorage, error) {
+func newRedisStorage(opts *setting.RemoteCacheOptions, codec codec) (*redisStorage, error) {
 	opt, err := parseRedisConnStr(opts.ConnStr)
 	if err != nil {
 		return nil, err
 	}
-	return &redisStorage{c: redis.NewClient(opt)}, nil
+	return &redisStorage{c: redis.NewClient(opt), codec: codec}, nil
 }
 
 // Set sets value to given key in session.
 func (s *redisStorage) Set(ctx context.Context, key string, val interface{}, expires time.Duration) error {
 	item := &cachedItem{Val: val}
-	value, err := encodeGob(item)
+	value, err := s.codec.Encode(ctx, item)
 	if err != nil {
 		return err
 	}
@@ -101,7 +102,7 @@ func (s *redisStorage) Get(ctx context.Context, key string) (interface{}, error)
 	v := s.c.Get(ctx, key)
 
 	item := &cachedItem{}
-	err := decodeGob([]byte(v.Val()), item)
+	err := s.codec.Decode(ctx, []byte(v.Val()), item)
 
 	if err == nil {
 		return item.Val, nil
@@ -116,4 +117,13 @@ func (s *redisStorage) Get(ctx context.Context, key string) (interface{}, error)
 func (s *redisStorage) Delete(ctx context.Context, key string) error {
 	cmd := s.c.Del(ctx, key)
 	return cmd.Err()
+}
+
+func (s *redisStorage) Count(ctx context.Context, prefix string) (int64, error) {
+	cmd := s.c.Keys(ctx, prefix+"*")
+	if cmd.Err() != nil {
+		return 0, cmd.Err()
+	}
+
+	return int64(len(cmd.Val())), nil
 }

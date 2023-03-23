@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, waitFor, getByText } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { act } from 'react-dom/test-utils';
 
 import { NodeGraph } from './NodeGraph';
 import { makeEdgesDataFrame, makeNodesDataFrame } from './utils';
@@ -28,14 +27,19 @@ describe('NodeGraph', () => {
   });
 
   it('can zoom in and out', async () => {
-    render(<NodeGraph dataFrames={[makeNodesDataFrame(2), makeEdgesDataFrame([[0, 1]])]} getLinks={() => []} />);
+    render(
+      <NodeGraph
+        dataFrames={[makeNodesDataFrame(2), makeEdgesDataFrame([{ source: '0', target: '1' }])]}
+        getLinks={() => []}
+      />
+    );
     const zoomIn = await screen.findByTitle(/Zoom in/);
     const zoomOut = await screen.findByTitle(/Zoom out/);
 
     expect(getScale()).toBe(1);
-    userEvent.click(zoomIn);
+    await userEvent.click(zoomIn);
     expect(getScale()).toBe(1.5);
-    userEvent.click(zoomOut);
+    await userEvent.click(zoomOut);
     expect(getScale()).toBe(1);
   });
 
@@ -45,8 +49,8 @@ describe('NodeGraph', () => {
         dataFrames={[
           makeNodesDataFrame(3),
           makeEdgesDataFrame([
-            [0, 1],
-            [1, 2],
+            { source: '0', target: '1' },
+            { source: '1', target: '2' },
           ]),
         ]}
         getLinks={() => []}
@@ -71,7 +75,7 @@ describe('NodeGraph', () => {
   it('shows context menu when clicking on node or edge', async () => {
     render(
       <NodeGraph
-        dataFrames={[makeNodesDataFrame(2), makeEdgesDataFrame([[0, 1]])]}
+        dataFrames={[makeNodesDataFrame(2), makeEdgesDataFrame([{ source: '0', target: '1' }])]}
         getLinks={(dataFrame) => {
           return [
             {
@@ -85,17 +89,11 @@ describe('NodeGraph', () => {
       />
     );
     const node = await screen.findByLabelText(/Node: service:0/);
-    // This shows warning because there is no position for the click. We cannot add any because we use pageX/Y in the
-    // context menu which is experimental (but supported) property and userEvents does not seem to support that
-    act(() => {
-      userEvent.click(node);
-    });
+    await userEvent.click(node);
     await screen.findByText(/Node traces/);
 
     const edge = await screen.findByLabelText(/Edge from/);
-    act(() => {
-      userEvent.click(edge);
-    });
+    await userEvent.click(edge);
     await screen.findByText(/Edge traces/);
   });
 
@@ -105,8 +103,8 @@ describe('NodeGraph', () => {
         dataFrames={[
           makeNodesDataFrame(3),
           makeEdgesDataFrame([
-            [0, 1],
-            [1, 2],
+            { source: '0', target: '1' },
+            { source: '1', target: '2' },
           ]),
         ]}
         getLinks={() => []}
@@ -124,8 +122,8 @@ describe('NodeGraph', () => {
         dataFrames={[
           makeNodesDataFrame(3),
           makeEdgesDataFrame([
-            [0, 1],
-            [0, 2],
+            { source: '0', target: '1' },
+            { source: '0', target: '2' },
           ]),
         ]}
         getLinks={() => []}
@@ -144,10 +142,10 @@ describe('NodeGraph', () => {
         dataFrames={[
           makeNodesDataFrame(5),
           makeEdgesDataFrame([
-            [0, 1],
-            [0, 2],
-            [2, 3],
-            [3, 4],
+            { source: '0', target: '1' },
+            { source: '0', target: '2' },
+            { source: '2', target: '3' },
+            { source: '3', target: '4' },
           ]),
         ]}
         getLinks={() => []}
@@ -169,10 +167,10 @@ describe('NodeGraph', () => {
         dataFrames={[
           makeNodesDataFrame(5),
           makeEdgesDataFrame([
-            [0, 1],
-            [1, 2],
-            [2, 3],
-            [3, 4],
+            { source: '0', target: '1' },
+            { source: '1', target: '2' },
+            { source: '2', target: '3' },
+            { source: '3', target: '4' },
           ]),
         ]}
         getLinks={() => []}
@@ -184,9 +182,7 @@ describe('NodeGraph', () => {
     expect(node).toBeInTheDocument();
 
     const marker = await screen.findByLabelText(/Hidden nodes marker: 3/);
-    act(() => {
-      userEvent.click(marker);
-    });
+    await userEvent.click(marker);
 
     expect(screen.queryByLabelText(/Node: service:0/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Node: service:4/)).toBeInTheDocument();
@@ -201,8 +197,8 @@ describe('NodeGraph', () => {
         dataFrames={[
           makeNodesDataFrame(3),
           makeEdgesDataFrame([
-            [0, 1],
-            [1, 2],
+            { source: '0', target: '1' },
+            { source: '1', target: '2' },
           ]),
         ]}
         getLinks={() => []}
@@ -211,7 +207,7 @@ describe('NodeGraph', () => {
     );
 
     const button = await screen.findByTitle(/Grid layout/);
-    userEvent.click(button);
+    await userEvent.click(button);
 
     await expectNodePositionCloseTo('service:0', { x: -60, y: -60 });
     await expectNodePositionCloseTo('service:1', { x: 60, y: -60 });

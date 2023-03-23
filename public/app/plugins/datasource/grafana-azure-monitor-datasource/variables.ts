@@ -11,53 +11,133 @@ import { getTemplateSrv } from '@grafana/runtime';
 
 import VariableEditor from './components/VariableEditor/VariableEditor';
 import DataSource from './datasource';
-import { migrateStringQueriesToObjectQueries } from './grafanaTemplateVariableFns';
+import { migrateQuery } from './grafanaTemplateVariableFns';
 import { AzureMonitorQuery, AzureQueryType } from './types';
 import { GrafanaTemplateVariableQuery } from './types/templateVariables';
 import messageFromError from './utils/messageFromError';
 
 export class VariableSupport extends CustomVariableSupport<DataSource, AzureMonitorQuery> {
+  templateSrv = getTemplateSrv();
+
   constructor(private readonly datasource: DataSource) {
     super();
     this.datasource = datasource;
     this.query = this.query.bind(this);
+    this.templateSrv = getTemplateSrv();
   }
 
   editor = VariableEditor;
 
+  hasValue(...values: string[]) {
+    return values.every((v) => !!this.templateSrv.replace(v));
+  }
+
   query(request: DataQueryRequest<AzureMonitorQuery>): Observable<DataQueryResponse> {
     const promisedResults = async () => {
-      const queryObj = await migrateStringQueriesToObjectQueries(request.targets[0], { datasource: this.datasource });
+      const queryObj = await migrateQuery(request.targets[0], { datasource: this.datasource });
 
-      if (queryObj.queryType === AzureQueryType.GrafanaTemplateVariableFn && queryObj.grafanaTemplateVariableFn) {
-        try {
-          const templateVariablesResults = await this.callGrafanaTemplateVariableFn(queryObj.grafanaTemplateVariableFn);
-          return {
-            data: templateVariablesResults?.length ? [toDataFrame(templateVariablesResults)] : [],
-          };
-        } catch (err) {
-          return { data: [], error: { message: messageFromError(err) } };
+      try {
+        switch (queryObj.queryType) {
+          case AzureQueryType.SubscriptionsQuery:
+            const res = await this.datasource.getSubscriptions();
+            return {
+              data: res?.length ? [toDataFrame(res)] : [],
+            };
+          case AzureQueryType.ResourceGroupsQuery:
+            if (queryObj.subscription && this.hasValue(queryObj.subscription)) {
+              const rgs = await this.datasource.getResourceGroups(queryObj.subscription);
+              return {
+                data: rgs?.length ? [toDataFrame(rgs)] : [],
+              };
+            }
+            return { data: [] };
+          case AzureQueryType.NamespacesQuery:
+            if (queryObj.subscription && this.hasValue(queryObj.subscription)) {
+              const rgs = await this.datasource.getMetricNamespaces(queryObj.subscription, queryObj.resourceGroup);
+              return {
+                data: rgs?.length ? [toDataFrame(rgs)] : [],
+              };
+            }
+            return { data: [] };
+          case AzureQueryType.ResourceNamesQuery:
+            if (queryObj.subscription && this.hasValue(queryObj.subscription)) {
+              const rgs = await this.datasource.getResourceNames(
+                queryObj.subscription,
+                queryObj.resourceGroup,
+                queryObj.namespace,
+                queryObj.region
+              );
+              return {
+                data: rgs?.length ? [toDataFrame(rgs)] : [],
+              };
+            }
+            return { data: [] };
+          case AzureQueryType.MetricNamesQuery:
+            if (
+              queryObj.subscription &&
+              queryObj.resourceGroup &&
+              queryObj.namespace &&
+              queryObj.resource &&
+              this.hasValue(queryObj.subscription, queryObj.resourceGroup, queryObj.namespace, queryObj.resource)
+            ) {
+              const rgs = await this.datasource.getMetricNames(
+                queryObj.subscription,
+                queryObj.resourceGroup,
+                queryObj.namespace,
+                queryObj.resource
+              );
+              return {
+                data: rgs?.length ? [toDataFrame(rgs)] : [],
+              };
+            }
+            return { data: [] };
+          case AzureQueryType.WorkspacesQuery:
+            if (queryObj.subscription && this.hasValue(queryObj.subscription)) {
+              const rgs = await this.datasource.getAzureLogAnalyticsWorkspaces(queryObj.subscription);
+              return {
+                data: rgs?.length ? [toDataFrame(rgs)] : [],
+              };
+            }
+            return { data: [] };
+          case AzureQueryType.GrafanaTemplateVariableFn:
+            if (queryObj.grafanaTemplateVariableFn) {
+              const templateVariablesResults = await this.callGrafanaTemplateVariableFn(
+                queryObj.grafanaTemplateVariableFn
+              );
+              return {
+                data: templateVariablesResults?.length ? [toDataFrame(templateVariablesResults)] : [],
+              };
+            }
+            return { data: [] };
+          case AzureQueryType.LocationsQuery:
+            if (queryObj.subscription && this.hasValue(queryObj.subscription)) {
+              const locationMap = await this.datasource.azureMonitorDatasource.getLocations([queryObj.subscription]);
+              const res: Array<{ text: string; value: string }> = [];
+              locationMap.forEach((loc) => {
+                res.push({ text: loc.displayName, value: loc.name });
+              });
+              return {
+                data: res?.length ? [toDataFrame(res)] : [],
+              };
+            }
+          default:
+            request.targets[0] = queryObj;
+            const queryResp = await lastValueFrom(this.datasource.query(request));
+            return {
+              data: queryResp.data,
+              error: queryResp.error ? new Error(messageFromError(queryResp.error)) : undefined,
+            };
         }
+      } catch (err) {
+        return { data: [], error: new Error(messageFromError(err)) };
       }
-      request.targets[0] = queryObj;
-      return lastValueFrom(this.datasource.query(request));
     };
 
     return from(promisedResults());
   }
 
+  // Deprecated
   callGrafanaTemplateVariableFn(query: GrafanaTemplateVariableQuery): Promise<MetricFindValue[]> | null {
-    // deprecated app insights template variables (will most likely remove in grafana 9)
-    if (this.datasource.insightsAnalyticsDatasource) {
-      if (query.kind === 'AppInsightsMetricNameQuery') {
-        return this.datasource.insightsAnalyticsDatasource.getMetricNames();
-      }
-
-      if (query.kind === 'AppInsightsGroupByQuery') {
-        return this.datasource.insightsAnalyticsDatasource.getGroupBys(getTemplateSrv().replace(query.metricName));
-      }
-    }
-
     if (query.kind === 'SubscriptionsQuery') {
       return this.datasource.getSubscriptions();
     }
@@ -66,38 +146,20 @@ export class VariableSupport extends CustomVariableSupport<DataSource, AzureMoni
       return this.datasource.getResourceGroups(this.replaceVariable(query.subscription));
     }
 
-    if (query.kind === 'MetricDefinitionsQuery') {
-      return this.datasource.getMetricDefinitions(
-        this.replaceVariable(query.subscription),
-        this.replaceVariable(query.resourceGroup)
-      );
-    }
-
     if (query.kind === 'ResourceNamesQuery') {
       return this.datasource.getResourceNames(
         this.replaceVariable(query.subscription),
         this.replaceVariable(query.resourceGroup),
-        this.replaceVariable(query.metricDefinition)
+        this.replaceVariable(query.metricNamespace)
       );
     }
 
     if (query.kind === 'MetricNamespaceQuery') {
-      return this.datasource.getMetricNamespaces(
-        this.replaceVariable(query.subscription),
-        this.replaceVariable(query.resourceGroup),
-        this.replaceVariable(query.metricDefinition),
-        this.replaceVariable(query.resourceName)
-      );
+      return this.datasource.azureMonitorDatasource.getMetricNamespaces(query, true);
     }
 
     if (query.kind === 'MetricNamesQuery') {
-      return this.datasource.getMetricNames(
-        this.replaceVariable(query.subscription),
-        this.replaceVariable(query.resourceGroup),
-        this.replaceVariable(query.metricDefinition),
-        this.replaceVariable(query.resourceName),
-        this.replaceVariable(query.metricNamespace)
-      );
+      return this.datasource.azureMonitorDatasource.getMetricNames(query);
     }
 
     if (query.kind === 'WorkspacesQuery') {

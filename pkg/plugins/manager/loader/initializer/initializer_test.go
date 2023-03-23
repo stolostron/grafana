@@ -10,6 +10,8 @@ import (
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/plugins"
 	"github.com/grafana/grafana/pkg/plugins/backendplugin"
+	"github.com/grafana/grafana/pkg/plugins/config"
+	"github.com/grafana/grafana/pkg/plugins/manager/fakes"
 )
 
 func TestInitializer_Initialize(t *testing.T) {
@@ -34,8 +36,8 @@ func TestInitializer_Initialize(t *testing.T) {
 		}
 
 		i := &Initializer{
-			cfg: plugins.NewCfg(),
-			log: &fakeLogger{},
+			cfg: &config.Cfg{},
+			log: log.NewNopLogger(),
 			backendProvider: &fakeBackendProvider{
 				plugin: p,
 			},
@@ -64,8 +66,38 @@ func TestInitializer_Initialize(t *testing.T) {
 		}
 
 		i := &Initializer{
-			cfg: plugins.NewCfg(),
-			log: fakeLogger{},
+			cfg: &config.Cfg{},
+			log: log.NewNopLogger(),
+			backendProvider: &fakeBackendProvider{
+				plugin: p,
+			},
+		}
+
+		err := i.Initialize(context.Background(), p)
+		assert.NoError(t, err)
+
+		c, exists := p.Client()
+		assert.True(t, exists)
+		assert.NotNil(t, c)
+	})
+
+	t.Run("secretsmanager", func(t *testing.T) {
+		p := &plugins.Plugin{
+			JSONData: plugins.JSONData{
+				ID:   "test",
+				Type: plugins.SecretsManager,
+				Dependencies: plugins.Dependencies{
+					GrafanaVersion: ">=8.x",
+				},
+				Backend: true,
+			},
+			PluginDir: absCurPath,
+			Class:     plugins.External,
+		}
+
+		i := &Initializer{
+			cfg: &config.Cfg{},
+			log: log.NewNopLogger(),
 			backendProvider: &fakeBackendProvider{
 				plugin: p,
 			},
@@ -87,8 +119,8 @@ func TestInitializer_Initialize(t *testing.T) {
 		}
 
 		i := &Initializer{
-			cfg: &plugins.Cfg{},
-			log: fakeLogger{},
+			cfg: &config.Cfg{},
+			log: log.NewNopLogger(),
 			backendProvider: &fakeBackendProvider{
 				plugin: p,
 			},
@@ -111,14 +143,14 @@ func TestInitializer_envVars(t *testing.T) {
 			},
 		}
 
-		licensing := &testLicensingService{
-			edition:  "test",
-			tokenRaw: "token",
+		licensing := &fakes.FakeLicensingService{
+			LicenseEdition: "test",
+			TokenRaw:       "token",
+			LicensePath:    "/path/to/ent/license",
 		}
 
 		i := &Initializer{
-			cfg: &plugins.Cfg{
-				EnterpriseLicensePath: "/path/to/ent/license",
+			cfg: &config.Cfg{
 				PluginSettings: map[string]map[string]string{
 					"test": {
 						"custom_env_var": "customVal",
@@ -126,7 +158,7 @@ func TestInitializer_envVars(t *testing.T) {
 				},
 			},
 			license: licensing,
-			log:     fakeLogger{},
+			log:     log.NewNopLogger(),
 			backendProvider: &fakeBackendProvider{
 				plugin: p,
 			},
@@ -143,10 +175,6 @@ func TestInitializer_envVars(t *testing.T) {
 }
 
 func TestInitializer_getAWSEnvironmentVariables(t *testing.T) {
-
-}
-
-func TestInitializer_getAzureEnvironmentVariables(t *testing.T) {
 
 }
 
@@ -171,55 +199,6 @@ func Test_getPluginSettings(t *testing.T) {
 }
 
 func Test_pluginSettings_ToEnv(t *testing.T) {
-
-}
-
-type testLicensingService struct {
-	edition  string
-	tokenRaw string
-}
-
-func (t *testLicensingService) Expiry() int64 {
-	return 0
-}
-
-func (t *testLicensingService) Edition() string {
-	return t.edition
-}
-
-func (t *testLicensingService) StateInfo() string {
-	return ""
-}
-
-func (t *testLicensingService) ContentDeliveryPrefix() string {
-	return ""
-}
-
-func (t *testLicensingService) LicenseURL(_ bool) string {
-	return ""
-}
-
-func (t *testLicensingService) Environment() map[string]string {
-	return map[string]string{"GF_ENTERPRISE_LICENSE_TEXT": t.tokenRaw}
-}
-
-func (*testLicensingService) EnabledFeatures() map[string]bool {
-	return map[string]bool{}
-}
-
-func (*testLicensingService) FeatureEnabled(feature string) bool {
-	return false
-}
-
-type fakeLogger struct {
-	*log.ConcreteLogger
-}
-
-func (f fakeLogger) New(_ ...interface{}) *log.ConcreteLogger {
-	return &log.ConcreteLogger{}
-}
-
-func (f fakeLogger) Warn(_ string, _ ...interface{}) {
 
 }
 

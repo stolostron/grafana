@@ -3,14 +3,13 @@ package ldap
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
-
+	"github.com/stretchr/testify/require"
 	"gopkg.in/ldap.v3"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/login"
+	"github.com/grafana/grafana/pkg/services/org"
 )
 
 func TestServer_getSearchRequest(t *testing.T) {
@@ -126,7 +125,7 @@ func TestSerializeUsers(t *testing.T) {
 				Groups: []*GroupToOrgRole{{
 					GroupDN: "foo",
 					OrgId:   1,
-					OrgRole: models.ROLE_EDITOR,
+					OrgRole: org.RoleEditor,
 				}},
 			},
 			Connection: &MockConnection{},
@@ -158,7 +157,7 @@ func TestServer_validateGrafanaUser(t *testing.T) {
 			log: logger.New("test"),
 		}
 
-		user := &models.ExternalUserInfo{
+		user := &login.ExternalUserInfo{
 			Login: "markelog",
 		}
 
@@ -178,9 +177,9 @@ func TestServer_validateGrafanaUser(t *testing.T) {
 			log: logger.New("test"),
 		}
 
-		user := &models.ExternalUserInfo{
+		user := &login.ExternalUserInfo{
 			Login: "markelog",
-			OrgRoles: map[int64]models.RoleType{
+			OrgRoles: map[int64]org.RoleType{
 				1: "test",
 			},
 		}
@@ -201,7 +200,7 @@ func TestServer_validateGrafanaUser(t *testing.T) {
 			log: logger.New("test"),
 		}
 
-		user := &models.ExternalUserInfo{
+		user := &login.ExternalUserInfo{
 			Login: "markelog",
 		}
 

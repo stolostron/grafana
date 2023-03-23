@@ -3,6 +3,7 @@ package libraryelements
 import (
 	"testing"
 
+	"github.com/grafana/grafana/pkg/kinds/librarypanel"
 	"github.com/grafana/grafana/pkg/util"
 
 	"github.com/google/go-cmp/cmp"
@@ -25,7 +26,7 @@ func TestPatchLibraryElement(t *testing.T) {
 		func(t *testing.T, sc scenarioContext) {
 			newFolder := createFolderWithACL(t, sc.sqlStore, "NewFolder", sc.user, []folderACLItem{})
 			cmd := PatchLibraryElementCommand{
-				FolderID: newFolder.Id,
+				FolderID: newFolder.ID,
 				Name:     "Panel - New name",
 				Model: []byte(`
 								{
@@ -48,7 +49,7 @@ func TestPatchLibraryElement(t *testing.T) {
 				Result: libraryElement{
 					ID:          1,
 					OrgID:       1,
-					FolderID:    newFolder.Id,
+					FolderID:    newFolder.ID,
 					UID:         sc.initialResult.Result.UID,
 					Name:        "Panel - New name",
 					Kind:        int64(models.PanelElement),
@@ -63,18 +64,20 @@ func TestPatchLibraryElement(t *testing.T) {
 					},
 					Version: 2,
 					Meta: LibraryElementDTOMeta{
+						FolderName:          "NewFolder",
+						FolderUID:           "NewFolder",
 						ConnectedDashboards: 0,
 						Created:             sc.initialResult.Result.Meta.Created,
 						Updated:             result.Result.Meta.Updated,
-						CreatedBy: LibraryElementDTOMetaUser{
-							ID:        1,
+						CreatedBy: librarypanel.LibraryElementDTOMetaUser{
+							Id:        1,
 							Name:      userInDbName,
-							AvatarURL: userInDbAvatar,
+							AvatarUrl: userInDbAvatar,
 						},
-						UpdatedBy: LibraryElementDTOMetaUser{
-							ID:        1,
+						UpdatedBy: librarypanel.LibraryElementDTOMetaUser{
+							Id:        1,
 							Name:      "signed_in_user",
-							AvatarURL: "/avatar/37524e1eb8b3e32850b57db0a19af93b",
+							AvatarUrl: "/avatar/37524e1eb8b3e32850b57db0a19af93b",
 						},
 					},
 				},
@@ -88,7 +91,7 @@ func TestPatchLibraryElement(t *testing.T) {
 		func(t *testing.T, sc scenarioContext) {
 			newFolder := createFolderWithACL(t, sc.sqlStore, "NewFolder", sc.user, []folderACLItem{})
 			cmd := PatchLibraryElementCommand{
-				FolderID: newFolder.Id,
+				FolderID: newFolder.ID,
 				Kind:     int64(models.PanelElement),
 				Version:  1,
 			}
@@ -97,11 +100,13 @@ func TestPatchLibraryElement(t *testing.T) {
 			resp := sc.service.patchHandler(sc.reqContext)
 			require.Equal(t, 200, resp.Status())
 			var result = validateAndUnMarshalResponse(t, resp)
-			sc.initialResult.Result.FolderID = newFolder.Id
+			sc.initialResult.Result.FolderID = newFolder.ID
 			sc.initialResult.Result.Meta.CreatedBy.Name = userInDbName
-			sc.initialResult.Result.Meta.CreatedBy.AvatarURL = userInDbAvatar
+			sc.initialResult.Result.Meta.CreatedBy.AvatarUrl = userInDbAvatar
 			sc.initialResult.Result.Meta.Updated = result.Result.Meta.Updated
 			sc.initialResult.Result.Version = 2
+			sc.initialResult.Result.Meta.FolderName = "NewFolder"
+			sc.initialResult.Result.Meta.FolderUID = "NewFolder"
 			if diff := cmp.Diff(sc.initialResult.Result, result.Result, getCompareOptions()...); diff != "" {
 				t.Fatalf("Result mismatch (-want +got):\n%s", diff)
 			}
@@ -121,7 +126,7 @@ func TestPatchLibraryElement(t *testing.T) {
 			var result = validateAndUnMarshalResponse(t, resp)
 			sc.initialResult.Result.Name = "New Name"
 			sc.initialResult.Result.Meta.CreatedBy.Name = userInDbName
-			sc.initialResult.Result.Meta.CreatedBy.AvatarURL = userInDbAvatar
+			sc.initialResult.Result.Meta.CreatedBy.AvatarUrl = userInDbAvatar
 			sc.initialResult.Result.Meta.Updated = result.Result.Meta.Updated
 			sc.initialResult.Result.Model["title"] = "Text - Library Panel"
 			sc.initialResult.Result.Version = 2
@@ -144,7 +149,7 @@ func TestPatchLibraryElement(t *testing.T) {
 			var result = validateAndUnMarshalResponse(t, resp)
 			sc.initialResult.Result.UID = cmd.UID
 			sc.initialResult.Result.Meta.CreatedBy.Name = userInDbName
-			sc.initialResult.Result.Meta.CreatedBy.AvatarURL = userInDbAvatar
+			sc.initialResult.Result.Meta.CreatedBy.AvatarUrl = userInDbAvatar
 			sc.initialResult.Result.Meta.Updated = result.Result.Meta.Updated
 			sc.initialResult.Result.Model["title"] = "Text - Library Panel"
 			sc.initialResult.Result.Version = 2
@@ -183,7 +188,7 @@ func TestPatchLibraryElement(t *testing.T) {
 
 	scenarioWithPanel(t, "When an admin tries to patch a library panel with an existing UID, it should fail",
 		func(t *testing.T, sc scenarioContext) {
-			command := getCreatePanelCommand(sc.folder.Id, "Existing UID")
+			command := getCreatePanelCommand(sc.folder.ID, "Existing UID")
 			command.UID = util.GenerateShortUID()
 			sc.reqContext.Req.Body = mockRequestBody(command)
 			resp := sc.service.createHandler(sc.reqContext)
@@ -221,7 +226,7 @@ func TestPatchLibraryElement(t *testing.T) {
 				"description": "New description",
 			}
 			sc.initialResult.Result.Meta.CreatedBy.Name = userInDbName
-			sc.initialResult.Result.Meta.CreatedBy.AvatarURL = userInDbAvatar
+			sc.initialResult.Result.Meta.CreatedBy.AvatarUrl = userInDbAvatar
 			sc.initialResult.Result.Meta.Updated = result.Result.Meta.Updated
 			sc.initialResult.Result.Version = 2
 			if diff := cmp.Diff(sc.initialResult.Result, result.Result, getCompareOptions()...); diff != "" {
@@ -248,7 +253,7 @@ func TestPatchLibraryElement(t *testing.T) {
 				"description": "New description",
 			}
 			sc.initialResult.Result.Meta.CreatedBy.Name = userInDbName
-			sc.initialResult.Result.Meta.CreatedBy.AvatarURL = userInDbAvatar
+			sc.initialResult.Result.Meta.CreatedBy.AvatarUrl = userInDbAvatar
 			sc.initialResult.Result.Meta.Updated = result.Result.Meta.Updated
 			sc.initialResult.Result.Version = 2
 			if diff := cmp.Diff(sc.initialResult.Result, result.Result, getCompareOptions()...); diff != "" {
@@ -275,7 +280,7 @@ func TestPatchLibraryElement(t *testing.T) {
 				"description": "A description",
 			}
 			sc.initialResult.Result.Meta.CreatedBy.Name = userInDbName
-			sc.initialResult.Result.Meta.CreatedBy.AvatarURL = userInDbAvatar
+			sc.initialResult.Result.Meta.CreatedBy.AvatarUrl = userInDbAvatar
 			sc.initialResult.Result.Meta.Updated = result.Result.Meta.Updated
 			sc.initialResult.Result.Version = 2
 			if diff := cmp.Diff(sc.initialResult.Result, result.Result, getCompareOptions()...); diff != "" {
@@ -286,14 +291,14 @@ func TestPatchLibraryElement(t *testing.T) {
 	scenarioWithPanel(t, "When another admin tries to patch a library panel, it should change UpdatedBy successfully and return correct result",
 		func(t *testing.T, sc scenarioContext) {
 			cmd := PatchLibraryElementCommand{FolderID: -1, Version: 1, Kind: int64(models.PanelElement)}
-			sc.reqContext.UserId = 2
+			sc.reqContext.UserID = 2
 			sc.ctx.Req = web.SetURLParams(sc.ctx.Req, map[string]string{":uid": sc.initialResult.Result.UID})
 			sc.ctx.Req.Body = mockRequestBody(cmd)
 			resp := sc.service.patchHandler(sc.reqContext)
 			var result = validateAndUnMarshalResponse(t, resp)
-			sc.initialResult.Result.Meta.UpdatedBy.ID = int64(2)
+			sc.initialResult.Result.Meta.UpdatedBy.Id = int64(2)
 			sc.initialResult.Result.Meta.CreatedBy.Name = userInDbName
-			sc.initialResult.Result.Meta.CreatedBy.AvatarURL = userInDbAvatar
+			sc.initialResult.Result.Meta.CreatedBy.AvatarUrl = userInDbAvatar
 			sc.initialResult.Result.Meta.Updated = result.Result.Meta.Updated
 			sc.initialResult.Result.Version = 2
 			if diff := cmp.Diff(sc.initialResult.Result, result.Result, getCompareOptions()...); diff != "" {
@@ -303,7 +308,7 @@ func TestPatchLibraryElement(t *testing.T) {
 
 	scenarioWithPanel(t, "When an admin tries to patch a library panel with a name that already exists, it should fail",
 		func(t *testing.T, sc scenarioContext) {
-			command := getCreatePanelCommand(sc.folder.Id, "Another Panel")
+			command := getCreatePanelCommand(sc.folder.ID, "Another Panel")
 			sc.ctx.Req.Body = mockRequestBody(command)
 			resp := sc.service.createHandler(sc.reqContext)
 			var result = validateAndUnMarshalResponse(t, resp)
@@ -321,7 +326,7 @@ func TestPatchLibraryElement(t *testing.T) {
 	scenarioWithPanel(t, "When an admin tries to patch a library panel with a folder where a library panel with the same name already exists, it should fail",
 		func(t *testing.T, sc scenarioContext) {
 			newFolder := createFolderWithACL(t, sc.sqlStore, "NewFolder", sc.user, []folderACLItem{})
-			command := getCreatePanelCommand(newFolder.Id, "Text - Library Panel")
+			command := getCreatePanelCommand(newFolder.ID, "Text - Library Panel")
 			sc.ctx.Req.Body = mockRequestBody(command)
 			resp := sc.service.createHandler(sc.reqContext)
 			var result = validateAndUnMarshalResponse(t, resp)
@@ -339,11 +344,11 @@ func TestPatchLibraryElement(t *testing.T) {
 	scenarioWithPanel(t, "When an admin tries to patch a library panel in another org, it should fail",
 		func(t *testing.T, sc scenarioContext) {
 			cmd := PatchLibraryElementCommand{
-				FolderID: sc.folder.Id,
+				FolderID: sc.folder.ID,
 				Version:  1,
 				Kind:     int64(models.PanelElement),
 			}
-			sc.reqContext.OrgId = 2
+			sc.reqContext.OrgID = 2
 			sc.ctx.Req = web.SetURLParams(sc.ctx.Req, map[string]string{":uid": sc.initialResult.Result.UID})
 			sc.ctx.Req.Body = mockRequestBody(cmd)
 			resp := sc.service.patchHandler(sc.reqContext)
@@ -353,7 +358,7 @@ func TestPatchLibraryElement(t *testing.T) {
 	scenarioWithPanel(t, "When an admin tries to patch a library panel with an old version number, it should fail",
 		func(t *testing.T, sc scenarioContext) {
 			cmd := PatchLibraryElementCommand{
-				FolderID: sc.folder.Id,
+				FolderID: sc.folder.ID,
 				Version:  1,
 				Kind:     int64(models.PanelElement),
 			}
@@ -369,7 +374,7 @@ func TestPatchLibraryElement(t *testing.T) {
 	scenarioWithPanel(t, "When an admin tries to patch a library panel with an other kind, it should succeed but panel should not change",
 		func(t *testing.T, sc scenarioContext) {
 			cmd := PatchLibraryElementCommand{
-				FolderID: sc.folder.Id,
+				FolderID: sc.folder.ID,
 				Version:  1,
 				Kind:     int64(models.VariableElement),
 			}
@@ -389,7 +394,7 @@ func TestPatchLibraryElement(t *testing.T) {
 				"description": "A description",
 			}
 			sc.initialResult.Result.Meta.CreatedBy.Name = userInDbName
-			sc.initialResult.Result.Meta.CreatedBy.AvatarURL = userInDbAvatar
+			sc.initialResult.Result.Meta.CreatedBy.AvatarUrl = userInDbAvatar
 			sc.initialResult.Result.Meta.Updated = result.Result.Meta.Updated
 			sc.initialResult.Result.Version = 2
 			if diff := cmp.Diff(sc.initialResult.Result, result.Result, getCompareOptions()...); diff != "" {

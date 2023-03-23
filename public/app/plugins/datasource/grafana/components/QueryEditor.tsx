@@ -1,3 +1,5 @@
+import { css } from '@emotion/css';
+import pluralize from 'pluralize';
 import React, { PureComponent } from 'react';
 
 import {
@@ -7,14 +9,36 @@ import {
   rangeUtil,
   DataQueryRequest,
   DataFrame,
+  DataFrameJSON,
+  dataFrameToJSON,
+  GrafanaTheme2,
+  getValueFormat,
+  formattedValueToString,
 } from '@grafana/data';
 import { config, getBackendSrv, getDataSourceSrv } from '@grafana/runtime';
-import { InlineField, Select, Alert, Input, InlineFieldRow } from '@grafana/ui';
+import {
+  InlineField,
+  Select,
+  Alert,
+  Input,
+  InlineFieldRow,
+  InlineLabel,
+  FileDropzone,
+  FileDropzoneDefaultChildren,
+  DropzoneFile,
+  Themeable2,
+  withTheme2,
+} from '@grafana/ui';
+import { hasAlphaPanels } from 'app/core/config';
+import { readSpreadsheet } from 'app/core/utils/sheet';
+import { SearchQuery } from 'app/features/search/service';
 
 import { GrafanaDatasource } from '../datasource';
 import { defaultQuery, GrafanaQuery, GrafanaQueryType } from '../types';
 
-type Props = QueryEditorProps<GrafanaDatasource, GrafanaQuery>;
+import SearchEditor from './SearchEditor';
+
+interface Props extends QueryEditorProps<GrafanaDatasource, GrafanaQuery>, Themeable2 {}
 
 const labelWidth = 12;
 
@@ -24,7 +48,7 @@ interface State {
   folders?: Array<SelectableValue<string>>;
 }
 
-export class QueryEditor extends PureComponent<Props, State> {
+export class UnthemedQueryEditor extends PureComponent<Props, State> {
   state: State = { channels: [], channelFields: {} };
 
   queryTypes: Array<SelectableValue<GrafanaQueryType>> = [
@@ -48,11 +72,18 @@ export class QueryEditor extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props);
 
-    if (config.featureToggles.panelTitleSearch) {
+    if (config.featureToggles.panelTitleSearch && hasAlphaPanels) {
       this.queryTypes.push({
         label: 'Search',
         value: GrafanaQueryType.Search,
         description: 'Search for grafana resources',
+      });
+    }
+    if (config.featureToggles.editPanelCSVDragAndDrop) {
+      this.queryTypes.push({
+        label: 'Spreadsheet or snapshot',
+        value: GrafanaQueryType.Snapshot,
+        description: 'Query an uploaded spreadsheet or a snapshot',
       });
     }
   }
@@ -328,7 +359,6 @@ export class QueryEditor extends PureComponent<Props, State> {
       <InlineFieldRow>
         <InlineField label="Path" grow={true} labelWidth={labelWidth}>
           <Select
-            menuShouldPortal
             options={folders}
             value={currentFolder || ''}
             onChange={this.onFolderChanged}
@@ -343,33 +373,94 @@ export class QueryEditor extends PureComponent<Props, State> {
     );
   }
 
-  handleSearchEnterKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') {
-      return;
-    }
-    this.checkAndUpdateValue('query', (e.target as any).value);
+  // Skip rendering the file list as we're handling that in this component instead.
+  fileListRenderer = (file: DropzoneFile, removeFile: (file: DropzoneFile) => void) => {
+    return null;
   };
 
-  handleSearchBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    this.checkAndUpdateValue('query', e.target.value);
+  onDropAccepted = (files: File[]) => {
+    this.props.onChange({ ...this.props.query, file: { name: files[0].name, size: files[0].size } });
   };
 
-  renderSearch() {
-    let { query } = this.props.query;
+  renderSnapshotQuery() {
+    const { query, theme } = this.props;
+    const file = query.file;
+    const styles = getStyles(theme);
+    const fileSize = getValueFormat('decbytes')(file ? file.size : 0);
+
     return (
-      <InlineFieldRow>
-        <InlineField label="Query" grow={true} labelWidth={labelWidth}>
-          <Input
-            placeholder="Everything"
-            defaultValue={query ?? ''}
-            onKeyDown={this.handleSearchEnterKey}
-            onBlur={this.handleSearchBlur}
-            spellCheck={false}
-          />
-        </InlineField>
-      </InlineFieldRow>
+      <>
+        <InlineFieldRow>
+          <InlineField label="Snapshot" grow={true} labelWidth={labelWidth}>
+            <InlineLabel>{pluralize('frame', query.snapshot?.length ?? 0, true)}</InlineLabel>
+          </InlineField>
+        </InlineFieldRow>
+        {config.featureToggles.editPanelCSVDragAndDrop && (
+          <>
+            <FileDropzone
+              readAs="readAsArrayBuffer"
+              fileListRenderer={this.fileListRenderer}
+              options={{
+                onDropAccepted: this.onDropAccepted,
+                maxSize: 200000,
+                multiple: false,
+                accept: {
+                  'text/plain': ['.csv', '.txt'],
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                  'application/vnd.ms-excel': ['.xls'],
+                  'application/vnd.apple.numbers': ['.numbers'],
+                  'application/vnd.oasis.opendocument.spreadsheet': ['.ods'],
+                },
+              }}
+              onLoad={this.onFileDrop}
+            >
+              <FileDropzoneDefaultChildren primaryText={this.props?.query?.file ? 'Replace file' : 'Upload file'} />
+            </FileDropzone>
+            {file && (
+              <div className={styles.file}>
+                <span>{file?.name}</span>
+                <span>
+                  <span>{formattedValueToString(fileSize)}</span>
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </>
     );
   }
+
+  onSearchChange = (search: SearchQuery) => {
+    const { query, onChange, onRunQuery } = this.props;
+
+    onChange({
+      ...query,
+      search,
+    });
+    onRunQuery();
+  };
+
+  onFileDrop = (result: ArrayBuffer | String | null) => {
+    const snapshot: DataFrameJSON[] = [];
+
+    if (result) {
+      if (!result || result instanceof String) {
+        return;
+      }
+      const dataFrames = readSpreadsheet(result);
+      dataFrames.forEach((df) => {
+        const dataframeJson = dataFrameToJSON(df);
+        snapshot.push(dataframeJson);
+      });
+    }
+
+    this.props.onChange({
+      ...this.props.query,
+      queryType: GrafanaQueryType.Snapshot,
+      snapshot,
+    });
+    this.props.onRunQuery();
+  };
 
   render() {
     const query = {
@@ -377,22 +468,62 @@ export class QueryEditor extends PureComponent<Props, State> {
       ...this.props.query,
     };
 
+    const { queryType } = query;
+
+    // Only show "snapshot" when it already exists
+    let queryTypes = this.queryTypes;
+    if (queryType === GrafanaQueryType.Snapshot && !config.featureToggles.editPanelCSVDragAndDrop) {
+      queryTypes = [
+        ...this.queryTypes,
+        {
+          label: 'Snapshot',
+          value: queryType,
+        },
+      ];
+    }
+
     return (
       <>
+        {queryType === GrafanaQueryType.Search && (
+          <Alert title="Grafana Search" severity="info">
+            Using this datasource to call the new search system is experimental, and subject to change at any time
+            without notice.
+          </Alert>
+        )}
         <InlineFieldRow>
           <InlineField label="Query type" grow={true} labelWidth={labelWidth}>
             <Select
-              menuShouldPortal
-              options={this.queryTypes}
-              value={this.queryTypes.find((v) => v.value === query.queryType) || this.queryTypes[0]}
+              options={queryTypes}
+              value={queryTypes.find((v) => v.value === queryType) || queryTypes[0]}
               onChange={this.onQueryTypeChange}
             />
           </InlineField>
         </InlineFieldRow>
-        {query.queryType === GrafanaQueryType.LiveMeasurements && this.renderMeasurementsQuery()}
-        {query.queryType === GrafanaQueryType.List && this.renderListPublicFiles()}
-        {query.queryType === GrafanaQueryType.Search && this.renderSearch()}
+        {queryType === GrafanaQueryType.LiveMeasurements && this.renderMeasurementsQuery()}
+        {queryType === GrafanaQueryType.List && this.renderListPublicFiles()}
+        {queryType === GrafanaQueryType.Snapshot && this.renderSnapshotQuery()}
+        {queryType === GrafanaQueryType.Search && (
+          <SearchEditor value={query.search ?? {}} onChange={this.onSearchChange} />
+        )}
       </>
     );
   }
+}
+
+export const QueryEditor = withTheme2(UnthemedQueryEditor);
+
+function getStyles(theme: GrafanaTheme2) {
+  return {
+    file: css`
+      width: 100%;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding: ${theme.spacing(2)};
+      border: 1px dashed ${theme.colors.border.medium};
+      background-color: ${theme.colors.background.secondary};
+      margin-top: ${theme.spacing(1)};
+    `,
+  };
 }

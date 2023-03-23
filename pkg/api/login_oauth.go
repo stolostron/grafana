@@ -9,17 +9,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"golang.org/x/oauth2"
 
-	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/metrics"
 	"github.com/grafana/grafana/pkg/login"
 	"github.com/grafana/grafana/pkg/login/social"
 	"github.com/grafana/grafana/pkg/middleware/cookies"
-	"github.com/grafana/grafana/pkg/models"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	loginservice "github.com/grafana/grafana/pkg/services/login"
+	"github.com/grafana/grafana/pkg/services/org"
+	"github.com/grafana/grafana/pkg/services/user"
 	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/web"
 )
@@ -68,28 +69,22 @@ func genPKCECode() (string, string, error) {
 	return string(ascii), pkce, nil
 }
 
-func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
-	loginInfo := models.LoginInfo{
+func (hs *HTTPServer) OAuthLogin(ctx *contextmodel.ReqContext) {
+	loginInfo := loginservice.LoginInfo{
 		AuthModule: "oauth",
 	}
 	name := web.Params(ctx.Req)[":name"]
 	loginInfo.AuthModule = name
 	provider := hs.SocialService.GetOAuthInfoProvider(name)
 	if provider == nil {
-		hs.handleOAuthLoginError(ctx, loginInfo, LoginError{
-			HttpStatus:    http.StatusNotFound,
-			PublicMessage: "OAuth not enabled",
-		})
-		return nil
+		hs.handleOAuthLoginErrorWithRedirect(ctx, loginInfo, errors.New("OAuth not enabled"))
+		return
 	}
 
 	connect, err := hs.SocialService.GetConnector(name)
 	if err != nil {
-		hs.handleOAuthLoginError(ctx, loginInfo, LoginError{
-			HttpStatus:    http.StatusNotFound,
-			PublicMessage: fmt.Sprintf("No OAuth with name %s configured", name),
-		})
-		return nil
+		hs.handleOAuthLoginErrorWithRedirect(ctx, loginInfo, fmt.Errorf("no OAuth with name %s configured", name))
+		return
 	}
 
 	errorParam := ctx.Query("error")
@@ -102,8 +97,7 @@ func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
 
 	code := ctx.Query("code")
 	if code == "" {
-		opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOnline}
-
+		var opts []oauth2.AuthCodeOption
 		if provider.UsePKCE {
 			ascii, pkce, err := genPKCECode()
 			if err != nil {
@@ -139,7 +133,7 @@ func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
 		}
 
 		ctx.Redirect(connect.AuthCodeURL(state, opts...))
-		return nil
+		return
 	}
 
 	cookieState := ctx.GetCookie(OauthStateCookieName)
@@ -199,7 +193,20 @@ func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
 	// token.TokenType was defaulting to "bearer", which is out of spec, so we explicitly set to "Bearer"
 	token.TokenType = "Bearer"
 
-	oauthLogger.Debug("OAuthLogin Got token", "token", token)
+	if hs.Cfg.Env != setting.Dev {
+		oauthLogger.Debug("OAuthLogin: got token",
+			"expiry", fmt.Sprintf("%v", token.Expiry),
+			"type", token.TokenType,
+			"has_refresh_token", token.RefreshToken != "",
+		)
+	} else {
+		oauthLogger.Debug("OAuthLogin: got token",
+			"expiry", fmt.Sprintf("%v", token.Expiry),
+			"type", token.TokenType,
+			"access_token", fmt.Sprintf("%v", token.AccessToken),
+			"refresh_token", fmt.Sprintf("%v", token.RefreshToken),
+		)
+	}
 
 	// set up oauth2 client
 	client := connect.Client(oauthCtx, token)
@@ -220,7 +227,7 @@ func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
 		return nil
 	}
 
-	oauthLogger.Debug("OAuthLogin got user info", "userInfo", userInfo)
+	oauthLogger.Debug("OAuthLogin got user info", "userInfo", fmt.Sprintf("%v", userInfo))
 
 	// validate that we got at least an email address
 	if userInfo.Email == "" {
@@ -251,7 +258,7 @@ func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
 	hs.HooksService.RunLoginHook(&loginInfo, ctx)
 	metrics.MApiLoginOAuth.Inc()
 
-	if redirectTo, err := url.QueryUnescape(ctx.GetCookie("redirect_to")); err == nil && len(redirectTo) > 0 {
+	if redirectTo := ctx.GetCookie("redirect_to"); len(redirectTo) > 0 {
 		if err := hs.ValidateRedirectTo(redirectTo); err == nil {
 			cookies.DeleteCookie(ctx.Resp, "redirect_to", hs.CookieOptionsFromCfg)
 			ctx.Redirect(redirectTo)
@@ -265,22 +272,23 @@ func (hs *HTTPServer) OAuthLogin(ctx *models.ReqContext) response.Response {
 }
 
 // buildExternalUserInfo returns a ExternalUserInfo struct from OAuth user profile
-func (hs *HTTPServer) buildExternalUserInfo(token *oauth2.Token, userInfo *social.BasicUserInfo, name string) *models.ExternalUserInfo {
+func (hs *HTTPServer) buildExternalUserInfo(token *oauth2.Token, userInfo *social.BasicUserInfo, name string) *loginservice.ExternalUserInfo {
 	oauthLogger.Debug("Building external user info from OAuth user info")
 
-	extUser := &models.ExternalUserInfo{
-		AuthModule: fmt.Sprintf("oauth_%s", name),
-		OAuthToken: token,
-		AuthId:     userInfo.Id,
-		Name:       userInfo.Name,
-		Login:      userInfo.Login,
-		Email:      userInfo.Email,
-		OrgRoles:   map[int64]models.RoleType{},
-		Groups:     userInfo.Groups,
+	extUser := &loginservice.ExternalUserInfo{
+		AuthModule:     fmt.Sprintf("oauth_%s", name),
+		OAuthToken:     token,
+		AuthId:         userInfo.Id,
+		Name:           userInfo.Name,
+		Login:          userInfo.Login,
+		Email:          userInfo.Email,
+		OrgRoles:       map[int64]org.RoleType{},
+		Groups:         userInfo.Groups,
+		IsGrafanaAdmin: userInfo.IsGrafanaAdmin,
 	}
 
 	if userInfo.Role != "" && !hs.Cfg.OAuthSkipOrgRoleUpdateSync {
-		rt := models.RoleType(userInfo.Role)
+		rt := userInfo.Role
 		if rt.IsValid() {
 			// The user will be assigned a role in either the auto-assigned organization or in the default one
 			var orgID int64
@@ -302,17 +310,17 @@ func (hs *HTTPServer) buildExternalUserInfo(token *oauth2.Token, userInfo *socia
 
 // SyncUser syncs a Grafana user profile with the corresponding OAuth profile.
 func (hs *HTTPServer) SyncUser(
-	ctx *models.ReqContext,
-	extUser *models.ExternalUserInfo,
+	ctx *contextmodel.ReqContext,
+	extUser *loginservice.ExternalUserInfo,
 	connect social.SocialConnector,
-) (*models.User, error) {
+) (*user.User, error) {
 	oauthLogger.Debug("Syncing Grafana user with corresponding OAuth profile")
 	// add/update user in Grafana
-	cmd := &models.UpsertUserCommand{
+	cmd := &loginservice.UpsertUserCommand{
 		ReqContext:    ctx,
 		ExternalUser:  extUser,
 		SignupAllowed: connect.IsSignupAllowed(),
-		UserLookupParams: models.UserLookupParams{
+		UserLookupParams: loginservice.UserLookupParams{
 			Email:  &extUser.Email,
 			UserID: nil,
 			Login:  nil,
@@ -344,7 +352,7 @@ type LoginError struct {
 	Err           error
 }
 
-func (hs *HTTPServer) handleOAuthLoginError(ctx *models.ReqContext, info models.LoginInfo, err LoginError) {
+func (hs *HTTPServer) handleOAuthLoginError(ctx *contextmodel.ReqContext, info loginservice.LoginInfo, err LoginError) {
 	ctx.Handle(hs.Cfg, err.HttpStatus, err.PublicMessage, err.Err)
 
 	info.Error = err.Err
@@ -356,7 +364,7 @@ func (hs *HTTPServer) handleOAuthLoginError(ctx *models.ReqContext, info models.
 	hs.HooksService.RunLoginHook(&info, ctx)
 }
 
-func (hs *HTTPServer) handleOAuthLoginErrorWithRedirect(ctx *models.ReqContext, info models.LoginInfo, err error, v ...interface{}) {
+func (hs *HTTPServer) handleOAuthLoginErrorWithRedirect(ctx *contextmodel.ReqContext, info loginservice.LoginInfo, err error, v ...interface{}) {
 	hs.redirectWithError(ctx, err, v...)
 
 	info.Error = err

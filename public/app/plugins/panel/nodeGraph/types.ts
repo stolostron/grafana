@@ -2,7 +2,7 @@ import { SimulationNodeDatum, SimulationLinkDatum } from 'd3-force';
 
 import { Field } from '@grafana/data';
 
-export interface Options {}
+export { PanelOptions as NodeGraphOptions, ArcOption } from './panelcfg.gen';
 
 export type NodeDatum = SimulationNodeDatum & {
   id: string;
@@ -15,6 +15,8 @@ export type NodeDatum = SimulationNodeDatum & {
   arcSections: Field[];
   color?: Field;
 };
+
+export type NodeDatumFromEdge = NodeDatum & { mainStatNumeric?: number; secondaryStatNumeric?: number };
 
 // This is the data we have before the graph is laid out with source and target being string IDs.
 type LinkDatum = SimulationLinkDatum<NodeDatum> & {

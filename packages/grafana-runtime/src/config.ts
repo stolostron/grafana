@@ -1,6 +1,7 @@
 import { merge } from 'lodash';
 
 import {
+  AuthSettings,
   BootData,
   BuildInfo,
   createTheme,
@@ -16,6 +17,7 @@ import {
   PreloadPlugin,
   systemDateFormats,
   SystemDateFormatSettings,
+  NewThemeOptions,
 } from '@grafana/data';
 
 export interface AzureSettings {
@@ -24,8 +26,11 @@ export interface AzureSettings {
 }
 
 export class GrafanaBootConfig implements GrafanaConfig {
+  isPublicDashboardView: boolean;
+  snapshotEnabled = true;
   datasources: { [str: string]: DataSourceInstanceSettings } = {};
   panels: { [key: string]: PanelPluginMeta } = {};
+  auth: AuthSettings = {};
   minRefreshInterval = '';
   appUrl = '';
   appSubUrl = '';
@@ -47,28 +52,34 @@ export class GrafanaBootConfig implements GrafanaConfig {
   angularSupportEnabled = false;
   authProxyEnabled = false;
   exploreEnabled = false;
+  queryHistoryEnabled = false;
   helpEnabled = false;
   profileEnabled = false;
   ldapEnabled = false;
+  jwtHeaderName = '';
+  jwtUrlLogin = false;
   sigV4AuthEnabled = false;
+  azureAuthEnabled = false;
   samlEnabled = false;
   samlName = '';
   autoAssignOrg = true;
   verifyEmailEnabled = false;
   oauth: OAuthSettings = {};
+  rbacEnabled = true;
   disableUserSignUp = false;
   loginHint = '';
   passwordHint = '';
   loginError = undefined;
-  navTree: any;
   viewersCanEdit = false;
   editorsCanAdmin = false;
   disableSanitizeHtml = false;
   liveEnabled = true;
+  /** @deprecated Use `theme2` instead. */
   theme: GrafanaTheme;
   theme2: GrafanaTheme2;
   pluginsToPreload: PreloadPlugin[] = [];
   featureToggles: FeatureToggles = {};
+  anonymousEnabled = false;
   licenseInfo: LicenseInfo = {} as LicenseInfo;
   rendererAvailable = false;
   dashboardPreviews: {
@@ -79,6 +90,8 @@ export class GrafanaBootConfig implements GrafanaConfig {
     thumbnailsExist: boolean;
   } = { systemRequirements: { met: false, requiredImageRendererPluginVersion: '' }, thumbnailsExist: false };
   rendererVersion = '';
+  secretsManagerPluginEnabled = false;
+  supportBundlesEnabled = false;
   http2Enabled = false;
   dateFormats?: SystemDateFormatSettings;
   sentry = {
@@ -87,12 +100,21 @@ export class GrafanaBootConfig implements GrafanaConfig {
     customEndpoint: '',
     sampleRate: 1,
   };
+  grafanaJavascriptAgent = {
+    enabled: false,
+    customEndpoint: '',
+    apiKey: '',
+    errorInstrumentalizationEnabled: true,
+    consoleInstrumentalizationEnabled: false,
+    webVitalsInstrumentalizationEnabled: false,
+  };
   pluginCatalogURL = 'https://grafana.com/grafana/plugins/';
   pluginAdminEnabled = true;
   pluginAdminExternalManageEnabled = false;
   pluginCatalogHiddenPlugins: string[] = [];
+  pluginsCDNBaseURL = '';
   expressionsEnabled = false;
-  customTheme?: any;
+  customTheme?: undefined;
   awsAllowedAuthProviders: string[] = [];
   awsAssumeRoleEnabled = false;
   azure: AzureSettings = {
@@ -104,6 +126,7 @@ export class GrafanaBootConfig implements GrafanaConfig {
   geomapDefaultBaseLayerConfig?: MapLayerOptions;
   geomapDisableCustomBaseLayer?: boolean;
   unifiedAlertingEnabled = false;
+  unifiedAlerting = { minInterval: '' };
   applicationInsightsConnectionString?: string;
   applicationInsightsEndpointUrl?: string;
   recordedQueries = {
@@ -115,12 +138,20 @@ export class GrafanaBootConfig implements GrafanaConfig {
   reporting = {
     enabled: true,
   };
+  googleAnalyticsId: undefined;
+  googleAnalytics4Id: undefined;
+  googleAnalytics4SendManualPageViews = false;
+  rudderstackWriteKey: undefined;
+  rudderstackDataPlaneUrl: undefined;
+  rudderstackSdkUrl: undefined;
+  rudderstackConfigUrl: undefined;
+
+  tokenExpirationDayLimit: undefined;
 
   constructor(options: GrafanaBootConfig) {
-    const mode = options.bootData.user.lightTheme ? 'light' : 'dark';
-    this.theme2 = createTheme({ colors: { mode } });
-    this.theme = this.theme2.v1;
     this.bootData = options.bootData;
+    this.bootData.user.lightTheme = getThemeMode(options) === 'light';
+    this.isPublicDashboardView = options.bootData.settings.isPublicDashboardView;
 
     const defaults = {
       datasources: {},
@@ -148,7 +179,59 @@ export class GrafanaBootConfig implements GrafanaConfig {
     if (this.dateFormats) {
       systemDateFormats.update(this.dateFormats);
     }
+
+    overrideFeatureTogglesFromUrl(this);
+
+    // Creating theme after applying feature toggle overrides in case we need to toggle anything
+    this.theme2 = createTheme(getThemeCustomizations(this));
+
+    this.theme = this.theme2.v1;
+    // Special feature toggle that impact theme/component looks
+    this.theme2.flags.topnav = this.featureToggles.topnav;
   }
+}
+
+function getThemeMode(config: GrafanaBootConfig) {
+  let mode: 'light' | 'dark' = 'dark';
+  const themePref = config.bootData.user.theme;
+
+  if (themePref === 'light' || themePref === 'dark') {
+    mode = themePref;
+  } else if (themePref === 'system') {
+    const mediaResult = window.matchMedia('(prefers-color-scheme: dark)');
+    mode = mediaResult.matches ? 'dark' : 'light';
+  }
+
+  return mode;
+}
+
+function getThemeCustomizations(config: GrafanaBootConfig) {
+  // if/when we remove CurrentUserDTO.lightTheme, change this to use getThemeMode instead
+  const mode = config.bootData.user.lightTheme ? 'light' : 'dark';
+
+  const themeOptions: NewThemeOptions = {
+    colors: { mode },
+  };
+
+  return themeOptions;
+}
+
+function overrideFeatureTogglesFromUrl(config: GrafanaBootConfig) {
+  if (window.location.href.indexOf('__feature') === -1) {
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  params.forEach((value, key) => {
+    if (key.startsWith('__feature.')) {
+      const featureName = key.substring(10);
+      const toggleState = value === 'true';
+      if (toggleState !== config.featureToggles[key]) {
+        config.featureToggles[featureName] = toggleState;
+        console.log(`Setting feature toggle ${featureName} = ${toggleState}`);
+      }
+    }
+  });
 }
 
 const bootData = (window as any).grafanaBootData || {

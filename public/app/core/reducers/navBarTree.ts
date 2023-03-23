@@ -1,35 +1,70 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { NavModelItem } from '@grafana/data';
-import config from 'app/core/config';
+import { config } from '@grafana/runtime';
 
-const defaultPins = ((config.bootData?.navTree as NavModelItem[]) ?? []).map((n) => n.id).join(',');
-const storedPins = (window.localStorage.getItem('pinnedNavItems') ?? defaultPins).split(',');
+import { getNavSubTitle, getNavTitle } from '../components/NavBar/navBarItem-translations';
 
-export const initialState: NavModelItem[] = ((config.bootData?.navTree ?? []) as NavModelItem[]).map(
-  (n: NavModelItem) => ({
-    ...n,
-    hideFromNavbar: n.id === undefined || !storedPins.includes(n.id),
-  })
-);
+export const initialState: NavModelItem[] = config.bootData?.navTree ?? [];
+
+function translateNav(navTree: NavModelItem[]): NavModelItem[] {
+  return navTree.map((navItem) => {
+    const children = navItem.children && translateNav(navItem.children);
+
+    return {
+      ...navItem,
+      children: children,
+      text: getNavTitle(navItem.id) ?? navItem.text,
+      subTitle: getNavSubTitle(navItem.id) ?? navItem.subTitle,
+      emptyMessage: getNavTitle(navItem.emptyMessageId),
+    };
+  });
+}
+
+// this matches the prefix set in the backend navtree
+export const ID_PREFIX = 'starred/';
 
 const navTreeSlice = createSlice({
   name: 'navBarTree',
-  initialState,
+  initialState: () => translateNav(config.bootData?.navTree ?? []),
   reducers: {
-    togglePin: (state, action: PayloadAction<{ id: string }>) => {
-      const navItemIndex = state.findIndex((navItem) => navItem.id === action.payload.id);
-      state[navItemIndex].hideFromNavbar = !state[navItemIndex].hideFromNavbar;
-      window.localStorage.setItem(
-        'pinnedNavItems',
-        state
-          .filter((n) => !n.hideFromNavbar)
-          .map((n) => n.id)
-          .join(',')
-      );
+    setStarred: (state, action: PayloadAction<{ id: string; title: string; url: string; isStarred: boolean }>) => {
+      const starredItems = state.find((navItem) => navItem.id === 'starred');
+      const { id, title, url, isStarred } = action.payload;
+      if (starredItems) {
+        if (isStarred) {
+          if (!starredItems.children) {
+            starredItems.children = [];
+          }
+          const newStarredItem: NavModelItem = {
+            id: ID_PREFIX + id,
+            text: title,
+            url,
+          };
+          starredItems.children.push(newStarredItem);
+          starredItems.children.sort((a, b) => a.text.localeCompare(b.text));
+        } else {
+          const index = starredItems.children?.findIndex((item) => item.id === ID_PREFIX + id) ?? -1;
+          if (index > -1) {
+            starredItems?.children?.splice(index, 1);
+          }
+        }
+      }
+    },
+    updateDashboardName: (state, action: PayloadAction<{ id: string; title: string; url: string }>) => {
+      const { id, title, url } = action.payload;
+      const starredItems = state.find((navItem) => navItem.id === 'starred');
+      if (starredItems) {
+        const navItem = starredItems.children?.find((navItem) => navItem.id === id);
+        if (navItem) {
+          navItem.text = title;
+          navItem.url = url;
+          starredItems.children?.sort((a, b) => a.text.localeCompare(b.text));
+        }
+      }
     },
   },
 });
 
-export const { togglePin } = navTreeSlice.actions;
+export const { setStarred, updateDashboardName } = navTreeSlice.actions;
 export const navTreeReducer = navTreeSlice.reducer;

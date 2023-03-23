@@ -53,7 +53,7 @@ export function Modal(props: PropsWithChildren<Props>) {
   // Handle interacting outside the dialog and pressing
   // the Escape key to close the modal.
   const { overlayProps, underlayProps } = useOverlay(
-    { isKeyboardDismissDisabled: closeOnEscape, isOpen, onClose: onDismiss },
+    { isKeyboardDismissDisabled: !closeOnEscape, isOpen, onClose: onDismiss },
     ref
   );
 
@@ -69,6 +69,7 @@ export function Modal(props: PropsWithChildren<Props>) {
   return (
     <OverlayContainer>
       <div
+        role="presentation"
         className={styles.modalBackdrop}
         onClick={onClickBackdrop || (closeOnBackdropClick ? onDismiss : undefined)}
         {...underlayProps}
@@ -83,7 +84,7 @@ export function Modal(props: PropsWithChildren<Props>) {
               typeof title !== 'string' && title
             }
             <div className={styles.modalHeaderClose}>
-              <IconButton aria-label="Close dialogue" surface="header" name="times" size="xl" onClick={onDismiss} />
+              <IconButton aria-label="Close dialogue" name="times" size="xl" onClick={onDismiss} />
             </div>
           </div>
           <div className={cx(styles.modalContent, contentClassName)}>{children}</div>

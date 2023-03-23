@@ -7,20 +7,21 @@ import (
 	"strings"
 
 	"github.com/grafana/grafana-aws-sdk/pkg/awsds"
+	"github.com/grafana/grafana-azure-sdk-go/azsettings"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/plugins"
+	"github.com/grafana/grafana/pkg/plugins/config"
 )
 
 type Initializer struct {
-	cfg             *plugins.Cfg
-	license         models.Licensing
+	cfg             *config.Cfg
+	license         plugins.Licensing
 	backendProvider plugins.BackendFactoryProvider
 	log             log.Logger
 }
 
-func New(cfg *plugins.Cfg, backendProvider plugins.BackendFactoryProvider, license models.Licensing) Initializer {
+func New(cfg *config.Cfg, backendProvider plugins.BackendFactoryProvider, license plugins.Licensing) Initializer {
 	return Initializer{
 		cfg:             cfg,
 		license:         license,
@@ -55,18 +56,13 @@ func (i *Initializer) envVars(plugin *plugins.Plugin) []string {
 		hostEnv = append(
 			hostEnv,
 			fmt.Sprintf("GF_EDITION=%s", i.license.Edition()),
-			fmt.Sprintf("GF_ENTERPRISE_LICENSE_PATH=%s", i.cfg.EnterpriseLicensePath),
+			fmt.Sprintf("GF_ENTERPRISE_LICENSE_PATH=%s", i.license.Path()),
 		)
-
-		if envProvider, ok := i.license.(models.LicenseEnvironment); ok {
-			for k, v := range envProvider.Environment() {
-				hostEnv = append(hostEnv, fmt.Sprintf("%s=%s", k, v))
-			}
-		}
+		hostEnv = append(hostEnv, i.license.Environment()...)
 	}
 
 	hostEnv = append(hostEnv, i.awsEnvVars()...)
-	hostEnv = append(hostEnv, i.azureEnvVars()...)
+	hostEnv = append(hostEnv, azsettings.WriteToEnvStr(i.cfg.Azure)...)
 	return getPluginSettings(plugin.ID, i.cfg).asEnvVar("GF_PLUGIN", hostEnv)
 }
 
@@ -82,28 +78,10 @@ func (i *Initializer) awsEnvVars() []string {
 	return variables
 }
 
-func (i *Initializer) azureEnvVars() []string {
-	var variables []string
-
-	if i.cfg.Azure != nil {
-		if i.cfg.Azure.Cloud != "" {
-			variables = append(variables, "AZURE_CLOUD="+i.cfg.Azure.Cloud)
-		}
-		if i.cfg.Azure.ManagedIdentityClientId != "" {
-			variables = append(variables, "AZURE_MANAGED_IDENTITY_CLIENT_ID="+i.cfg.Azure.ManagedIdentityClientId)
-		}
-		if i.cfg.Azure.ManagedIdentityEnabled {
-			variables = append(variables, "AZURE_MANAGED_IDENTITY_ENABLED=true")
-		}
-	}
-
-	return variables
-}
-
 type pluginSettings map[string]string
 
 func (ps pluginSettings) asEnvVar(prefix string, hostEnv []string) []string {
-	var env []string
+	env := make([]string, 0, len(ps))
 	for k, v := range ps {
 		key := fmt.Sprintf("%s_%s", prefix, strings.ToUpper(k))
 		if value := os.Getenv(key); value != "" {
@@ -118,7 +96,7 @@ func (ps pluginSettings) asEnvVar(prefix string, hostEnv []string) []string {
 	return env
 }
 
-func getPluginSettings(pluginID string, cfg *plugins.Cfg) pluginSettings {
+func getPluginSettings(pluginID string, cfg *config.Cfg) pluginSettings {
 	ps := pluginSettings{}
 	for k, v := range cfg.PluginSettings[pluginID] {
 		if k == "path" || strings.ToLower(k) == "id" {

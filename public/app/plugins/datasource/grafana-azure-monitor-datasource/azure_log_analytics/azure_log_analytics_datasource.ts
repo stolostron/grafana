@@ -66,7 +66,7 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
     return (
       item.hide !== true &&
       !!item.azureLogAnalytics?.query &&
-      (!!item.azureLogAnalytics.resource || !!item.azureLogAnalytics.workspace)
+      (!!item.azureLogAnalytics.resources?.length || !!item.azureLogAnalytics.workspace)
     );
   }
 
@@ -124,10 +124,10 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
     }
 
     const templateSrv = getTemplateSrv();
-    const resource = templateSrv.replace(item.resource, scopedVars);
+    const resources = item.resources?.map((r) => templateSrv.replace(r, scopedVars));
     let workspace = templateSrv.replace(item.workspace, scopedVars);
 
-    if (!workspace && !resource && this.firstWorkspace) {
+    if (!workspace && !resources && this.firstWorkspace) {
       workspace = this.firstWorkspace;
     }
 
@@ -140,7 +140,7 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
       azureLogAnalytics: {
         resultFormat: item.resultFormat,
         query,
-        resource,
+        resources,
 
         // Workspace was removed in Grafana 8, but remains for backwards compat
         workspace,
@@ -184,19 +184,12 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
 
   private async buildDeepLink(customMeta: Record<string, any>) {
     const base64Enc = encodeURIComponent(customMeta.encodedQuery);
-    const workspaceId = customMeta.workspace;
-    const subscription = customMeta.subscription;
-
-    const details = await this.getWorkspaceDetails(workspaceId);
-    if (!details.workspace || !details.resourceGroup) {
-      return '';
-    }
+    const resource = encodeURIComponent(customMeta.resource);
 
     const url =
       `${this.azurePortalUrl}/#blade/Microsoft_OperationsManagementSuite_Workspace/` +
       `AnalyticsBlade/initiator/AnalyticsShareLinkToQuery/isQueryEditorVisible/true/scope/` +
-      `%7B%22resources%22%3A%5B%7B%22resourceId%22%3A%22%2Fsubscriptions%2F${subscription}` +
-      `%2Fresourcegroups%2F${details.resourceGroup}%2Fproviders%2Fmicrosoft.operationalinsights%2Fworkspaces%2F${details.workspace}` +
+      `%7B%22resources%22%3A%5B%7B%22resourceId%22%3A%22${resource}` +
       `%22%7D%5D%7D/query/${base64Enc}/isQueryBase64Compressed/true/timespanInIsoFormat/P1D`;
     return url;
   }
@@ -318,65 +311,6 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
           };
         });
     });
-  }
-
-  async testDatasource(): Promise<DatasourceValidationResult> {
-    const validationError = this.validateDatasource();
-    if (validationError) {
-      return validationError;
-    }
-
-    let resourceOrWorkspace: string;
-    try {
-      const result = await this.getFirstWorkspace();
-      if (!result) {
-        return {
-          status: 'error',
-          message: 'Workspace not found.',
-        };
-      }
-      resourceOrWorkspace = result;
-    } catch (e) {
-      let message = 'Azure Log Analytics requires access to Azure Monitor but had the following error: ';
-      return {
-        status: 'error',
-        message: this.getErrorMessage(message, e),
-      };
-    }
-
-    try {
-      const path = isGUIDish(resourceOrWorkspace)
-        ? `${this.resourcePath}/v1/workspaces/${resourceOrWorkspace}/metadata`
-        : `${this.resourcePath}/v1${resourceOrWorkspace}/metadata`;
-
-      return await this.getResource(path).then<DatasourceValidationResult>((response: any) => {
-        return {
-          status: 'success',
-          message: 'Successfully queried the Azure Log Analytics service.',
-          title: 'Success',
-        };
-      });
-    } catch (e) {
-      let message = 'Azure Log Analytics: ';
-      return {
-        status: 'error',
-        message: this.getErrorMessage(message, e),
-      };
-    }
-  }
-
-  private getErrorMessage(message: string, error: any) {
-    message += error.statusText ? error.statusText + ': ' : '';
-    if (error.data && error.data.error && error.data.error.code) {
-      message += error.data.error.code + '. ' + error.data.error.message;
-    } else if (error.data && error.data.error) {
-      message += error.data.error;
-    } else if (error.data) {
-      message += error.data;
-    } else {
-      message += 'Cannot connect to Azure Log Analytics REST API.';
-    }
-    return message;
   }
 
   private validateDatasource(): DatasourceValidationResult | undefined {

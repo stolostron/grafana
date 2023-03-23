@@ -1,7 +1,11 @@
 package api
 
-import "github.com/grafana/grafana/pkg/models"
+import (
+	"net/http"
 
-func swaggerUI(c *models.ReqContext) {
-	c.HTML(200, "swagger", nil)
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+)
+
+func swaggerUI(c *contextmodel.ReqContext) {
+	c.HTML(http.StatusOK, "swagger", nil)
 }

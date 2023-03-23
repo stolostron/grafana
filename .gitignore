@@ -40,6 +40,8 @@ tsconfig.tsbuildinfo
 # Enterprise devenv
 /devenv/docker/blocks/grafana-enterprise
 /devenv/docker/blocks/saml-enterprise
+# This is the new place of the block, but I leave the previous here for a while
+/devenv/docker/blocks/auth/saml-enterprise
 
 /tmp
 tools/phantomjs/phantomjs
@@ -74,7 +76,9 @@ docs/changed-files
 
 # devenv
 /devenv/docker-compose.yaml
+/devenv/docker-compose.override.yaml
 /devenv/.env
+/devenv/docker/blocks/tempo/tempo-data/
 
 conf/custom.ini
 /conf/provisioning/**/custom.yaml
@@ -100,6 +104,8 @@ debug.test
 /packaging/**/*.deb
 /packaging/**/*.tar.gz
 /packaging/**/*.tar.gz.sha256
+pkg/cmd/grafana-server/__debug_bin
+pkg/services/quota/quotaimpl/storage/storage.json
 
 # Ignore OSX indexing
 .DS_Store
@@ -121,10 +127,18 @@ debug.test
 !.yarn/patches/*.patch
 
 # Ignoring frontend packages specifics
+/packages/grafana-ui/.yarn/.cache
 /packages/**/dist
 /packages/**/compiled
 /packages/**/.rpt2_cache
 /packages/**/tsdoc-metadata.json
+/packages/**/package.tgz
+/packages/grafana-toolkit/sass
+## CI places the packages in a different location
+/npm-artifacts/*.tgz
+
+# Ignore frontend build manifest
+manifest.json
 
 # Ignore go local build dependencies
 /scripts/go/bin/**
@@ -143,6 +157,8 @@ compilation-stats.json
 /e2e/benchmarks/**/results/*
 /e2e/benchmarks/**/results
 /e2e/build_results.zip
+/e2e/extensions
+/e2e/extensions-suite
 
 # grafana server
 /scripts/grafana-server/server.log
@@ -157,15 +173,14 @@ compilation-stats.json
 # auto generated frontend docs
 /docs/sources/packages_api
 
-# auto generated Go files
-*_gen.go
-!pkg/server/wire_gen.go
-!pkg/cmd/grafana-cli/runner/wire_gen.go
-!pkg/services/featuremgmt/toggles_gen.go
+# wire generated files
+**/wire_gen.go
 
-# Auto-generated localisation files
+# Auto-generated internationalization files
 public/locales/_build/
-public/locales/**/*.js
+public/locales/*/*.js
+public/locales/*/grafana_old.json
 
 deployment_tools_config.json
 
+.betterer.cache

@@ -8,8 +8,7 @@ import (
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/metrics"
-	"github.com/grafana/grafana/pkg/models"
-
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/annotations"
 	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/services/rendering"
@@ -95,8 +94,7 @@ func (handler *defaultResultHandler) handle(evalContext *EvalContext) error {
 			Data:        annotationData,
 		}
 
-		annotationRepo := annotations.GetRepository()
-		if err := annotationRepo.Save(&item); err != nil {
+		if err := evalContext.annotationRepo.Save(evalContext.Ctx, &item); err != nil {
 			handler.log.Error("Failed to save annotation for new alert state", "error", err)
 		}
 	}

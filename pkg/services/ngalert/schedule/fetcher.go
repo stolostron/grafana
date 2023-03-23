@@ -33,23 +33,34 @@ func sortedUIDs(alertRules []*models.AlertRule) []string {
 	return uids
 }
 
-// updateAlertRules updates the alert rules for the scheduler. It returns an error
-// if the database is unavailable or the query returned an error.
-func (sch *schedule) updateAlertRules(ctx context.Context, disabledOrgs []int64) error {
+// updateSchedulableAlertRules updates the alert rules for the scheduler.
+// It returns diff that contains rule keys that were updated since the last poll,
+// and an error if the database query encountered problems.
+func (sch *schedule) updateSchedulableAlertRules(ctx context.Context) (diff, error) {
 	start := time.Now()
 	defer func() {
-		sch.metrics.UpdateAlertRulesDuration.Observe(
+		sch.metrics.UpdateSchedulableAlertRulesDuration.Observe(
 			time.Since(start).Seconds())
 	}()
 
-	q := models.ListAlertRulesQuery{
-		ExcludeOrgs: disabledOrgs,
+	if !sch.schedulableAlertRules.isEmpty() {
+		keys, err := sch.ruleStore.GetAlertRulesKeysForScheduling(ctx)
+		if err != nil {
+			return diff{}, err
+		}
+		if !sch.schedulableAlertRules.needsUpdate(keys) {
+			sch.log.Debug("No changes detected. Skip updating")
+			return diff{}, nil
+		}
+	}
+	// At this point, we know we need to re-fetch rules as there are changes.
+	q := models.GetAlertRulesForSchedulingQuery{
+		PopulateFolders: !sch.disableGrafanaFolder,
 	}
 	if err := sch.ruleStore.GetAlertRulesForScheduling(ctx, &q); err != nil {
-		return fmt.Errorf("failed to get alert rules: %w", err)
+		return diff{}, fmt.Errorf("failed to get alert rules: %w", err)
 	}
-	sch.alertRules.set(q.Result)
-	sch.metrics.AlertRules.Set(float64(len(q.Result)))
-	sch.metrics.AlertRulesHash.Set(float64(hashUIDs(q.Result)))
-	return nil
+	d := sch.schedulableAlertRules.set(q.ResultRules, q.ResultFoldersTitles)
+	sch.log.Debug("Alert rules fetched", "rulesCount", len(q.ResultRules), "foldersCount", len(q.ResultFoldersTitles), "updatedRules", len(d.updated))
+	return d, nil
 }

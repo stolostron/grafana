@@ -6,6 +6,8 @@ import (
 
 	"github.com/grafana/grafana/pkg/models"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/grafana/pkg/services/datasources"
 )
 
 func TestServicebuildPipeLine(t *testing.T) {
@@ -30,9 +32,10 @@ func TestServicebuildPipeLine(t *testing.T) {
 					},
 					{
 						RefID: "B",
-						DataSource: &models.DataSource{
+						DataSource: &datasources.DataSource{
 							Uid: "Fake",
 						},
+						TimeRange: AbsoluteTimeRange{},
 					},
 				},
 			},
@@ -76,7 +79,7 @@ func TestServicebuildPipeLine(t *testing.T) {
 					},
 				},
 			},
-			expectErrContains: "self referencing node",
+			expectErrContains: "expression 'A' cannot reference itself. Must be query or another expression",
 		},
 		{
 			name: "missing dependency will error",
@@ -140,9 +143,10 @@ func TestServicebuildPipeLine(t *testing.T) {
 					},
 					{
 						RefID: "C",
-						DataSource: &models.DataSource{
+						DataSource: &datasources.DataSource{
 							Uid: "Fake",
 						},
+						TimeRange: AbsoluteTimeRange{},
 					},
 				},
 			},
@@ -194,9 +198,10 @@ func TestServicebuildPipeLine(t *testing.T) {
 					},
 					{
 						RefID: "C",
-						DataSource: &models.DataSource{
+						DataSource: &datasources.DataSource{
 							Uid: "Fake",
 						},
+						TimeRange: AbsoluteTimeRange{},
 					},
 				},
 			},
@@ -217,9 +222,10 @@ func TestServicebuildPipeLine(t *testing.T) {
 					},
 					{
 						RefID: "B",
-						DataSource: &models.DataSource{
+						DataSource: &datasources.DataSource{
 							Uid: "Fake",
 						},
+						TimeRange: AbsoluteTimeRange{},
 					},
 				},
 			},

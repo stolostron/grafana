@@ -8,6 +8,7 @@ import { trimFileName } from '../../utils/file';
 import { Button } from '../Button';
 import { Icon } from '../Icon/Icon';
 import { IconButton } from '../IconButton/IconButton';
+
 import { DropzoneFile } from './FileDropzone';
 
 export const REMOVE_FILE = 'Remove file';

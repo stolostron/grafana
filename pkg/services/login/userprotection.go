@@ -3,20 +3,25 @@ package login
 import (
 	"context"
 
-	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/user"
 )
 
 type UserProtectionService interface {
-	AllowUserMapping(user *models.User, authModule string) error
+	AllowUserMapping(user *user.User, authModule string) error
 }
 
 type Store interface {
-	GetExternalUserInfoByLogin(ctx context.Context, query *models.GetExternalUserInfoByLoginQuery) error
-	GetAuthInfo(ctx context.Context, query *models.GetAuthInfoQuery) error
-	SetAuthInfo(ctx context.Context, cmd *models.SetAuthInfoCommand) error
-	UpdateAuthInfo(ctx context.Context, cmd *models.UpdateAuthInfoCommand) error
-	DeleteAuthInfo(ctx context.Context, cmd *models.DeleteAuthInfoCommand) error
-	GetUserById(ctx context.Context, id int64) (*models.User, error)
-	GetUserByLogin(ctx context.Context, login string) (*models.User, error)
-	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	GetExternalUserInfoByLogin(ctx context.Context, query *GetExternalUserInfoByLoginQuery) error
+	GetAuthInfo(ctx context.Context, query *GetAuthInfoQuery) error
+	GetUserLabels(ctx context.Context, query GetUserLabelsQuery) (map[int64]string, error)
+	SetAuthInfo(ctx context.Context, cmd *SetAuthInfoCommand) error
+	UpdateAuthInfo(ctx context.Context, cmd *UpdateAuthInfoCommand) error
+	UpdateAuthInfoDate(ctx context.Context, authInfo *UserAuth) error
+	DeleteAuthInfo(ctx context.Context, cmd *DeleteAuthInfoCommand) error
+	GetUserById(ctx context.Context, id int64) (*user.User, error)
+	GetUserByLogin(ctx context.Context, login string) (*user.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*user.User, error)
+	CollectLoginStats(ctx context.Context) (map[string]interface{}, error)
+	RunMetricsCollection(ctx context.Context) error
+	GetLoginStats(ctx context.Context) (LoginStats, error)
 }

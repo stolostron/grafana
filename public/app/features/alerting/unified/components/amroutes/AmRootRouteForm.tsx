@@ -3,16 +3,18 @@ import React, { FC, useState } from 'react';
 
 import { Button, Collapse, Field, Form, Input, InputControl, Link, MultiSelect, Select, useStyles2 } from '@grafana/ui';
 
-import { AmRouteReceiver, FormAmRoute } from '../../types/amroutes';
+import { FormAmRoute } from '../../types/amroutes';
 import {
   mapMultiSelectValueToStrings,
   mapSelectValueToString,
   optionalPositiveInteger,
   stringToSelectableValue,
   stringsToSelectableValues,
+  commonGroupByOptions,
 } from '../../utils/amroutes';
 import { makeAMLink } from '../../utils/misc';
 import { timeOptions } from '../../utils/time';
+import { AmRouteReceiver } from '../receivers/grafanaAppReceivers/types';
 
 import { getFormStyles } from './formStyles';
 
@@ -36,7 +38,7 @@ export const AmRootRouteForm: FC<AmRootRouteFormProps> = ({
   const [groupByOptions, setGroupByOptions] = useState(stringsToSelectableValues(routes.groupBy));
 
   return (
-    <Form defaultValues={{ ...routes, overrideTimings: true }} onSubmit={onSave}>
+    <Form defaultValues={{ ...routes, overrideTimings: true, overrideGrouping: true }} onSubmit={onSave}>
       {({ control, errors, setValue }) => (
         <>
           <Field label="Default contact point" invalid={!!errors.receiver} error={errors.receiver?.message}>
@@ -77,7 +79,6 @@ export const AmRootRouteForm: FC<AmRootRouteFormProps> = ({
               render={({ field: { onChange, ref, ...field } }) => (
                 <MultiSelect
                   aria-label="Group by"
-                  menuShouldPortal
                   {...field}
                   allowCustomValue
                   className={styles.input}
@@ -88,7 +89,7 @@ export const AmRootRouteForm: FC<AmRootRouteFormProps> = ({
                     setValue('groupBy', [...field.value, opt]);
                   }}
                   onChange={(value) => onChange(mapMultiSelectValueToStrings(value))}
-                  options={groupByOptions}
+                  options={[...commonGroupByOptions, ...groupByOptions]}
                 />
               )}
               control={control}

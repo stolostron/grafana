@@ -1,4 +1,5 @@
 ---
+aliases: []
 hide_menu: true
 title: Release notes for Grafana 8.5.4
 ---

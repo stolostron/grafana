@@ -3,7 +3,6 @@ import React from 'react';
 import { PanelModel, PanelPlugin } from '@grafana/data';
 import { config } from '@grafana/runtime';
 import { TagsInput } from '@grafana/ui';
-import { PermissionLevelString } from '../../../types';
 
 import {
   ALL_FOLDER,
@@ -12,7 +11,7 @@ import {
 } from '../../../core/components/Select/ReadonlyFolderPicker/ReadonlyFolderPicker';
 
 import { DashList } from './DashList';
-import { defaultPanelOptions, PanelLayout, PanelOptions } from './models.gen';
+import { defaultPanelOptions, PanelLayout, PanelOptions } from './panelcfg.gen';
 
 export const plugin = new PanelPlugin<PanelOptions>(DashList)
   .setPanelOptions((builder) => {

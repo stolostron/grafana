@@ -5,17 +5,12 @@ import Datasource from '../../datasource';
 import { AzureMetricQuery, AzureMonitorOption, AzureMonitorQuery, AzureQueryType } from '../../types';
 
 import {
+  useMetricNames,
+  useMetricNamespaces,
+  useMetricMetadata,
   DataHook,
   MetricMetadata,
   MetricsMetadataHook,
-  updateSubscriptions,
-  useMetricMetadata,
-  useMetricNames,
-  useMetricNamespaces,
-  useResourceGroups,
-  useResourceNames,
-  useResourceTypes,
-  useSubscriptions,
 } from './dataHooks';
 
 const WAIT_OPTIONS = {
@@ -46,124 +41,25 @@ describe('AzureMonitor: metrics dataHooks', () => {
 
   const testTable: TestScenario[] = [
     {
-      name: 'useSubscriptions',
-      hook: useSubscriptions,
-      emptyQueryPartial: {},
-      topLevelCustomProperties: {
-        subscription: 'subscription-$ENVIRONMENT',
-      },
-      customProperties: {},
-      expectedOptions: [
-        {
-          label: 'sub-abc-123',
-          value: 'sub-abc-123',
-        },
-      ],
-      expectedCustomPropertyResults: [
-        {
-          label: 'sub-abc-123',
-          value: 'sub-abc-123',
-        },
-        {
-          label: 'subscription-$ENVIRONMENT',
-          value: 'subscription-$ENVIRONMENT',
-        },
-      ],
-    },
-
-    {
-      name: 'useResourceGroups',
-      hook: useResourceGroups,
-      emptyQueryPartial: {},
-      customProperties: {
-        resourceGroup: 'resource-group-$ENVIRONMENT',
-      },
-      expectedOptions: [
-        {
-          label: 'Web App - Production',
-          value: 'web-app-production',
-        },
-        {
-          label: 'Web App - Development',
-          value: 'web-app-development',
-        },
-      ],
-      expectedCustomPropertyResults: [
-        { label: 'Web App - Production', value: 'web-app-production' },
-        { label: 'Web App - Development', value: 'web-app-development' },
-        { label: 'resource-group-$ENVIRONMENT', value: 'resource-group-$ENVIRONMENT' },
-      ],
-    },
-
-    {
-      name: 'useResourceTypes',
-      hook: useResourceTypes,
-      emptyQueryPartial: {
-        resourceGroup: 'web-app-development',
-      },
-      customProperties: {
-        resourceGroup: 'web-app-development',
-        metricDefinition: 'azure/resource-type-$ENVIRONMENT',
-      },
-      expectedOptions: [
-        {
-          label: 'Virtual Machine',
-          value: 'azure/vm',
-        },
-        {
-          label: 'Database',
-          value: 'azure/db',
-        },
-      ],
-      expectedCustomPropertyResults: [
-        { label: 'Virtual Machine', value: 'azure/vm' },
-        { label: 'Database', value: 'azure/db' },
-        { label: 'azure/resource-type-$ENVIRONMENT', value: 'azure/resource-type-$ENVIRONMENT' },
-      ],
-    },
-    {
-      name: 'useResourceNames',
-      hook: useResourceNames,
-      emptyQueryPartial: {
-        resourceGroup: 'web-app-development',
-        metricDefinition: 'azure/vm',
-      },
-      customProperties: {
-        resourceGroup: 'web-app-development',
-        metricDefinition: 'azure/vm',
-        resourceName: 'resource-name-$ENVIRONMENT',
-      },
-      expectedOptions: [
-        {
-          label: 'Web server',
-          value: 'web-server',
-        },
-        {
-          label: 'Job server',
-          value: 'job-server',
-        },
-      ],
-      expectedCustomPropertyResults: [
-        { label: 'Web server', value: 'web-server' },
-        { label: 'Job server', value: 'job-server' },
-        { label: 'resource-name-$ENVIRONMENT', value: 'resource-name-$ENVIRONMENT' },
-      ],
-    },
-
-    {
       name: 'useMetricNames',
       hook: useMetricNames,
       emptyQueryPartial: {
-        resourceGroup: 'web-app-development',
-        metricDefinition: 'azure/vm',
-        resourceName: 'web-server',
         metricNamespace: 'azure/vm',
+        resources: [
+          {
+            resourceGroup: 'rg',
+            resourceName: 'rn',
+          },
+        ],
       },
       customProperties: {
-        resourceGroup: 'web-app-development',
-        metricDefinition: 'azure/vm',
-        resourceName: 'web-server',
         metricNamespace: 'azure/vm',
+        resources: [
+          {
+            resourceGroup: 'rg',
+            resourceName: 'rn',
+          },
+        ],
         metricName: 'metric-$ENVIRONMENT',
       },
       expectedOptions: [
@@ -182,21 +78,26 @@ describe('AzureMonitor: metrics dataHooks', () => {
         { label: 'metric-$ENVIRONMENT', value: 'metric-$ENVIRONMENT' },
       ],
     },
-
     {
       name: 'useMetricNamespaces',
       hook: useMetricNamespaces,
       emptyQueryPartial: {
-        resourceGroup: 'web-app-development',
-        metricDefinition: 'azure/vm',
-        resourceName: 'web-server',
         metricNamespace: 'azure/vm',
+        resources: [
+          {
+            resourceGroup: 'rg',
+            resourceName: 'rn',
+          },
+        ],
       },
       customProperties: {
-        resourceGroup: 'web-app-development',
-        metricDefinition: 'azure/vm',
-        resourceName: 'web-server',
         metricNamespace: 'azure/vm-$ENVIRONMENT',
+        resources: [
+          {
+            resourceGroup: 'rg',
+            resourceName: 'rn',
+          },
+        ],
         metricName: 'metric-name',
       },
       expectedOptions: [
@@ -243,23 +144,19 @@ describe('AzureMonitor: metrics dataHooks', () => {
         opt('Web App - Development', 'web-app-development'),
       ]);
 
-    datasource.getMetricDefinitions = jest
-      .fn()
-      .mockResolvedValue([opt('Virtual Machine', 'azure/vm'), opt('Database', 'azure/db')]);
-
     datasource.getResourceNames = jest
       .fn()
       .mockResolvedValue([opt('Web server', 'web-server'), opt('Job server', 'job-server')]);
 
-    datasource.getMetricNames = jest
+    datasource.azureMonitorDatasource.getMetricNames = jest
       .fn()
       .mockResolvedValue([opt('Percentage CPU', 'percentage-cpu'), opt('Free memory', 'free-memory')]);
 
-    datasource.getMetricNamespaces = jest
+    datasource.azureMonitorDatasource.getMetricNamespaces = jest
       .fn()
       .mockResolvedValue([opt('Compute Virtual Machine', 'azure/vmc'), opt('Database NS', 'azure/dbns')]);
 
-    const getMetricMetadata = jest.fn().mockResolvedValue({
+    datasource.azureMonitorDatasource.getMetricMetadata = jest.fn().mockResolvedValue({
       primaryAggType: 'Average',
       supportedAggTypes: ['Average'],
       supportedTimeGrains: [
@@ -275,8 +172,6 @@ describe('AzureMonitor: metrics dataHooks', () => {
       ],
       dimensions: [],
     });
-
-    datasource.getMetricMetadata = jest.fn().mockImplementation(getMetricMetadata);
   });
 
   describe.each(testTable)('scenario %#: $name', (scenario) => {
@@ -309,11 +204,13 @@ describe('AzureMonitor: metrics dataHooks', () => {
       name: 'useMetricMetadata',
       hook: useMetricMetadata,
       emptyQueryPartial: {
-        resourceGroup: 'web-app-development',
-        metricDefinition: 'azure/vm',
-        resourceName: 'web-server',
+        resources: [
+          {
+            resourceGroup: 'rg',
+            resourceName: 'rn',
+          },
+        ],
         metricNamespace: 'azure/vm',
-        subscription: 'test-sub',
         metricName: 'Average CPU',
       },
       customProperties: {},
@@ -357,79 +254,48 @@ describe('AzureMonitor: metrics dataHooks', () => {
       });
     });
   });
-});
 
-describe('AzureMonitor: updateSubscriptions', () => {
-  const bareQuery = {
-    refId: 'A',
-    queryType: AzureQueryType.AzureMonitor,
-  };
+  describe('useMetricNamespaces', () => {
+    const metricNamespacesConfig = {
+      name: 'useMetricNamespaces',
+      hook: useMetricNamespaces,
+      emptyQueryPartial: {
+        resources: [
+          {
+            resourceGroup: 'rg',
+            resourceName: 'rn',
+          },
+        ],
+        metricNamespace: 'azure/vm',
+      },
+      customProperties: {},
+      expectedOptions: [
+        { label: 'Compute Virtual Machine', value: 'azure/vmc' },
+        { label: 'Database NS', value: 'azure/dbns' },
+        { label: 'azure/vm', value: 'azure/vm' },
+      ],
+    };
 
-  [
-    {
-      description: 'should not update with no subscriptions',
-      query: bareQuery,
-      subscriptionOptions: [],
-    },
-    {
-      description: 'should not update with the subscription as an option',
-      query: { ...bareQuery, subscription: 'foo' },
-      subscriptionOptions: [{ label: 'foo', value: 'foo' }],
-    },
-    {
-      description: 'should not update with a template variable',
-      query: { ...bareQuery, subscription: '$foo' },
-      subscriptionOptions: [],
-    },
-    {
-      description: 'should update with the first subscription',
-      query: { ...bareQuery },
-      subscriptionOptions: [{ label: 'foo', value: 'foo' }],
-      onChangeArgs: {
+    it('call getMetricNamespaces without global region', async () => {
+      const query = {
         ...bareQuery,
-        subscription: 'foo',
-        azureMonitor: {
-          dimensionFilters: [],
-          timeGrain: '',
-        },
-      },
-    },
-    {
-      description: 'should update with the default subscription if the current subsription does not exists',
-      query: { ...bareQuery, subscription: 'bar' },
-      subscriptionOptions: [{ label: 'foo', value: 'foo' }],
-      onChangeArgs: {
-        ...bareQuery,
-        subscription: 'foo',
-        azureMonitor: {
-          dimensionFilters: [],
-          timeGrain: '',
-        },
-      },
-    },
-    {
-      description: 'should clean up if neither the default sub nor the current sub exists',
-      query: { ...bareQuery, subscription: 'bar' },
-      subscriptionOptions: [{ label: 'foo', value: 'foo' }],
-      defaultSubscription: 'foobar',
-      onChangeArgs: {
-        ...bareQuery,
-        subscription: '',
-        azureMonitor: {
-          dimensionFilters: [],
-          timeGrain: '',
-        },
-      },
-    },
-  ].forEach((test) => {
-    it(test.description, () => {
-      const onChange = jest.fn();
-      updateSubscriptions(test.query, test.subscriptionOptions, onChange, test.defaultSubscription);
-      if (test.onChangeArgs) {
-        expect(onChange).toHaveBeenCalledWith(test.onChangeArgs);
-      } else {
-        expect(onChange).not.toHaveBeenCalled();
-      }
+        azureMonitor: metricNamespacesConfig.emptyQueryPartial,
+      };
+      const { result, waitForNextUpdate } = renderHook(() =>
+        metricNamespacesConfig.hook(query, datasource, onChange, jest.fn())
+      );
+      await waitForNextUpdate(WAIT_OPTIONS);
+
+      expect(result.current).toEqual(metricNamespacesConfig.expectedOptions);
+      expect(datasource.azureMonitorDatasource.getMetricNamespaces).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resourceGroup: 'rg',
+          resourceName: 'rn',
+          metricNamespace: 'azure/vm',
+        }),
+        // Here, "global" should be false
+        false
+      );
     });
   });
 });

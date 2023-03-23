@@ -3,7 +3,6 @@ package fs
 import (
 	"fmt"
 	"io"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"os"
 	"path/filepath"
 )
@@ -127,7 +126,7 @@ func CopyRecursive(src, dst string) error {
 		}
 	}
 
-	entries, err := ioutil.ReadDir(src)
+	entries, err := os.ReadDir(src)
 	if err != nil {
 		return err
 	}

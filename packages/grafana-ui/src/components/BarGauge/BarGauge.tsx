@@ -1,4 +1,5 @@
 // Library
+import { cx } from '@emotion/css';
 import React, { CSSProperties, PureComponent, ReactNode } from 'react';
 import tinycolor from 'tinycolor2';
 
@@ -14,15 +15,16 @@ import {
   GAUGE_DEFAULT_MAXIMUM,
   GAUGE_DEFAULT_MINIMUM,
   getFieldColorMode,
-  TextDisplayOptions,
   ThresholdsMode,
   TimeSeriesValue,
   VizOrientation,
 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
+import { BarGaugeDisplayMode, VizTextDisplayOptions } from '@grafana/schema';
 
 import { Themeable2 } from '../../types';
 import { calculateFontSize, measureText } from '../../utils/measureText';
+import { clearButtonStyles } from '../Button';
 import { FormattedValueDisplay } from '../FormattedValueDisplay/FormattedValueDisplay';
 
 const MIN_VALUE_HEIGHT = 18;
@@ -39,7 +41,7 @@ export interface Props extends Themeable2 {
   display?: DisplayProcessor;
   value: DisplayValue;
   orientation: VizOrientation;
-  text?: TextDisplayOptions;
+  text?: VizTextDisplayOptions;
   itemSpacing?: number;
   lcdCellWidth?: number;
   displayMode: BarGaugeDisplayMode;
@@ -47,12 +49,6 @@ export interface Props extends Themeable2 {
   className?: string;
   showUnfilled?: boolean;
   alignmentFactors?: DisplayValueAlignmentFactors;
-}
-
-export enum BarGaugeDisplayMode {
-  Basic = 'basic',
-  Lcd = 'lcd',
-  Gradient = 'gradient',
 }
 
 export class BarGauge extends PureComponent<Props> {
@@ -77,21 +73,27 @@ export class BarGauge extends PureComponent<Props> {
   };
 
   render() {
-    const { onClick, className } = this.props;
+    const { onClick, className, theme } = this.props;
     const { title } = this.props.value;
     const styles = getTitleStyles(this.props);
 
-    if (!title) {
+    if (onClick) {
       return (
-        <div style={styles.wrapper} onClick={onClick} className={className}>
+        <button
+          type="button"
+          style={styles.wrapper}
+          onClick={onClick}
+          className={cx(clearButtonStyles(theme), className)}
+        >
+          <div style={styles.title}>{title}</div>
           {this.renderBarAndValue()}
-        </div>
+        </button>
       );
     }
 
     return (
-      <div style={styles.wrapper} onClick={onClick} className={className}>
-        <div style={styles.title}>{title}</div>
+      <div style={styles.wrapper} className={className}>
+        {title && <div style={styles.title}>{title}</div>}
         {this.renderBarAndValue()}
       </div>
     );
@@ -430,7 +432,9 @@ export function getCellColor(
 }
 
 export function getValuePercent(value: number, minValue: number, maxValue: number): number {
-  return Math.min((value - minValue) / (maxValue - minValue), 1);
+  // Need special logic for when minValue === maxValue === value to prevent returning NaN
+  const valueRatio = Math.min((value - minValue) / (maxValue - minValue), 1);
+  return isNaN(valueRatio) ? 0 : valueRatio;
 }
 
 /**
@@ -461,7 +465,7 @@ export function getBasicAndGradientStyles(props: Props): BasicAndGradientStyles 
   };
 
   const emptyBar: CSSProperties = {
-    background: `rgba(${theme.isDark ? '255,255,255' : '0,0,0'}, 0.07)`,
+    background: theme.colors.background.secondary,
     flexGrow: 1,
     display: 'flex',
     borderRadius: '3px',
@@ -609,7 +613,7 @@ function getValueStyles(
   width: number,
   height: number,
   orientation: VizOrientation,
-  text?: TextDisplayOptions
+  text?: VizTextDisplayOptions
 ): CSSProperties {
   const styles: CSSProperties = {
     color,

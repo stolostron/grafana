@@ -4,7 +4,7 @@ import React, { FC } from 'react';
 import { GrafanaTheme2, intervalToAbbreviatedDurationString } from '@grafana/data';
 import { Icon, useStyles2 } from '@grafana/ui';
 import alertDef from 'app/features/alerting/state/alertDef';
-import { alertStateToState, getFirstActiveAt } from 'app/features/alerting/unified/utils/rules';
+import { alertStateToReadable, alertStateToState, getFirstActiveAt } from 'app/features/alerting/unified/utils/rules';
 import { PromRuleWithLocation } from 'app/types/unified-alerting';
 import { PromAlertingRuleState } from 'app/types/unified-alerting-dto';
 
@@ -34,7 +34,7 @@ const UngroupedModeView: FC<UngroupedModeProps> = ({ rules, options }) => {
               <div className={stateStyle.icon}>
                 <Icon
                   name={alertDef.getStateDisplayModel(rule.state).iconClass}
-                  className={stateStyle[alertStateToState[rule.state]]}
+                  className={stateStyle[alertStateToState(rule.state)]}
                   size={'lg'}
                 />
               </div>
@@ -44,7 +44,9 @@ const UngroupedModeView: FC<UngroupedModeProps> = ({ rules, options }) => {
                     {rule.name}
                   </div>
                   <div className={styles.alertDuration}>
-                    <span className={stateStyle[alertStateToState[rule.state]]}>{rule.state.toUpperCase()}</span>{' '}
+                    <span className={stateStyle[alertStateToState(rule.state)]}>
+                      {alertStateToReadable(rule.state)}
+                    </span>{' '}
                     {firstActiveAt && rule.state !== PromAlertingRuleState.Inactive && (
                       <>
                         for{' '}
@@ -77,7 +79,7 @@ const getStateTagStyles = (theme: GrafanaTheme2) => ({
     display: inline-block;
     color: white;
     border-radius: ${theme.shape.borderRadius()};
-    font-size: ${theme.v1.typography.size.sm};
+    font-size: ${theme.typography.bodySmall.fontSize};
     text-transform: capitalize;
     line-height: 1.2;
     flex-shrink: 0;

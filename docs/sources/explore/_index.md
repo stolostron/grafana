@@ -13,32 +13,30 @@ weight: 90
 
 Grafana's dashboard UI is all about building dashboards for visualization. Explore strips away the dashboard and panel options so that you can focus on the query. It helps you iterate until you have a working query and then think about building a dashboard.
 
-> Refer to [Fine-grained access control]({{< relref "../enterprise/access-control/_index.md" >}}) in Grafana Enterprise to understand how you can control access with fine-grained permissions.
+> Refer to [Role-based access control]({{< relref "../administration/roles-and-permissions/access-control/" >}}) in Grafana Enterprise to understand how you can control access with role-based permissions.
 
 If you just want to explore your data and do not want to create a dashboard, then Explore makes this much easier. If your data source supports graph and table data, then Explore shows the results both as a graph and a table. This allows you to see trends in the data and more details at the same time. See also:
 
-- [Query management in Explore]({{< relref "query-management.md" >}})
-- [Logs integration in Explore]({{< relref "logs-integration.md" >}})
-- [Trace integration in Explore]({{< relref "trace-integration.md" >}})
-- [Inspector in Explore]({{< relref "explore-inspector.md" >}})
+- [Query management in Explore]({{< relref "query-management/" >}})
+- [Logs integration in Explore]({{< relref "logs-integration/" >}})
+- [Trace integration in Explore]({{< relref "trace-integration/" >}})
+- [Inspector in Explore]({{< relref "explore-inspector/" >}})
 
 ## Start exploring
 
-> Refer to [Fine-grained access Control]({{< relref "../enterprise/access-control/_index.md" >}}) in Grafana Enterprise to understand how you can manage Explore with fine-grained permissions.
+> Refer to [Role-based access Control]({{< relref "../administration/roles-and-permissions/access-control/" >}}) in Grafana Enterprise to understand how you can manage Explore with role-based permissions.
 
-In order to access Explore, you must have an editor or an administrator role, unless the [viewers_can_edit option]({{< relref "../administration/configuration/#viewers_can_edit" >}}) is enabled. Refer to [About users and permissions]({{< relref "../administration/manage-users-and-permissions/about-users-and-permissions.md" >}}) for more information on what each role has access to.
+In order to access Explore, you must have an editor or an administrator role, unless the [viewers_can_edit option]({{< relref "../setup-grafana/configure-grafana/#viewers_can_edit" >}}) is enabled. Refer to [About users and permissions]({{< relref "../administration/roles-and-permissions/" >}}) for more information on what each role has access to.
 
 To access Explore:
 
 1. Click on the Explore icon on the menu bar.
 
-   {{< figure src="/static/img/docs/explore/access-explore-7-4.png" max-width= "650px" caption="Screenshot of the new Explore Icon" >}}
-
    An empty Explore tab opens.
 
    Alternately to start with an existing query in a panel, choose the Explore option from the Panel menu. This opens an Explore tab with the query from the panel and allows you to tweak or iterate in the query outside of your dashboard.
 
-{{< figure src="/static/img/docs/explore/panel_dropdown-7-4.png" class="docs-image--no-shadow" max-width= "650px" caption="Screenshot of the new Explore option in the panel menu" >}}
+   {{< figure src="/static/img/docs/explore/panel_dropdown-7-4.png" class="docs-image--no-shadow" max-width= "650px" caption="Screenshot of the new Explore option in the panel menu" >}}
 
 1. Choose your data source from the dropdown in the top left. [Prometheus](https://grafana.com/oss/prometheus/) has a custom Explore implementation, the other data sources use their standard query editor.
 1. In the query field, write your query to explore your data. There are three buttons beside the query field, a clear button (X), an add query button (+) and the remove query button (-). Just like the normal query editor, you can add and remove multiple queries.
@@ -67,8 +65,6 @@ The Share shortened link capability allows you to create smaller and simpler URL
 
 ## Available feature toggles
 
-### explore2Dashboard
+### exploreMixedDatasource
 
-> **Note:** Available in Grafana 8.5.0 and later versions.
-
-Enabled by default, allows users to create panels in dashboards from within Explore.
+Disabled by default, allows users in Explore to have different datasources for different queries. If compatible, results will be combined.

@@ -8,7 +8,7 @@ import (
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/datasources"
 	"github.com/grafana/grafana/pkg/services/datasources/permissions"
 )
@@ -26,16 +26,16 @@ type DashAlertExtractorService struct {
 	log                          log.Logger
 }
 
-func ProvideDashAlertExtractorService(datasourcePermissionsService permissions.DatasourcePermissionsService, datasourceService datasources.DataSourceService, alertStore AlertStore) *DashAlertExtractorService {
+func ProvideDashAlertExtractorService(datasourcePermissionsService permissions.DatasourcePermissionsService, datasourceService datasources.DataSourceService, store AlertStore) *DashAlertExtractorService {
 	return &DashAlertExtractorService{
 		datasourcePermissionsService: datasourcePermissionsService,
 		datasourceService:            datasourceService,
-		alertStore:                   alertStore,
+		alertStore:                   store,
 		log:                          log.New("alerting.extractor"),
 	}
 }
 
-func (e *DashAlertExtractorService) lookupQueryDataSource(ctx context.Context, panel *simplejson.Json, panelQuery *simplejson.Json, orgID int64) (*models.DataSource, error) {
+func (e *DashAlertExtractorService) lookupQueryDataSource(ctx context.Context, panel *simplejson.Json, panelQuery *simplejson.Json, orgID int64) (*datasources.DataSource, error) {
 	dsName := ""
 	dsUid := ""
 
@@ -52,14 +52,14 @@ func (e *DashAlertExtractorService) lookupQueryDataSource(ctx context.Context, p
 	}
 
 	if dsName == "" && dsUid == "" {
-		query := &models.GetDefaultDataSourceQuery{OrgId: orgID}
+		query := &datasources.GetDefaultDataSourceQuery{OrgId: orgID}
 		if err := e.datasourceService.GetDefaultDataSource(ctx, query); err != nil {
 			return nil, err
 		}
 		return query.Result, nil
 	}
 
-	query := &models.GetDataSourceQuery{Name: dsName, Uid: dsUid, OrgId: orgID}
+	query := &datasources.GetDataSourceQuery{Name: dsName, Uid: dsUid, OrgId: orgID}
 	if err := e.datasourceService.GetDataSource(ctx, query); err != nil {
 		return nil, err
 	}
@@ -106,8 +106,8 @@ func UAEnabled(ctx context.Context) bool {
 	return enabled
 }
 
-func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, jsonWithPanels *simplejson.Json, validateAlertFunc func(*models.Alert) bool, logTranslationFailures bool, dashAlertInfo DashAlertInfo) ([]*models.Alert, error) {
-	alerts := make([]*models.Alert, 0)
+func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, jsonWithPanels *simplejson.Json, validateAlertFunc func(*models.Alert) error, logTranslationFailures bool, dashAlertInfo DashAlertInfo) ([]*models.Alert, error) {
+	ret := make([]*models.Alert, 0)
 
 	for _, panelObj := range jsonWithPanels.Get("panels").MustArray() {
 		panel := simplejson.NewFromAny(panelObj)
@@ -121,7 +121,7 @@ func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, json
 				return nil, err
 			}
 
-			alerts = append(alerts, alertSlice...)
+			ret = append(ret, alertSlice...)
 			continue
 		}
 
@@ -149,7 +149,7 @@ func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, json
 					PanelID: panelID,
 				}
 				if dashAlertInfo.Dash != nil {
-					ve.DashboardID = dashAlertInfo.Dash.Id
+					ve.DashboardID = dashAlertInfo.Dash.ID
 				}
 				return ve
 			}
@@ -175,7 +175,7 @@ func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, json
 		}
 
 		alert := &models.Alert{
-			DashboardId: dashAlertInfo.Dash.Id,
+			DashboardId: dashAlertInfo.Dash.ID,
 			OrgId:       dashAlertInfo.OrgID,
 			PanelId:     panelID,
 			Id:          jsonAlert.Get("id").MustInt64(),
@@ -208,9 +208,9 @@ func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, json
 				return nil, err
 			}
 
-			dsFilterQuery := models.DatasourcesPermissionFilterQuery{
+			dsFilterQuery := datasources.DatasourcesPermissionFilterQuery{
 				User:        dashAlertInfo.User,
-				Datasources: []*models.DataSource{datasource},
+				Datasources: []*datasources.DataSource{datasource},
 			}
 
 			if err := e.datasourcePermissionsService.FilterDatasourcesBasedOnQueryPermissions(ctx, &dsFilterQuery); err != nil {
@@ -218,7 +218,7 @@ func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, json
 					return nil, err
 				}
 			} else if len(dsFilterQuery.Result) == 0 {
-				return nil, models.ErrDataSourceAccessDenied
+				return nil, datasources.ErrDataSourceAccessDenied
 			}
 
 			jsonQuery.SetPath([]string{"datasourceId"}, datasource.Id)
@@ -238,18 +238,24 @@ func (e *DashAlertExtractorService) getAlertFromPanels(ctx context.Context, json
 			return nil, err
 		}
 
-		if !validateAlertFunc(alert) {
-			return nil, ValidationError{Reason: fmt.Sprintf("Panel id is not correct, alertName=%v, panelId=%v", alert.Name, alert.PanelId)}
+		if err := validateAlertFunc(alert); err != nil {
+			return nil, err
 		}
 
-		alerts = append(alerts, alert)
+		ret = append(ret, alert)
 	}
 
-	return alerts, nil
+	return ret, nil
 }
 
-func validateAlertRule(alert *models.Alert) bool {
-	return alert.ValidToSave()
+func validateAlertRule(alert *models.Alert) error {
+	if !alert.ValidDashboardPanel() {
+		return ValidationError{Reason: fmt.Sprintf("Panel id is not correct, alertName=%v, panelId=%v", alert.Name, alert.PanelId)}
+	}
+	if !alert.ValidTags() {
+		return ValidationError{Reason: "Invalid tags, must be less than 100 characters"}
+	}
+	return nil
 }
 
 // GetAlerts extracts alerts from the dashboard json and does full validation on the alert json data.
@@ -257,7 +263,7 @@ func (e *DashAlertExtractorService) GetAlerts(ctx context.Context, dashAlertInfo
 	return e.extractAlerts(ctx, validateAlertRule, true, dashAlertInfo)
 }
 
-func (e *DashAlertExtractorService) extractAlerts(ctx context.Context, validateFunc func(alert *models.Alert) bool, logTranslationFailures bool, dashAlertInfo DashAlertInfo) ([]*models.Alert, error) {
+func (e *DashAlertExtractorService) extractAlerts(ctx context.Context, validateFunc func(alert *models.Alert) error, logTranslationFailures bool, dashAlertInfo DashAlertInfo) ([]*models.Alert, error) {
 	dashboardJSON, err := copyJSON(dashAlertInfo.Dash.Data)
 	if err != nil {
 		return nil, err
@@ -294,8 +300,11 @@ func (e *DashAlertExtractorService) extractAlerts(ctx context.Context, validateF
 // ValidateAlerts validates alerts in the dashboard json but does not require a valid dashboard id
 // in the first validation pass.
 func (e *DashAlertExtractorService) ValidateAlerts(ctx context.Context, dashAlertInfo DashAlertInfo) error {
-	_, err := e.extractAlerts(ctx, func(alert *models.Alert) bool {
-		return alert.OrgId != 0 && alert.PanelId != 0
+	_, err := e.extractAlerts(ctx, func(alert *models.Alert) error {
+		if alert.OrgId == 0 || alert.PanelId == 0 {
+			return errors.New("missing OrgId, PanelId or both")
+		}
+		return nil
 	}, false, dashAlertInfo)
 	return err
 }

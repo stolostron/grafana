@@ -1,6 +1,10 @@
 import { css } from '@emotion/css';
-import { withI18n, withI18nProps } from '@lingui/react';
 import React, { PureComponent } from 'react';
+
+import { ConfirmButton, ConfirmModal, Button } from '@grafana/ui';
+import { contextSrv } from 'app/core/core';
+import { i18nDate } from 'app/core/internationalization';
+import { AccessControlAction, UserSession } from 'app/types';
 
 import { ConfirmButton, ConfirmModal, Button } from '@grafana/ui';
 import { contextSrv } from 'app/core/core';
@@ -73,7 +77,7 @@ class BaseUserSessions extends PureComponent<Props, State> {
                   sessions.map((session, index) => (
                     <tr key={`${session.id}-${index}`}>
                       <td>{session.isActive ? 'Now' : session.seenAt}</td>
-                      <td>{i18n.date(session.createdAt, { dateStyle: 'long' })}</td>
+                      <td>{i18nDate(session.createdAt, { dateStyle: 'long' })}</td>
                       <td>{session.clientIp}</td>
                       <td>{`${session.browser} on ${session.os} ${session.osVersion}`}</td>
                       <td>
@@ -116,4 +120,4 @@ class BaseUserSessions extends PureComponent<Props, State> {
   }
 }
 
-export const UserSessions = withI18n()(BaseUserSessions);
+export const UserSessions = BaseUserSessions;

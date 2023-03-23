@@ -26,7 +26,6 @@ export enum AzureCloud {
   Public = 'AzureCloud',
   China = 'AzureChinaCloud',
   USGovernment = 'AzureUSGovernment',
-  Germany = 'AzureGermanCloud',
   None = '',
 }
 
@@ -36,7 +35,6 @@ export type ConcealedSecret = symbol;
 
 interface AzureCredentialsBase {
   authType: AzureAuthType;
-  defaultSubscriptionId?: string;
 }
 
 export interface AzureManagedIdentityCredentials extends AzureCredentialsBase {
@@ -85,7 +83,7 @@ export interface AzureDataSourceSecureJsonData {
 
 // Represents an errors that come back from frontend requests.
 // Not totally sure how accurate this type is.
-export type AzureMonitorErrorish = Error;
+export type AzureMonitorErrorish = Error | string | React.ReactElement;
 
 // Azure Monitor API Types
 export interface AzureMonitorMetricsMetadataResponse {
@@ -102,6 +100,23 @@ export interface AzureMonitorMetricMetadataItem {
   metricAvailabilities?: AzureMonitorMetricAvailabilityMetadata[];
 }
 
+export interface AzureMonitorMetricNamespacesResponse {
+  value: AzureMonitorMetricNamespaceItem[];
+}
+
+export interface AzureMonitorMetricNamespaceItem {
+  name: string;
+  properties: { metricNamespacename: string };
+}
+
+export interface AzureMonitorMetricNamesResponse {
+  value: AzureMonitorMetricNameItem[];
+}
+
+export interface AzureMonitorMetricNameItem {
+  name: { value: string; localizedValue: string };
+}
+
 export interface AzureMonitorMetricAvailabilityMetadata {
   timeGrain: string;
   retention: string;
@@ -110,14 +125,6 @@ export interface AzureMonitorMetricAvailabilityMetadata {
 export interface AzureMonitorLocalizedValue {
   value: string;
   localizedValue: string;
-}
-
-export interface AzureMonitorMetricDefinitionsResponse {
-  data: {
-    value: Array<{ name: string; type: string; location?: string }>;
-  };
-  status: number;
-  statusText: string;
 }
 
 export interface AzureMonitorResourceGroupsResponse {
@@ -150,12 +157,14 @@ export interface AzureMonitorOption<T = string> {
   options?: AzureMonitorOption[];
 }
 
+export type VariableOptionGroup = { label: string; options: AzureMonitorOption[] };
+
 export interface AzureQueryEditorFieldProps {
   data?: PanelData;
   query: AzureMonitorQuery;
   datasource: Datasource;
   subscriptionId?: string;
-  variableOptionGroup: { label: string; options: AzureMonitorOption[] };
+  variableOptionGroup: VariableOptionGroup;
 
   onQueryChange: (newQuery: AzureMonitorQuery) => void;
   setError: (source: string, error: AzureMonitorErrorish | undefined) => void;
@@ -199,4 +208,105 @@ export interface AzureResourceGraphOptions {
   $top: number;
   allowPartialScopes: boolean;
   resultFormat: 'objectArray' | 'table';
+}
+
+// Azure Monitor Metrics query API data fetcher argument types.
+// The types prefixed by Legacy are applicable to pre-version 9 of Grafana
+// that do not have a resourceUri, instead the resourceUri is built up from
+// the subscription, resource group, metric definition (a.k.a. resource type)
+// and the resource name.
+export type GetMetricNamespacesQuery = AzureGetMetricNamespacesQuery | LegacyAzureGetMetricNamespacesQuery;
+export type GetMetricNamesQuery = AzureGetMetricNamesQuery | LegacyAzureGetMetricNamesQuery;
+export type GetMetricMetadataQuery = AzureGetMetricMetadataQuery | LegacyAzureGetMetricMetadataQuery;
+
+export interface AzureGetMetricNamespacesQuery {
+  resourceUri: string;
+}
+export interface LegacyAzureGetMetricNamespacesQuery {
+  subscription: string;
+  resourceGroup: string;
+  metricNamespace?: string;
+  resourceName?: string;
+}
+
+export interface AzureGetMetricNamesQuery {
+  resourceUri: string;
+  metricNamespace?: string;
+  customNamespace?: string;
+}
+
+export interface LegacyAzureGetMetricNamesQuery {
+  subscription: string;
+  resourceGroup: string;
+  resourceName: string;
+  metricNamespace: string;
+  customNamespace?: string;
+}
+
+export interface AzureGetMetricMetadataQuery {
+  resourceUri: string;
+  metricNamespace: string;
+  customNamespace?: string;
+  metricName: string;
+}
+
+export interface LegacyAzureGetMetricMetadataQuery {
+  subscription: string;
+  resourceGroup: string;
+  resourceName: string;
+  metricNamespace: string;
+  customNamespace?: string;
+  metricName: string;
+}
+
+export interface AzureGetResourceNamesQuery {
+  subscriptionId: string;
+  resourceGroup?: string;
+  metricNamespace?: string;
+  region?: string;
+}
+
+export interface AzureMonitorLocations {
+  displayName: string;
+  name: string;
+  supportsLogs?: boolean;
+}
+
+export interface AzureMonitorProvidersResponse {
+  namespace: string;
+  resourceTypes: ProviderResourceType[];
+}
+
+export interface ProviderResourceType {
+  resourceType: string;
+  locations: string[];
+  apiVersions: string[];
+  capabilities: string;
+}
+
+export interface AzureMonitorLocationsResponse {
+  value: Location[];
+}
+
+interface Location {
+  id: string;
+  name: string;
+  displayName: string;
+  regionalDisplayName: string;
+  metadata: LocationMetadata;
+}
+
+interface LocationMetadata {
+  regionType: string;
+  regionCategory: string;
+  geographyGroup: string;
+  longitude: string;
+  latitude: string;
+  physicalLocation: string;
+  pairedRegion: LocationPairedRegion[];
+}
+
+interface LocationPairedRegion {
+  name: string;
+  id: string;
 }

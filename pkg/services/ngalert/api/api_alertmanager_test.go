@@ -9,23 +9,25 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	"github.com/grafana/alerting/alerting"
 	amv2 "github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
 	acMock "github.com/grafana/grafana/pkg/services/accesscontrol/mock"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
 	"github.com/grafana/grafana/pkg/services/ngalert/metrics"
 	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
 	"github.com/grafana/grafana/pkg/services/ngalert/notifier"
 	"github.com/grafana/grafana/pkg/services/ngalert/provisioning"
+	"github.com/grafana/grafana/pkg/services/org"
 	"github.com/grafana/grafana/pkg/services/secrets/fakes"
 	secretsManager "github.com/grafana/grafana/pkg/services/secrets/manager"
+	"github.com/grafana/grafana/pkg/services/user"
 	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/util"
 	"github.com/grafana/grafana/pkg/web"
@@ -126,7 +128,7 @@ func TestStatusForTestReceivers(t *testing.T) {
 				Name:   "test1",
 				UID:    "uid1",
 				Status: "failed",
-				Error:  notifier.ReceiverTimeoutError{},
+				Error:  alerting.ReceiverTimeoutError{},
 			}},
 		}, {
 			Name: "test2",
@@ -134,7 +136,7 @@ func TestStatusForTestReceivers(t *testing.T) {
 				Name:   "test2",
 				UID:    "uid2",
 				Status: "failed",
-				Error:  notifier.ReceiverTimeoutError{},
+				Error:  alerting.ReceiverTimeoutError{},
 			}},
 		}}))
 	})
@@ -164,12 +166,12 @@ func TestAlertmanagerConfig(t *testing.T) {
 	sut := createSut(t, nil)
 
 	t.Run("assert 404 Not Found when applying config to nonexistent org", func(t *testing.T) {
-		rc := models.ReqContext{
+		rc := contextmodel.ReqContext{
 			Context: &web.Context{
 				Req: &http.Request{},
 			},
-			SignedInUser: &models.SignedInUser{
-				OrgId: 12,
+			SignedInUser: &user.SignedInUser{
+				OrgID: 12,
 			},
 		}
 		request := createAmConfigRequest(t)
@@ -181,12 +183,12 @@ func TestAlertmanagerConfig(t *testing.T) {
 	})
 
 	t.Run("assert 202 when config successfully applied", func(t *testing.T) {
-		rc := models.ReqContext{
+		rc := contextmodel.ReqContext{
 			Context: &web.Context{
 				Req: &http.Request{},
 			},
-			SignedInUser: &models.SignedInUser{
-				OrgId: 1,
+			SignedInUser: &user.SignedInUser{
+				OrgID: 1,
 			},
 		}
 		request := createAmConfigRequest(t)
@@ -198,12 +200,12 @@ func TestAlertmanagerConfig(t *testing.T) {
 
 	t.Run("assert 202 when alertmanager to configure is not ready", func(t *testing.T) {
 		sut := createSut(t, nil)
-		rc := models.ReqContext{
+		rc := contextmodel.ReqContext{
 			Context: &web.Context{
 				Req: &http.Request{},
 			},
-			SignedInUser: &models.SignedInUser{
-				OrgId: 3, // Org 3 was initialized with broken config.
+			SignedInUser: &user.SignedInUser{
+				OrgID: 3, // Org 3 was initialized with broken config.
 			},
 		}
 		request := createAmConfigRequest(t)
@@ -328,13 +330,13 @@ func TestSilenceCreate(t *testing.T) {
 
 	for _, cas := range cases {
 		t.Run(cas.name, func(t *testing.T) {
-			rc := models.ReqContext{
+			rc := contextmodel.ReqContext{
 				Context: &web.Context{
 					Req: &http.Request{},
 				},
-				SignedInUser: &models.SignedInUser{
-					OrgRole: models.ROLE_EDITOR,
-					OrgId:   1,
+				SignedInUser: &user.SignedInUser{
+					OrgRole: org.RoleEditor,
+					OrgID:   1,
 				},
 			}
 
@@ -354,11 +356,11 @@ func TestRouteCreateSilence(t *testing.T) {
 		name           string
 		silence        func() apimodels.PostableSilence
 		accessControl  func() accesscontrol.AccessControl
-		role           models.RoleType
+		role           org.RoleType
 		expectedStatus int
 	}{
 		{
-			name:    "new silence, fine-grained access control is enabled, not authorized",
+			name:    "new silence, role-based access control is enabled, not authorized",
 			silence: silenceGen(withEmptyID),
 			accessControl: func() accesscontrol.AccessControl {
 				return acMock.New()
@@ -366,44 +368,44 @@ func TestRouteCreateSilence(t *testing.T) {
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:    "new silence, fine-grained access control is enabled, authorized",
+			name:    "new silence, role-based access control is enabled, authorized",
 			silence: silenceGen(withEmptyID),
 			accessControl: func() accesscontrol.AccessControl {
-				return acMock.New().WithPermissions([]*accesscontrol.Permission{
+				return acMock.New().WithPermissions([]accesscontrol.Permission{
 					{Action: accesscontrol.ActionAlertingInstanceCreate},
 				})
 			},
 			expectedStatus: http.StatusAccepted,
 		},
 		{
-			name:    "new silence, fine-grained access control is disabled, Viewer",
+			name:    "new silence, role-based access control is disabled, Viewer",
 			silence: silenceGen(withEmptyID),
 			accessControl: func() accesscontrol.AccessControl {
 				return acMock.New().WithDisabled()
 			},
-			role:           models.ROLE_VIEWER,
+			role:           org.RoleViewer,
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:    "new silence, fine-grained access control is disabled, Editor",
+			name:    "new silence, role-based access control is disabled, Editor",
 			silence: silenceGen(withEmptyID),
 			accessControl: func() accesscontrol.AccessControl {
 				return acMock.New().WithDisabled()
 			},
-			role:           models.ROLE_EDITOR,
+			role:           org.RoleEditor,
 			expectedStatus: http.StatusAccepted,
 		},
 		{
-			name:    "new silence, fine-grained access control is disabled, Admin",
+			name:    "new silence, role-based access control is disabled, Admin",
 			silence: silenceGen(withEmptyID),
 			accessControl: func() accesscontrol.AccessControl {
 				return acMock.New().WithDisabled()
 			},
-			role:           models.ROLE_ADMIN,
+			role:           org.RoleAdmin,
 			expectedStatus: http.StatusAccepted,
 		},
 		{
-			name:    "update silence, fine-grained access control is enabled, not authorized",
+			name:    "update silence, role-based access control is enabled, not authorized",
 			silence: silenceGen(),
 			accessControl: func() accesscontrol.AccessControl {
 				return acMock.New()
@@ -411,40 +413,40 @@ func TestRouteCreateSilence(t *testing.T) {
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:    "update silence, fine-grained access control is enabled, authorized",
+			name:    "update silence, role-based access control is enabled, authorized",
 			silence: silenceGen(),
 			accessControl: func() accesscontrol.AccessControl {
-				return acMock.New().WithPermissions([]*accesscontrol.Permission{
+				return acMock.New().WithPermissions([]accesscontrol.Permission{
 					{Action: accesscontrol.ActionAlertingInstanceUpdate},
 				})
 			},
 			expectedStatus: http.StatusAccepted,
 		},
 		{
-			name:    "update silence, fine-grained access control is disabled, Viewer",
+			name:    "update silence, role-based access control is disabled, Viewer",
 			silence: silenceGen(),
 			accessControl: func() accesscontrol.AccessControl {
 				return acMock.New().WithDisabled()
 			},
-			role:           models.ROLE_VIEWER,
+			role:           org.RoleViewer,
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:    "update silence, fine-grained access control is disabled, Editor",
+			name:    "update silence, role-based access control is disabled, Editor",
 			silence: silenceGen(),
 			accessControl: func() accesscontrol.AccessControl {
 				return acMock.New().WithDisabled()
 			},
-			role:           models.ROLE_EDITOR,
+			role:           org.RoleEditor,
 			expectedStatus: http.StatusAccepted,
 		},
 		{
-			name:    "update silence, fine-grained access control is disabled, Admin",
+			name:    "update silence, role-based access control is disabled, Admin",
 			silence: silenceGen(),
 			accessControl: func() accesscontrol.AccessControl {
 				return acMock.New().WithDisabled()
 			},
-			role:           models.ROLE_ADMIN,
+			role:           org.RoleAdmin,
 			expectedStatus: http.StatusAccepted,
 		},
 	}
@@ -454,13 +456,13 @@ func TestRouteCreateSilence(t *testing.T) {
 			ac := tesCase.accessControl()
 			sut := createSut(t, ac)
 
-			rc := models.ReqContext{
+			rc := contextmodel.ReqContext{
 				Context: &web.Context{
 					Req: &http.Request{},
 				},
-				SignedInUser: &models.SignedInUser{
+				SignedInUser: &user.SignedInUser{
 					OrgRole: tesCase.role,
-					OrgId:   1,
+					OrgID:   1,
 				},
 			}
 
@@ -531,9 +533,6 @@ func createMultiOrgAlertmanager(t *testing.T) *notifier.MultiOrgAlertmanager {
 			DefaultConfiguration:           setting.GetAlertmanagerDefaultConfiguration(),
 			DisabledOrgs:                   map[int64]struct{}{5: {}},
 		}, // do not poll in tests.
-		IsFeatureToggleEnabled: func(key string) bool {
-			return key == featuremgmt.FlagAlertProvisioning
-		},
 	}
 
 	mam, err := notifier.NewMultiOrgAlertmanager(cfg, &configStore, &orgStore, kvStore, provStore, decryptFn, m.GetMultiOrgAlertmanagerMetrics(), nil, log.New("testlogger"), secretsService)
@@ -623,13 +622,13 @@ func withEmptyID(silence *apimodels.PostableSilence) {
 	silence.ID = ""
 }
 
-func createRequestCtxInOrg(org int64) *models.ReqContext {
-	return &models.ReqContext{
+func createRequestCtxInOrg(org int64) *contextmodel.ReqContext {
+	return &contextmodel.ReqContext{
 		Context: &web.Context{
 			Req: &http.Request{},
 		},
-		SignedInUser: &models.SignedInUser{
-			OrgId: org,
+		SignedInUser: &user.SignedInUser{
+			OrgID: org,
 		},
 	}
 }
@@ -651,7 +650,7 @@ func setContactPointProvenance(t *testing.T, orgID int64, UID string, ps provisi
 // setTemplateProvenance marks a template as provisioned.
 func setTemplateProvenance(t *testing.T, orgID int64, name string, ps provisioning.ProvisioningStore) {
 	t.Helper()
-	err := ps.SetProvenance(context.Background(), &apimodels.MessageTemplate{Name: name}, orgID, ngmodels.ProvenanceAPI)
+	err := ps.SetProvenance(context.Background(), &apimodels.NotificationTemplate{Name: name}, orgID, ngmodels.ProvenanceAPI)
 	require.NoError(t, err)
 }
 

@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 
 import { SelectableValue } from '@grafana/data';
 
+import { selectOptionInTest } from '../../../../../public/test/helpers/selectOptionInTest';
+
 import { SelectBase } from './SelectBase';
 import { selectOptionInTest } from './test-utils';
 
@@ -24,9 +26,9 @@ describe('SelectBase', () => {
     render(<SelectBase menuShouldPortal onChange={onChangeHandler} />);
   });
 
-  it('renders empty options information', () => {
-    render(<SelectBase menuShouldPortal onChange={onChangeHandler} />);
-    userEvent.click(screen.getByText(/choose/i));
+  it('renders empty options information', async () => {
+    render(<SelectBase onChange={onChangeHandler} />);
+    await userEvent.click(screen.getByText(/choose/i));
     expect(screen.queryByText(/no options found/i)).toBeVisible();
   });
 
@@ -56,14 +58,14 @@ describe('SelectBase', () => {
 
     render(<Test />);
     expect(screen.queryByText('Test label')).toBeInTheDocument();
-    userEvent.click(screen.getByText('clear value'));
+    await userEvent.click(screen.getByText('clear value'));
     expect(screen.queryByText('Test label')).not.toBeInTheDocument();
   });
 
   describe('when openMenuOnFocus prop', () => {
     describe('is provided', () => {
       it('opens on focus', () => {
-        render(<SelectBase menuShouldPortal onChange={onChangeHandler} openMenuOnFocus />);
+        render(<SelectBase onChange={onChangeHandler} openMenuOnFocus />);
         fireEvent.focus(screen.getByRole('combobox'));
         expect(screen.queryByText(/no options found/i)).toBeVisible();
       });
@@ -75,7 +77,7 @@ describe('SelectBase', () => {
         ${'ArrowUp'}
         ${' '}
       `('opens on arrow down/up or space', ({ key }) => {
-        render(<SelectBase menuShouldPortal onChange={onChangeHandler} />);
+        render(<SelectBase onChange={onChangeHandler} />);
         fireEvent.focus(screen.getByRole('combobox'));
         fireEvent.keyDown(screen.getByRole('combobox'), { key });
         expect(screen.queryByText(/no options found/i)).toBeVisible();
@@ -188,9 +190,9 @@ describe('SelectBase', () => {
   });
 
   describe('options', () => {
-    it('renders menu with provided options', () => {
-      render(<SelectBase menuShouldPortal options={options} onChange={onChangeHandler} />);
-      userEvent.click(screen.getByText(/choose/i));
+    it('renders menu with provided options', async () => {
+      render(<SelectBase options={options} onChange={onChangeHandler} />);
+      await userEvent.click(screen.getByText(/choose/i));
       const menuOptions = screen.getAllByLabelText('Select option');
       expect(menuOptions).toHaveLength(2);
     });

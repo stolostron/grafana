@@ -3,7 +3,6 @@ package azuremonitor
 import (
 	"github.com/grafana/grafana-azure-sdk-go/azsettings"
 
-	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/deprecated"
 	"github.com/grafana/grafana/pkg/tsdb/azuremonitor/types"
 )
 
@@ -23,12 +22,6 @@ var azManagement = types.AzRoute{
 var azUSGovManagement = types.AzRoute{
 	URL:     "https://management.usgovcloudapi.net",
 	Scopes:  []string{"https://management.usgovcloudapi.net/.default"},
-	Headers: map[string]string{"x-ms-app": "Grafana"},
-}
-
-var azGermanyManagement = types.AzRoute{
-	URL:     "https://management.microsoftazure.de",
-	Scopes:  []string{"https://management.microsoftazure.de/.default"},
 	Headers: map[string]string{"x-ms-app": "Grafana"},
 }
 
@@ -61,26 +54,19 @@ var (
 	// and the service to query (e.g. Azure Monitor or Azure Log Analytics)
 	routes = map[string]map[string]types.AzRoute{
 		azsettings.AzurePublic: {
-			azureMonitor:                 azManagement,
-			azureLogAnalytics:            azLogAnalytics,
-			azureResourceGraph:           azManagement,
-			deprecated.AppInsights:       deprecated.AzAppInsights,
-			deprecated.InsightsAnalytics: deprecated.AzAppInsights,
+			azureMonitor:       azManagement,
+			azureLogAnalytics:  azLogAnalytics,
+			azureResourceGraph: azManagement,
 		},
 		azsettings.AzureUSGovernment: {
 			azureMonitor:       azUSGovManagement,
 			azureLogAnalytics:  azUSGovLogAnalytics,
 			azureResourceGraph: azUSGovManagement,
 		},
-		azsettings.AzureGermany: {
-			azureMonitor: azGermanyManagement,
-		},
 		azsettings.AzureChina: {
-			azureMonitor:                 azChinaManagement,
-			azureLogAnalytics:            azChinaLogAnalytics,
-			azureResourceGraph:           azChinaManagement,
-			deprecated.AppInsights:       deprecated.AzChinaAppInsights,
-			deprecated.InsightsAnalytics: deprecated.AzChinaAppInsights,
+			azureMonitor:       azChinaManagement,
+			azureLogAnalytics:  azChinaLogAnalytics,
+			azureResourceGraph: azChinaManagement,
 		},
 	}
 )

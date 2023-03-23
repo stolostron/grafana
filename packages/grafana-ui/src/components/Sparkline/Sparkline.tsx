@@ -1,6 +1,7 @@
 import { isEqual } from 'lodash';
 import React, { PureComponent } from 'react';
 import { AlignedData, Range } from 'uplot';
+
 import {
   compareDataFrameStructures,
   DataFrame,
@@ -45,6 +46,7 @@ const defaultConfig: GraphFieldConfig = {
   axisPlacement: AxisPlacement.Hidden,
 };
 
+/** @internal */
 export class Sparkline extends PureComponent<SparklineProps, State> {
   constructor(props: SparklineProps) {
     super(props);
@@ -91,7 +93,7 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
     }
   }
 
-  getYRange(field: Field) {
+  getYRange(field: Field): Range.MinMax {
     let { min, max } = this.state.alignedDataFrame.fields[1].state?.range!;
 
     if (min === max) {
@@ -101,12 +103,11 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
         min = 0;
         max! *= 2;
       }
+
+      return [min, max!];
     }
 
-    return [
-      Math.max(min!, field.config.min ?? -Infinity),
-      Math.min(max!, field.config.max ?? Infinity),
-    ] as Range.MinMax;
+    return [Math.max(min!, field.config.min ?? -Infinity), Math.min(max!, field.config.max ?? Infinity)];
   }
 
   prepareConfig(data: DataFrame) {
@@ -147,7 +148,7 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
 
     for (let i = 0; i < data.fields.length; i++) {
       const field = data.fields[i];
-      const config = field.config as FieldConfig<GraphFieldConfig>;
+      const config: FieldConfig<GraphFieldConfig> = field.config;
       const customConfig: GraphFieldConfig = {
         ...defaultConfig,
         ...config.custom,

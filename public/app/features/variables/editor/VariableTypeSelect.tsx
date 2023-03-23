@@ -18,11 +18,10 @@ export function VariableTypeSelect({ onChange, type }: PropsWithChildren<Props>)
 
   return (
     <VariableSelectField
-      name="Type"
+      name="Select variable type"
       value={value}
       options={options}
       onChange={onChange}
-      tooltip={variableAdapters.get(type).description}
       testId={selectors.pages.Dashboard.Settings.Variables.Edit.General.generalTypeSelectV2}
     />
   );
