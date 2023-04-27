@@ -1,0 +1,82 @@
+# Golang build container
+FROM registry.ci.openshift.org/stolostron/builder:go1.18-linux AS builder
+
+WORKDIR $GOPATH/src/github.com/grafana/grafana
+ENV GOFLAGS="-mod=mod"
+
+COPY .git/ ./.git/
+COPY go.mod go.sum embed.go Makefile build.go package.json ./
+COPY cue cue/
+COPY packages/grafana-schema packages/grafana-schema/
+COPY public/app/plugins public/app/plugins/
+COPY pkg pkg/
+COPY scripts scripts/
+COPY cue.mod cue.mod/
+COPY .bingo .bingo
+
+RUN make gen-go
+
+RUN go mod verify
+RUN go run build.go build
+
+# Need to copy the generated binaries to a non-platform specific location to handle
+# s390x builds for example
+RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-server \
+       $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-cli \
+       /usr/bin/
+
+# Final container
+FROM registry.ci.openshift.org/ocp/4.8:base
+
+LABEL io.k8s.display-name="Grafana" \
+      io.k8s.description="Grafana is an open-source, general purpose dashboard and graph composer" \
+      io.openshift.tags="openshift" \
+      summary="Grafana is an open-source, general purpose dashboard and graph composer" \
+      maintainer="Red Hat Advanced Cluster Management for Kubernetes <acm-component-maintainers@redhat.com>"
+
+ARG GF_UID="472"
+ARG GF_GID="472"
+
+ENV PATH=/usr/share/grafana/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    GF_PATHS_CONFIG="/etc/grafana/grafana.ini" \
+    GF_PATHS_DATA="/var/lib/grafana" \
+    GF_PATHS_HOME="/usr/share/grafana" \
+    GF_PATHS_LOGS="/var/log/grafana" \
+    GF_PATHS_PLUGINS="/var/lib/grafana/plugins" \
+    GF_PATHS_PROVISIONING="/etc/grafana/provisioning"
+
+WORKDIR $GF_PATHS_HOME
+
+COPY conf ./conf
+
+RUN yum update -y && \
+    yum clean all && \
+    mkdir -p "$GF_PATHS_HOME/.aws" && \
+    # addgroup -S -g $GF_GID grafana && \
+    # adduser -S -u $GF_UID -G grafana grafana && \
+    # Note: the openshift base image does not include the addgroup and adduser commands so we have to use useradd/groupadd
+    groupadd --system -g $GF_GID grafana && \
+    useradd --system -u $GF_UID -g grafana grafana && \
+    mkdir -p "$GF_PATHS_PROVISIONING/datasources" \
+             "$GF_PATHS_PROVISIONING/dashboards" \
+             "$GF_PATHS_PROVISIONING/notifiers" \
+             "$GF_PATHS_LOGS" \
+             "$GF_PATHS_PLUGINS" \
+             "$GF_PATHS_DATA" && \
+    cp "$GF_PATHS_HOME/conf/sample.ini" "$GF_PATHS_CONFIG" && \
+    cp "$GF_PATHS_HOME/conf/ldap.toml" /etc/grafana/ldap.toml && \
+    chown -R grafana:grafana "$GF_PATHS_DATA" "$GF_PATHS_HOME/.aws" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING" && \
+    chmod -R 777 "$GF_PATHS_DATA" "$GF_PATHS_HOME/.aws" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING"
+
+# Note: the openshift build requires a name to reference the build container in the '--from' option instead of using the index '0' as is done upstream
+COPY --from=builder /usr/bin/grafana-server /usr/bin/grafana-cli ./bin/
+COPY public ./public
+COPY tools ./tools
+
+EXPOSE 3000
+
+COPY ./packaging/docker/run.sh /run.sh
+
+USER grafana
+ENTRYPOINT [ "/run.sh" ]
+
