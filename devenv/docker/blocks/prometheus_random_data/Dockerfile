@@ -8,7 +8,7 @@ WORKDIR /go/src/github.com/prometheus/client_golang
 WORKDIR /go/src/github.com/prometheus/client_golang/prometheus
 RUN go install -d
 WORKDIR /go/src/github.com/prometheus/client_golang/examples/random
-RUN CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w'
+RUN CGO_ENABLED=1 GOOS=linux go build -a -tags netgo -ldflags '-w'
 
 # Final image.
 FROM scratch
