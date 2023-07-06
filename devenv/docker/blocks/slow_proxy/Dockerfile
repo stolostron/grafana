@@ -2,7 +2,7 @@ FROM golang:latest as builder
 ADD main.go /
 WORKDIR /
 RUN go mod init proxy
-RUN CGO_ENABLED=0 go build -o main .
+RUN CGO_ENABLED=1 go build -o main .
 
 FROM scratch
 WORKDIR /
