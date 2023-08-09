@@ -4,15 +4,17 @@ FROM registry.ci.openshift.org/stolostron/builder:go1.19-linux AS builder
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 ENV GOFLAGS="-mod=mod"
 
-COPY .git/ ./.git/
 COPY go.mod go.sum embed.go Makefile build.go package.json ./
-COPY cue cue/
+COPY kinds kinds
+COPY local local
 COPY packages/grafana-schema packages/grafana-schema/
 COPY public/app/plugins public/app/plugins/
+COPY public/api-merged.json public/api-merged.json
 COPY pkg pkg/
 COPY scripts scripts/
 COPY cue.mod cue.mod/
 COPY .bingo .bingo
+COPY conf conf
 
 RUN make gen-go
 
@@ -21,9 +23,7 @@ RUN go run build.go build
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
-RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-server \
-       $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-cli \
-       /usr/bin/
+RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
 FROM registry.ci.openshift.org/ocp/4.8:base
@@ -69,7 +69,7 @@ RUN yum update -y && \
     chmod -R 777 "$GF_PATHS_DATA" "$GF_PATHS_HOME/.aws" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING"
 
 # Note: the openshift build requires a name to reference the build container in the '--from' option instead of using the index '0' as is done upstream
-COPY --from=builder /usr/bin/grafana-server /usr/bin/grafana-cli ./bin/
+COPY --from=builder /usr/bin/grafana* /usr/bin/grafana* ./bin/
 COPY public ./public
 COPY tools ./tools
 
