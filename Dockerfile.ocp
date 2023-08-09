@@ -1,5 +1,5 @@
 # Golang build container
-FROM registry.ci.openshift.org/stolostron/builder:go1.18-linux AS builder
+FROM registry.ci.openshift.org/stolostron/builder:go1.19-linux AS builder
 
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 ENV GOFLAGS="-mod=mod"
