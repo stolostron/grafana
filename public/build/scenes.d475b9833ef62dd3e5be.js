@@ -1,0 +1,3 @@
+"use strict";(self.webpackChunkgrafana=self.webpackChunkgrafana||[]).push([[207],{22756:(D,r,a)=>{a.r(r),a.d(r,{PanelEditPage:()=>l,default:()=>g});var e=a(31733),P=a(57247),_=a(50186),d=a(42474),s=a(18128);function l({match:n}){const t=(0,s.wc)(),{panelEditor:E,isLoading:u,loadError:o}=t.useState();return(0,e.useEffect)(()=>(t.loadPanelEdit(n.params.uid,n.params.panelId),()=>{t.clearState()}),[t,n.params.uid,n.params.panelId]),E?e.createElement(E.Component,{model:E}):e.createElement(_.T,{layout:P.Q.Canvas},u&&e.createElement(d.Z,null),o&&e.createElement("h2",null,o))}const g=l}}]);
+
+//# sourceMappingURL=scenes.d475b9833ef62dd3e5be.js.map
