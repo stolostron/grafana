@@ -1,0 +1,3 @@
+"use strict";(self.webpackChunkgrafana=self.webpackChunkgrafana||[]).push([[7257],{87257:(C,r,t)=>{t.r(r),t.d(r,{default:()=>m});var a=t(31733),l=t(25111),c=t(3889),s=t(1203),i=t(67451),f=t(14670),d=t(17150);const v=({alertManagerSourceName:n,config:e})=>n===i.GC?a.createElement(d.p,{alertManagerSourceName:n,config:e}):a.createElement(f.m,{alertManagerSourceName:n,config:e}),m=()=>{const{selectedAlertmanager:n}=(0,s.ZA)(),{data:e,isLoading:u,error:o}=(0,c.W)(n);return u&&!e?"loading...":o?a.createElement(l.b,{severity:"error",title:"Failed to fetch contact point"},String(o)):e?a.createElement(v,{config:e,alertManagerSourceName:n}):null}}}]);
+
+//# sourceMappingURL=7257.7fb7a91e86f843b36165.js.map
