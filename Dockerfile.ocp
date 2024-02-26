@@ -24,7 +24,7 @@ RUN go run build.go build
 RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
-FROM registry.ci.openshift.org/ocp/4.12:base
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
 LABEL io.k8s.display-name="Grafana" \
       io.k8s.description="Grafana is an open-source, general purpose dashboard and graph composer" \
@@ -47,8 +47,8 @@ WORKDIR $GF_PATHS_HOME
 
 COPY conf ./conf
 
-RUN yum update -y && \
-    yum clean all && \
+RUN microdnf update && \
+    microdnf clean all && \
     mkdir -p "$GF_PATHS_HOME/.aws" && \
     # addgroup -S -g $GF_GID grafana && \
     # adduser -S -u $GF_UID -G grafana grafana && \
