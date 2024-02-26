@@ -6,7 +6,7 @@ coverage/
 awsconfig
 /.awcache
 /dist
-/public/build
+#/public/build
 /emails/dist
 /reports
 /e2e/tmp
@@ -31,13 +31,13 @@ __debug_bin*
 
 # Enterprise emails
 /emails/templates/enterprise_*
-/public/emails/enterprise_*
+#/public/emails/enterprise_*
 
 # Enterprise reporting fonts
-/public/fonts/dejavu
+#/public/fonts/dejavu
 
 # Swagger intermediate file
-/public/api-spec.json
+#/public/api-spec.json
 
 # Enterprise devenv
 /devenv/docker/blocks/grafana-enterprise
@@ -112,7 +112,7 @@ profile.cov
 /pkg/server/wireexts_enterprise.go
 /pkg/cmd/grafana-cli/runner/wireexts_enterprise.go
 !/pkg/extensions/main.go
-/public/app/extensions
+#/public/app/extensions
 debug.test
 /examples/*/dist
 /packaging/**/*.rpm
@@ -188,8 +188,11 @@ compilation-stats.json
 # auto generated frontend docs
 /docs/sources/packages_api
 
-# wire generated files
-**/wire_gen.go
+# auto generated Go files
+*_gen.go
+!pkg/server/wire_gen.go
+!pkg/cmd/grafana-cli/runner/wire_gen.go
+!pkg/services/featuremgmt/toggles_gen.go
 
 # Auto-generated internationalization files
 public/locales/_build/
