@@ -24,7 +24,7 @@ RUN go run build.go build
 RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+FROM registry.access.redhat.com/ubi9/ubi:latest
 
 LABEL io.k8s.display-name="Grafana" \
       io.k8s.description="Grafana is an open-source, general purpose dashboard and graph composer" \
@@ -47,12 +47,7 @@ WORKDIR $GF_PATHS_HOME
 
 COPY conf ./conf
 
-RUN microdnf update && \
-    microdnf clean all && \
-    mkdir -p "$GF_PATHS_HOME/.aws" && \
-    # addgroup -S -g $GF_GID grafana && \
-    # adduser -S -u $GF_UID -G grafana grafana && \
-    # Note: the openshift base image does not include the addgroup and adduser commands so we have to use useradd/groupadd
+RUN mkdir -p "$GF_PATHS_HOME/.aws" && \
     groupadd --system -g $GF_GID grafana && \
     useradd --system -u $GF_UID -g grafana grafana && \
     mkdir -p "$GF_PATHS_PROVISIONING/datasources" \
