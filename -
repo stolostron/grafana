@@ -1,7 +1,0 @@
-{
-	"auths": {
-		"registry.ci.openshift.org": {
-			"auth": "dXNlcjpzaGEyNTZ+QU1sYjFrTUlsMDNFM2pGZnU5MGZUaFJGZThKaE5aRGQzVFUyRjMxaVFaWQ=="
-		}
-	}
-}
