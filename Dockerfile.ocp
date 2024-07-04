@@ -4,15 +4,31 @@ FROM registry.ci.openshift.org/stolostron/builder:go1.21-linux AS builder
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 ENV GOFLAGS="-mod=mod"
 
-COPY .git/ ./.git/
-COPY go.mod go.sum embed.go Makefile build.go package.json ./
-COPY cue cue/
-COPY packages/grafana-schema packages/grafana-schema/
-COPY public/app/plugins public/app/plugins/
-COPY pkg pkg/
-COPY scripts scripts/
-COPY cue.mod cue.mod/
+# COPY .git/ ./.git/
+# COPY go.mod go.sum embed.go Makefile build.go package.json ./
+# COPY cue.mod cue.mod
+# COPY packages/grafana-schema packages/grafana-schema/
+# COPY public/app/plugins public/app/plugins/
+# COPY pkg pkg/
+# COPY scripts scripts/
+# COPY .bingo .bingo
+# COPY kinds kinds
+# COPY local local
+
+COPY go.* ./
 COPY .bingo .bingo
+COPY embed.go Makefile build.go package.json ./
+COPY cue.mod cue.mod
+COPY kinds kinds
+COPY local local
+COPY packages/grafana-schema packages/grafana-schema
+COPY public/app/plugins public/app/plugins
+COPY public/api-merged.json public/api-merged.json
+COPY pkg pkg
+COPY scripts scripts
+COPY conf conf
+COPY .github .github
+COPY LICENSE ./
 
 RUN make gen-go
 
