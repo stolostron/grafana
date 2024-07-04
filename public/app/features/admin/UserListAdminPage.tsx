@@ -67,8 +67,6 @@ const UserListAdminPageUnConnected = ({
     fetchUsers();
   }, [fetchUsers]);
 
-  const showLicensedRole = useMemo(() => users.some((user) => user.licensedRole), [users]);
-
   return (
     <Page.Contents>
       <div className={styles.actionBar} data-testid={selectors.container}>

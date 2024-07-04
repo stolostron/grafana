@@ -136,18 +136,6 @@ export class SharedPreferences extends PureComponent<Props, State> {
     const languages = getLanguageOptions();
     const currentThemeOption = this.themeOptions.find((x) => x.value === theme) ?? this.themeOptions[0];
 
-    const homeDashboardTooltip = (
-      <Tooltip
-        content={
-          <Trans id="shared-preferences.fields.home-dashboard-tooltip">
-            Not finding the dashboard you want? Star it first, then it should appear in this select box.
-          </Trans>
-        }
-      >
-        <Icon name="info-circle" />
-      </Tooltip>
-    );
-
     return (
       <form onSubmit={this.onSubmitForm} className={styles.form}>
         <FieldSet label={<Trans i18nKey="shared-preferences.title">Preferences</Trans>} disabled={disabled}>

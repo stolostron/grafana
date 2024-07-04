@@ -160,8 +160,6 @@ export function RichHistoryQueriesTab(props: RichHistoryQueriesTabProps) {
     );
   }
 
-  const [filteredQueries, listOfDatasources] = data;
-
   /* mappedQueriesToHeadings is an object where query headings (stringified dates/data sources)
    * are keys and arrays with queries that belong to that headings are values.
    */

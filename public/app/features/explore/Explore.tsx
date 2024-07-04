@@ -166,14 +166,6 @@ export class Explore extends React.PureComponent<Props, ExploreState> {
     this.logsEventBus = props.eventBus.newScopedBus('logs', { onlyLocal: false });
   }
 
-  componentDidMount() {
-    this.absoluteTimeUnsubsciber = appEvents.subscribe(AbsoluteTimeEvent, this.onMakeAbsoluteTime);
-  }
-
-  componentWillUnmount() {
-    this.absoluteTimeUnsubsciber?.unsubscribe();
-  }
-
   onChangeTime = (rawRange: RawTimeRange) => {
     const { updateTimeRange, exploreId } = this.props;
     updateTimeRange({ exploreId, rawRange });
@@ -322,11 +314,6 @@ export class Explore extends React.PureComponent<Props, ExploreState> {
     updateTimeRange({ exploreId, absoluteRange });
   };
 
-  onChangeGraphStyle = (graphStyle: ExploreGraphStyle) => {
-    const { exploreId, changeGraphStyle } = this.props;
-    changeGraphStyle(exploreId, graphStyle);
-  };
-
   toggleShowRichHistory = () => {
     this.setState((state) => {
       return {
@@ -411,7 +398,6 @@ export class Explore extends React.PureComponent<Props, ExploreState> {
           height={showFlameGraph ? 180 : 400}
           width={width}
           absoluteRange={absoluteRange}
-          onChangeTime={this.onUpdateTimeRange}
           timeZone={timeZone}
           onChangeTime={this.onUpdateTimeRange}
           annotations={queryResponse.annotations}
@@ -420,22 +406,6 @@ export class Explore extends React.PureComponent<Props, ExploreState> {
           eventBus={this.graphEventBus}
         />
       </ContentOutlineItem>
-    );
-  }
-
-  renderLogsVolume(width: number) {
-    const { logsVolumeData, exploreId, loadLogsVolumeData, absoluteRange, timeZone, splitOpen } = this.props;
-
-    return (
-      <LogsVolumePanel
-        absoluteRange={absoluteRange}
-        width={width}
-        logsVolumeData={logsVolumeData}
-        onUpdateTimeRange={this.onUpdateTimeRange}
-        timeZone={timeZone}
-        splitOpen={splitOpen}
-        onLoadLogsVolume={() => loadLogsVolumeData(exploreId)}
-      />
     );
   }
 
@@ -772,7 +742,6 @@ function mapStateToProps(state: StoreState, { exploreId }: ExploreProps) {
     queries,
     isLive,
     graphResult,
-    logsVolumeData,
     logsResult: logsResult ?? undefined,
     absoluteRange,
     queryResponse,
@@ -797,14 +766,11 @@ function mapStateToProps(state: StoreState, { exploreId }: ExploreProps) {
 
 const mapDispatchToProps = {
   changeSize,
-  changeGraphStyle,
   modifyQueries,
   scanStart,
   scanStopAction,
   setQueries,
   updateTimeRange,
-  makeAbsoluteTime,
-  loadLogsVolumeData,
   addQueryRow,
   splitOpen,
   setSupplementaryQueryEnabled,

@@ -174,10 +174,6 @@ export function applyFieldOverrides(options: ApplyFieldOverrideOptions): DataFra
       field.state!.range = range;
       field.type = type;
 
-      field.state!.seriesIndex = seriesIndex;
-      field.state!.range = range;
-      field.type = type;
-
       // Some color modes needs series index to assign field color so we count
       // up series index here but ignore time fields
       if (field.type !== FieldType.time) {

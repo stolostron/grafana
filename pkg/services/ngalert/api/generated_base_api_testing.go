@@ -111,15 +111,5 @@ func (api *API) RegisterTestingApiEndpoints(srv TestingApi, m *metrics.API) {
 				m,
 			),
 		)
-		group.Post(
-			toMacaronPath("/api/v1/rule/test/grafana"),
-			api.authorize(http.MethodPost, "/api/v1/rule/test/grafana"),
-			metrics.Instrument(
-				http.MethodPost,
-				"/api/v1/rule/test/grafana",
-				srv.RouteTestRuleGrafanaConfig,
-				m,
-			),
-		)
 	}, middleware.ReqSignedIn)
 }

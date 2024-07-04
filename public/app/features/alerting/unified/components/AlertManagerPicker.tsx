@@ -9,7 +9,6 @@ import { AlertManagerDataSource, GRAFANA_RULES_SOURCE_NAME } from '../utils/data
 
 interface Props {
   disabled?: boolean;
-  dataSources: AlertManagerDataSource[];
 }
 
 function getAlertManagerLabel(alertManager: AlertManagerDataSource) {

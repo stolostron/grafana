@@ -6,9 +6,6 @@ import { useDispatch } from 'app/types';
 import { setPausedStateAction, runQueries, clearLogs } from './state/query';
 import { changeRefreshInterval } from './state/time';
 
-import { setPausedStateAction, runQueries } from './state/query';
-import { changeRefreshInterval } from './state/time';
-
 /**
  * Hook that gives you all the functions needed to control the live tailing.
  */

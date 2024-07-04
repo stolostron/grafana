@@ -30,13 +30,5 @@ export const getFormStyles = (theme: GrafanaTheme2) => {
       background: none;
       color: ${theme.colors.text.primary};
     `,
-    linkText: css`
-      text-decoration: underline;
-    `,
-    collapse: css`
-      border: none;
-      background: none;
-      color: ${theme.colors.text.primary};
-    `,
   };
 };

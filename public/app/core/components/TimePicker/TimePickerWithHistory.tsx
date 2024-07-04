@@ -8,8 +8,6 @@ import appEvents from 'app/core/app_events';
 
 import { LocalStorageValueProvider } from '../LocalStorageValueProvider';
 
-import { LocalStorageValueProvider } from '../LocalStorageValueProvider';
-
 const LOCAL_STORAGE_KEY = 'grafana.dashboard.timepicker.history';
 
 interface Props extends Omit<TimeRangePickerProps, 'history' | 'theme'> {}

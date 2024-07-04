@@ -10,7 +10,7 @@ import { TimePickerTitle } from './TimePickerTitle';
 import { TimeRangeOption } from './TimeRangeOption';
 
 interface Props {
-  title: string;
+  title?: string;
   options: TimeOption[];
   value?: TimeOption;
   onChange: (option: TimeOption) => void;

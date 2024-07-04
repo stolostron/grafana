@@ -9,14 +9,6 @@ import { Button, ButtonProps } from '../Button';
 import { Icon } from '../Icon/Icon';
 import { InlineToast } from '../InlineToast/InlineToast';
 
-/** @deprecated Will be removed in next major release */
-interface ClipboardEvent {
-  action: string;
-  text: string;
-  trigger: Element;
-  clearSelection(): void;
-}
-
 export interface Props extends ButtonProps {
   /** A function that returns text to be copied */
   getText(): string;

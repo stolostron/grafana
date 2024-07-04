@@ -103,19 +103,8 @@ export class DashboardPanelUnconnected extends PureComponent<Props> {
           width={width}
           height={height}
         />
-      ) : (
-        <PanelChrome
-          plugin={plugin}
-          panel={panel}
-          dashboard={dashboard}
-          isViewing={isViewing}
-          isEditing={isEditing}
-          isInView={isInView}
-          width={width}
-          height={height}
-          onInstanceStateChange={this.onInstanceStateChange}
-        />
-      ));
+      );
+    }
 
     return (
       <PanelStateWrapper

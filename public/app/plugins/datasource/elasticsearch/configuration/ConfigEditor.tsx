@@ -48,8 +48,6 @@ export const ConfigEditor = (props: Props) => {
     authProps.selectedMethod = options.jsonData.sigV4Auth ? 'custom-sigv4' : authProps.selectedMethod;
   }
 
-  const deprecatedVersion = isDeprecatedVersion(options.jsonData.esVersion);
-
   return (
     <>
       {options.access === 'direct' && (

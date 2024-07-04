@@ -206,9 +206,6 @@ export class GeomapPanel extends Component<Props, State> {
       if (!options.layers) {
         options.layers = [defaultMarkersConfig];
       }
-    );
-    this.hoverPayload.layers = layers.length ? layers : undefined;
-    this.props.eventBus.publish(this.hoverEvent);
 
       for (const lyr of options.layers) {
         layers.push(await initLayer(this, map, lyr, false));
@@ -267,11 +264,6 @@ export class GeomapPanel extends Component<Props, State> {
         view = sharedView;
       }
     }
-    if (layers) {
-      this.initViewExtent(view, config, layers);
-    }
-    return view;
-  }
 
     this.initViewExtent(view, config);
     return view;

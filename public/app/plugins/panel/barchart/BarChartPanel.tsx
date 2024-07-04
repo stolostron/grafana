@@ -356,9 +356,3 @@ export const BarChartPanel = ({ data, options, fieldConfig, width, height, timeZ
     </GraphNG>
   );
 };
-
-const getStyles = (theme: GrafanaTheme2) => ({
-  closeButtonSpacer: css`
-    margin-bottom: 15px;
-  `,
-});

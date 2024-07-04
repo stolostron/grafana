@@ -21,8 +21,6 @@ export function initPanelEditor(sourcePanel: PanelModel, dashboard: DashboardMod
   return async (dispatch) => {
     const panel = dashboard.initEditPanel(sourcePanel);
 
-    await dispatch(initPanelState(panel));
-
     dispatch(
       updateEditorInitState({
         panel,

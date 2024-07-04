@@ -17,8 +17,6 @@ import React from 'react';
 
 import AccordianReferences, { AccordianReferencesProps } from './AccordianReferences';
 
-import AccordianReferences, { References } from './AccordianReferences';
-
 const traceID = 'trace1';
 const references = [
   {

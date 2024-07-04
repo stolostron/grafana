@@ -3,8 +3,6 @@ import { BigValueGraphMode, BigValueColorMode, BigValueTextMode } from '@grafana
 
 import { statPanelChangedHandler } from './StatMigrations';
 
-import { statPanelChangedHandler } from './StatMigrations';
-
 describe('Stat Panel Migrations', () => {
   it('change from angular singlestat sparkline disabled', () => {
     const old = {

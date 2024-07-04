@@ -15,9 +15,6 @@ import {
   getLegacyAngularInjector,
   getTemplateSrv,
   TemplateSrv,
-  getTemplateSrv,
-  getLegacyAngularInjector,
-  getBackendSrv,
 } from '@grafana/runtime';
 import { ExpressionDatasourceRef, isExpressionReference } from '@grafana/runtime/src/utils/DataSourceWithBackend';
 import appEvents from 'app/core/app_events';

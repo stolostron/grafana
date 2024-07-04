@@ -32,8 +32,6 @@ import { COMMON_LABELS, dataFrameToLogsModel, dedupLogRows } from '../../../feat
 import { Options } from './types';
 import { useDatasourcesFromTargets } from './useDatasourcesFromTargets';
 
-import { Options } from './types';
-
 interface LogsPanelProps extends PanelProps<Options> {}
 interface LogsPermalinkUrlState {
   logs?: {

@@ -6,8 +6,6 @@ import { useStyles2 } from '@grafana/ui';
 
 import { NodesMarker } from './types';
 
-import { NodesMarker } from './types';
-
 const nodeR = 40;
 
 const getStyles = (theme: GrafanaTheme2) => ({

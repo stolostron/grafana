@@ -38,13 +38,6 @@ export const ButtonCascader = (props: ButtonCascaderProps) => {
     content = [props.children, <Icon key={'down-icon'} name="angle-down" className={styles.icons.right} />];
   }
 
-  // Weird way to do this bit it goes around a styling issue in Button where even null/undefined child triggers
-  // styling change which messes up the look if there is only single icon content.
-  let content: any = props.children;
-  if (!hideDownIcon) {
-    content = [props.children, <Icon key={'down-icon'} name="angle-down" className={styles.icons.right} />];
-  }
-
   return (
     <RCCascader
       onChange={onChangeCascader(onChange)}

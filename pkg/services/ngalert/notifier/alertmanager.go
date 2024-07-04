@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
-	"unicode/utf8"
 
 	alertingNotify "github.com/grafana/alerting/notify"
 	"github.com/grafana/alerting/receivers"
@@ -317,40 +316,6 @@ func (am *alertmanager) aggregateInhibitMatchers(rules []config.InhibitRule, amu
 	}
 }
 
-func (am *Alertmanager) getTemplate() (*template.Template, error) {
-	am.reloadConfigMtx.RLock()
-	defer am.reloadConfigMtx.RUnlock()
-	if !am.ready() {
-		return nil, errors.New("alertmanager is not initialized")
-	}
-	paths := make([]string, 0, len(am.config.TemplateFiles))
-	for name := range am.config.TemplateFiles {
-		paths = append(paths, filepath.Join(am.WorkingDirPath(), name))
-	}
-	return am.templateFromPaths(paths...)
-}
-
-func (am *Alertmanager) templateFromPaths(paths ...string) (*template.Template, error) {
-	tmpl, err := template.FromGlobs(paths...)
-	if err != nil {
-		return nil, err
-	}
-	externalURL, err := url.Parse(am.Settings.AppURL)
-	if err != nil {
-		return nil, err
-	}
-	tmpl.ExternalURL = externalURL
-	return tmpl, nil
-}
-
-func (am *Alertmanager) buildMuteTimesMap(muteTimeIntervals []config.MuteTimeInterval) map[string][]timeinterval.TimeInterval {
-	muteTimes := make(map[string][]timeinterval.TimeInterval, len(muteTimeIntervals))
-	for _, ti := range muteTimeIntervals {
-		muteTimes[ti.Name] = ti.TimeIntervals
-	}
-	return muteTimes
-}
-
 // applyConfig applies a new configuration by re-initializing all components using the configuration provided.
 // It returns a boolean indicating whether the user config was changed and an error.
 // It is not safe to call concurrently.
@@ -449,56 +414,6 @@ func (am *alertmanager) buildReceiverIntegrations(receiver *alertingNotify.APIRe
 	return integrations, nil
 }
 
-func (am *Alertmanager) buildReceiverIntegration(r *apimodels.PostableGrafanaReceiver, tmpl *template.Template) (channels.NotificationChannel, error) {
-	// secure settings are already encrypted at this point
-	secureSettings := make(map[string][]byte, len(r.SecureSettings))
-
-	for k, v := range r.SecureSettings {
-		d, err := base64.StdEncoding.DecodeString(v)
-		if err != nil {
-			return nil, InvalidReceiverError{
-				Receiver: r,
-				Err:      errors.New("failed to decode secure setting"),
-			}
-		}
-		secureSettings[k] = d
-	}
-
-	var (
-		cfg = &channels.NotificationChannelConfig{
-			UID:                   r.UID,
-			OrgID:                 am.orgID,
-			Name:                  r.Name,
-			Type:                  r.Type,
-			DisableResolveMessage: r.DisableResolveMessage,
-			Settings:              r.Settings,
-			SecureSettings:        secureSettings,
-		}
-	)
-	factoryConfig, err := channels.NewFactoryConfig(cfg, am.NotificationService, am.decryptFn, tmpl)
-	if err != nil {
-		return nil, InvalidReceiverError{
-			Receiver: r,
-			Err:      err,
-		}
-	}
-	receiverFactory, exists := channels.Factory(r.Type)
-	if !exists {
-		return nil, InvalidReceiverError{
-			Receiver: r,
-			Err:      fmt.Errorf("notifier %s is not supported", r.Type),
-		}
-	}
-	n, err := receiverFactory(factoryConfig)
-	if err != nil {
-		return nil, InvalidReceiverError{
-			Receiver: r,
-			Err:      err,
-		}
-	}
-	return n, nil
-}
-
 // PutAlerts receives the alerts and then sends them through the corresponding route based on whenever the alert has a receiver embedded or not
 func (am *alertmanager) PutAlerts(_ context.Context, postableAlerts apimodels.PostableAlerts) error {
 	alerts := make(alertingNotify.PostableAlerts, 0, len(postableAlerts.PostableAlerts))
@@ -550,7 +465,3 @@ func hashAsMetricValue(data [16]byte) float64 {
 	copy(bytes, smallSum)
 	return float64(binary.LittleEndian.Uint64(bytes))
 }
-
-type nilLimits struct{}
-
-func (n nilLimits) MaxNumberOfAggregationGroups() int { return 0 }

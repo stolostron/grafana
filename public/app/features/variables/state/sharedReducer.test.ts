@@ -145,7 +145,6 @@ describe('sharedReducer', () => {
             ...initialQueryVariableModelState,
             ...initialState['1'],
             id: '11',
-            rootStateKey: 'key',
             name: 'copy_of_Name-1',
             index: 3,
           },

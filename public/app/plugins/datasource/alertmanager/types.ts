@@ -98,8 +98,6 @@ export type Receiver = GrafanaManagedContactPoint | AlertmanagerReceiver;
 
 export type ObjectMatcher = [name: string, operator: MatcherOperator, value: string];
 
-type ObjectMatcher = [name: string, operator: MatcherOperator, value: string];
-
 export type Route = {
   receiver?: string | null;
   group_by?: string[];

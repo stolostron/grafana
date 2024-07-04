@@ -2,10 +2,6 @@ import { filter, find, indexOf, map } from 'lodash';
 
 import { escapeRegex, ScopedVars } from '@grafana/data';
 import { TemplateSrv } from '@grafana/runtime';
-import kbn from 'app/core/utils/kbn';
-
-import queryPart from './query_part';
-import { InfluxQuery, InfluxQueryTag } from './types';
 
 import queryPart from './query_part';
 import { DEFAULT_POLICY, InfluxQuery, InfluxQueryTag } from './types';

@@ -10,8 +10,6 @@ import { GenericDataSourcePlugin } from '../types';
 
 const loadingDSType = 'Loading';
 
-const loadingDSType = 'Loading';
-
 export function buildNavModel(dataSource: DataSourceSettings, plugin: GenericDataSourcePlugin): NavModelItem {
   const pluginMeta = plugin.meta;
   const highlightsEnabled = config.featureToggles.featureHighlights;

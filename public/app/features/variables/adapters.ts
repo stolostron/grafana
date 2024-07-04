@@ -6,7 +6,6 @@ import { Registry, TypedVariableModel, UrlQueryValue, VariableOption, VariableTy
 import { VariableEditorProps } from './editor/types';
 import { VariablePickerProps } from './pickers/types';
 import { VariablesState } from './state/types';
-import { VariableModel, VariableOption } from './types';
 
 export interface VariableAdapter<Model extends TypedVariableModel> {
   id: VariableType;

@@ -10,12 +10,6 @@ import { PanelModel } from '../../../state';
 import { exitPanelEditor, initPanelEditor, skipPanelUpdate } from './actions';
 import { closeEditor, initialState, PanelEditorState } from './reducers';
 
-import { thunkTester } from '../../../../../../test/core/thunk/thunkTester';
-import { DashboardModel, PanelModel } from '../../../state';
-
-import { exitPanelEditor, initPanelEditor, skipPanelUpdate } from './actions';
-import { closeEditor, initialState, PanelEditorState } from './reducers';
-
 describe('panelEditor actions', () => {
   describe('initPanelEditor', () => {
     it('initPanelEditor should create edit panel model as clone', async () => {
@@ -286,48 +280,6 @@ describe('panelEditor actions', () => {
         const meta = {} as LibraryElementDTOMeta;
         const modified = new PanelModel({ libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } });
         const panel = new PanelModel({ libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } });
-
-        expect(skipPanelUpdate(modified, panel)).toEqual(false);
-      });
-    });
-  });
-
-  describe('skipPanelUpdate', () => {
-    describe('when called with panel with an library uid different from the modified panel', () => {
-      it('then it should return true', () => {
-        const meta: any = {};
-        const modified: any = { libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } };
-        const panel: any = { libraryPanel: { uid: '456', name: 'Name', meta, version: 1 } };
-
-        expect(skipPanelUpdate(modified, panel)).toEqual(true);
-      });
-    });
-
-    describe('when called with a panel that is the same as the modified panel', () => {
-      it('then it should return true', () => {
-        const meta: any = {};
-        const modified: any = { id: 14, libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } };
-        const panel: any = { id: 14, libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } };
-
-        expect(skipPanelUpdate(modified, panel)).toEqual(true);
-      });
-    });
-
-    describe('when called with a panel that is repeated', () => {
-      it('then it should return true', () => {
-        const meta: any = {};
-        const modified: any = { libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } };
-        const panel: any = { repeatPanelId: 14, libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } };
-
-        expect(skipPanelUpdate(modified, panel)).toEqual(true);
-      });
-    });
-
-    describe('when called with a panel that is a duplicate of the modified panel', () => {
-      it('then it should return false', () => {
-        const meta: any = {};
-        const modified: any = { libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } };
-        const panel: any = { libraryPanel: { uid: '123', name: 'Name', meta, version: 1 } };
 
         expect(skipPanelUpdate(modified, panel)).toEqual(false);
       });

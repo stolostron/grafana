@@ -80,24 +80,4 @@ describe('PromQueryEditorByApp', () => {
     expect(screen.getByTestId('QueryEditorModeToggle')).toBeInTheDocument();
     expect(screen.queryByTestId(alertingTestIds.editor)).toBeNull();
   });
-
-  it('should not run query onBlur in explore', () => {
-    const { getByTestId, onRunQuery } = setup(CoreApp.Explore);
-
-    const input = getByTestId('dummy-code-input');
-    expect(input).toBeInTheDocument();
-    userEvent.type(input, 'metric');
-    input.blur();
-    expect(onRunQuery).not.toHaveBeenCalled();
-  });
-
-  it('should run query onBlur in dashboard', () => {
-    const { getByTestId, onRunQuery } = setup(CoreApp.Dashboard);
-
-    const input = getByTestId('dummy-code-input');
-    expect(input).toBeInTheDocument();
-    userEvent.type(input, 'metric');
-    input.blur();
-    expect(onRunQuery).toHaveBeenCalled();
-  });
 });

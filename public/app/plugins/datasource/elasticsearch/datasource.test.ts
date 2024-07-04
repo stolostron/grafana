@@ -23,10 +23,6 @@ import { ElasticDatasource } from './datasource';
 import { createElasticDatasource } from './mocks';
 import { Filters, ElasticsearchOptions, ElasticsearchQuery } from './types';
 
-import { Filters } from './components/QueryEditor/BucketAggregationsEditor/aggregations';
-import { ElasticDatasource, enhanceDataFrame } from './datasource';
-import { ElasticsearchOptions, ElasticsearchQuery } from './types';
-
 const ELASTICSEARCH_MOCK_URL = 'http://elasticsearch.local';
 
 const originalConsoleError = console.error;

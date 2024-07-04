@@ -131,35 +131,3 @@ func (g *Gateway) HandlePipelinePush(ctx *contextmodel.ReqContext) {
 
 	ctx.Resp.WriteHeader(http.StatusOK)
 }
-
-func (g *Gateway) HandlePipelinePush(ctx *models.ReqContext) {
-	channelID := web.Params(ctx.Req)["*"]
-
-	body, err := io.ReadAll(ctx.Req.Body)
-	if err != nil {
-		logger.Error("Error reading body", "error", err)
-		ctx.Resp.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	logger.Debug("Live channel push request",
-		"protocol", "http",
-		"channel", channelID,
-		"bodyLength", len(body),
-	)
-
-	ruleFound, err := g.GrafanaLive.Pipeline.ProcessInput(ctx.Req.Context(), ctx.OrgId, channelID, body)
-	if err != nil {
-		logger.Error("Pipeline input processing error", "error", err, "body", string(body))
-		if errors.Is(err, liveDto.ErrInvalidChannelID) {
-			ctx.Resp.WriteHeader(http.StatusBadRequest)
-		} else {
-			ctx.Resp.WriteHeader(http.StatusInternalServerError)
-		}
-		return
-	}
-	if !ruleFound {
-		logger.Error("No conversion rule for a channel", "error", err, "channel", channelID)
-		ctx.Resp.WriteHeader(http.StatusNotFound)
-		return
-	}
-}

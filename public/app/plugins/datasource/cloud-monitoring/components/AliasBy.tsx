@@ -4,8 +4,6 @@ import React, { useState } from 'react';
 import { EditorField } from '@grafana/experimental';
 import { Input } from '@grafana/ui';
 
-import { QueryEditorRow } from '.';
-
 export interface Props {
   refId: string;
   onChange: (alias: string) => void;

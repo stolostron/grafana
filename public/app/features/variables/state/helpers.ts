@@ -86,64 +86,6 @@ export const getVariableState = (
     variables[userModel.id] = userModel;
   }
 
-  if (includeSystem) {
-    const dashboardModel: DashboardVariableModel = {
-      ...initialVariableModelState,
-      id: '__dashboard',
-      name: '__dashboard',
-      type: 'system',
-      index: -3,
-      skipUrlSync: true,
-      hide: VariableHide.hideVariable,
-      current: {
-        value: {
-          name: 'A dashboard title',
-          uid: 'An dashboard UID',
-          toString: () => 'A dashboard title',
-        },
-      },
-    };
-
-    const orgModel: OrgVariableModel = {
-      ...initialVariableModelState,
-      id: '__org',
-      name: '__org',
-      type: 'system',
-      index: -2,
-      skipUrlSync: true,
-      hide: VariableHide.hideVariable,
-      current: {
-        value: {
-          name: 'An org name',
-          id: 1,
-          toString: () => '1',
-        },
-      },
-    };
-
-    const userModel: UserVariableModel = {
-      ...initialVariableModelState,
-      id: '__user',
-      name: '__user',
-      type: 'system',
-      index: -1,
-      skipUrlSync: true,
-      hide: VariableHide.hideVariable,
-      current: {
-        value: {
-          login: 'admin',
-          id: 1,
-          email: 'admin@test',
-          toString: () => '1',
-        },
-      },
-    };
-
-    variables[dashboardModel.id] = dashboardModel;
-    variables[orgModel.id] = orgModel;
-    variables[userModel.id] = userModel;
-  }
-
   for (let index = 0; index < noOfVariables; index++) {
     variables[index] = createQueryVariable({
       id: index.toString(),
@@ -174,10 +116,6 @@ export const getVariableTestContext = <Model extends TypedVariableModel>(
     rootStateKey: 'key',
     index: 0,
     name: '0',
-  };
-  const defaultVariable = {
-    ...adapter.initialState,
-    ...defaults,
   };
 
   const defaultVariable = {

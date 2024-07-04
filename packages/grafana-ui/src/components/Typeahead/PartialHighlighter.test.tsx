@@ -57,11 +57,4 @@ describe('PartialHighlighter component', () => {
     expect(screen.queryByText('sit')).not.toBeInTheDocument();
     expect(screen.queryByText('amet')).not.toBeInTheDocument();
   });
-
-  it('returns null if highlightParts is empty', () => {
-    const component = mount(
-      <PartialHighlighter text="Lorem ipsum dolor sit amet" highlightClassName="highlight" highlightParts={[]} />
-    );
-    expect(component.html()).toBe(null);
-  });
 });

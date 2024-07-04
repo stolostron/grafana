@@ -129,7 +129,6 @@ export function ChannelSubForm<R extends ChannelValues>({
 
   const contactPointTypeInputId = `contact-point-type-${pathPrefix}`;
 
-  const contactPointTypeInputId = `contact-point-type-${pathPrefix}`;
   return (
     <div className={styles.wrapper} data-testid="item-container">
       <div className={styles.topRow}>

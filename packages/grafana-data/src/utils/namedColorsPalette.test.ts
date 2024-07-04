@@ -1,7 +1,5 @@
 import { createTheme } from '../themes';
 
-import { getColorForTheme } from './namedColorsPalette';
-
 describe('colors', () => {
   const theme = createTheme();
 

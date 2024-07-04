@@ -4,7 +4,6 @@ import {
   BusEventWithPayload,
   DataQuery,
   DataSourceJsonData,
-  DataSourceRef,
   LoadingState,
   QueryEditorProps,
   BaseVariableModel,

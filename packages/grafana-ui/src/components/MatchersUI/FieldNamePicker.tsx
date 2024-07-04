@@ -28,7 +28,6 @@ export const FieldNamePicker = ({ value, onChange, context, item }: Props) => {
   return (
     <>
       <Select
-        menuShouldPortal
         value={selectedOption}
         placeholder={settings.placeholderText ?? 'Select field'}
         options={selectOptions}

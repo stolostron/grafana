@@ -115,8 +115,6 @@ export function RichHistoryStarredTab(props: RichHistoryStarredTabProps) {
 
   const sortOrderOptions = getSortOrderOptions();
 
-  const [filteredQueries, listOfDatasources] = data;
-
   return (
     <div className={styles.container}>
       <div className={styles.containerContent}>

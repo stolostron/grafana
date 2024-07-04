@@ -130,8 +130,6 @@ export const calculateFieldTransformer: DataTransformerInfo<CalculateFieldTransf
       options.alias = ctx.interpolate(options.alias);
     }
 
-    options.alias = replace ? replace(options.alias) : options.alias;
-
     return outerSource.pipe(
       operator,
       map((data) => {

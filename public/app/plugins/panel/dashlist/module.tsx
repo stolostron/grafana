@@ -10,20 +10,6 @@ import { defaultOptions, Options } from './panelcfg.gen';
 
 export const plugin = new PanelPlugin<Options>(DashList)
   .setPanelOptions((builder) => {
-    if (config.featureToggles.dashboardPreviews) {
-      builder.addRadio({
-        path: 'layout',
-        name: 'Layout',
-        defaultValue: PanelLayout.List,
-        settings: {
-          options: [
-            { value: PanelLayout.List, label: 'List' },
-            { value: PanelLayout.Previews, label: 'Preview' },
-          ],
-        },
-      });
-    }
-
     builder
       .addBooleanSwitch({
         path: 'keepTime',

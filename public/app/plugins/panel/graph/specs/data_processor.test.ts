@@ -2,8 +2,6 @@ import { getProcessedDataFrames } from '@grafana/data';
 
 import { DataProcessor } from '../data_processor';
 
-import { DataProcessor } from '../data_processor';
-
 describe('Graph DataProcessor', () => {
   const panel: any = {
     xaxis: { mode: 'series' },

@@ -215,38 +215,3 @@ func AuthHTTPHeaderListFromContext(c context.Context) *AuthHTTPHeaderList {
 	}
 	return nil
 }
-
-type authHTTPHeaderListContextKey struct{}
-
-var authHTTPHeaderListKey = authHTTPHeaderListContextKey{}
-
-// AuthHTTPHeaderList used to record HTTP headers that being when verifying authentication
-// of an incoming HTTP request.
-type AuthHTTPHeaderList struct {
-	Items []string
-}
-
-// WithAuthHTTPHeader returns a copy of parent in which the named HTTP header will be included
-// and later retrievable by AuthHTTPHeaderListFromContext.
-func WithAuthHTTPHeader(parent context.Context, name string) context.Context {
-	list := AuthHTTPHeaderListFromContext(parent)
-
-	if list == nil {
-		list = &AuthHTTPHeaderList{
-			Items: []string{},
-		}
-	}
-
-	list.Items = append(list.Items, name)
-
-	return context.WithValue(parent, authHTTPHeaderListKey, list)
-}
-
-// AuthHTTPHeaderListFromContext returns the AuthHTTPHeaderList in a context.Context, if any,
-// and will include any HTTP headers used when verifying authentication of an incoming HTTP request.
-func AuthHTTPHeaderListFromContext(c context.Context) *AuthHTTPHeaderList {
-	if list, ok := c.Value(authHTTPHeaderListKey).(*AuthHTTPHeaderList); ok {
-		return list
-	}
-	return nil
-}

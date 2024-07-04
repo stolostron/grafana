@@ -73,16 +73,6 @@ const getStyles = (theme: GrafanaTheme2) => ({
   `,
 });
 
-const getStyles = (theme: GrafanaTheme2) => ({
-  root: css`
-    display: flex;
-  `,
-  queryFieldWrapper: css`
-    flex-grow: 1;
-    margin: 0 ${theme.spacing(0.5)} ${theme.spacing(0.5)} 0;
-  `,
-});
-
 interface Props {
   value: ElasticsearchQuery;
 }

@@ -4,8 +4,6 @@ import { DataFrame, Field, getFieldDisplayName, SelectableValue, FieldNamePicker
 
 import { getFieldTypeIcon } from '../../types';
 
-import { getFieldTypeIcon } from '../../types';
-
 /**
  * @internal
  */

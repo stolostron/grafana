@@ -6,8 +6,6 @@ import { transformDataFrame } from '../transformDataFrame';
 import { DataTransformerID } from './ids';
 import { renameByRegexTransformer, RenameByRegexTransformerOptions } from './renameByRegex';
 
-import { renameByRegexTransformer, RenameByRegexTransformerOptions } from './renameByRegex';
-
 describe('Rename By Regex Transformer', () => {
   beforeAll(() => {
     mockTransformationsRegistry([renameByRegexTransformer]);

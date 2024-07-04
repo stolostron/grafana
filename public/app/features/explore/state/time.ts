@@ -95,15 +95,6 @@ export const updateTime = (config: {
 
     const range = getTimeRange(timeZone, rawRange, fiscalYearStartMonth);
     const absoluteRange: AbsoluteTimeRange = { from: range.from.valueOf(), to: range.to.valueOf() };
-    const timeModel: TimeModel = {
-      time: range.raw,
-      refresh: false,
-      timepicker: {},
-      getTimezone: () => timeZone,
-      timeRangeUpdated: (rawTimeRange: RawTimeRange) => {
-        dispatch(updateTimeRange({ exploreId: exploreId, rawRange: rawTimeRange }));
-      },
-    };
 
     // @deprecated - set because some internal plugins read the range this way; please use QueryEditorProps.range instead
     getTimeSrv().init({
@@ -216,29 +207,6 @@ export function pasteTimeRangeFromClipboard(): ThunkResult<void> {
     }
 
     dispatch(updateTimeRange({ exploreId: Object.keys(getState().explore.panes)[0], rawRange: range }));
-  };
-}
-
-/**
- * Forces the timepicker's time into absolute time.
- * The conversion is applied to all Explore panes.
- * Useful to produce a bookmarkable URL that points to the same data.
- */
-export function makeAbsoluteTime(): ThunkResult<void> {
-  return (dispatch, getState) => {
-    const timeZone = getTimeZone(getState().user);
-    const fiscalYearStartMonth = getFiscalYearStartMonth(getState().user);
-    const leftState = getState().explore.left;
-    const leftRange = getTimeRange(timeZone, leftState.range.raw, fiscalYearStartMonth);
-    const leftAbsoluteRange: AbsoluteTimeRange = { from: leftRange.from.valueOf(), to: leftRange.to.valueOf() };
-    dispatch(updateTime({ exploreId: ExploreId.left, absoluteRange: leftAbsoluteRange }));
-    const rightState = getState().explore.right!;
-    if (rightState) {
-      const rightRange = getTimeRange(timeZone, rightState.range.raw, fiscalYearStartMonth);
-      const rightAbsoluteRange: AbsoluteTimeRange = { from: rightRange.from.valueOf(), to: rightRange.to.valueOf() };
-      dispatch(updateTime({ exploreId: ExploreId.right, absoluteRange: rightAbsoluteRange }));
-    }
-    dispatch(stateSave());
   };
 }
 

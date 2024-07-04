@@ -4,8 +4,6 @@ import { AnnotationEvent, getDefaultTimeRange, PanelModel } from '@grafana/data'
 
 import { DashboardQueryRunnerOptions } from './types';
 
-import { DashboardQueryRunnerOptions } from './types';
-
 // function that creates an async of result Observable
 export function toAsyncOfResult<T>(result: T): Observable<T> {
   return scheduled(of(result), asyncScheduler);

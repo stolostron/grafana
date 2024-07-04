@@ -109,7 +109,6 @@ export function QueryOperationRow({
     return (
       <Draggable draggableId={id} index={index}>
         {(provided) => {
-          const dragHandleProps = { ...provided.dragHandleProps, role: 'group' }; // replace the role="button" because it causes https://dequeuniversity.com/rules/axe/4.3/nested-interactive?application=msftAI
           return (
             <>
               <div ref={provided.innerRef} className={styles.wrapper} {...provided.draggableProps}>

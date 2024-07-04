@@ -111,7 +111,7 @@ describe('LibraryPanelsSearch', () => {
       it('should call api with correct params', async () => {
         const { getLibraryPanelsSpy } = await getTestContext();
 
-        userEvent.type(screen.getByPlaceholderText(/search by name/i), 'a');
+        await userEvent.type(screen.getByPlaceholderText(/search by name/i), 'a');
         await waitFor(() => expect(getLibraryPanelsSpy).toHaveBeenCalled());
         await waitFor(() =>
           expect(getLibraryPanelsSpy).toHaveBeenCalledWith({

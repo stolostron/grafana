@@ -341,6 +341,7 @@ func (hs *HTTPServer) deleteDashboard(c *contextmodel.ReqContext) response.Respo
 	if err != nil {
 		return response.Error(http.StatusInternalServerError, "Error while parsing the user DTO model", err)
 	}
+
 	if hs.Live != nil {
 		err := hs.Live.GrafanaScope.Dashboards.DashboardDeleted(c.SignedInUser.GetOrgID(), userDTODisplay, dash.UID)
 		if err != nil {

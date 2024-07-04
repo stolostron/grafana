@@ -3,9 +3,6 @@ import { createDashboardModelFixture } from 'app/features/dashboard/state/__fixt
 import { HistorySrv } from './HistorySrv';
 import { restore, versions } from './__mocks__/dashboardHistoryMocks';
 
-import { HistorySrv } from './HistorySrv';
-import { restore, versions } from './__mocks__/dashboardHistoryMocks';
-
 const getMock = jest.fn().mockResolvedValue({});
 const postMock = jest.fn().mockResolvedValue({});
 

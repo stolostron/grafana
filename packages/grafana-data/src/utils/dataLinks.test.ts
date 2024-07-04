@@ -16,8 +16,6 @@ const DATE_AS_DATE_TIME = toUtc([2000, 1, 1]);
 const DATE_AS_MS = '949363200000';
 const TIME_RANGE = createTimeRange(DATE_AS_DATE_TIME, DATE_AS_DATE_TIME);
 
-import { mapInternalLinkToExplore } from './dataLinks';
-
 describe('mapInternalLinkToExplore', () => {
   it('creates internal link', () => {
     const dataLink = {

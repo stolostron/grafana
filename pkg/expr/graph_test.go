@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/grafana/pkg/services/datasources"

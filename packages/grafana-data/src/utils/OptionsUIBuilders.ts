@@ -228,54 +228,6 @@ export function isNestedPanelOptions(item: unknown): item is NestedPanelOptionsB
   return isObject(item) && 'id' in item && item.id === 'nested-panel-options';
 }
 
-export interface NestedValueAccess {
-  getValue: (path: string) => any;
-  onChange: (path: string, value: any) => void;
-  getContext?: (parent: StandardEditorContext<any, any>) => StandardEditorContext<any, any>;
-}
-export interface NestedPanelOptions<TSub = any> {
-  path: string;
-  category?: string[];
-  defaultValue?: TSub;
-  build: PanelOptionsSupplier<TSub>;
-  values?: (parent: NestedValueAccess) => NestedValueAccess;
-}
-
-export class NestedPanelOptionsBuilder<TSub = any> implements OptionsEditorItem<TSub, any, any, any> {
-  path = '';
-  category?: string[];
-  defaultValue?: TSub;
-  id = 'nested-panel-options';
-  name = 'nested';
-  editor = () => null;
-
-  constructor(public cfg: NestedPanelOptions<TSub>) {
-    this.path = cfg.path;
-    this.category = cfg.category;
-    this.defaultValue = cfg.defaultValue;
-  }
-
-  getBuilder = () => {
-    return this.cfg.build;
-  };
-
-  getNestedValueAccess = (parent: NestedValueAccess) => {
-    const values = this.cfg.values;
-    if (values) {
-      return values(parent);
-    }
-    // by default prefix the path
-    return {
-      getValue: (path: string) => parent.getValue(`${this.path}.${path}`),
-      onChange: (path: string, value: any) => parent.onChange(`${this.path}.${path}`, value),
-    };
-  };
-}
-
-export function isNestedPanelOptions(item: any): item is NestedPanelOptionsBuilder {
-  return item.id === 'nested-panel-options';
-}
-
 /**
  * Fluent API for declarative creation of panel options
  */
@@ -406,16 +358,6 @@ export class PanelOptionsEditorBuilder<TOptions> extends OptionsUIRegistryBuilde
       ...config,
       id: config.path,
       editor: standardEditorsRegistry.get('dashboard-uid').editor, // added at runtime
-    });
-  }
-
-  addDashboardPicker<TSettings = any>(
-    config: PanelOptionsEditorConfig<TOptions, TSettings & FieldNamePickerConfigSettings, string>
-  ): this {
-    return this.addCustomEditor({
-      ...config,
-      id: config.path,
-      editor: standardEditorsRegistry.get('dashboard-uid').editor as any, // added at runtime
     });
   }
 }

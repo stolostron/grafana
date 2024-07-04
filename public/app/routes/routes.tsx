@@ -444,12 +444,6 @@ export function getAppRoutes(): RouteDescriptor[] {
       ),
     },
     {
-      path: '/search',
-      component: SafeDynamicImport(
-        () => import(/* webpackChunkName: "SearchPage"*/ 'app/features/search/page/SearchPage')
-      ),
-    },
-    {
       path: '/sandbox/benchmarks',
       component: SafeDynamicImport(
         () => import(/* webpackChunkName: "BenchmarksPage"*/ 'app/features/sandbox/BenchmarksPage')
@@ -475,14 +469,6 @@ export function getAppRoutes(): RouteDescriptor[] {
       roles: () => contextSrv.evaluatePermission([AccessControlAction.AlertingRuleRead]),
       component: SafeDynamicImport(
         () => import(/* webpackChunkName: "FolderAlerting"*/ 'app/features/browse-dashboards/BrowseFolderAlertingPage')
-      ),
-    },
-    {
-      path: '/dashboards/f/:uid/:slug/alerting',
-      roles: () =>
-        contextSrv.evaluatePermission(() => ['Viewer', 'Editor', 'Admin'], [AccessControlAction.AlertingRuleRead]),
-      component: SafeDynamicImport(
-        () => import(/* webpackChunkName: "FolderAlerting"*/ 'app/features/folders/FolderAlerting')
       ),
     },
     {

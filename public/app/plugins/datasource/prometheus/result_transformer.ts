@@ -15,11 +15,6 @@ import {
   Labels,
   TIME_SERIES_TIME_FIELD_NAME,
   TIME_SERIES_VALUE_FIELD_NAME,
-  DataQueryResponse,
-  DataQueryRequest,
-  PreferredVisualisationType,
-  CoreApp,
-  DataFrameType,
 } from '@grafana/data';
 import { config, getDataSourceSrv } from '@grafana/runtime';
 

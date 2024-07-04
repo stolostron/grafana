@@ -506,45 +506,5 @@ func (api *API) RegisterAlertmanagerApiEndpoints(srv AlertmanagerApi, m *metrics
 				m,
 			),
 		)
-		group.Post(
-			toMacaronPath("/api/alertmanager/grafana/api/v2/alerts"),
-			api.authorize(http.MethodPost, "/api/alertmanager/grafana/api/v2/alerts"),
-			metrics.Instrument(
-				http.MethodPost,
-				"/api/alertmanager/grafana/api/v2/alerts",
-				srv.RoutePostGrafanaAMAlerts,
-				m,
-			),
-		)
-		group.Post(
-			toMacaronPath("/api/alertmanager/grafana/config/api/v1/alerts"),
-			api.authorize(http.MethodPost, "/api/alertmanager/grafana/config/api/v1/alerts"),
-			metrics.Instrument(
-				http.MethodPost,
-				"/api/alertmanager/grafana/config/api/v1/alerts",
-				srv.RoutePostGrafanaAlertingConfig,
-				m,
-			),
-		)
-		group.Post(
-			toMacaronPath("/api/alertmanager/grafana/config/api/v1/receivers/test"),
-			api.authorize(http.MethodPost, "/api/alertmanager/grafana/config/api/v1/receivers/test"),
-			metrics.Instrument(
-				http.MethodPost,
-				"/api/alertmanager/grafana/config/api/v1/receivers/test",
-				srv.RoutePostTestGrafanaReceivers,
-				m,
-			),
-		)
-		group.Post(
-			toMacaronPath("/api/alertmanager/{Recipient}/config/api/v1/receivers/test"),
-			api.authorize(http.MethodPost, "/api/alertmanager/{Recipient}/config/api/v1/receivers/test"),
-			metrics.Instrument(
-				http.MethodPost,
-				"/api/alertmanager/{Recipient}/config/api/v1/receivers/test",
-				srv.RoutePostTestReceivers,
-				m,
-			),
-		)
 	}, middleware.ReqSignedIn)
 }

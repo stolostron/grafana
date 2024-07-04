@@ -87,26 +87,3 @@ const getStyles = (theme: GrafanaTheme2) => ({
     fontWeight: theme.typography.h6.fontWeight,
   }),
 });
-
-function defaultUnit(data: PanelData): string | undefined {
-  return data.series[0]?.fields.find((field) => field.type === 'number')?.config.unit;
-}
-
-function defaultFieldConfig(thresholds: ThresholdsConfig, data: PanelData): PanelFieldConfig {
-  if (!thresholds) {
-    return { defaults: {}, overrides: [] };
-  }
-
-  return {
-    defaults: {
-      thresholds: thresholds,
-      unit: defaultUnit(data),
-      custom: {
-        thresholdsStyle: {
-          mode: GraphTresholdsStyleMode.Line,
-        },
-      },
-    },
-    overrides: [],
-  };
-}

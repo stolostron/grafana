@@ -12,15 +12,7 @@ export function LokiQueryEditorByApp(props: LokiQueryEditorProps) {
   switch (app) {
     case CoreApp.CloudAlerting:
       return <LokiQueryEditorForAlerting {...props} />;
-    case CoreApp.Explore:
-      if (config.featureToggles.lokiQueryBuilder) {
-        return <LokiQueryEditorSelector {...props} />;
-      }
-      return <LokiExploreQueryEditor {...props} />;
     default:
-      if (config.featureToggles.lokiQueryBuilder) {
-        return <LokiQueryEditorSelector {...props} />;
-      }
       return <LokiQueryEditor {...props} />;
   }
 }

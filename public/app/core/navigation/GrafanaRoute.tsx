@@ -11,8 +11,6 @@ import { GrafanaRouteError } from './GrafanaRouteError';
 import { GrafanaRouteLoading } from './GrafanaRouteLoading';
 import { GrafanaRouteComponentProps, RouteDescriptor } from './types';
 
-import { GrafanaRouteComponentProps } from './types';
-
 export interface Props extends Omit<GrafanaRouteComponentProps, 'queryParams'> {}
 
 export function GrafanaRoute(props: Props) {

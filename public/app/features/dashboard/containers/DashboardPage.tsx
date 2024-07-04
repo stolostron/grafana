@@ -269,10 +269,6 @@ export class UnthemedDashboardPage extends PureComponent<Props, State> {
     this.setState({ scrollElement });
   };
 
-  setScrollRef = (scrollElement: HTMLDivElement): void => {
-    this.setState({ scrollElement });
-  };
-
   getInspectPanel() {
     const { dashboard, queryParams } = this.props;
 
@@ -314,7 +310,6 @@ export class UnthemedDashboardPage extends PureComponent<Props, State> {
       'panel-in-fullscreen': Boolean(viewPanel),
       'page-hidden': Boolean(queryParams.editview || editPanel),
     });
-    const showSubMenu = !editPanel && kioskMode === KioskMode.Off && !this.props.queryParams.editview;
 
     if (dashboard.meta.dashboardNotFound) {
       return (

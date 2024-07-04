@@ -3,10 +3,6 @@ import { getMockPlugin } from '@grafana/data/test/__mocks__/pluginMocks';
 
 import { buildCategories } from './buildCategories';
 
-import { getMockPlugin } from '../../plugins/__mocks__/pluginMocks';
-
-import { buildCategories } from './buildCategories';
-
 const plugins: DataSourcePluginMeta[] = [
   {
     ...getMockPlugin({ id: 'graphite' }),

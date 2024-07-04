@@ -40,6 +40,7 @@ import { createSpanLinkFactory } from './createSpanLink';
 import { useChildrenState } from './useChildrenState';
 import { useDetailState } from './useDetailState';
 import { useHoverIndentGuide } from './useHoverIndentGuide';
+import { useSearch } from './useSearch';
 import { useViewRange } from './useViewRange';
 
 const getStyles = (theme: GrafanaTheme2) => ({
@@ -106,17 +107,6 @@ export function TraceView(props: Props) {
     datasource,
     splitOpenFn: props.splitOpenFn!,
   });
-
-  const [focusedSpanId, createFocusSpanLink] = useFocusSpanLink({
-    refId: props.dataFrames[0]?.refId,
-    exploreId: props.exploreId,
-    datasource,
-  });
-
-  const createLinkToExternalSpan = (traceId: string, spanId: string) => {
-    const link = createFocusSpanLink(traceId, spanId);
-    return link.href;
-  };
 
   const traceTimeline: TTraceTimeline = useMemo(
     () => ({

@@ -57,33 +57,6 @@ export enum PromRuleType {
   Alerting = 'alerting',
   Recording = 'recording',
 }
-export enum PromApplication {
-  Lotex = 'Lotex',
-  Mimir = 'Mimir',
-  Prometheus = 'Prometheus',
-}
-
-export interface PromBuildInfoResponse {
-  data: {
-    application?: string;
-    version: string;
-    revision: string;
-    features?: {
-      ruler_config_api?: 'true' | 'false';
-      alertmanager_config_api?: 'true' | 'false';
-      query_sharding?: 'true' | 'false';
-      federated_rules?: 'true' | 'false';
-    };
-  };
-  status: 'success';
-}
-
-export interface PromApiFeatures {
-  application?: PromApplication;
-  features: {
-    rulerApiEnabled: boolean;
-  };
-}
 
 export enum PromApplication {
   Cortex = 'Cortex',

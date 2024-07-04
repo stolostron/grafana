@@ -12,7 +12,6 @@ import {
   SelectableValue,
   TimeZone,
   transformDataFrame,
-  TimeZone,
 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 import { getTemplateSrv, reportInteraction } from '@grafana/runtime';
@@ -157,48 +156,6 @@ export class InspectDataTab extends PureComponent<Props, State> {
     }
 
     downloadAsJson(data, dataName);
-  };
-
-  exportTracesAsJson = () => {
-    const { data, panel } = this.props;
-    if (!data) {
-      return;
-    }
-
-    for (const df of data) {
-      // Only export traces
-      if (df.meta?.preferredVisualisationType !== 'trace') {
-        continue;
-      }
-
-      switch (df.meta?.custom?.traceFormat) {
-        case 'jaeger': {
-          let res = transformToJaeger(new MutableDataFrame(df));
-          this.saveTraceJson(res, panel);
-          break;
-        }
-        case 'zipkin': {
-          let res = transformToZipkin(new MutableDataFrame(df));
-          this.saveTraceJson(res, panel);
-          break;
-        }
-        case 'otlp':
-        default: {
-          let res = transformToOTLP(new MutableDataFrame(df));
-          this.saveTraceJson(res, panel);
-          break;
-        }
-      }
-    }
-  };
-
-  saveTraceJson = (json: any, panel?: PanelModel) => {
-    const blob = new Blob([JSON.stringify(json)], {
-      type: 'application/json',
-    });
-    const displayTitle = panel ? panel.getDisplayTitle() : 'Explore';
-    const fileName = `${displayTitle}-traces-${dateTimeFormat(new Date())}.json`;
-    saveAs(blob, fileName);
   };
 
   onDataFrameChange = (item: SelectableValue<DataTransformerID | number>) => {

@@ -41,7 +41,6 @@ function mapStateToProps(state: StoreState, { exploreId }: { exploreId: string }
     richHistorySearchFilters,
   };
 }
-export type Props = ConnectedProps<typeof connector> & OwnProps;
 
 const mapDispatchToProps = {
   initRichHistory,

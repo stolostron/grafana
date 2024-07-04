@@ -19,7 +19,6 @@ import {
   STRING_FUNCTIONS,
   FIELD_AND_FILTER_FUNCTIONS,
 } from './syntax';
-import { GetLogGroupFieldsResponse } from './types';
 
 const fields = ['field1', '@message'];
 

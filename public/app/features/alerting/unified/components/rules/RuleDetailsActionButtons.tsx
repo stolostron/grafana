@@ -344,10 +344,3 @@ export const getStyles = (theme: GrafanaTheme2) => ({
     border-bottom: solid 1px ${theme.colors.border.medium};
   `,
 });
-
-function isGrafanaRulerRule(rule?: RulerRuleDTO): rule is RulerGrafanaRuleDTO {
-  if (!rule) {
-    return false;
-  }
-  return (rule as RulerGrafanaRuleDTO).grafana_alert != null;
-}

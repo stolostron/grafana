@@ -22,9 +22,6 @@ export const NewRuleFromPanelButton = ({ dashboard, panel, className }: Props) =
   });
 
   const location = useLocation();
-  if (loading) {
-    return <Button disabled={true}>Create alert rule from this panel</Button>;
-  }
 
   const { loading, value: formValues } = useAsync(
     () => panelToRuleFormValues(panel, dashboard),

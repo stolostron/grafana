@@ -327,8 +327,6 @@ export class PanelQueryRunner {
 
       this.lastRequest = request;
 
-      this.lastRequest = request;
-
       this.pipeToSubject(runRequest(ds, request), panelId);
     } catch (err) {
       this.pipeToSubject(

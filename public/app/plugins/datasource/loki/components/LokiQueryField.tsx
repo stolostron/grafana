@@ -1,6 +1,4 @@
 import React, { ReactNode } from 'react';
-import { Plugin, Node } from 'slate';
-import { Editor } from 'slate-react';
 
 import { QueryEditorProps } from '@grafana/data';
 

@@ -1,6 +1,7 @@
 package cloudwatch
 
 import (
+	"context"
 	"encoding/json"
 	"net/url"
 	"sort"

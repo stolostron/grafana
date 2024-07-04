@@ -5,9 +5,6 @@ import { reportInteraction } from '@grafana/runtime';
 import { TimeZone } from '@grafana/schema';
 import { TimePickerWithHistory } from 'app/core/components/TimePicker/TimePickerWithHistory';
 import { getShiftedTimeRange, getZoomedTimeRange } from 'app/core/utils/timePicker';
-import { ExploreId } from 'app/types';
-
-import { TimeSyncButton } from './TimeSyncButton';
 
 import { TimeSyncButton } from './TimeSyncButton';
 

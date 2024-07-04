@@ -117,21 +117,6 @@ function ModalButtonRow({ leftItems, children }: { leftItems?: React.ReactNode; 
     );
   }
 
-  if (leftItems) {
-    return (
-      <div className={styles.modalButtonRow}>
-        <HorizontalGroup justify="space-between">
-          <HorizontalGroup justify="flex-start" spacing="md">
-            {leftItems}
-          </HorizontalGroup>
-          <HorizontalGroup justify="flex-end" spacing="md">
-            {children}
-          </HorizontalGroup>
-        </HorizontalGroup>
-      </div>
-    );
-  }
-
   return (
     <div className={styles.modalButtonRow}>
       <HorizontalGroup justify="flex-end" spacing="md" wrap={true}>

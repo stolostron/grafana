@@ -23,8 +23,6 @@ export const RawInfluxQLEditor = ({ query, onChange, onRunQuery }: Props): JSX.E
 
   const resultFormat = query.resultFormat ?? DEFAULT_RESULT_FORMAT;
 
-  const resultFormat = query.resultFormat ?? DEFAULT_RESULT_FORMAT;
-
   const applyDelayedChangesAndRunQuery = () => {
     onChange({
       ...query,
@@ -51,7 +49,6 @@ export const RawInfluxQLEditor = ({ query, onChange, onRunQuery }: Props): JSX.E
       <HorizontalGroup>
         <InlineFormLabel htmlFor={selectElementId}>Format as</InlineFormLabel>
         <Select
-          menuShouldPortal
           inputId={selectElementId}
           onChange={(v) => {
             onChange({ ...query, resultFormat: v.value });

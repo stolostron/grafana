@@ -162,11 +162,6 @@ export function parseDateMath(
 
     const unit = unitString as DurationUnit;
 
-    if (unit === 'f') {
-      unit = strippedMathString.charAt(i++);
-      isFiscal = true;
-    }
-
     if (!includes(units, unit)) {
       return undefined;
     } else {
@@ -205,27 +200,6 @@ export function roundToFiscal(fyStartMonth: number, dateTime: any, unit: string,
       } else {
         // why + 12? to ensure this number is always a positive offset from fyStartMonth
         dateTime.subtract((dateTime.month() - fyStartMonth + 12) % 3, 'M').startOf('M');
-      }
-      return dateTime;
-    default:
-      return undefined;
-  }
-}
-
-export function roundToFiscal(fyStartMonth: number, dateTime: any, unit: string, roundUp: boolean | undefined) {
-  switch (unit) {
-    case 'y':
-      if (roundUp) {
-        roundToFiscal(fyStartMonth, dateTime, unit, false).add(11, 'M').endOf('M');
-      } else {
-        dateTime.subtract((dateTime.month() - fyStartMonth + 12) % 12, 'M').startOf('M');
-      }
-      return dateTime;
-    case 'Q':
-      if (roundUp) {
-        roundToFiscal(fyStartMonth, dateTime, unit, false).add(2, 'M').endOf('M');
-      } else {
-        dateTime.subtract((dateTime.month() - fyStartMonth + 3) % 3, 'M').startOf('M');
       }
       return dateTime;
     default:

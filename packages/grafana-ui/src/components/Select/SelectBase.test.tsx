@@ -6,7 +6,6 @@ import { select } from 'react-select-event';
 import { SelectableValue } from '@grafana/data';
 
 import { SelectBase } from './SelectBase';
-import { selectOptionInTest } from './test-utils';
 
 // Used to select an option or options from a Select in unit tests
 const selectOptionInTest = async (input: HTMLElement, optionOrOptions: string | RegExp | Array<string | RegExp>) =>
@@ -26,7 +25,7 @@ describe('SelectBase', () => {
   ];
 
   it('renders without error', () => {
-    render(<SelectBase menuShouldPortal onChange={onChangeHandler} />);
+    render(<SelectBase onChange={onChangeHandler} />);
   });
 
   it('renders empty options information', async () => {
@@ -39,7 +38,7 @@ describe('SelectBase', () => {
     render(
       <>
         <label htmlFor="my-select">My select</label>
-        <SelectBase menuShouldPortal onChange={onChangeHandler} options={options} inputId="my-select" />
+        <SelectBase onChange={onChangeHandler} options={options} inputId="my-select" />
       </>
     );
 
@@ -54,7 +53,7 @@ describe('SelectBase', () => {
       return (
         <>
           <button onClick={() => setValue(null)}>clear value</button>
-          <SelectBase menuShouldPortal value={value} onChange={setValue} options={[option]} />
+          <SelectBase value={value} onChange={setValue} options={[option]} />
         </>
       );
     };
@@ -119,7 +118,6 @@ describe('SelectBase', () => {
       it('should only display maxVisibleValues options, and additional number of values should be displayed as indicator', () => {
         render(
           <SelectBase
-            menuShouldPortal
             onChange={onChangeHandler}
             isMulti={true}
             maxVisibleValues={3}
@@ -136,7 +134,6 @@ describe('SelectBase', () => {
         it('should show all selected options when menu is open', () => {
           render(
             <SelectBase
-              menuShouldPortal
               onChange={onChangeHandler}
               isMulti={true}
               maxVisibleValues={3}
@@ -156,7 +153,6 @@ describe('SelectBase', () => {
         it('should not show all selected options when menu is open', () => {
           render(
             <SelectBase
-              menuShouldPortal
               onChange={onChangeHandler}
               isMulti={true}
               maxVisibleValues={3}
@@ -177,7 +173,6 @@ describe('SelectBase', () => {
       it('should always show all selected options', () => {
         render(
           <SelectBase
-            menuShouldPortal
             onChange={onChangeHandler}
             isMulti={true}
             options={excessiveOptions}
@@ -203,7 +198,7 @@ describe('SelectBase', () => {
     it('call onChange handler when option is selected', async () => {
       const spy = jest.fn();
 
-      render(<SelectBase menuShouldPortal onChange={spy} options={options} aria-label="My select" />);
+      render(<SelectBase onChange={spy} options={options} aria-label="My select" />);
 
       const selectEl = screen.getByLabelText('My select');
       expect(selectEl).toBeInTheDocument();

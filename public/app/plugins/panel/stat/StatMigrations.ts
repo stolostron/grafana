@@ -4,8 +4,6 @@ import { sharedSingleStatPanelChangedHandler } from '@grafana/ui';
 
 import { Options } from './panelcfg.gen';
 
-import { StatPanelOptions } from './types';
-
 // This is called when the panel changes from another panel
 export const statPanelChangedHandler = (
   panel: PanelModel<Partial<Options>>,

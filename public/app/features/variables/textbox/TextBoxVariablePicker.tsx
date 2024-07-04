@@ -13,15 +13,6 @@ import { changeVariableProp } from '../state/sharedReducer';
 import { TextBoxVariableModel } from '../types';
 import { toVariablePayload } from '../utils';
 
-import { Input } from '@grafana/ui';
-
-import { variableAdapters } from '../adapters';
-import { VariablePickerProps } from '../pickers/types';
-import { toKeyedAction } from '../state/keyedVariablesReducer';
-import { changeVariableProp } from '../state/sharedReducer';
-import { TextBoxVariableModel } from '../types';
-import { toVariablePayload } from '../utils';
-
 export interface Props extends VariablePickerProps<TextBoxVariableModel> {}
 
 export function TextBoxVariablePicker({ variable, onVariableChange, readOnly }: Props): ReactElement {

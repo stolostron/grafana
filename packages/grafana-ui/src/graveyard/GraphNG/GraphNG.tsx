@@ -234,7 +234,6 @@ export class GraphNG extends Component<GraphNGProps, GraphNGState> {
 
         if (shouldReconfig) {
           newState.config = this.props.prepConfig(newState.alignedFrame, this.props.frames, this.getTimeRange);
-          newState.alignedData = newState.config.prepData!(newState.alignedFrame);
           pluginLog('GraphNG', false, 'config recreated', newState.config);
         }
 

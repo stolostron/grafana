@@ -5,8 +5,6 @@ import { useDarkMode } from 'storybook-dark-mode';
 import { createTheme, GrafanaTheme2, ThemeContext } from '@grafana/data';
 
 import { GlobalStyles } from '../../themes/GlobalStyles/GlobalStyles';
-import { ThemeContext } from '../../themes/ThemeContext';
-import { RenderFunction } from '../../types';
 
 type SassThemeChangeHandler = (theme: GrafanaTheme2) => void;
 const ThemeableStory = ({

@@ -3,8 +3,6 @@ import { act, renderHook } from '@testing-library/react';
 import { TraceSpan } from './components';
 import { defaultFilters, useSearch } from './useSearch';
 
-import { useSearch } from './useSearch';
-
 describe('useSearch', () => {
   const spans = [
     {

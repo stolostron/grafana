@@ -38,7 +38,6 @@ const AggregationField = ({
   return (
     <Field label="Aggregation">
       <Select
-        menuShouldPortal
         inputId="azure-monitor-metrics-aggregation-field"
         value={query.azureMonitor?.aggregation || null}
         onChange={handleChange}

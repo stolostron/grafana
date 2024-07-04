@@ -84,8 +84,6 @@ class UnthemedCodeEditor extends PureComponent<Props> {
     if (onFocus) {
       onFocus(this.getEditorValue());
     }
-
-    onBeforeEditorMount?.(monaco);
   };
 
   onSave = () => {

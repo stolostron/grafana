@@ -7,10 +7,6 @@ import { FetchQueue, FetchQueueUpdate } from './FetchQueue';
 import { subscribeTester } from './FetchQueue.test';
 import { ResponseQueue } from './ResponseQueue';
 
-import { FetchQueue, FetchQueueUpdate } from './FetchQueue';
-import { subscribeTester } from './FetchQueue.test';
-import { ResponseQueue } from './ResponseQueue';
-
 const getTestContext = () => {
   const id = 'id';
   const options: BackendSrvRequest = { url: 'http://someurl' };

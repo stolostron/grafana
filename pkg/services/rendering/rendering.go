@@ -8,7 +8,6 @@ import (
 	"math"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"

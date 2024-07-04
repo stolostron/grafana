@@ -6,8 +6,6 @@ import { transformDataFrame } from '../transformDataFrame';
 import { DataTransformerID } from './ids';
 import { organizeFieldsTransformer, OrganizeFieldsTransformerOptions } from './organize';
 
-import { organizeFieldsTransformer, OrganizeFieldsTransformerOptions } from './organize';
-
 describe('OrganizeFields Transformer', () => {
   beforeAll(() => {
     mockTransformationsRegistry([organizeFieldsTransformer]);

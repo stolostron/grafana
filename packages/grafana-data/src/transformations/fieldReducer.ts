@@ -269,15 +269,6 @@ export const fieldReducers = new Registry<FieldReducerInfo>(() => [
       uniqueValues: [...new Set(field.values)],
     }),
   },
-  {
-    id: ReducerID.uniqueValues,
-    name: 'All unique values',
-    description: 'Returns an array with all unique values',
-    standard: false,
-    reduce: (field: Field) => ({
-      uniqueValues: [...new Set(field.values.toArray())],
-    }),
-  },
 ]);
 
 // Used for test cases

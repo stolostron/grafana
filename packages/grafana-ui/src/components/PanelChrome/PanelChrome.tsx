@@ -18,8 +18,6 @@ import { PanelMenu } from './PanelMenu';
 import { PanelStatus } from './PanelStatus';
 import { TitleItem } from './TitleItem';
 
-import { useStyles2, useTheme2 } from '../../themes';
-
 /**
  * @internal
  */

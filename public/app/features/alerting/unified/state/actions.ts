@@ -148,20 +148,6 @@ export const fetchExternalAlertmanagersConfigAction = createAsyncThunk(
   }
 );
 
-export const fetchExternalAlertmanagersAction = createAsyncThunk(
-  'unifiedAlerting/fetchExternalAlertmanagers',
-  (): Promise<ExternalAlertmanagersResponse> => {
-    return withSerializedError(fetchExternalAlertmanagers());
-  }
-);
-
-export const fetchExternalAlertmanagersConfigAction = createAsyncThunk(
-  'unifiedAlerting/fetchExternAlertmanagersConfig',
-  (): Promise<ExternalAlertmanagerConfig> => {
-    return withSerializedError(fetchExternalAlertmanagerConfig());
-  }
-);
-
 export const fetchRulerRulesAction = createAsyncThunk(
   'unifiedalerting/fetchRulerRules',
   async (

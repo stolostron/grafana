@@ -113,17 +113,6 @@ export const AlertInstances = ({
       </div>
     ) : undefined;
 
-  const hiddenInstances = alerts.length - filteredAlerts.length;
-
-  const uncollapsible = filteredAlerts.length > 0;
-  const toggleShowInstances = uncollapsible ? toggleDisplayInstances : noop;
-
-  useEffect(() => {
-    if (filteredAlerts.length === 0) {
-      setDisplayInstances(false);
-    }
-  }, [filteredAlerts]);
-
   return (
     <div>
       {options.groupMode === GroupMode.Default && (

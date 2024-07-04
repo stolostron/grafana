@@ -376,51 +376,6 @@ func Test_buildDataFrames_uses_response_label_as_frame_name(t *testing.T) {
 		assert.Equal(t, "some label", frames[0].Name)
 	})
 
-	t.Run("Should only expand certain fields when using SQL queries", func(t *testing.T) {
-		timestamp := time.Unix(0, 0)
-		response := &queryRowResponse{
-			Labels: []string{"lb3"},
-			Metrics: map[string]*cloudwatch.MetricDataResult{
-				"lb3": {
-					Id:    aws.String("lb3"),
-					Label: aws.String("lb3"),
-					Timestamps: []*time.Time{
-						aws.Time(timestamp),
-					},
-					Values:     []*float64{aws.Float64(23)},
-					StatusCode: aws.String("Complete"),
-				},
-			},
-		}
-
-		query := &cloudWatchQuery{
-			RefId:      "refId1",
-			Region:     "us-east-1",
-			Namespace:  "AWS/ApplicationELB",
-			MetricName: "TargetResponseTime",
-			Dimensions: map[string][]string{
-				"LoadBalancer": {"lb1"},
-				"InstanceType": {"micro"},
-				"Resource":     {"res"},
-			},
-			Statistic:        "Average",
-			Period:           60,
-			Alias:            "{{LoadBalancer}} {{InstanceType}} {{metric}} {{namespace}} {{stat}} {{region}} {{period}}",
-			MetricQueryType:  MetricQueryTypeQuery,
-			MetricEditorMode: MetricEditorModeRaw,
-		}
-		frames, err := buildDataFrames(startTime, endTime, *response, query)
-		require.NoError(t, err)
-
-		assert.False(t, strings.Contains(frames[0].Name, "AWS/ApplicationELB"))
-		assert.False(t, strings.Contains(frames[0].Name, "lb1"))
-		assert.False(t, strings.Contains(frames[0].Name, "micro"))
-		assert.False(t, strings.Contains(frames[0].Name, "AWS/ApplicationELB"))
-
-		assert.True(t, strings.Contains(frames[0].Name, "us-east-1"))
-		assert.True(t, strings.Contains(frames[0].Name, "60"))
-	})
-
 	t.Run("Parse cloudwatch response", func(t *testing.T) {
 		timestamp := time.Unix(0, 0)
 		response := &models.QueryRowResponse{

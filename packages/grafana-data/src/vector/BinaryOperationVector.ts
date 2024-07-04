@@ -1,8 +1,6 @@
 import { Vector } from '../types/vector';
 import { BinaryOperation } from '../utils/binaryOperators';
 
-import { vectorToArray } from './vectorToArray';
-
 /**
  * @public
  * @deprecated use a simple Arrays.  NOTE: Not used in grafana core

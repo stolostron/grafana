@@ -5,8 +5,6 @@ import { Select, Input, Field, FieldSet } from '@grafana/ui';
 
 import { OpenTsdbOptions } from '../types';
 
-const { Select, Input } = LegacyForms;
-
 const tsdbVersions = [
   { label: '<=2.1', value: 1 },
   { label: '==2.2', value: 2 },

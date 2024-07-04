@@ -3210,7 +3210,7 @@
     },
     "/v1/rule/backtest": {
       "post": {
-        "description": "Test a rule against external data source ruler",
+        "description": "Test rule",
         "consumes": [
           "application/json"
         ],
@@ -3665,46 +3665,6 @@
           "$ref": "#/definitions/LegacyAlert"
         }
       }
-    },
-    "AlertManager": {
-      "type": "object",
-      "title": "AlertManager models a configured Alert Manager.",
-      "properties": {
-        "url": {
-          "type": "string",
-          "x-go-name": "URL"
-        }
-      },
-      "x-go-package": "github.com/prometheus/client_golang/api/prometheus/v1"
-    },
-    "AlertManagerNotFound": {
-      "type": "object",
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
-    },
-    "AlertManagerNotReady": {
-      "type": "object",
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
-    },
-    "AlertManagersResult": {
-      "type": "object",
-      "title": "AlertManagersResult contains the result from querying the alertmanagers endpoint.",
-      "properties": {
-        "activeAlertManagers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/AlertManager"
-          },
-          "x-go-name": "Active"
-        },
-        "droppedAlertManagers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/AlertManager"
-          },
-          "x-go-name": "Dropped"
-        }
-      },
-      "x-go-package": "github.com/prometheus/client_golang/api/prometheus/v1"
     },
     "AlertQuery": {
       "type": "object",
@@ -4177,13 +4137,6 @@
             "$ref": "#/definitions/MuteTimeInterval"
           }
         },
-        "mute_time_intervals": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/MuteTimeInterval"
-          },
-          "x-go-name": "MuteTimeIntervals"
-        },
         "route": {
           "$ref": "#/definitions/Route"
         },
@@ -4360,21 +4313,6 @@
         }
       }
     },
-    "DayOfMonthRange": {
-      "type": "object",
-      "title": "A DayOfMonthRange is an inclusive range that may have negative Beginning/End values that represent distance from the End of the month Beginning at -1.",
-      "properties": {
-        "Begin": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "End": {
-          "type": "integer",
-          "format": "int64"
-        }
-      },
-      "x-go-package": "github.com/prometheus/alertmanager/timeinterval"
-    },
     "DiscoveryBase": {
       "type": "object",
       "required": [
@@ -4391,12 +4329,6 @@
           "type": "string"
         }
       }
-    },
-    "DsPermissionType": {
-      "description": "Datasource permission\nDescription:\n`0` - No Access\n`1` - Query\nEnum: 0,1",
-      "type": "integer",
-      "format": "int64",
-      "x-go-package": "github.com/grafana/grafana/pkg/models"
     },
     "Duration": {
       "type": "integer",
@@ -4554,36 +4486,6 @@
     "ErrorSource": {
       "description": "ErrorSource type defines the source of the error",
       "type": "string"
-    },
-    "EmbeddedContactPoint": {
-      "description": "EmbeddedContactPoint is the contact point type that is used\nby grafanas embedded alertmanager implementation.",
-      "type": "object",
-      "properties": {
-        "disableResolveMessage": {
-          "type": "boolean",
-          "x-go-name": "DisableResolveMessage"
-        },
-        "name": {
-          "type": "string",
-          "x-go-name": "Name"
-        },
-        "provanance": {
-          "type": "string",
-          "x-go-name": "Provenance"
-        },
-        "settings": {
-          "$ref": "#/definitions/Json"
-        },
-        "type": {
-          "type": "string",
-          "x-go-name": "Type"
-        },
-        "uid": {
-          "type": "string",
-          "x-go-name": "UID"
-        }
-      },
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
     },
     "ErrorType": {
       "type": "string",
@@ -4990,13 +4892,6 @@
             "$ref": "#/definitions/MuteTimeInterval"
           }
         },
-        "mute_time_intervals": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/MuteTimeInterval"
-          },
-          "x-go-name": "MuteTimeIntervals"
-        },
         "receivers": {
           "description": "Override with our superset receiver type",
           "type": "array",
@@ -5081,13 +4976,6 @@
           "items": {
             "$ref": "#/definitions/TelegramConfig"
           }
-        },
-        "sns_configs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SNSConfig"
-          },
-          "x-go-name": "SNSConfigs"
         },
         "victorops_configs": {
           "type": "array",
@@ -5298,29 +5186,6 @@
           ]
         }
       }
-    },
-    "GettableNGalertConfig": {
-      "type": "object",
-      "properties": {
-        "alertmanagers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "x-go-name": "Alertmanagers"
-        },
-        "alertmanagersChoice": {
-          "type": "string",
-          "enum": [
-            "all",
-            "internal",
-            "external"
-          ],
-          "x-go-enum-desc": "all AllAlertmanagers\ninternal InternalAlertmanager\nexternal ExternalAlertmanagers",
-          "x-go-name": "AlertmanagersChoice"
-        }
-      },
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
     },
     "GettableRuleGroupConfig": {
       "type": "object",
@@ -5556,21 +5421,6 @@
         }
       }
     },
-    "InclusiveRange": {
-      "type": "object",
-      "title": "InclusiveRange is used to hold the Beginning and End values of many time interval components.",
-      "properties": {
-        "Begin": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "End": {
-          "type": "integer",
-          "format": "int64"
-        }
-      },
-      "x-go-package": "github.com/prometheus/alertmanager/timeinterval"
-    },
     "InhibitRule": {
       "description": "InhibitRule defines an inhibition rule that mutes alerts that match the\ntarget labels if an alert matching the source labels exists.\nBoth alerts have to have a set of labels being equal.",
       "type": "object",
@@ -5669,19 +5519,6 @@
     "LabelValue": {
       "type": "string",
       "title": "A LabelValue is an associated value for a LabelName."
-    },
-    "LabelSet": {
-      "description": "A LabelSet is a collection of LabelName and LabelValue pairs.  The LabelSet\nmay be fully-qualified down to the point where it may resolve to a single\nMetric in the data store or not.  All operations that occur within the realm\nof a LabelSet can emit a vector of Metric entities to which the LabelSet may\nmatch.",
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/definitions/LabelValue"
-      },
-      "x-go-package": "github.com/prometheus/common/model"
-    },
-    "LabelValue": {
-      "type": "string",
-      "title": "A LabelValue is an associated value for a LabelName.",
-      "x-go-package": "github.com/prometheus/common/model"
     },
     "Labels": {
       "description": "Labels is a sorted set of labels. Order has to be guaranteed upon\ninstantiation.",
@@ -5920,9 +5757,6 @@
         "orgId": {
           "type": "integer",
           "format": "int64"
-        },
-        "object_matchers": {
-          "$ref": "#/definitions/ObjectMatchers"
         },
         "receiver": {
           "type": "string"
@@ -7384,53 +7218,6 @@
         }
       }
     },
-    "SNSConfig": {
-      "type": "object",
-      "properties": {
-        "api_url": {
-          "type": "string",
-          "x-go-name": "APIUrl"
-        },
-        "attributes": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "x-go-name": "Attributes"
-        },
-        "http_config": {
-          "$ref": "#/definitions/HTTPClientConfig"
-        },
-        "message": {
-          "type": "string",
-          "x-go-name": "Message"
-        },
-        "phone_number": {
-          "type": "string",
-          "x-go-name": "PhoneNumber"
-        },
-        "send_resolved": {
-          "type": "boolean",
-          "x-go-name": "VSendResolved"
-        },
-        "sigv4": {
-          "$ref": "#/definitions/SigV4Config"
-        },
-        "subject": {
-          "type": "string",
-          "x-go-name": "Subject"
-        },
-        "target_arn": {
-          "type": "string",
-          "x-go-name": "TargetARN"
-        },
-        "topic_arn": {
-          "type": "string",
-          "x-go-name": "TopicARN"
-        }
-      },
-      "x-go-package": "github.com/prometheus/alertmanager/config"
-    },
     "Sample": {
       "type": "object",
       "title": "Sample is a single sample belonging to a metric.",
@@ -7810,94 +7597,6 @@
           }
         }
       }
-    },
-    "TestReceiverConfigResult": {
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "string",
-          "x-go-name": "Error"
-        },
-        "name": {
-          "type": "string",
-          "x-go-name": "Name"
-        },
-        "status": {
-          "type": "string",
-          "x-go-name": "Status"
-        },
-        "uid": {
-          "type": "string",
-          "x-go-name": "UID"
-        }
-      },
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
-    },
-    "TestReceiverResult": {
-      "type": "object",
-      "properties": {
-        "grafana_managed_receiver_configs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/TestReceiverConfigResult"
-          },
-          "x-go-name": "Configs"
-        },
-        "name": {
-          "type": "string",
-          "x-go-name": "Name"
-        }
-      },
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
-    },
-    "TestReceiversConfigAlertParams": {
-      "type": "object",
-      "properties": {
-        "annotations": {
-          "$ref": "#/definitions/LabelSet"
-        },
-        "labels": {
-          "$ref": "#/definitions/LabelSet"
-        }
-      },
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
-    },
-    "TestReceiversConfigBodyParams": {
-      "type": "object",
-      "properties": {
-        "alert": {
-          "$ref": "#/definitions/TestReceiversConfigAlertParams"
-        },
-        "receivers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/PostableApiReceiver"
-          },
-          "x-go-name": "Receivers"
-        }
-      },
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
-    },
-    "TestReceiversResult": {
-      "type": "object",
-      "properties": {
-        "alert": {
-          "$ref": "#/definitions/TestReceiversConfigAlertParams"
-        },
-        "notified_at": {
-          "type": "string",
-          "format": "date-time",
-          "x-go-name": "NotifiedAt"
-        },
-        "receivers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/TestReceiverResult"
-          },
-          "x-go-name": "Receivers"
-        }
-      },
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
     },
     "TestRulePayload": {
       "type": "object",
@@ -8355,36 +8054,6 @@
         }
       }
     },
-    "WeekdayRange": {
-      "type": "object",
-      "title": "A WeekdayRange is an inclusive range between [0, 6] where 0 = Sunday.",
-      "properties": {
-        "Begin": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "End": {
-          "type": "integer",
-          "format": "int64"
-        }
-      },
-      "x-go-package": "github.com/prometheus/alertmanager/timeinterval"
-    },
-    "YearRange": {
-      "type": "object",
-      "title": "A YearRange is a positive inclusive range.",
-      "properties": {
-        "Begin": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "End": {
-          "type": "integer",
-          "format": "int64"
-        }
-      },
-      "x-go-package": "github.com/prometheus/alertmanager/timeinterval"
-    },
     "alert": {
       "description": "Alert alert",
       "type": "object",
@@ -8732,15 +8401,6 @@
       "additionalProperties": {
         "type": "string"
       }
-    },
-    "overrideLabels": {
-      "description": "The custom marshaling for labels.Labels ends up doing this anyways.",
-      "type": "object",
-      "title": "override the labels type with a map for generation.",
-      "additionalProperties": {
-        "type": "string"
-      },
-      "x-go-package": "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
     },
     "peerStatus": {
       "description": "PeerStatus peer status",

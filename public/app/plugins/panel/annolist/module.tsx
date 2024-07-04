@@ -1,4 +1,3 @@
-import { truncate } from '@sentry/utils';
 import React from 'react';
 
 import { PanelModel, PanelPlugin } from '@grafana/data';

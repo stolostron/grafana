@@ -7,8 +7,6 @@ import { isSharedDashboardQuery, runSharedRequest } from './runSharedRequest';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { isSharedDashboardQuery } from './runSharedRequest';
-
 describe('SharedQueryRunner', () => {
   let panelData: PanelData = {} as any;
   const origDashbaordSrv = getDashboardSrv();

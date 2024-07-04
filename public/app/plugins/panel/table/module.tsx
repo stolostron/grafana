@@ -88,21 +88,6 @@ export const plugin = new PanelPlugin<Options, FieldConfig>(TablePanel)
           },
         })
         .addBooleanSwitch({
-          path: 'inspect',
-          name: 'Cell value inspect',
-          description: 'Enable cell value inspection in a modal window',
-          defaultValue: false,
-          showIf: (cfg) => {
-            return (
-              cfg.displayMode === TableCellDisplayMode.Auto ||
-              cfg.displayMode === TableCellDisplayMode.JSONView ||
-              cfg.displayMode === TableCellDisplayMode.ColorText ||
-              cfg.displayMode === TableCellDisplayMode.ColorBackground ||
-              cfg.displayMode === TableCellDisplayMode.ColorBackgroundSolid
-            );
-          },
-        })
-        .addBooleanSwitch({
           path: 'filterable',
           name: 'Column filter',
           description: 'Enables/disables field filters in table',

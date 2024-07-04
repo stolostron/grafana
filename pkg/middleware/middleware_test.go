@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

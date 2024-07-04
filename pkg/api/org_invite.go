@@ -70,9 +70,6 @@ func (hs *HTTPServer) AddOrgInvite(c *contextmodel.ReqContext) response.Response
 	if !c.SignedInUser.GetOrgRole().Includes(inviteDto.Role) && !c.SignedInUser.GetIsGrafanaAdmin() {
 		return response.Error(http.StatusForbidden, "Cannot assign a role higher than user's role", nil)
 	}
-	if !c.OrgRole.Includes(inviteDto.Role) && !c.IsGrafanaAdmin {
-		return response.Error(http.StatusForbidden, "Cannot assign a role higher than user's role", nil)
-	}
 
 	// first try get existing user
 	userQuery := user.GetUserByLoginQuery{LoginOrEmail: inviteDto.LoginOrEmail}

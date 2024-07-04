@@ -18,8 +18,6 @@ import {
   getDisplayProcessor,
   createTheme,
 } from '@grafana/data';
-import { liveTimer } from 'app/features/dashboard/dashgrid/liveTimer';
-import { StreamingDataFrame } from 'app/features/live/data/StreamingDataFrame';
 
 import { getRandomLine } from './LogIpsum';
 import { TestData, StreamingQuery } from './dataquery.gen';

@@ -25,9 +25,7 @@ export function measureText(text: string, fontSize: number, fontWeight = 400): T
     return fromCache;
   }
 
-  if (ctxFontStyle !== fontStyle) {
-    context.font = ctxFontStyle = fontStyle;
-  }
+  const context = getCanvasContext();
 
   if (ctxFontStyle !== fontStyle) {
     context.font = ctxFontStyle = fontStyle;

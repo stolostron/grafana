@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/grafana/grafana/pkg/services/accesscontrol"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -24,7 +24,6 @@ import (
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
 	"github.com/grafana/grafana/pkg/services/provisioning"
 	"github.com/grafana/grafana/pkg/setting"
-	"golang.org/x/sync/errgroup"
 )
 
 // Options contains parameters for the New function.

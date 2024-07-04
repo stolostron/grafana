@@ -108,10 +108,6 @@ export class KeybindingSrv {
     this.locationService.push('/explore');
   }
 
-  private makeAbsoluteTime() {
-    appEvents.publish(new AbsoluteTimeEvent());
-  }
-
   private showHelpModal() {
     appEvents.publish(new ShowModalReactEvent({ component: HelpModal }));
   }

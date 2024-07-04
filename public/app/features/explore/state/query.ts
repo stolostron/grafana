@@ -553,17 +553,6 @@ export const runQueries = createAsyncThunk<void, RunQueriesOptions>(
       handleHistory(dispatch, getState().explore, exploreItemState.history, datasourceInstance, queries, exploreId);
     }
 
-    const queries = exploreItemState.queries.map((query) => ({
-      ...query,
-      datasource: query.datasource || datasourceInstance?.getRef(),
-    }));
-
-    if (datasourceInstance != null) {
-      handleHistory(dispatch, getState().explore, exploreItemState.history, datasourceInstance, queries, exploreId);
-    }
-
-    dispatch(stateSave({ replace: options?.replaceUrl }));
-
     const cachedValue = getResultsFromCache(cache, absoluteRange);
 
     // If we have results saved in cache, we are going to use those results instead of running queries
@@ -937,29 +926,6 @@ function canReuseSupplementaryQueryData(
   });
 
   return allSupportZoomingIn && allQueriesAreTheSame && allResultsHaveWiderRange;
-}
-
-/**
- * Checks if after changing the time range the existing data can be used to show logs volume.
- * It can happen if queries are the same and new time range is within existing data time range.
- */
-function canReuseLogsVolumeData(
-  logsVolumeData: DataQueryResponse | undefined,
-  queries: DataQuery[],
-  selectedTimeRange: AbsoluteTimeRange
-): boolean {
-  if (logsVolumeData && logsVolumeData.data[0]) {
-    // check if queries are the same
-    if (!deepEqual(logsVolumeData.data[0].meta?.custom?.targets, queries)) {
-      return false;
-    }
-    const dataRange = logsVolumeData && logsVolumeData.data[0] && logsVolumeData.data[0].meta?.custom?.absoluteRange;
-    // if selected range is within loaded logs volume
-    if (dataRange && dataRange.from <= selectedTimeRange.from && selectedTimeRange.to <= dataRange.to) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**

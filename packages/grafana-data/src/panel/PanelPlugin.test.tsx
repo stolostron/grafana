@@ -11,8 +11,6 @@ import { FieldConfigProperty, FieldConfigPropertyItem } from '../types';
 
 import { PanelPlugin } from './PanelPlugin';
 
-import { PanelPlugin } from './PanelPlugin';
-
 describe('PanelPlugin', () => {
   describe('declarative options', () => {
     beforeAll(() => {

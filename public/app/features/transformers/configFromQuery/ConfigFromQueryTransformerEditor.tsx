@@ -56,12 +56,12 @@ export function ConfigFromQueryTransformerEditor({ input, onChange, options }: P
     <>
       <InlineFieldRow>
         <InlineField label="Config query" labelWidth={20}>
-          <Select menuShouldPortal onChange={onRefIdChange} options={refIds} value={currentRefId} width={30} />
+          <Select onChange={onRefIdChange} options={refIds} value={currentRefId} width={30} />
         </InlineField>
       </InlineFieldRow>
       <InlineFieldRow>
         <InlineField label="Apply to" labelWidth={20}>
-          <Select menuShouldPortal onChange={onMatcherChange} options={matchers} value={currentMatcher.id} width={30} />
+          <Select onChange={onMatcherChange} options={matchers} value={currentMatcher.id} width={30} />
         </InlineField>
       </InlineFieldRow>
       <InlineFieldRow>

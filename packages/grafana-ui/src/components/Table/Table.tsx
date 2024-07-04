@@ -284,33 +284,6 @@ export const Table = memo((props: Props) => {
     );
   }
 
-  const itemCount = enablePagination ? page.length : rows.length;
-  let paginationEl = null;
-  if (enablePagination) {
-    const itemsRangeStart = state.pageIndex * state.pageSize + 1;
-    let itemsRangeEnd = itemsRangeStart + state.pageSize - 1;
-    const isSmall = width < 500;
-    if (itemsRangeEnd > data.length) {
-      itemsRangeEnd = data.length;
-    }
-    paginationEl = (
-      <div className={tableStyles.paginationWrapper}>
-        <div>
-          <Pagination
-            currentPage={state.pageIndex + 1}
-            numberOfPages={pageOptions.length}
-            showSmallVersion={isSmall}
-            onNavigate={onNavigate}
-          />
-        </div>
-        {isSmall ? null : (
-          <div className={tableStyles.paginationSummary}>
-            {itemsRangeStart} - {itemsRangeEnd} of {data.length} rows
-          </div>
-        )}
-      </div>
-    );
-  }
   return (
     <div
       {...getTableProps()}

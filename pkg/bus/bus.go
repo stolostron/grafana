@@ -80,7 +80,7 @@ func (b *InProcBus) AddEventListener(handler HandlerFunc) {
 	eventName := handlerType.In(1).Elem().Name()
 	_, exists := b.listeners[eventName]
 	if !exists {
-		b.listenersWithCtx[eventName] = make([]HandlerFunc, 0)
+		b.listeners[eventName] = make([]HandlerFunc, 0)
 	}
-	b.listenersWithCtx[eventName] = append(b.listenersWithCtx[eventName], handler)
+	b.listeners[eventName] = append(b.listeners[eventName], handler)
 }

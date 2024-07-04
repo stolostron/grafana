@@ -90,10 +90,10 @@ describe('Signup Page', () => {
     postMock.mockResolvedValueOnce({ message: 'Logged in' });
     render(<SignupPage {...props} />);
 
-    userEvent.type(screen.getByRole('textbox', { name: 'Your name' }), 'test-user');
-    userEvent.type(screen.getByRole('textbox', { name: 'Email' }), 'test@gmail.com');
-    userEvent.type(screen.getByLabelText('Password'), 'admin');
-    userEvent.type(screen.getByLabelText('Confirm password'), 'admin');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Your name' }), 'test-user');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Email' }), 'test@gmail.com');
+    await userEvent.type(screen.getByLabelText('Password'), 'admin');
+    await userEvent.type(screen.getByLabelText('Confirm password'), 'admin');
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
     await waitFor(() =>

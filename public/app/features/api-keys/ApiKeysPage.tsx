@@ -15,15 +15,6 @@ import { deleteApiKey, migrateApiKey, migrateAll, loadApiKeys, toggleIncludeExpi
 import { setSearchQuery } from './state/reducers';
 import { getApiKeys, getApiKeysCount, getIncludeExpired, getIncludeExpiredDisabled } from './state/selectors';
 
-import { ApiKeysActionBar } from './ApiKeysActionBar';
-import { ApiKeysAddedModal } from './ApiKeysAddedModal';
-import { ApiKeysController } from './ApiKeysController';
-import { ApiKeysForm } from './ApiKeysForm';
-import { ApiKeysTable } from './ApiKeysTable';
-import { addApiKey, deleteApiKey, loadApiKeys, toggleIncludeExpired } from './state/actions';
-import { setSearchQuery } from './state/reducers';
-import { getApiKeys, getApiKeysCount, getIncludeExpired, getIncludeExpiredDisabled } from './state/selectors';
-
 function mapStateToProps(state: StoreState) {
   const canCreate = contextSrv.hasPermission(AccessControlAction.ActionAPIKeysCreate);
   return {

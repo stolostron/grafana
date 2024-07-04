@@ -34,8 +34,6 @@ type Dialect interface {
 
 	OrderBy(order string) string
 
-	OrderBy(order string) string
-
 	CreateIndexSQL(tableName string, index *Index) string
 	CreateTableSQL(table *Table) string
 	AddColumnSQL(tableName string, col *Column) string

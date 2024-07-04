@@ -119,14 +119,6 @@ export interface TermsQuery {
   orderBy?: string;
 }
 
-export interface TermsQuery {
-  query?: string;
-  size?: number;
-  field?: string;
-  order?: 'asc' | 'desc';
-  orderBy?: string;
-}
-
 export type DataLinkConfig = {
   field: string;
   url: string;

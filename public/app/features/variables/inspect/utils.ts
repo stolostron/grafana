@@ -148,7 +148,7 @@ export const getPropsWithVariable = (variableId: string, parent: { key: string; 
     }
 
     return all;
-  }, {} as Record<string, any>);
+  }, {});
 
   const objectValues = Object.keys(parent.value).reduce<Record<string, any>>((all, key) => {
     const value = parent.value[key];
@@ -169,7 +169,7 @@ export const getPropsWithVariable = (variableId: string, parent: { key: string; 
     }
 
     return all;
-  }, {} as Record<string, any>);
+  }, {});
 
   if (Object.keys(stringValues).length || Object.keys(objectValues).length) {
     result = {

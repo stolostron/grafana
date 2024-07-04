@@ -1,7 +1,6 @@
 import { makeArrayIndexableVector } from '../types';
 
 import { FunctionalVector } from './FunctionalVector';
-import { vectorToArray } from './vectorToArray';
 
 interface CircularOptions<T> {
   buffer?: T[];

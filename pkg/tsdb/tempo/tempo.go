@@ -2,7 +2,6 @@ package tempo
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"runtime"
@@ -123,20 +122,6 @@ func (s *Service) getDSInfo(ctx context.Context, pluginCtx backend.PluginContext
 	}
 
 	instance, ok := i.(*Datasource)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast datsource info")
-	}
-
-	return instance, nil
-}
-
-func (s *Service) getDSInfo(pluginCtx backend.PluginContext) (*datasourceInfo, error) {
-	i, err := s.im.Get(pluginCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	instance, ok := i.(*datasourceInfo)
 	if !ok {
 		return nil, fmt.Errorf("failed to cast datsource info")
 	}

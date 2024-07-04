@@ -23,9 +23,6 @@ import AlertLabelDropdown from '../AlertLabelDropdown';
 
 import { NeedHelpInfo } from './NeedHelpInfo';
 
-import { GrafanaTheme } from '@grafana/data';
-import { Button, Field, FieldArray, Input, InlineLabel, Label, useStyles } from '@grafana/ui';
-
 interface Props {
   className?: string;
   dataSourceName?: string | null;

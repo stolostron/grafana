@@ -93,7 +93,6 @@ export const LineStyleEditor = ({ value, onChange }: Props) => {
       {value?.fill && value?.fill !== 'solid' && (
         <>
           <Select
-            menuShouldPortal
             allowCustomValue={true}
             options={options}
             value={current}

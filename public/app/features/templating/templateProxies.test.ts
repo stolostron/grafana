@@ -2,8 +2,6 @@ import { toDataFrame } from '@grafana/data';
 
 import { getTemplateProxyForField } from './templateProxies';
 
-import { getTemplateProxyForField } from './templateProxies';
-
 describe('Template proxies', () => {
   it('supports name and displayName', () => {
     const frames = [

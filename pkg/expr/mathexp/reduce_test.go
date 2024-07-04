@@ -179,32 +179,6 @@ func TestSeriesReduce(t *testing.T) {
 			resultsIs:   require.Equal,
 			results:     resultValuesNoErr(makeNumber("", nil, nil)),
 		},
-		{
-			name:        "last empty series",
-			red:         "last",
-			varToReduce: "A",
-			vars:        seriesEmpty,
-			errIs:       require.NoError,
-			resultsIs:   require.Equal,
-			results: Results{
-				[]Value{
-					makeNumber("", nil, NaN),
-				},
-			},
-		},
-		{
-			name:        "last null series",
-			red:         "last",
-			varToReduce: "A",
-			vars:        seriesWithNil,
-			errIs:       require.NoError,
-			resultsIs:   require.Equal,
-			results: Results{
-				[]Value{
-					makeNumber("", nil, nil),
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {

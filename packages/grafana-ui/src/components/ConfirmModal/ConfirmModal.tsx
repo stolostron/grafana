@@ -95,13 +95,6 @@ export const ConfirmModal = ({
     }
   };
 
-  useEffect(() => {
-    // for some reason autoFocus property did no work on this button, but this does
-    if (isOpen) {
-      buttonRef.current?.focus();
-    }
-  }, [isOpen]);
-
   return (
     <Modal className={cx(styles.modal, modalClass)} title={title} icon={icon} isOpen={isOpen} onDismiss={onDismiss}>
       <div className={styles.modalText}>

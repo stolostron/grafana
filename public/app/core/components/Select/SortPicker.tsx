@@ -36,7 +36,6 @@ export function SortPicker({ onChange, value, placeholder, filter, getSortOption
   const isDesc = Boolean(value?.includes('desc') || value?.startsWith('-')); // bluge syntax starts with "-"
   return (
     <Select
-      menuShouldPortal
       key={value}
       width={28}
       onChange={onChange}

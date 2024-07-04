@@ -15,8 +15,6 @@ import { createDashboardModelFixture } from '../../dashboard/state/__fixtures__/
 
 import { emitDataRequestEvent } from './queryAnalytics';
 
-import { emitDataRequestEvent } from './queryAnalytics';
-
 beforeEach(() => {
   jest.clearAllMocks();
 });

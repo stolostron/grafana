@@ -4,8 +4,6 @@ import { GrafanaTheme2 } from '@grafana/data';
 
 import { CompletionItemGroup, CompletionItem, CompletionItemKind } from '../types/completion';
 
-import { CompletionItemGroup, CompletionItem, CompletionItemKind } from '../types/completion';
-
 export const flattenGroupItems = (groupedItems: CompletionItemGroup[]): CompletionItem[] => {
   return groupedItems.reduce((all: CompletionItem[], { items, label }) => {
     all.push({

@@ -63,7 +63,6 @@ export class SelectValueEditor<T> extends React.PureComponent<Props<T>, State<T>
     }
     return (
       <Select<T>
-        menuShouldPortal
         isLoading={isLoading}
         value={current}
         defaultValue={value}

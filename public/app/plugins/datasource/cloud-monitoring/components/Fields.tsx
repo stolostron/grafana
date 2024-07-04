@@ -21,7 +21,6 @@ export const VariableQueryField = ({
   return (
     <Field label={label}>
       <Select
-        menuShouldPortal
         width={25}
         allowCustomValue={allowCustomValue}
         value={value}

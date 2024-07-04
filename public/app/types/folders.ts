@@ -53,5 +53,4 @@ export interface FolderInfo {
   uid?: string;
   title?: string;
   url?: string;
-  canViewFolderPermissions?: boolean;
 }

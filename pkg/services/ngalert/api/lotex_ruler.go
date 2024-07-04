@@ -6,9 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
-
-	"gopkg.in/yaml.v3"
 
 	"gopkg.in/yaml.v3"
 
@@ -17,23 +14,6 @@ import (
 	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
 	"github.com/grafana/grafana/pkg/web"
-)
-
-const (
-	Prometheus = "prometheus"
-	Cortex     = "cortex"
-	Mimir      = "mimir"
-)
-
-const (
-	PrometheusDatasourceType = "prometheus"
-	LokiDatasourceType       = "loki"
-
-	mimirPrefix      = "/config/v1/rules"
-	prometheusPrefix = "/rules"
-	lokiPrefix       = "/api/prom/rules"
-
-	subtypeQuery = "subtype"
 )
 
 const (

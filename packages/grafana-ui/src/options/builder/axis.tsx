@@ -130,19 +130,6 @@ export function addAxisConfig(
       settings: {
         placeholder: 'See: Standard options > Max',
       },
-    })
-    .addRadio({
-      path: 'axisGridShow',
-      name: 'Show grid lines',
-      category,
-      defaultValue: undefined,
-      settings: {
-        options: [
-          { value: undefined, label: 'Auto' },
-          { value: true, label: 'On' },
-          { value: false, label: 'Off' },
-        ],
-      },
     });
 }
 

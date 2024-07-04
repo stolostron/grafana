@@ -10,10 +10,6 @@ import (
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginstore"
 )
 
-type Store interface {
-	GetOrgByNameHandler(ctx context.Context, query *models.GetOrgByNameQuery) error
-}
-
 // Provision scans a directory for provisioning config files
 // and provisions the app in those files.
 func Provision(ctx context.Context, configDirectory string, pluginStore pluginstore.Store, pluginSettings pluginsettings.Service, orgService org.Service) error {

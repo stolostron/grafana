@@ -60,25 +60,6 @@ export function RuleViewerVisualization({
     return relativeTimeRangeTo === 0 ? dateTime() : dateTime().subtract(relativeTimeRangeTo, 'seconds');
   }, []);
 
-  const onTimeChange = useCallback(
-    (newDateTime: DateTime) => {
-      const now = dateTime().unix() - newDateTime.unix();
-
-      if (relativeTimeRange) {
-        const interval = relativeTimeRange.from - relativeTimeRange.to;
-        onChangeQuery({
-          ...query,
-          relativeTimeRange: { from: now + interval, to: now },
-        });
-      }
-    },
-    [onChangeQuery, query, relativeTimeRange]
-  );
-
-  const setDateTime = useCallback((relativeTimeRangeTo: number) => {
-    return relativeTimeRangeTo === 0 ? dateTime() : dateTime().subtract(relativeTimeRangeTo, 'seconds');
-  }, []);
-
   if (!data) {
     return null;
   }

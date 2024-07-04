@@ -50,7 +50,6 @@ func TestAdminAPIEndpoint(t *testing.T) {
 	})
 
 	t.Run("When a server admin attempts to logout himself from all devices", func(t *testing.T) {
-		mock := mockstore.NewSQLStoreMock()
 		adminLogoutUserScenario(t, "Should not be allowed when calling POST on",
 			"/api/admin/users/1/logout", "/api/admin/users/:id/logout", func(sc *scenarioContext) {
 				sc.fakeReqWithParams("POST", sc.url, map[string]string{}).exec()
@@ -156,7 +155,6 @@ func TestAdminAPIEndpoint(t *testing.T) {
 				sc.userService.(*usertest.FakeUserService).ExpectedError = user.ErrUserNotFound
 				sc.authInfoService.ExpectedError = user.ErrUserNotFound
 				sc.fakeReqWithParams("DELETE", sc.url, map[string]string{}).exec()
-				userID := sc.sqlStore.(*mockstore.SQLStoreMock).LatestUserId
 
 				assert.Equal(t, 404, sc.resp.Code)
 
@@ -463,8 +461,6 @@ func adminDisableUserScenario(t *testing.T, desc string, action string, url stri
 		fakeAuthTokenService := authtest.NewFakeUserAuthTokenService()
 
 		authInfoService := &authinfotest.FakeService{}
-
-		authInfoService := &logintest.AuthInfoServiceFake{}
 
 		hs := HTTPServer{
 			SQLStore:         dbtest.NewFakeDB(),

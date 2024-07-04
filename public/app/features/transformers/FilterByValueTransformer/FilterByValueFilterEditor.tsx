@@ -78,7 +78,6 @@ export const FilterByValueFilterEditor = (props: Props) => {
     <InlineFieldRow>
       <InlineField label="Field" labelWidth={14}>
         <Select
-          menuShouldPortal
           className="min-width-15 max-width-24"
           placeholder="Field Name"
           options={fieldsAsOptions}
@@ -88,7 +87,6 @@ export const FilterByValueFilterEditor = (props: Props) => {
       </InlineField>
       <InlineField label="Match">
         <Select
-          menuShouldPortal
           className="width-12"
           placeholder="Select test"
           options={matcherOptions}

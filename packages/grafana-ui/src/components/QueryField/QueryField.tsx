@@ -9,18 +9,6 @@ import { Editor, EventHook, Plugin } from 'slate-react';
 import { GrafanaTheme2 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 
-import { GrafanaTheme2 } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-
-import {
-  makeValue,
-  SCHEMA,
-  CompletionItemGroup,
-  TypeaheadOutput,
-  TypeaheadInput,
-  SuggestionsState,
-  Themeable2,
-} from '../..';
 import {
   ClearPlugin,
   NewlinePlugin,

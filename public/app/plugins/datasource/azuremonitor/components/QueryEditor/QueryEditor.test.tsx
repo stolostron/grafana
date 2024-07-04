@@ -121,26 +121,4 @@ describe('Azure Monitor QueryEditor', () => {
       expect(screen.getByTestId('data-testid azure-monitor-experimental-header')).toBeInTheDocument()
     );
   });
-
-  it('renders the new query editor for metrics when enabled with a feature toggle', async () => {
-    const originalConfigValue = config.featureToggles.azureMonitorResourcePickerForMetrics;
-
-    // To do this irl go to custom.ini file and add resourcePickerForMetrics = true under [feature_toggles]
-    config.featureToggles.azureMonitorResourcePickerForMetrics = true;
-
-    const mockDatasource = createMockDatasource();
-    const mockQuery = {
-      ...createMockQuery(),
-      queryType: AzureQueryType.AzureMonitor,
-    };
-
-    render(<QueryEditor query={mockQuery} datasource={mockDatasource} onChange={() => {}} onRunQuery={() => {}} />);
-
-    await waitFor(() =>
-      expect(screen.getByTestId('azure-monitor-metrics-query-editor-with-resource-picker')).toBeInTheDocument()
-    );
-
-    // reset config to not impact future tests
-    config.featureToggles.azureMonitorResourcePickerForMetrics = originalConfigValue;
-  });
 });

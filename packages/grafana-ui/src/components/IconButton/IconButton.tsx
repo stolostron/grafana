@@ -24,8 +24,6 @@ interface BaseProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 
   iconType?: IconType;
   /** Variant to change the color of the Icon */
   variant?: IconButtonVariant;
-  /** Text avilable ony for screenscreen readers. Will use tooltip text as fallback. */
-  ariaLabel?: string;
 }
 
 export interface BasePropsWithTooltip extends BaseProps {

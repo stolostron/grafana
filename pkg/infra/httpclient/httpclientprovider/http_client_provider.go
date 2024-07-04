@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/grafana/grafana/pkg/models"
-
 	sdkhttpclient "github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/mwitkow/go-conntrack"
 

@@ -34,7 +34,7 @@ export const BasicSettings = ({
       <Field label="Type">
         <Controller
           name="type"
-          render={({ field: { ref, ...field } }) => <Select menuShouldPortal {...field} options={channels} />}
+          render={({ field: { ref, ...field } }) => <Select {...field} options={channels} />}
           control={control}
           rules={{ required: true }}
         />

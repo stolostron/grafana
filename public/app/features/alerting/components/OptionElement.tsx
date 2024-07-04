@@ -32,7 +32,7 @@ export const OptionElement = ({ control, option, register, invalid }: Props) => 
           control={control}
           name={`${modelValue}`}
           render={({ field: { ref, ...field } }) => (
-            <Select menuShouldPortal {...field} options={option.selectOptions ?? undefined} invalid={invalid} />
+            <Select {...field} options={option.selectOptions ?? undefined} invalid={invalid} />
           )}
         />
       );

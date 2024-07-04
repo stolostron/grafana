@@ -586,21 +586,6 @@ func (l *LibraryElementService) patchLibraryElement(c context.Context, signedInU
 				return model.ErrLibraryElementAlreadyExists
 			}
 		}
-		updateUID := cmd.UID
-		if len(updateUID) == 0 {
-			updateUID = uid
-		} else if updateUID != uid {
-			if !util.IsValidShortUID(updateUID) {
-				return errLibraryElementInvalidUID
-			} else if util.IsShortUIDTooLong(updateUID) {
-				return errLibraryElementUIDTooLong
-			}
-
-			_, err := getLibraryElement(l.SQLStore.Dialect, session, updateUID, signedInUser.OrgId)
-			if !errors.Is(err, ErrLibraryElementNotFound) {
-				return errLibraryElementAlreadyExists
-			}
-		}
 
 		var userID int64
 		namespaceID, identifier := signedInUser.GetNamespacedID()

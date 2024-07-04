@@ -5,11 +5,7 @@ import { contextSrv } from 'app/core/core';
 import { i18nDate } from 'app/core/internationalization';
 import { AccessControlAction, UserSession } from 'app/types';
 
-import { ConfirmButton, ConfirmModal, Button } from '@grafana/ui';
-import { contextSrv } from 'app/core/core';
-import { AccessControlAction, UserSession } from 'app/types';
-
-interface Props extends withI18nProps {
+interface Props {
   sessions: UserSession[];
 
   onSessionRevoke: (id: number) => void;
@@ -48,7 +44,7 @@ class BaseUserSessions extends PureComponent<Props, State> {
   };
 
   render() {
-    const { sessions, i18n } = this.props;
+    const { sessions } = this.props;
     const { showLogoutModal } = this.state;
 
     const canLogout = contextSrv.hasPermission(AccessControlAction.UsersLogout);

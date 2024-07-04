@@ -62,10 +62,8 @@ export const AnnotationTooltip = ({
     );
   }
 
-  const areAnnotationCommentsEnabled = config.featureToggles.annotationComments;
-
   return (
-    <div className={styles.wrapper} style={areAnnotationCommentsEnabled ? { minWidth: '300px' } : {}}>
+    <div className={styles.wrapper}>
       <div className={styles.header}>
         <HorizontalGroup justify={'space-between'} align={'center'} spacing={'md'}>
           <div className={styles.meta}>
@@ -87,11 +85,6 @@ export const AnnotationTooltip = ({
             {tags?.map((t, i) => <Tag name={t} key={`${t}-${i}`} />)}
           </HorizontalGroup>
         </>
-        {areAnnotationCommentsEnabled && (
-          <div className={styles.commentWrapper}>
-            <CommentManager objectType={'annotation'} objectId={annotation.id.toString()} />
-          </div>
-        )}
       </div>
     </div>
   );

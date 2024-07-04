@@ -43,8 +43,6 @@ export const SaveDashboardForm = ({
   const [message, setMessage] = useState(options.message);
   const styles = useStyles2(getStyles);
 
-  const [saving, setSaving] = useState(false);
-
   return (
     <Form
       onSubmit={async (data: FormDTO) => {

@@ -23,7 +23,6 @@ import {
   isServerSpan,
   spanContainsErredSpan,
   spanHasTag,
-  formatNumber,
 } from './utils';
 
 describe('TraceTimelineViewer/utils', () => {

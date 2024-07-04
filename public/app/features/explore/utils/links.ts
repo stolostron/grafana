@@ -89,8 +89,6 @@ export const exploreDataLinkPostProcessorFactory = (
   return exploreDataLinkPostProcessor;
 };
 
-import { getLinkSrv } from '../../panel/panellinks/link_srv';
-
 /**
  * Get links from the field of a dataframe and in addition check if there is associated
  * metadata with datasource in which case we will add onClick to open the link in new split window. This assumes

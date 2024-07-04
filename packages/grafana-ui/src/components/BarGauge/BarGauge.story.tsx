@@ -5,10 +5,6 @@ import { VizOrientation, ThresholdsMode, Field, FieldType, getDisplayProcessor }
 import { BarGauge, BarGaugeDisplayMode } from '@grafana/ui';
 
 import { useTheme2 } from '../../themes';
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
-import { Props } from './BarGauge';
-import mdx from './BarGauge.mdx';
 
 import { Props } from './BarGauge';
 import mdx from './BarGauge.mdx';

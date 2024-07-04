@@ -70,22 +70,3 @@ function OldFolderPickerWrapper({
     />
   );
 }
-
-interface Args {
-  getFolder: typeof getFolderById;
-  folderId?: number;
-  folderName?: string;
-}
-
-export async function getInitialValues({ folderName, folderId, getFolder }: Args): Promise<SelectableValue<number>> {
-  if (folderId === null || folderId === undefined || folderId < 0) {
-    throw new Error('folderId should to be greater or equal to zero.');
-  }
-
-  if (folderName) {
-    return { label: folderName, value: folderId };
-  }
-
-  const folderDto = await getFolder(folderId);
-  return { label: folderDto.title, value: folderId };
-}

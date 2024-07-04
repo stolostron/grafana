@@ -54,7 +54,7 @@ describe('VerifyEmail Page', () => {
     postMock.mockResolvedValueOnce({ message: 'SignUpCreated' });
     render(<VerifyEmailPage />);
 
-    userEvent.type(screen.getByRole('textbox', { name: /Email/i }), 'test@gmail.com');
+    await userEvent.type(screen.getByRole('textbox', { name: /Email/i }), 'test@gmail.com');
     fireEvent.click(screen.getByRole('button', { name: 'Send verification email' }));
 
     await waitFor(() =>

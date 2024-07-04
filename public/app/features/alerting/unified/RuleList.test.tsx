@@ -28,7 +28,6 @@ import {
   MockDataSourceSrv,
   grantUserPermissions,
   mockDataSource,
-  MockDataSourceSrv,
   mockPromAlert,
   mockPromAlertingRule,
   mockPromRecordingRule,

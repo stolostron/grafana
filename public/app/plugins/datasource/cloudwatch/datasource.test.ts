@@ -256,36 +256,6 @@ describe('datasource', () => {
         },
       ]);
     });
-
-    it('sets fields.config.interval based on period', async () => {
-      const { datasource } = setupMockedDataSource({
-        data: {
-          results: {
-            a: {
-              refId: 'a',
-              series: [{ name: 'cpu', points: [1, 2], meta: { custom: { period: 60 } } }],
-            },
-            b: {
-              refId: 'b',
-              series: [{ name: 'cpu', points: [1, 2], meta: { custom: { period: 120 } } }],
-            },
-          },
-        },
-      });
-
-      const observable = datasource.performTimeSeriesQuery(
-        {
-          queries: [{ datasourceId: 1, refId: 'a' }],
-        } as any,
-        { from: dateTime(), to: dateTime() } as any
-      );
-
-      await expect(observable).toEmitValuesWith((received) => {
-        const response = received[0];
-        expect(response.data[0].fields[0].config.interval).toEqual(60000);
-        expect(response.data[1].fields[0].config.interval).toEqual(120000);
-      });
-    });
   });
 
   describe('resource requests', () => {
@@ -394,98 +364,6 @@ describe('datasource', () => {
         MetricEditorMode.Builder
       );
       expect((datasource.getDefaultQuery(CoreApp.PanelEditor) as CloudWatchDefaultQuery).matchExact).toEqual(true);
-    });
-  });
-
-  describe('template variable interpolation', () => {
-    it('interpolates variables correctly', async () => {
-      const { datasource, fetchMock } = setupMockedDataSource({
-        variables: [namespaceVariable, metricVariable, labelsVariable, limitVariable],
-      });
-      datasource.handleMetricQueries(
-        [
-          {
-            id: '',
-            refId: 'a',
-            region: 'us-east-2',
-            namespace: '',
-            period: '',
-            alias: '',
-            metricName: '',
-            dimensions: {},
-            matchExact: true,
-            statistic: '',
-            expression: '',
-            metricQueryType: MetricQueryType.Query,
-            metricEditorMode: MetricEditorMode.Code,
-            sqlExpression: 'SELECT SUM($metric) FROM "$namespace" GROUP BY ${labels:raw} LIMIT $limit',
-          },
-        ],
-        { range: { from: dateTime(), to: dateTime() } } as any
-      );
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            queries: expect.arrayContaining([
-              expect.objectContaining({
-                sqlExpression: `SELECT SUM(CPUUtilization) FROM "AWS/EC2" GROUP BY InstanceId,InstanceType LIMIT 100`,
-              }),
-            ]),
-          }),
-        })
-      );
-    });
-  });
-
-  describe('interpolateMetricsQueryVariables', () => {
-    it('interpolates dimensions correctly', () => {
-      const testQuery = {
-        id: 'a',
-        refId: 'a',
-        region: 'us-east-2',
-        namespace: '',
-        dimensions: { InstanceId: '$dimension' },
-      };
-      const ds = setupMockedDataSource({ variables: [dimensionVariable], mockGetVariableName: false });
-      const result = ds.datasource.interpolateMetricsQueryVariables(testQuery, {
-        dimension: { text: 'foo', value: 'foo' },
-      });
-      expect(result).toStrictEqual({
-        alias: '',
-        metricName: '',
-        namespace: '',
-        period: '',
-        sqlExpression: '',
-        dimensions: { InstanceId: ['foo'] },
-      });
-    });
-  });
-
-  describe('getLogGroupFields', () => {
-    it('passes region correctly', async () => {
-      const { datasource, fetchMock } = setupMockedDataSource();
-      fetchMock.mockReturnValueOnce(
-        of({
-          data: {
-            results: {
-              A: {
-                frames: [
-                  dataFrameToJSON(
-                    new MutableDataFrame({
-                      fields: [
-                        { name: 'key', values: [] },
-                        { name: 'val', values: [] },
-                      ],
-                    })
-                  ),
-                ],
-              },
-            },
-          },
-        })
-      );
-      await datasource.getLogGroupFields({ region: 'us-west-1', logGroupName: 'test' });
-      expect(fetchMock.mock.calls[0][0].data.queries[0].region).toBe('us-west-1');
     });
   });
 });

@@ -108,8 +108,6 @@ export const TagFilter = ({
     }
   }, [onFocus, previousTags, tags]);
 
-  const debouncedLoadOptions = debounce(onLoadOptions, 300);
-
   const onTagChange = (newTags: any[]) => {
     newTags.forEach((tag) => (tag.count = 0));
 

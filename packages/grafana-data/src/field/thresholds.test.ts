@@ -3,9 +3,6 @@ import { ThresholdsConfig, ThresholdsMode, FieldConfig, Threshold, Field, FieldT
 import { validateFieldConfig } from './fieldOverrides';
 import { sortThresholds, getActiveThreshold, getActiveThresholdForValue } from './thresholds';
 
-import { validateFieldConfig } from './fieldOverrides';
-import { sortThresholds, getActiveThreshold, getActiveThresholdForValue } from './thresholds';
-
 describe('thresholds', () => {
   test('sort thresholds', () => {
     const thresholds: ThresholdsConfig = {

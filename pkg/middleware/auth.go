@@ -241,31 +241,3 @@ func shouldForceLogin(c *contextmodel.ReqContext) bool {
 
 	return forceLogin
 }
-
-func OrgAdminDashOrFolderAdminOrTeamAdmin(ss sqlstore.Store) func(c *models.ReqContext) {
-	return func(c *models.ReqContext) {
-		if c.OrgRole == models.ROLE_ADMIN {
-			return
-		}
-
-		hasAdminPermissionInDashOrFoldersQuery := models.HasAdminPermissionInDashboardsOrFoldersQuery{SignedInUser: c.SignedInUser}
-		if err := ss.HasAdminPermissionInDashboardsOrFolders(c.Req.Context(), &hasAdminPermissionInDashOrFoldersQuery); err != nil {
-			c.JsonApiErr(500, "Failed to check if user is a folder admin", err)
-		}
-
-		if hasAdminPermissionInDashOrFoldersQuery.Result {
-			return
-		}
-
-		isAdminOfTeamsQuery := models.IsAdminOfTeamsQuery{SignedInUser: c.SignedInUser}
-		if err := sqlstore.IsAdminOfTeams(c.Req.Context(), &isAdminOfTeamsQuery); err != nil {
-			c.JsonApiErr(500, "Failed to check if user is a team admin", err)
-		}
-
-		if isAdminOfTeamsQuery.Result {
-			return
-		}
-
-		accessForbidden(c)
-	}
-}

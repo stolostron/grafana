@@ -60,7 +60,6 @@ export class MultiSelectValueEditor<T> extends React.PureComponent<Props<T>, Sta
     const { settings } = item;
     return (
       <MultiSelect<T>
-        menuShouldPortal
         isLoading={isLoading}
         value={value}
         defaultValue={value}

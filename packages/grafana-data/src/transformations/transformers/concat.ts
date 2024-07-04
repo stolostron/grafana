@@ -5,8 +5,6 @@ import { DataTransformerInfo } from '../../types/transformations';
 
 import { DataTransformerID } from './ids';
 
-import { DataTransformerID } from './ids';
-
 export enum ConcatenateFrameNameMode {
   /**
    * Ignore the source frame name when moving to the destination

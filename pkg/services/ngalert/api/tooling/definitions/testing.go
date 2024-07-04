@@ -11,8 +11,6 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/promql"
-
-	"github.com/grafana/grafana/pkg/services/ngalert/models"
 )
 
 // swagger:route Post /v1/rule/test/grafana testing RouteTestRuleGrafanaConfig
@@ -76,7 +74,7 @@ type TestReceiverRequest struct {
 	Body ExtendedReceiver
 }
 
-// swagger:parameters RouteTestRuleConfig RouteTestRuleGrafanaConfig
+// swagger:parameters RouteTestRuleConfig
 type TestRuleRequest struct {
 	// in:body
 	Body TestRulePayload

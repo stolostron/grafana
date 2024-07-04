@@ -106,17 +106,6 @@ func (mg *Migrator) GetMigrationIDs(excludeNotLogged bool) []string {
 	return result
 }
 
-func (mg *Migrator) GetMigrationIDs(excludeNotLogged bool) []string {
-	result := make([]string, 0, len(mg.migrations))
-	for _, migration := range mg.migrations {
-		if migration.SkipMigrationLog() && excludeNotLogged {
-			continue
-		}
-		result = append(result, migration.Id())
-	}
-	return result
-}
-
 func (mg *Migrator) GetMigrationLog() (map[string]MigrationLog, error) {
 	logMap := make(map[string]MigrationLog)
 	logItems := make([]MigrationLog, 0)

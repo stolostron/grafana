@@ -3,8 +3,6 @@ import { getNonOverlappingDuration, getStats, makeFrames, makeSpanMap } from '@g
 
 import { Span, TraceResponse } from './types';
 
-import { Span, TraceResponse } from './types';
-
 interface Node {
   [Fields.id]: string;
   [Fields.title]: string;

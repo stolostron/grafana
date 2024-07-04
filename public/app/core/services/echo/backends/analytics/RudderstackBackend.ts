@@ -118,14 +118,6 @@ export class RudderstackBackend implements EchoBackend<PageviewEchoEvent, Rudder
         experiment_variant: e.payload.experimentVariant,
       });
     }
-
-    if (isExperimentViewEvent(e)) {
-      (window as any).rudderanalytics.track('experiment_viewed', {
-        experiment_id: e.payload.experimentId,
-        experiment_group: e.payload.experimentGroup,
-        experiment_variant: e.payload.experimentVariant,
-      });
-    }
   };
 
   // Not using Echo buffering, addEvent above sends events to GA as soon as they appear

@@ -30,10 +30,6 @@ func TestProfilingDiagnostics(t *testing.T) {
 			if tc.addrEnv != "" {
 				t.Setenv(profilingAddrEnvName, tc.addrEnv)
 			}
-			if tc.addrEnv != "" {
-				err := os.Setenv(profilingAddrEnvName, tc.addrEnv)
-				assert.NoError(t, err)
-			}
 			if tc.portEnv != "" {
 				t.Setenv(profilingPortEnvName, tc.portEnv)
 			}

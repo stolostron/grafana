@@ -12,7 +12,6 @@ import (
 	"github.com/go-openapi/strfmt"
 	alertingNotify "github.com/grafana/alerting/notify"
 
-	"github.com/go-openapi/strfmt"
 	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
@@ -23,12 +22,6 @@ import (
 	"github.com/grafana/grafana/pkg/services/ngalert/store"
 	"github.com/grafana/grafana/pkg/services/org"
 	"github.com/grafana/grafana/pkg/util"
-	"github.com/grafana/grafana/pkg/web"
-)
-
-const (
-	defaultTestReceiversTimeout = 15 * time.Second
-	maxTestReceiversTimeout     = 30 * time.Second
 )
 
 const (
@@ -283,7 +276,6 @@ func (srv AlertmanagerSrv) RoutePostAlertingConfig(c *contextmodel.ReqContext, b
 		if err := srv.provenanceGuard(currentConfig, body); err != nil {
 			return ErrResp(http.StatusBadRequest, err, "")
 		}
-		return ErrResp(http.StatusInternalServerError, err, "")
 	}
 	err = srv.mam.SaveAndApplyAlertmanagerConfiguration(c.Req.Context(), c.SignedInUser.GetOrgID(), body)
 	if err == nil {

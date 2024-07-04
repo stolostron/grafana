@@ -100,12 +100,8 @@ export class QueryRows extends PureComponent<Props> {
   onChangeQuery = (query: DataQuery, index: number) => {
     const { queries, onQueriesChange } = this.props;
 
-    // find what queries still have a reference to the old name
-    const previousRefId = queries[index].refId;
-    const newRefId = query.refId;
-
     onQueriesChange(
-      queriesWithUpdatedReferences(queries, previousRefId, newRefId).map((item, itemIndex) => {
+      queries.map((item, itemIndex) => {
         if (itemIndex !== index) {
           return item;
         }
@@ -145,50 +141,6 @@ export class QueryRows extends PureComponent<Props> {
 
   getDataSourceSettings = (query: AlertQuery): DataSourceInstanceSettings | undefined => {
     return getDataSourceSrv().getInstanceSettings(query.datasourceUid);
-  };
-
-  getThresholdsForQueries = (queries: AlertQuery[]): Record<string, ThresholdsConfig> => {
-    const record: Record<string, ThresholdsConfig> = {};
-
-    for (const query of queries) {
-      if (!isExpressionQuery(query.model)) {
-        continue;
-      }
-
-      if (!Array.isArray(query.model.conditions)) {
-        continue;
-      }
-
-      query.model.conditions.forEach((condition, index) => {
-        if (index > 0) {
-          return;
-        }
-        const threshold = condition.evaluator.params[0];
-        const refId = condition.query.params[0];
-
-        if (condition.evaluator.type === 'outside_range' || condition.evaluator.type === 'within_range') {
-          return;
-        }
-        if (!record[refId]) {
-          record[refId] = {
-            mode: ThresholdsMode.Absolute,
-            steps: [
-              {
-                value: -Infinity,
-                color: config.theme2.colors.success.main,
-              },
-            ],
-          };
-        }
-
-        record[refId].steps.push({
-          value: threshold,
-          color: config.theme2.colors.error.main,
-        });
-      });
-    }
-
-    return record;
   };
 
   render() {

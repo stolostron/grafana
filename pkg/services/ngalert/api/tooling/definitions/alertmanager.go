@@ -511,7 +511,7 @@ type AlertsParams struct {
 	Receivers string `json:"receiver"`
 }
 
-// swagger:parameters RoutePostAMAlerts RoutePostGrafanaAMAlerts
+// swagger:parameters RoutePostAMAlerts
 type PostableAlerts struct {
 	// in:body
 	PostableAlerts []amv2.PostableAlert `yaml:"" json:""`

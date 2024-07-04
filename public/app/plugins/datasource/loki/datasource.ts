@@ -19,7 +19,6 @@ import {
   DataSourceWithQueryImportSupport,
   Labels,
   LoadingState,
-  LogLevel,
   LogRowModel,
   QueryFixAction,
   QueryHint,
@@ -956,15 +955,7 @@ export class LokiDatasource
    * @todo This is deprecated and it is recommended to use the `AnnotationSupport` feature for annotations.
    */
   async annotationQuery(options: any): Promise<AnnotationEvent[]> {
-    const {
-      expr,
-      maxLines,
-      instant,
-      stepInterval,
-      tagKeys = '',
-      titleFormat = '',
-      textFormat = '',
-    } = options.annotation;
+    const { expr, maxLines, instant, tagKeys = '', titleFormat = '', textFormat = '' } = options.annotation;
 
     if (!expr) {
       return [];
@@ -1141,6 +1132,7 @@ export class LokiDatasource
       queryType: LokiQueryType.Range,
     };
   }
+}
 
 // NOTE: these two functions are very similar to the escapeLabelValueIn* functions
 // in language_utils.ts, but they are not exactly the same algorithm, and we found

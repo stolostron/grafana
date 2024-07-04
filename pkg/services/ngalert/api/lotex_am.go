@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
-
-	"gopkg.in/yaml.v3"
 
 	"gopkg.in/yaml.v3"
 
@@ -257,8 +254,4 @@ func (am *LotexAM) RoutePostAMAlerts(ctx *contextmodel.ReqContext, alerts apimod
 		messageExtractor,
 		nil,
 	)
-}
-
-func (am *LotexAM) RoutePostTestReceivers(ctx *models.ReqContext, config apimodels.TestReceiversConfigBodyParams) response.Response {
-	return NotImplementedResp
 }

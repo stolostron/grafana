@@ -28,13 +28,6 @@ const (
 	DirectionForward  = dataquery.LokiQueryDirectionForward
 )
 
-type QueryType string
-
-const (
-	QueryTypeRange   QueryType = "range"
-	QueryTypeInstant QueryType = "instant"
-)
-
 type lokiQuery struct {
 	Expr                string
 	QueryType           QueryType

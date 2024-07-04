@@ -22,9 +22,6 @@ jest.mock('app/core/hooks/useQueryParams', () => ({
   useQueryParams: () => [{}],
 }));
 
-import { Props, UserProfileEditPage } from './UserProfileEditPage';
-import { initialUserState } from './state/reducers';
-
 const defaultProps: Props = {
   ...initialUserState,
   user: {

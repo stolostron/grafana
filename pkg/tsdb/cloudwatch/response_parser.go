@@ -224,25 +224,3 @@ func createMeta(query *models.CloudWatchQuery) *data.FrameMeta {
 		}`, query.Period, query.Id),
 	}
 }
-
-func createDataLinks(link string) []data.DataLink {
-	dataLinks := []data.DataLink{}
-	if link != "" {
-		dataLinks = append(dataLinks, data.DataLink{
-			Title:       "View in CloudWatch console",
-			TargetBlank: true,
-			URL:         link,
-		})
-	}
-	return dataLinks
-}
-
-func createMeta(query *cloudWatchQuery) *data.FrameMeta {
-	return &data.FrameMeta{
-		ExecutedQueryString: query.UsedExpression,
-		Custom: simplejson.NewFromAny(map[string]interface{}{
-			"period": query.Period,
-			"id":     query.Id,
-		}),
-	}
-}

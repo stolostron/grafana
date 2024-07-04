@@ -167,9 +167,6 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
     />
   );
 
-  const azureAuthEnabled: boolean =
-    (azureAuthSettings?.azureAuthSupported && azureAuthSettings.getAzureAuthEnabled(dataSourceConfig)) || false;
-
   return (
     <div className="gf-form-group">
       <>

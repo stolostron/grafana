@@ -24,10 +24,6 @@ import { TemplateSrv } from './template_srv';
 
 const key = 'key';
 
-import { FormatRegistryID } from './formatRegistry';
-
-const key = 'key';
-
 variableAdapters.setInit(() => [
   createQueryVariableAdapter() as unknown as VariableAdapter<TypedVariableModel>,
   createAdHocVariableAdapter() as unknown as VariableAdapter<TypedVariableModel>,

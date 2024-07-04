@@ -43,8 +43,6 @@ Only use [reference style links](https://grafana.com/docs/writers-toolkit/write/
 
 ### [Contributing](/contribute/documentation/README.md)
 
-### [Contributing](/contribute/documentation/README.md)
-
 ### Using `relref` for internal links
 
 Use the Hugo shortcode [relref](https://gohugo.io/content-management/cross-references/#use-ref-and-relref) any time you are linking to other internal docs pages.

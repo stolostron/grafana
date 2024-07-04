@@ -3,9 +3,6 @@ import { createTheme, FieldType } from '@grafana/data';
 import { Props, BigValueColorMode, BigValueGraphMode, BigValueTextMode } from './BigValue';
 import { buildLayout, StackedWithChartLayout, StackedWithNoChartLayout, WideWithChartLayout } from './BigValueLayout';
 
-import { Props, BigValueColorMode, BigValueGraphMode, BigValueTextMode } from './BigValue';
-import { buildLayout, StackedWithChartLayout, StackedWithNoChartLayout, WideWithChartLayout } from './BigValueLayout';
-
 function getProps(propOverrides?: Partial<Props>): Props {
   const props: Props = {
     colorMode: BigValueColorMode.Background,

@@ -164,7 +164,6 @@ export class AnnotationFieldMapper extends PureComponent<Props, State> {
         </td> */}
         <td>
           <Select
-            menuShouldPortal
             value={currentValue}
             options={picker}
             placeholder={row.placeholder || row.key}

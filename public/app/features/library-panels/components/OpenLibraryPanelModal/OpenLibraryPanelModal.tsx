@@ -62,7 +62,6 @@ export function OpenLibraryPanelModal({ libraryPanel, onDismiss }: OpenLibraryPa
               </Trans>
             </p>
             <AsyncSelect
-              menuShouldPortal
               isClearable
               isLoading={loading}
               defaultOptions={true}

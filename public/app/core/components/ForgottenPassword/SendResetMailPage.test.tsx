@@ -48,7 +48,7 @@ describe('VerifyEmail Page', () => {
     postMock.mockResolvedValueOnce({ message: 'Email sent' });
     render(<SendResetMailPage />);
 
-    userEvent.type(screen.getByRole('textbox', { name: /User Enter your information/i }), 'test@gmail.com');
+    await userEvent.type(screen.getByRole('textbox', { name: /User Enter your information/i }), 'test@gmail.com');
     fireEvent.click(screen.getByRole('button', { name: 'Send reset email' }));
     await waitFor(() =>
       expect(postMock).toHaveBeenCalledWith('/api/user/password/send-reset-email', {

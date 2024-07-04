@@ -29,10 +29,6 @@ import {
 import { arrayToDataFrame } from './ArrayDataFrame';
 import { dataFrameFromJSON } from './DataFrameJSON';
 
-import { ArrayDataFrame } from './ArrayDataFrame';
-import { dataFrameFromJSON } from './DataFrameJSON';
-import { MutableDataFrame } from './MutableDataFrame';
-
 function convertTableToDataFrame(table: TableData): DataFrame {
   const fields = table.columns.map((c) => {
     // TODO: should be Column but type does not exists there so not sure whats up here.

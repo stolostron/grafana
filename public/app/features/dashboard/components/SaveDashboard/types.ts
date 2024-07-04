@@ -9,15 +9,6 @@ export interface SaveDashboardData {
   hasChanges: boolean; // not new and has changes
 }
 
-import { Diffs } from '../VersionHistory/utils';
-
-export interface SaveDashboardData {
-  clone: DashboardModel; // cloned copy
-  diff: Diffs;
-  diffCount: number; // cumulative count
-  hasChanges: boolean; // not new and has changes
-}
-
 export interface SaveDashboardOptions extends CloneOptions {
   folderUid?: string;
   overwrite?: boolean;

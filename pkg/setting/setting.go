@@ -117,10 +117,6 @@ type Cfg struct {
 	SecretKey             string
 	EmailCodeValidMinutes int
 
-	// Security settings
-	SecretKey             string
-	EmailCodeValidMinutes int
-
 	// build
 	BuildVersion          string
 	BuildCommit           string
@@ -368,8 +364,6 @@ type Cfg struct {
 	Slug    string
 
 	// Deprecated
-	ForceMigration bool
-
 	ForceMigration bool
 
 	// Analytics
@@ -1160,15 +1154,6 @@ func (cfg *Cfg) parseINIFile(iniFile *ini.File) error {
 
 	queryHistory := iniFile.Section("query_history")
 	cfg.QueryHistoryEnabled = queryHistory.Key("enabled").MustBool(true)
-
-	help := iniFile.Section("help")
-	HelpEnabled = help.Key("enabled").MustBool(true)
-
-	profile := iniFile.Section("profile")
-	ProfileEnabled = profile.Key("enabled").MustBool(true)
-
-	queryHistory := iniFile.Section("query_history")
-	cfg.QueryHistoryEnabled = queryHistory.Key("enabled").MustBool(false)
 
 	panelsSection := iniFile.Section("panels")
 	cfg.DisableSanitizeHtml = panelsSection.Key("disable_sanitize_html").MustBool(false)

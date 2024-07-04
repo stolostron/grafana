@@ -43,12 +43,6 @@ const getMockQuantizedTimeRangeParams = (override?: Partial<TimeRange>): TimeRan
   ...override,
 });
 
-import { PrometheusDatasource } from './datasource';
-import LanguageProvider from './language_provider';
-import { PromQuery } from './types';
-
-import Mock = jest.Mock;
-
 describe('Language completion provider', () => {
   const defaultDatasource: PrometheusDatasource = {
     metadataRequest: () => ({ data: { data: [] } }),
@@ -377,36 +371,6 @@ describe('Language completion provider', () => {
     describe('exporting to abstract query', () => {
       it('exports labels with metric name', async () => {
         const instance = new LanguageProvider(defaultDatasource);
-        const abstractQuery = instance.exportToAbstractQuery({
-          refId: 'bar',
-          expr: 'metric_name{label1="value1", label2!="value2", label3=~"value3", label4!~"value4"}',
-          instant: true,
-          range: false,
-        });
-        expect(abstractQuery).toMatchObject({
-          refId: 'bar',
-          labelMatchers: [
-            { name: 'label1', operator: AbstractLabelOperator.Equal, value: 'value1' },
-            { name: 'label2', operator: AbstractLabelOperator.NotEqual, value: 'value2' },
-            { name: 'label3', operator: AbstractLabelOperator.EqualRegEx, value: 'value3' },
-            { name: 'label4', operator: AbstractLabelOperator.NotEqualRegEx, value: 'value4' },
-            { name: '__name__', operator: AbstractLabelOperator.Equal, value: 'metric_name' },
-          ],
-        });
-      });
-    });
-  });
-
-  describe('Query imports', () => {
-    it('returns empty queries', async () => {
-      const instance = new LanguageProvider(datasource);
-      const result = await instance.importFromAbstractQuery({ refId: 'bar', labelMatchers: [] });
-      expect(result).toEqual({ refId: 'bar', expr: '', range: true });
-    });
-
-    describe('exporting to abstract query', () => {
-      it('exports labels with metric name', async () => {
-        const instance = new LanguageProvider(datasource);
         const abstractQuery = instance.exportToAbstractQuery({
           refId: 'bar',
           expr: 'metric_name{label1="value1", label2!="value2", label3=~"value3", label4!~"value4"}',

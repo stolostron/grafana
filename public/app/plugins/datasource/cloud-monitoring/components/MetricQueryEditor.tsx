@@ -13,8 +13,6 @@ import { MQLQueryEditor } from './MQLQueryEditor';
 import { Project } from './Project';
 import { VisualMetricQueryEditor } from './VisualMetricQueryEditor';
 
-import { AliasBy, Project, VisualMetricQueryEditor } from '.';
-
 export interface Props {
   refId: string;
   customMetaData: CustomMetaData;

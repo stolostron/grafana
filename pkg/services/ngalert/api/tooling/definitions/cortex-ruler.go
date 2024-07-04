@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
-
-	"github.com/grafana/grafana/pkg/services/ngalert/models"
 )
 
 // swagger:route Get /ruler/grafana/api/v1/rules ruler RouteGetGrafanaRulesConfig

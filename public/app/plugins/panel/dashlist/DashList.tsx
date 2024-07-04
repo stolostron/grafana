@@ -130,7 +130,7 @@ export function DashList(props: PanelProps<Options>) {
     ];
   }, [dashboards]);
 
-  const { showStarred, showRecentlyViewed, showHeadings, showSearch, layout } = props.options;
+  const { showStarred, showRecentlyViewed, showHeadings, showSearch } = props.options;
 
   const dashboardGroups: DashboardGroup[] = [
     {

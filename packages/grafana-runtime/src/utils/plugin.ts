@@ -8,8 +8,6 @@ import { PanelPlugin } from '@grafana/data';
 
 import { config } from '../config';
 
-import { config } from '../config';
-
 /**
  * Option to specify a plugin css that should be applied for the dark
  * and the light theme.

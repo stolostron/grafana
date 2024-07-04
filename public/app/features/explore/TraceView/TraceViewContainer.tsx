@@ -7,14 +7,6 @@ import { StoreState, useSelector } from 'app/types';
 import { TraceView } from './TraceView';
 import { transformDataFrames } from './utils/transform';
 
-import { DataFrame, SplitOpen, PanelData } from '@grafana/data';
-import { Collapse } from '@grafana/ui';
-import { ExploreId } from 'app/types/explore';
-
-import { TraceView } from './TraceView';
-import { useChildrenState } from './useChildrenState';
-import { useSearch } from './useSearch';
-import { transformDataFrames } from './utils/transform';
 interface Props {
   dataFrames: DataFrame[];
   splitOpenFn: SplitOpen;

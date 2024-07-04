@@ -499,22 +499,6 @@ func convertSQLTimeColumnsToEpochMS(frame *data.Frame, qm *dataQueryModel) error
 	return nil
 }
 
-func convertSQLTimeColumnsToEpochMS(frame *data.Frame, qm *dataQueryModel) error {
-	if qm.timeIndex != -1 {
-		if err := convertSQLTimeColumnToEpochMS(frame, qm.timeIndex); err != nil {
-			return errutil.Wrap("failed to convert time column", err)
-		}
-	}
-
-	if qm.timeEndIndex != -1 {
-		if err := convertSQLTimeColumnToEpochMS(frame, qm.timeEndIndex); err != nil {
-			return errutil.Wrap("failed to convert timeend column", err)
-		}
-	}
-
-	return nil
-}
-
 // convertSQLTimeColumnToEpochMS converts column named time to unix timestamp in milliseconds
 // to make native datetime types and epoch dates work in annotation and table queries.
 func convertSQLTimeColumnToEpochMS(frame *data.Frame, timeIndex int) error {

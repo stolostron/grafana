@@ -119,8 +119,6 @@ func RequestMetrics(features featuremgmt.FeatureToggles, cfg *setting.Cfg, promR
 			} else {
 				histogram.Observe(elapsedTime)
 			}
-			histogram.Observe(time.Since(now).Seconds())
-		}
 
 			switch {
 			case strings.HasPrefix(r.RequestURI, "/api/datasources/proxy"):

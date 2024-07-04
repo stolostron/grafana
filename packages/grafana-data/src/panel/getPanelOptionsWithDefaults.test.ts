@@ -1,5 +1,3 @@
-import { mockStandardFieldConfigOptions } from 'test/helpers/fieldConfig';
-
 import {
   ConfigOverrideRule,
   FieldColorModeId,

@@ -201,10 +201,6 @@ export function getCellComponent(displayMode: TableCellDisplayMode, field: Field
     return JSONViewCell;
   }
 
-  if (field.type === FieldType.geo) {
-    return GeoCell;
-  }
-
   // Default or Auto
   if (field.type === FieldType.other) {
     return JSONViewCell;

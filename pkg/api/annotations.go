@@ -724,14 +724,6 @@ func (hs *HTTPServer) canMassDeleteAnnotations(c *contextmodel.ReqContext, dashb
 		if err != nil || !canSave {
 			return false, err
 		}
-		return true, nil
-	}
-}
-
-func canEditDashboard(c *models.ReqContext, dashboardID int64) (bool, error) {
-	guard := guardian.New(c.Req.Context(), dashboardID, c.OrgId, c.SignedInUser)
-	if canEdit, err := guard.CanEdit(); err != nil || !canEdit {
-		return false, err
 	}
 
 	return true, nil
@@ -894,85 +886,4 @@ type GetAnnotationTagsResponse struct {
 	// The response message
 	// in: body
 	Body annotations.GetAnnotationTagsResponse `json:"body"`
-}
-
-// AnnotationTypeScopeResolver provides an AttributeScopeResolver able to
-// resolve annotation types. Scope "annotations:id:<id>" will be translated to "annotations:type:<type>,
-// where <type> is the type of annotation with id <id>.
-func AnnotationTypeScopeResolver() (string, accesscontrol.AttributeScopeResolveFunc) {
-	annotationTypeResolver := func(ctx context.Context, orgID int64, initialScope string) (string, error) {
-		scopeParts := strings.Split(initialScope, ":")
-		if scopeParts[0] != accesscontrol.ScopeAnnotationsRoot || len(scopeParts) != 3 {
-			return "", accesscontrol.ErrInvalidScope
-		}
-
-		annotationIdStr := scopeParts[2]
-		annotationId, err := strconv.Atoi(annotationIdStr)
-		if err != nil {
-			return "", accesscontrol.ErrInvalidScope
-		}
-
-		// tempUser is used to resolve annotation type.
-		// The annotation doesn't get returned to the real user, so real user's permissions don't matter here.
-		tempUser := &models.SignedInUser{
-			OrgId: orgID,
-			Permissions: map[int64]map[string][]string{
-				orgID: {
-					accesscontrol.ActionDashboardsRead:  {accesscontrol.ScopeDashboardsAll},
-					accesscontrol.ActionAnnotationsRead: {accesscontrol.ScopeAnnotationsAll},
-				},
-			},
-		}
-
-		annotation, resp := findAnnotationByID(ctx, annotations.GetRepository(), int64(annotationId), tempUser)
-		if resp != nil {
-			return "", errors.New("could not resolve annotation type")
-		}
-
-		if annotation.GetType() == annotations.Organization {
-			return accesscontrol.ScopeAnnotationsTypeOrganization, nil
-		} else {
-			return accesscontrol.ScopeAnnotationsTypeDashboard, nil
-		}
-	}
-	return accesscontrol.ScopeAnnotationsProvider.GetResourceScope(""), annotationTypeResolver
-}
-
-func (hs *HTTPServer) canCreateAnnotation(c *models.ReqContext, dashboardId int64) (bool, error) {
-	if dashboardId != 0 {
-		if !hs.AccessControl.IsDisabled() {
-			evaluator := accesscontrol.EvalPermission(accesscontrol.ActionAnnotationsCreate, accesscontrol.ScopeAnnotationsTypeDashboard)
-			if canSave, err := hs.AccessControl.Evaluate(c.Req.Context(), c.SignedInUser, evaluator); err != nil || !canSave {
-				return canSave, err
-			}
-		}
-		return canEditDashboard(c, dashboardId)
-	} else { // organization annotations
-		if !hs.AccessControl.IsDisabled() {
-			evaluator := accesscontrol.EvalPermission(accesscontrol.ActionAnnotationsCreate, accesscontrol.ScopeAnnotationsTypeOrganization)
-			return hs.AccessControl.Evaluate(c.Req.Context(), c.SignedInUser, evaluator)
-		} else {
-			return c.SignedInUser.HasRole(models.ROLE_EDITOR), nil
-		}
-	}
-}
-
-func (hs *HTTPServer) canMassDeleteAnnotations(c *models.ReqContext, dashboardID int64) (bool, error) {
-	if dashboardID == 0 {
-		evaluator := accesscontrol.EvalPermission(accesscontrol.ActionAnnotationsDelete, accesscontrol.ScopeAnnotationsTypeOrganization)
-		return hs.AccessControl.Evaluate(c.Req.Context(), c.SignedInUser, evaluator)
-	} else {
-		evaluator := accesscontrol.EvalPermission(accesscontrol.ActionAnnotationsDelete, accesscontrol.ScopeAnnotationsTypeDashboard)
-		canSave, err := hs.AccessControl.Evaluate(c.Req.Context(), c.SignedInUser, evaluator)
-		if err != nil || !canSave {
-			return false, err
-		}
-
-		canSave, err = canEditDashboard(c, dashboardID)
-		if err != nil || !canSave {
-			return false, err
-		}
-	}
-
-	return true, nil
 }

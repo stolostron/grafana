@@ -107,18 +107,6 @@ export class ContextSrv {
     }
   }
 
-  async fetchUserPermissions() {
-    try {
-      if (this.accessControlEnabled()) {
-        this.user.permissions = await getBackendSrv().get('/api/access-control/user/permissions', {
-          reloadcache: true,
-        });
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
   /**
    * Indicate the user has been logged out
    */
@@ -258,32 +246,6 @@ export class ContextSrv {
       .catch((e) => {
         console.error(e);
       });
-  }
-
-  hasAccess(action: string, fallBack: boolean): boolean {
-    if (!this.accessControlEnabled()) {
-      return fallBack;
-    }
-    return this.hasPermission(action);
-  }
-
-  hasAccessInMetadata(action: string, object: WithAccessControlMetadata, fallBack: boolean) {
-    if (!config.featureToggles['accesscontrol']) {
-      return fallBack;
-    }
-    return this.hasPermissionInMetadata(action, object);
-  }
-
-  // evaluates access control permissions, granting access if the user has any of them; uses fallback if access control is disabled
-  evaluatePermission(fallback: () => string[], actions: string[]) {
-    if (!this.accessControlEnabled()) {
-      return fallback();
-    }
-    if (actions.some((action) => this.hasPermission(action))) {
-      return [];
-    }
-    // Hack to reject when user does not have permission
-    return ['Reject'];
   }
 }
 

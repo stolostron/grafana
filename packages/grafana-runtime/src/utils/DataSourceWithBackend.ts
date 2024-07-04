@@ -283,9 +283,7 @@ class DataSourceWithBackend<
    *
    * @virtual
    */
-  interpolateVariablesInQueries(queries: TQuery[], scopedVars: ScopedVars | {}): TQuery[] {
-    return queries.map((q) => this.applyTemplateVariables(q, scopedVars) as TQuery);
-  }
+  filterQuery?(query: TQuery): boolean;
 
   /**
    * Override to apply template variables and adhoc filters.  The result is usually also `TQuery`, but sometimes this can

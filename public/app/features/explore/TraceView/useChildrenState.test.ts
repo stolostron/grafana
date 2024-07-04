@@ -3,8 +3,6 @@ import { renderHook, act } from '@testing-library/react';
 import { TraceSpan } from './components';
 import { useChildrenState } from './useChildrenState';
 
-import { useChildrenState } from './useChildrenState';
-
 describe('useChildrenState', () => {
   describe('childrenToggle', () => {
     it('toggles children state', async () => {

@@ -9,11 +9,6 @@ import { getAvailableIcons } from '../../types';
 import mdx from './Input.mdx';
 import { parseAccessory } from './storyUtils';
 
-import { getAvailableIcons, IconName } from '../../types';
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
-import mdx from './Input.mdx';
-
 const prefixSuffixOpts = {
   None: null,
   Text: '$',

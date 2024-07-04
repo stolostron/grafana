@@ -12,8 +12,6 @@ import { GrafanaAnnotationQuery, GrafanaAnnotationType, GrafanaQuery, GrafanaQue
 
 import { TimeRegionEditor } from './TimeRegionEditor';
 
-import { GrafanaAnnotationQuery, GrafanaAnnotationType, GrafanaQuery } from '../types';
-
 const matchTooltipContent = 'Enabling this returns annotations that match any of the tags specified below';
 
 const tagsTooltipContent = (

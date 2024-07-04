@@ -708,15 +708,3 @@ func (m *mockSocialService) GetOAuthHttpClient(name string) (*http.Client, error
 func (m *mockSocialService) GetConnector(string) (social.SocialConnector, error) {
 	return m.socialConnector, m.err
 }
-
-type fakeAuthenticator struct {
-	ExpectedUser       *models.User
-	ExpectedAuthModule string
-	ExpectedError      error
-}
-
-func (fa *fakeAuthenticator) AuthenticateUser(c context.Context, query *models.LoginUserQuery) error {
-	query.User = fa.ExpectedUser
-	query.AuthModule = fa.ExpectedAuthModule
-	return fa.ExpectedError
-}

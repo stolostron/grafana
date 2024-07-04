@@ -1,4 +1,3 @@
-import { Trans } from '@lingui/macro';
 import React, { PureComponent } from 'react';
 
 import { selectors } from '@grafana/e2e-selectors';

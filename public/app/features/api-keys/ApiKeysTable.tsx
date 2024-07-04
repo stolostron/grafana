@@ -30,7 +30,7 @@ export const ApiKeysTable = ({ apiKeys, timeZone, onDelete, onMigrate }: Props) 
           <th style={{ width: '34px' }} />
         </tr>
       </thead>
-      {canRead && apiKeys.length > 0 ? (
+      {apiKeys.length > 0 ? (
         <tbody>
           {apiKeys.map((key) => {
             const isExpired = Boolean(key.expiration && Date.now() > new Date(key.expiration).getTime());

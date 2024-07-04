@@ -296,7 +296,6 @@ export class UnthemedQueryEditor extends PureComponent<Props, State> {
           <Stack direction="row" gap={0}>
             <InlineField label="Fields" grow={true} labelWidth={labelWidth}>
               <Select
-                menuShouldPortal
                 options={fields}
                 value={filter?.fields || []}
                 onChange={this.onFieldNamesChange}

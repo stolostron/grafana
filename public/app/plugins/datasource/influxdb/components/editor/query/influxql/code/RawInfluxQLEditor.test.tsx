@@ -7,8 +7,6 @@ import { InfluxQuery } from '../../../../../types';
 
 import { RawInfluxQLEditor } from './RawInfluxQLEditor';
 
-import { RawInfluxQLEditor } from './RawInfluxQLEditor';
-
 const query: InfluxQuery = {
   refId: 'A',
   query: 'test query 1',

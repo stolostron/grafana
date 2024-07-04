@@ -293,7 +293,6 @@ type APITestServerOption func(hs *HTTPServer)
 func SetupAPITestServer(t *testing.T, opts ...APITestServerOption) *webtest.Server {
 	t.Helper()
 
-	store := sqlstore.InitTestDB(t)
 	hs := &HTTPServer{
 		RouteRegister:      routing.NewRouteRegister(),
 		License:            &licensing.OSSLicensingService{},

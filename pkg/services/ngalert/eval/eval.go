@@ -378,35 +378,6 @@ func getExprRequest(ctx EvaluationContext, condition models.Condition, dsCacheSe
 			return nil, fmt.Errorf("failed to retrieve maxDatapoints from '%s': %w", q.RefID, err)
 		}
 
-		ds, ok := datasources[q.DatasourceUID]
-		if !ok {
-			if expr.IsDataSource(q.DatasourceUID) {
-				ds = expr.DataSourceModel()
-			} else {
-				ds, err = dsCacheService.GetDatasourceByUID(ctx.Ctx, q.DatasourceUID, &m.SignedInUser{
-					OrgId:   ctx.OrgID,
-					OrgRole: m.ROLE_ADMIN, // Get DS as admin for service, API calls (test/post) must check permissions based on user.
-				}, true)
-				if err != nil {
-					return nil, err
-				}
-			}
-			datasources[q.DatasourceUID] = ds
-		}
-
-		// If the datasource has been configured with custom HTTP headers
-		// then we need to add these to the request
-		decryptedData, err := secretsService.DecryptJsonData(ctx.Ctx, ds.SecureJsonData)
-		if err != nil {
-			return nil, err
-		}
-		customHeaders := service.GetCustomHeaders(ds.JsonData, decryptedData, cfg)
-		for k, v := range customHeaders {
-			if _, ok := req.Headers[k]; !ok {
-				req.Headers[k] = v
-			}
-		}
-
 		req.Queries = append(req.Queries, expr.Query{
 			TimeRange:     q.RelativeTimeRange.ToTimeRange(),
 			DataSource:    ds,
@@ -591,48 +562,6 @@ func queryDataResponseToExecutionResults(c models.Condition, execResp *backend.Q
 //				"datasource1": []string{"ref1", "ref2"},
 //				"datasource2": []string{"ref3"},
 //			}
-func datasourceUIDsToRefIDs(refIDsToDatasourceUIDs map[string]string) map[string][]string {
-	if refIDsToDatasourceUIDs == nil {
-		return nil
-	}
-
-	// The ref IDs must be sorted. However, instead of sorting them once
-	// for each Datasource UID we can append them all to a slice and then
-	// sort them once
-	refIDs := make([]string, 0, len(refIDsToDatasourceUIDs))
-	for refID := range refIDsToDatasourceUIDs {
-		refIDs = append(refIDs, refID)
-	}
-	sort.Strings(refIDs)
-
-	result := make(map[string][]string)
-	for _, refID := range refIDs {
-		datasourceUID := refIDsToDatasourceUIDs[refID]
-		result[datasourceUID] = append(result[datasourceUID], refID)
-	}
-
-	return result
-}
-
-// datasourceUIDsToRefIDs returns a sorted slice of Ref IDs for each Datasource UID.
-//
-// If refIDsToDatasourceUIDs is nil then this function also returns nil. Likewise,
-// if it is an empty map then it too returns an empty map.
-//
-// For example, given the following:
-//
-//		map[string]string{
-//			"ref1": "datasource1",
-//			"ref2": "datasource1",
-//			"ref3": "datasource2",
-//		}
-//
-// we would expect:
-//
-//  	map[string][]string{
-// 			"datasource1": []string{"ref1", "ref2"},
-//			"datasource2": []string{"ref3"},
-//		}
 func datasourceUIDsToRefIDs(refIDsToDatasourceUIDs map[string]string) map[string][]string {
 	if refIDsToDatasourceUIDs == nil {
 		return nil

@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/grafana/grafana/pkg/web"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/grafana/pkg/web"

@@ -170,27 +170,6 @@ export class MutableDataFrame<T = any> extends FunctionalVector<T> implements Da
     return p(v);
   }
 
-  private parsers: Map<Field, (v: string) => any> | undefined = undefined;
-
-  /**
-   * @deprecated unclear if this is actually used
-   */
-  setParser(field: Field, parser: (v: string) => any) {
-    if (!this.parsers) {
-      this.parsers = new Map<Field, (v: string) => any>();
-    }
-    this.parsers.set(field, parser);
-    return parser;
-  }
-
-  private parseValue(field: Field, v: any): any {
-    let p = this.parsers?.get(field);
-    if (!p) {
-      p = this.setParser(field, makeFieldParser(v, field));
-    }
-    return p(v);
-  }
-
   /**
    * This will add each value to the corresponding column
    */

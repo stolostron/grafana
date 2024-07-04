@@ -35,13 +35,6 @@ func ProvideService(cfg *setting.Cfg, reg prometheus.Registerer) (*InternalMetri
 	return s, s.readSettings()
 }
 
-func ProvideService(cfg *setting.Cfg) (*InternalMetricsService, error) {
-	s := &InternalMetricsService{
-		Cfg: cfg,
-	}
-	return s, s.readSettings()
-}
-
 type InternalMetricsService struct {
 	Cfg *setting.Cfg
 

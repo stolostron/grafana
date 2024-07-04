@@ -6,13 +6,6 @@ import { DataSourcePluginOptionsEditorProps, DataSourceSettings, GrafanaTheme2 }
 import { ConfigSection, DataSourceDescription } from '@grafana/experimental';
 import { Alert, DataSourceHttpSettings, FieldValidationMessage, useTheme2 } from '@grafana/ui';
 import { config } from 'app/core/config';
-import { getAllAlertmanagerDataSources } from 'app/features/alerting/unified/utils/alertmanager';
-
-import { PromOptions } from '../types';
-
-import { AzureAuthSettings } from './AzureAuthSettings';
-import { hasCredentials, setDefaultCredentials, resetCredentials } from './AzureCredentialsConfig';
-import { PromSettings } from './PromSettings';
 
 import { PromOptions } from '../types';
 

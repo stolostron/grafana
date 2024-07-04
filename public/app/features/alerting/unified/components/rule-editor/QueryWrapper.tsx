@@ -6,7 +6,6 @@ import {
   CoreApp,
   DataSourceApi,
   DataSourceInstanceSettings,
-  getDefaultRelativeTimeRange,
   GrafanaTheme2,
   LoadingState,
   PanelData,
@@ -31,8 +30,6 @@ export interface AlertQueryOptions {
   maxDataPoints?: number | undefined;
   minInterval?: string | undefined;
 }
-
-import { VizWrapper } from './VizWrapper';
 
 interface Props {
   data: PanelData;
@@ -265,11 +262,6 @@ export function MinIntervalOption({
     </InlineField>
   );
 }
-
-export const EmptyQueryWrapper: FC<{}> = ({ children }) => {
-  const styles = useStyles2(getStyles);
-  return <div className={styles.wrapper}>{children}</div>;
-};
 
 const getStyles = (theme: GrafanaTheme2) => ({
   wrapper: css`

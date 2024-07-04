@@ -10,15 +10,11 @@ import (
 
 	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
 	"github.com/grafana/grafana/pkg/services/sqlstore/migrator"
-	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/util"
 )
 
 var migTitle = "move dashboard alerts to unified alerting"
 
 const codeMigration = "code migration"
-
-const clearMigrationEntryTitle = "clear migration entry %q"
 
 type MigrationError struct {
 	AlertId int64
@@ -89,64 +85,6 @@ func (m *updateDashboardUIDPanelIDMigration) Exec(sess *xorm.Session, mg *migrat
 			}
 		}
 	}
-	return nil
-}
-
-// validateAlertmanagerConfig validates the alertmanager configuration produced by the migration against the receivers.
-func (m *migration) validateAlertmanagerConfig(orgID int64, config *PostableUserConfig) error {
-	for _, r := range config.AlertmanagerConfig.Receivers {
-		for _, gr := range r.GrafanaManagedReceivers {
-			// First, let's decode the secure settings - given they're stored as base64.
-			secureSettings := make(map[string][]byte, len(gr.SecureSettings))
-			for k, v := range gr.SecureSettings {
-				d, err := base64.StdEncoding.DecodeString(v)
-				if err != nil {
-					return err
-				}
-				secureSettings[k] = d
-			}
-
-			var (
-				cfg = &channels.NotificationChannelConfig{
-					UID:                   gr.UID,
-					OrgID:                 orgID,
-					Name:                  gr.Name,
-					Type:                  gr.Type,
-					DisableResolveMessage: gr.DisableResolveMessage,
-					Settings:              gr.Settings,
-					SecureSettings:        secureSettings,
-				}
-				err error
-			)
-
-			// decryptFunc represents the legacy way of decrypting data. Before the migration, we don't need any new way,
-			// given that the previous alerting will never support it.
-			decryptFunc := func(_ context.Context, sjd map[string][]byte, key string, fallback string) string {
-				if value, ok := sjd[key]; ok {
-					decryptedData, err := util.Decrypt(value, setting.SecretKey)
-					if err != nil {
-						m.mg.Logger.Warn("unable to decrypt key '%s' for %s receiver with uid %s, returning fallback.", key, gr.Type, gr.UID)
-						return fallback
-					}
-					return string(decryptedData)
-				}
-				return fallback
-			}
-			receiverFactory, exists := channels.Factory(gr.Type)
-			if !exists {
-				return fmt.Errorf("notifier %s is not supported", gr.Type)
-			}
-			factoryConfig, err := channels.NewFactoryConfig(cfg, nil, decryptFunc, nil)
-			if err != nil {
-				return err
-			}
-			_, err = receiverFactory(factoryConfig)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
 	return nil
 }
 

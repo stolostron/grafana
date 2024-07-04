@@ -38,7 +38,6 @@ const setDerivedFields = makeJsonUpdater('derivedFields');
 
 export const ConfigEditor = (props: Props) => {
   const { options, onOptionsChange } = props;
-  const alertmanagers = getAllAlertmanagerDataSources();
 
   const updatePredefinedOperations = useCallback(
     (value: string) => {

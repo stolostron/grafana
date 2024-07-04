@@ -80,7 +80,6 @@ export const withSelect: StoryFn<typeof InlineField> = (args) => {
   return (
     <InlineField {...args}>
       <Select
-        menuShouldPortal
         width={16}
         onChange={action('item selected')}
         options={[

@@ -37,23 +37,6 @@ export function AlertingSettings<T extends AlertingConfig>({ options, onOptionsC
             </InlineField>
           </div>
         </div>
-        <InlineFieldRow>
-          <InlineField
-            tooltip="The alertmanager that manages alerts for this data source"
-            label="Alertmanager data source"
-            labelWidth={26}
-          >
-            <Select
-              width={29}
-              menuShouldPortal
-              options={alertmanagerOptions}
-              onChange={(value) =>
-                onOptionsChange({ ...options, jsonData: { ...options.jsonData, alertmanagerUid: value?.value } })
-              }
-              value={options.jsonData.alertmanagerUid}
-            />
-          </InlineField>
-        </InlineFieldRow>
       </div>
     </>
   );

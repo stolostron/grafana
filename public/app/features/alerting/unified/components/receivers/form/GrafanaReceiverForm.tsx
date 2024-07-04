@@ -116,30 +116,6 @@ export const GrafanaReceiverForm = ({ existing, alertManagerSourceName, config, 
     }
   };
 
-  const onTestChannel = (values: GrafanaChannelValues) => {
-    setTestChannelValues(values);
-  };
-
-  const testNotification = (alert?: TestReceiversAlert) => {
-    if (testChannelValues) {
-      const existing: GrafanaManagedReceiverConfig | undefined = id2original[testChannelValues.__id];
-      const chan = formChannelValuesToGrafanaChannelConfig(testChannelValues, defaultChannelValues, 'test', existing);
-
-      const payload = {
-        alertManagerSourceName,
-        receivers: [
-          {
-            name: 'test',
-            grafana_managed_receiver_configs: [chan],
-          },
-        ],
-        alert,
-      };
-
-      dispatch(testReceiversAction(payload));
-    }
-  };
-
   const takenReceiverNames = useMemo(
     () => config.alertmanager_config.receivers?.map(({ name }) => name).filter((name) => name !== existing?.name) ?? [],
     [config, existing]

@@ -623,9 +623,6 @@ func TestDataSourceProxy_requestHandling(t *testing.T) {
 		}, ds
 	}
 
-	tracer, err := tracing.InitializeTracerForTest()
-	require.NoError(t, err)
-
 	t.Run("When response header Set-Cookie is not set should remove proxied Set-Cookie header", func(t *testing.T) {
 		ctx, ds := setUp(t)
 		var routes []*plugins.Route
@@ -962,7 +959,6 @@ func runDatasourceAuthTest(t *testing.T, secretsService secrets.Service, secrets
 }
 
 func Test_PathCheck(t *testing.T) {
-	cfg := &setting.Cfg{}
 	// Ensure that we test routes appropriately. This test reproduces a historical bug where two routes were defined with different role requirements but the same method and the more privileged route was tested first. Here we ensure auth checks are applied based on the correct route, not just the method.
 	routes := []*plugins.Route{
 		{

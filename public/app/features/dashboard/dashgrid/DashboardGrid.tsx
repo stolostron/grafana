@@ -23,9 +23,7 @@ import { DashboardPanel } from './DashboardPanel';
 
 export const PANEL_FILTER_VARIABLE = 'systemPanelFilterVar';
 
-import { DashboardPanel } from './DashboardPanel';
-
-export interface OwnProps {
+export interface Props {
   dashboard: DashboardModel;
   isEditable: boolean;
   editPanel: PanelModel | null;
@@ -88,7 +86,6 @@ export class DashboardGrid extends PureComponent<Props, State> {
 
   componentWillUnmount() {
     this.eventSubs.unsubscribe();
-    this.props.cleanAndRemoveMany(Object.keys(this.panelMap));
   }
 
   setPanelFilter(regex: string) {
@@ -449,5 +446,3 @@ function translateGridHeightToScreenHeight(gridHeight: number): number {
 }
 
 GrafanaGridItem.displayName = 'GridItemWithDimensions';
-
-export const DashboardGrid = connector(DashboardGridUnconnected);

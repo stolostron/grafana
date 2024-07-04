@@ -6,15 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil" //nolint:staticcheck // No need to change in v8.
 	"net/http"
 	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"

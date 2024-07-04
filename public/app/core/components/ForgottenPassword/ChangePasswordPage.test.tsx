@@ -65,8 +65,8 @@ describe('ChangePassword Page', () => {
     postMock.mockResolvedValueOnce({ message: 'Logged in' });
     render(<ChangePasswordPage {...props} />);
 
-    userEvent.type(screen.getByLabelText('New password'), 'test');
-    userEvent.type(screen.getByLabelText('Confirm new password'), 'test');
+    await userEvent.type(screen.getByLabelText('New password'), 'test');
+    await userEvent.type(screen.getByLabelText('Confirm new password'), 'test');
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await waitFor(() =>
       expect(postMock).toHaveBeenCalledWith('/api/user/password/reset', {

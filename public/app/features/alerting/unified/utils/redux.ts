@@ -203,19 +203,3 @@ export function isAsyncRequestStatePending<T>(state?: AsyncRequestState<T>): boo
 
   return state.dispatched && state.loading;
 }
-
-export function isAsyncRequestMapSliceFulfilled<T>(slice: AsyncRequestMapSlice<T>): boolean {
-  return Object.values(slice).every(isAsyncRequestStateFulfilled);
-}
-
-export function isAsyncRequestStateFulfilled<T>(state: AsyncRequestState<T>): boolean {
-  return state.dispatched && !state.loading && !state.error;
-}
-
-export function isAsyncRequestMapSlicePending<T>(slice: AsyncRequestMapSlice<T>): boolean {
-  return Object.values(slice).some(isAsyncRequestStatePending);
-}
-
-export function isAsyncRequestStatePending<T>(state: AsyncRequestState<T>): boolean {
-  return state.dispatched && state.loading;
-}

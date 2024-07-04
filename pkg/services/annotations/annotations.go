@@ -27,28 +27,3 @@ type Repository interface {
 type Cleaner interface {
 	Run(ctx context.Context, cfg *setting.Cfg) (int64, int64, error)
 }
-
-type annotationType int
-
-const (
-	Organization annotationType = iota
-	Dashboard
-)
-
-func (a annotationType) String() string {
-	switch a {
-	case Organization:
-		return "organization"
-	case Dashboard:
-		return "dashboard"
-	default:
-		return ""
-	}
-}
-
-func (annotation *ItemDTO) GetType() annotationType {
-	if annotation.DashboardId != 0 {
-		return Dashboard
-	}
-	return Organization
-}

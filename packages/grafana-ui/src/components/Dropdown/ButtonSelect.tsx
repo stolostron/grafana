@@ -68,7 +68,7 @@ const ButtonSelectComponent = <T,>(props: Props<T>) => {
 
   const onChangeInternal = (item: SelectableValue<T>) => {
     onChange(item);
-    state.close();
+    setIsOpen(false);
   };
 
   return (

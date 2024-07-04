@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -530,42 +529,4 @@ func (st *Manager) deleteStaleStatesFromCache(ctx context.Context, logger log.Lo
 
 func stateIsStale(evaluatedAt time.Time, lastEval time.Time, intervalSeconds int64) bool {
 	return !lastEval.Add(2 * time.Duration(intervalSeconds) * time.Second).After(evaluatedAt)
-}
-
-func (st *Manager) staleResultsHandler(ctx context.Context, alertRule *ngModels.AlertRule, states map[string]*State) {
-	allStates := st.GetStatesForRuleUID(alertRule.OrgID, alertRule.UID)
-	for _, s := range allStates {
-		_, ok := states[s.CacheId]
-		if !ok && isItStale(s.LastEvaluationTime, alertRule.IntervalSeconds) {
-			st.log.Debug("removing stale state entry", "orgID", s.OrgID, "alertRuleUID", s.AlertRuleUID, "cacheID", s.CacheId)
-			st.cache.deleteEntry(s.OrgID, s.AlertRuleUID, s.CacheId)
-			ilbs := ngModels.InstanceLabels(s.Labels)
-			_, labelsHash, err := ilbs.StringAndHash()
-			if err != nil {
-				st.log.Error("unable to get labelsHash", "error", err.Error(), "orgID", s.OrgID, "alertRuleUID", s.AlertRuleUID)
-			}
-
-			if err = st.instanceStore.DeleteAlertInstance(ctx, s.OrgID, s.AlertRuleUID, labelsHash); err != nil {
-				st.log.Error("unable to delete stale instance from database", "error", err.Error(), "orgID", s.OrgID, "alertRuleUID", s.AlertRuleUID, "cacheID", s.CacheId)
-			}
-
-			if s.State == eval.Alerting {
-				st.annotateState(ctx, alertRule, s.Labels, time.Now(), eval.Normal, s.State)
-			}
-		}
-	}
-}
-
-func isItStale(lastEval time.Time, intervalSeconds int64) bool {
-	return lastEval.Add(2 * time.Duration(intervalSeconds) * time.Second).Before(time.Now())
-}
-
-func removePrivateLabels(labels data.Labels) data.Labels {
-	result := make(data.Labels)
-	for k, v := range labels {
-		if !strings.HasPrefix(k, "__") && !strings.HasSuffix(k, "__") {
-			result[k] = v
-		}
-	}
-	return result
 }

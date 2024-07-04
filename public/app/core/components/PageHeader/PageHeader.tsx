@@ -9,8 +9,6 @@ import { PageInfoItem } from '../Page/types';
 import { PageInfo } from '../PageInfo/PageInfo';
 import { ProBadge } from '../Upgrade/ProBadge';
 
-import { ProBadge } from '../Upgrade/ProBadge';
-
 export interface Props {
   navItem: NavModelItem;
   renderTitle?: (title: string) => React.ReactNode;

@@ -5,10 +5,6 @@ import { SortOrder } from 'app/core/utils/richHistory';
 
 import { RichHistory, RichHistoryProps, Tabs } from './RichHistory';
 
-import { ExploreId } from '../../../types/explore';
-
-import { RichHistory, RichHistoryProps, Tabs } from './RichHistory';
-
 jest.mock('../state/selectors', () => ({ getExploreDatasources: jest.fn() }));
 
 jest.mock('@grafana/runtime', () => ({

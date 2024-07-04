@@ -7,7 +7,6 @@ import { useStyles2 } from '../../../themes';
 import { isCompactUrl } from '../../../utils/dataLinks';
 import { FieldValidationMessage } from '../../Forms/FieldValidationMessage';
 import { IconButton } from '../../IconButton/IconButton';
-import { HorizontalGroup, VerticalGroup } from '../../Layout/Layout';
 
 export interface DataLinksListItemProps {
   index: number;

@@ -1,6 +1,8 @@
 package notifier
 
 import (
+	"encoding/json"
+
 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
 )
 

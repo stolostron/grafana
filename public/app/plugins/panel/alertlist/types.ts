@@ -63,5 +63,3 @@ export interface UnifiedAlertListOptions {
   datasource: string;
   viewMode: ViewMode;
 }
-
-export type GroupedRules = Map<string, Alert[]>;

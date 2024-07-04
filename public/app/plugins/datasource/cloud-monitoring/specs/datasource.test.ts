@@ -8,16 +8,6 @@ import { CloudMonitoringOptions, CustomVariableModel } from '../types/types';
 let getTempVars = () => [] as CustomVariableModel[];
 let replace = () => '';
 
-import { DataSourceInstanceSettings, toUtc } from '@grafana/data';
-import { backendSrv } from 'app/core/services/backend_srv'; // will use the version in __mocks__
-import { TimeSrv } from 'app/features/dashboard/services/TimeSrv';
-import { TemplateSrv } from 'app/features/templating/template_srv';
-
-import { initialCustomVariableModelState } from '../../../../features/variables/custom/reducer';
-import { CustomVariableModel } from '../../../../features/variables/types';
-import CloudMonitoringDataSource from '../datasource';
-import { CloudMonitoringOptions } from '../types';
-
 jest.mock('@grafana/runtime', () => ({
   __esModule: true,
   ...jest.requireActual('@grafana/runtime'),

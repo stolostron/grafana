@@ -51,8 +51,6 @@ type RulesStore interface {
 }
 
 type schedule struct {
-	wg sync.WaitGroup
-
 	// base tick rate (fastest possible configured check)
 	baseInterval time.Duration
 

@@ -4,11 +4,6 @@ import React from 'react';
 
 import { DerivedFields } from './DerivedFields';
 
-import { Button } from '@grafana/ui';
-
-import { DerivedField } from './DerivedField';
-import { DerivedFields } from './DerivedFields';
-
 describe('DerivedFields', () => {
   let originalGetSelection: typeof window.getSelection;
   beforeAll(() => {

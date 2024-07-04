@@ -114,7 +114,7 @@ describe('ApiKeysPage', () => {
 
       setSearchQueryMock.mockClear();
       expect(screen.getByPlaceholderText(/search keys/i)).toBeInTheDocument();
-      userEvent.type(screen.getByPlaceholderText(/search keys/i), 'First');
+      await userEvent.type(screen.getByPlaceholderText(/search keys/i), 'First');
       expect(setSearchQueryMock).toHaveBeenCalledTimes(5);
     });
   });

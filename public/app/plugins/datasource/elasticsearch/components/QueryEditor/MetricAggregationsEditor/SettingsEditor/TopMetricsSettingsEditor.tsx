@@ -25,7 +25,6 @@ export const TopMetricsSettingsEditor = ({ metric }: Props) => {
     <>
       <InlineField label="Metrics" labelWidth={16}>
         <AsyncMultiSelect
-          menuShouldPortal
           onChange={(e) =>
             dispatch(
               changeMetricSetting({

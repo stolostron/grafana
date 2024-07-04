@@ -8,9 +8,6 @@ import { Button, Dropdown, Icon, Menu, MenuItem, useStyles2, Stack } from '@graf
 
 import { GrafanaReceiversExporter } from '../export/GrafanaReceiversExporter';
 
-import { GrafanaTheme2 } from '@grafana/data';
-import { Button, useStyles2 } from '@grafana/ui';
-
 interface Props {
   title: string;
   description: string;

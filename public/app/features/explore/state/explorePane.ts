@@ -180,8 +180,6 @@ export const initializeExplore = createAsyncThunk(
 
     dispatch(updateTime({ exploreId }));
 
-    keybindingSrv.setupTimeRangeBindings(false);
-
     if (instance) {
       const datasourceUIDs = getDatasourceUIDs(instance.uid, queries);
       const correlations = await getCorrelationsBySourceUIDs(datasourceUIDs);

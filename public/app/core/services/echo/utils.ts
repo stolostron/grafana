@@ -1,4 +1,3 @@
-import { CurrentUserDTO } from '@grafana/data';
 import { attachDebugger, createLogger } from '@grafana/ui';
 
 export function loadScript(url: string, async = false) {

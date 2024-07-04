@@ -7,10 +7,6 @@ import { useStyles2 } from '../../themes';
 import { getTagColorsFromName } from '../../utils';
 import { IconButton } from '../IconButton/IconButton';
 
-import { stylesFactory, useTheme } from '../../themes';
-import { getTagColorsFromName } from '../../utils';
-import { IconButton } from '../IconButton/IconButton';
-
 interface Props {
   name: string;
   disabled?: boolean;

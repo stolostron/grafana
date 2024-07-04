@@ -8,8 +8,6 @@ import { GenericDataSourcePlugin } from '../types';
 
 import { DataSourceTypesLoadedPayload } from './actions';
 
-import { DataSourceTypesLoadedPayload } from './actions';
-
 export const initialState: DataSourcesState = {
   dataSources: [],
   plugins: [],

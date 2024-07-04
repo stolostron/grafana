@@ -97,7 +97,6 @@ export const ScaleDimensionEditor = (props: StandardEditorProps<ScaleDimensionCo
     <>
       <div>
         <Select
-          menuShouldPortal
           value={selectedOption}
           options={selectOptions}
           onChange={onSelectChange}

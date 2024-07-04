@@ -20,8 +20,6 @@ import { GrafanaRulesExporter } from '../export/GrafanaRulesExporter';
 import { RulesGroup } from './RulesGroup';
 import { useCombinedGroupNamespace } from './useCombinedGroupNamespace';
 
-import { RulesGroup } from './RulesGroup';
-
 interface Props {
   namespaces: CombinedRuleNamespace[];
   expandAll: boolean;

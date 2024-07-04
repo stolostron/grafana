@@ -61,7 +61,6 @@ func TestPluginProxy(t *testing.T) {
 			},
 			&setting.Cfg{SendUserHeader: true},
 			route,
-			store,
 		)
 
 		assert.Equal(t, "my secret 123", req.Header.Get("x-header"))
@@ -85,7 +84,6 @@ func TestPluginProxy(t *testing.T) {
 			},
 			&setting.Cfg{SendUserHeader: true},
 			nil,
-			store,
 		)
 
 		// Get will return empty string even if header is not set
@@ -110,7 +108,6 @@ func TestPluginProxy(t *testing.T) {
 			},
 			&setting.Cfg{SendUserHeader: false},
 			nil,
-			store,
 		)
 		// Get will return empty string even if header is not set
 		assert.Equal(t, "", req.Header.Get("X-Grafana-User"))
@@ -132,7 +129,6 @@ func TestPluginProxy(t *testing.T) {
 			},
 			&setting.Cfg{SendUserHeader: true},
 			nil,
-			store,
 		)
 
 		// Get will return empty string even if header is not set
@@ -166,7 +162,6 @@ func TestPluginProxy(t *testing.T) {
 			},
 			&setting.Cfg{SendUserHeader: true},
 			route,
-			store,
 		)
 		assert.Equal(t, "https://dynamic.grafana.com", req.URL.String())
 		assert.Equal(t, "{{.JsonData.dynamicUrl}}", route.URL)
@@ -195,7 +190,6 @@ func TestPluginProxy(t *testing.T) {
 			},
 			&setting.Cfg{SendUserHeader: true},
 			route,
-			store,
 		)
 		assert.Equal(t, "https://example.com", req.URL.String())
 	})
@@ -234,7 +228,6 @@ func TestPluginProxy(t *testing.T) {
 			},
 			&setting.Cfg{SendUserHeader: true},
 			route,
-			store,
 		)
 		content, err := io.ReadAll(req.Body)
 		require.NoError(t, err)
@@ -563,29 +556,4 @@ func getPluginProxiedRequest(t *testing.T, ps *pluginsettings.DTO, secretsServic
 	proxy.matchedRoute = route
 	proxy.director(req)
 	return req
-}
-
-type mockPluginsSettingsService struct {
-	pluginSetting *pluginsettings.DTO
-	err           error
-}
-
-func (s *mockPluginsSettingsService) GetPluginSettings(_ context.Context, _ *pluginsettings.GetArgs) ([]*pluginsettings.DTO, error) {
-	return nil, s.err
-}
-
-func (s *mockPluginsSettingsService) GetPluginSettingByPluginID(_ context.Context, _ *pluginsettings.GetByPluginIDArgs) (*pluginsettings.DTO, error) {
-	return s.pluginSetting, s.err
-}
-
-func (s *mockPluginsSettingsService) UpdatePluginSettingPluginVersion(_ context.Context, _ *pluginsettings.UpdatePluginVersionArgs) error {
-	return s.err
-}
-
-func (s *mockPluginsSettingsService) UpdatePluginSetting(_ context.Context, _ *pluginsettings.UpdateArgs) error {
-	return s.err
-}
-
-func (s *mockPluginsSettingsService) DecryptedValues(_ *pluginsettings.DTO) map[string]string {
-	return nil
 }

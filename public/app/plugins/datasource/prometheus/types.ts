@@ -53,10 +53,6 @@ export interface PromOptions extends DataSourceJsonData {
   oauthPassThru?: boolean;
 }
 
-export enum PromQueryType {
-  timeSeriesQuery = 'timeSeriesQuery',
-}
-
 export type ExemplarTraceIdDestination = {
   name: string;
   url?: string;

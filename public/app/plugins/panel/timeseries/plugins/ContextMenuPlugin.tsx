@@ -45,11 +45,6 @@ export const ContextMenuPlugin = ({
   useLayoutEffect(() => {
     let seriesIdx: number | null = null;
 
-    // cache uPlot plotting area bounding box
-    config.addHook('syncRect', (u, rect) => {
-      bbox = rect;
-    });
-
     config.addHook('init', (u) => {
       u.over.addEventListener('click', (e) => {
         // only open when have a focused point, and not for explicit annotations, zooms, etc.

@@ -14,7 +14,6 @@ import { logError } from '../../../Analytics';
 import { isOnCallFetchError } from '../../../api/onCallApi';
 import { useControlledFieldArray } from '../../../hooks/useControlledFieldArray';
 import { ChannelValues, CommonSettingsComponentType, ReceiverFormValues } from '../../../types/receiver-form';
-import { isVanillaPrometheusAlertManagerDataSource } from '../../../utils/datasource';
 import { makeAMLink } from '../../../utils/misc';
 import { initialAsyncRequestState } from '../../../utils/redux';
 

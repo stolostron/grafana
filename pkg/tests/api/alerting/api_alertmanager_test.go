@@ -329,7 +329,7 @@ func TestIntegrationAMConfigAccess(t *testing.T) {
 	})
 
 	var silences apimodels.GettableSilences
-	err = json.Unmarshal(blob, &silences)
+	err := json.Unmarshal(blob, &silences)
 	require.NoError(t, err)
 	assert.Len(t, silences, 2)
 	silenceIDs := make([]string, 0, len(silences))
@@ -820,24 +820,6 @@ func TestIntegrationDeleteFolderWithRules(t *testing.T) {
 			require.NoError(t, err)
 		})
 		_, err = io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		require.JSONEq(t, `{"message":"folder cannot be deleted: folder contains alert rules"}`, string(b))
-	}
-
-	// Next, the editor can delete the folder if forceDeleteRules is true.
-	{
-		u := fmt.Sprintf("http://editor:editor@%s/api/folders/%s?forceDeleteRules=true", grafanaListedAddr, namespaceUID)
-		req, err := http.NewRequest(http.MethodDelete, u, nil)
-		require.NoError(t, err)
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			err := resp.Body.Close()
-			require.NoError(t, err)
-		})
-		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, 200, resp.StatusCode)
 	}

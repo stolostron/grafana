@@ -21,19 +21,6 @@ import { UnifiedAlertListPanel } from './UnifiedAlertList';
 import { AlertListSuggestionsSupplier } from './suggestions';
 import { AlertListOptions, GroupMode, ShowOption, SortOrder, UnifiedAlertListOptions, ViewMode } from './types';
 
-import {
-  ALL_FOLDER,
-  GENERAL_FOLDER,
-  ReadonlyFolderPicker,
-} from '../../../core/components/Select/ReadonlyFolderPicker/ReadonlyFolderPicker';
-
-import { AlertList } from './AlertList';
-import { alertListPanelMigrationHandler } from './AlertListMigrationHandler';
-import { GroupBy } from './GroupByWithLoading';
-import { UnifiedAlertList } from './UnifiedAlertList';
-import { AlertListSuggestionsSupplier } from './suggestions';
-import { AlertListOptions, GroupMode, ShowOption, SortOrder, UnifiedAlertListOptions } from './types';
-
 function showIfCurrentState(options: AlertListOptions) {
   return options.showOptions === ShowOption.Current;
 }
@@ -302,26 +289,6 @@ const unifiedAlertList = new PanelPlugin<UnifiedAlertListOptions>(UnifiedAlertLi
             permissionLevel={PermissionLevelString.View}
             onClear={() => props.onChange('')}
             {...props}
-          />
-        );
-      },
-      category: ['Filter'],
-    })
-    .addCustomEditor({
-      path: 'datasource',
-      name: 'Datasource',
-      description: 'Filter alerts from selected datasource',
-      id: 'datasource',
-      defaultValue: null,
-      editor: function RenderDatasourcePicker(props) {
-        return (
-          <DataSourcePicker
-            {...props}
-            type={['prometheus', 'loki', 'grafana']}
-            noDefault
-            current={props.value}
-            onChange={(ds) => props.onChange(ds.name)}
-            onClear={() => props.onChange('')}
           />
         );
       },

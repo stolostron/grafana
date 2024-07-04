@@ -28,12 +28,6 @@ endif
 spec.json spec-stable.json: $(GO_PKG_FILES) $(SWAGGER)
 	SWAGGER_GENERATE_EXTENSION=false $(SWAGGER) generate spec -m -w $(API_DIR) -o spec.json && SWAGGER_GENERATE_EXTENSION=false $(SWAGGER) generate spec -m --include-tag=stable -o spec-stable.json
 
-ensure_go-swagger_mac:
-	@hash swagger &>/dev/null || (brew tap go-swagger/go-swagger && brew install go-swagger)
-
-spec.json-mac: ensure_go-swagger_mac $(GO_PKG_FILES)
-	swagger generate spec -m -w $(API_DIR) -o spec.json
-
 post.json: spec.json
 	go run cmd/clean-swagger/main.go -if $(<) -of $@
 

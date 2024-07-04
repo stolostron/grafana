@@ -1,7 +1,6 @@
 import { once } from 'lodash';
 import Prism from 'prismjs';
 
-import { PrometheusDatasource } from './datasource';
 import {
   AbstractLabelMatcher,
   AbstractLabelOperator,
@@ -142,32 +141,6 @@ export default class PromQlLanguageProvider extends LanguageProvider {
 
   getLabelKeys(): string[] {
     return this.labelKeys;
-  }
-
-  importFromAbstractQuery(labelBasedQuery: AbstractQuery): PromQuery {
-    return toPromLikeQuery(labelBasedQuery);
-  }
-
-  exportToAbstractQuery(query: PromQuery): AbstractQuery {
-    const promQuery = query.expr;
-    if (!promQuery || promQuery.length === 0) {
-      return { refId: query.refId, labelMatchers: [] };
-    }
-    const tokens = Prism.tokenize(promQuery, PromqlSyntax);
-    const labelMatchers: AbstractLabelMatcher[] = extractLabelMatchers(tokens);
-    const nameLabelValue = getNameLabelValue(promQuery, tokens);
-    if (nameLabelValue && nameLabelValue.length > 0) {
-      labelMatchers.push({
-        name: '__name__',
-        operator: AbstractLabelOperator.Equal,
-        value: nameLabelValue,
-      });
-    }
-
-    return {
-      refId: query.refId,
-      labelMatchers,
-    };
   }
 
   importFromAbstractQuery(labelBasedQuery: AbstractQuery): PromQuery {

@@ -29,20 +29,6 @@ import (
 	"github.com/grafana/grafana/pkg/util/ticker"
 )
 
-// AlertStore is a subset of SQLStore API to satisfy the needs of the alerting service.
-// A subset is needed to make it easier to mock during the tests.
-type AlertStore interface {
-	GetAllAlertQueryHandler(context.Context, *models.GetAllAlertsQuery) error
-	GetDataSource(context.Context, *models.GetDataSourceQuery) error
-	GetDashboardUIDById(context.Context, *models.GetDashboardRefByIdQuery) error
-	SetAlertNotificationStateToCompleteCommand(context.Context, *models.SetAlertNotificationStateToCompleteCommand) error
-	SetAlertNotificationStateToPendingCommand(context.Context, *models.SetAlertNotificationStateToPendingCommand) error
-	GetAlertNotificationUidWithId(context.Context, *models.GetAlertNotificationUidQuery) error
-	GetAlertNotificationsWithUidToSend(context.Context, *models.GetAlertNotificationsWithUidToSendQuery) error
-	GetOrCreateAlertNotificationState(context.Context, *models.GetOrCreateNotificationStateQuery) error
-	SetAlertState(context.Context, *models.SetAlertStateCommand) error
-}
-
 // AlertEngine is the background process that
 // schedules alert evaluations and makes sure notifications
 // are sent.

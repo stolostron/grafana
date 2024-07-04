@@ -5,8 +5,6 @@ import { Field, FieldType, NullValueMode, Vector } from '../types/index';
 
 import { fieldReducers, ReducerID, reduceField, defaultCalcs } from './fieldReducer';
 
-import { fieldReducers, ReducerID, reduceField } from './fieldReducer';
-
 /**
  * Run a reducer and get back the value
  */

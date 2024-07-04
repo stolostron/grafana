@@ -82,15 +82,6 @@ const AdminEditOrgPage = ({ match }: Props) => {
     subTitle: 'Manage settings and user roles for an organization.',
   };
 
-  const renderMissingUserListRightsMessage = () => {
-    return (
-      <Alert severity="info" title="Access denied">
-        You do not have permission to see users in this organization. To update this organization, contact your server
-        administrator.
-      </Alert>
-    );
-  };
-
   return (
     <Page navId="global-orgs" pageNav={pageNav} subTitle="Manage settings for this specific org.">
       <Page.Contents>
@@ -130,4 +121,6 @@ const AdminEditOrgPage = ({ match }: Props) => {
       </Page.Contents>
     </Page>
   );
-}
+};
+
+export default AdminEditOrgPage;

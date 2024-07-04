@@ -19,17 +19,6 @@ import {
   isValidLiveChannelAddress,
 } from '@grafana/data';
 
-import {
-  LiveChannelStatusEvent,
-  LiveChannelEvent,
-  LiveChannelEventType,
-  LiveChannelConnectionState,
-  LiveChannelPresenceStatus,
-  LiveChannelAddress,
-  DataFrameJSON,
-  isValidLiveChannelAddress,
-} from '@grafana/data';
-
 /**
  * Internal class that maps Centrifuge support to GrafanaLive
  */

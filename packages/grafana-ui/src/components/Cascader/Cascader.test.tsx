@@ -69,7 +69,6 @@ describe('Cascader', () => {
 
       act(() => {
         jest.runAllTimers();
-        userEvent.click(screen.getByPlaceholderText(placeholder));
       });
 
       await user.click(screen.getByPlaceholderText(placeholder));

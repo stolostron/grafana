@@ -8,8 +8,6 @@ import (
 
 const defaultDataProxyRowLimit = int64(1000000)
 
-const defaultDataProxyRowLimit = int64(1000000)
-
 func readDataProxySettings(iniFile *ini.File, cfg *Cfg) error {
 	dataproxy := iniFile.Section("dataproxy")
 	cfg.SendUserHeader = dataproxy.Key("send_user_header").MustBool(false)

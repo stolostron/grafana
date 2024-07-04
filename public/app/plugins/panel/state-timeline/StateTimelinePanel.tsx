@@ -51,7 +51,6 @@ export const StateTimelinePanel = ({
   onChangeTimeRange,
 }: TimelinePanelProps) => {
   const theme = useTheme2();
-  const { sync } = usePanelContext();
 
   const oldConfig = useRef<UPlotConfigBuilder | undefined>(undefined);
   const isToolTipOpen = useRef<boolean>(false);

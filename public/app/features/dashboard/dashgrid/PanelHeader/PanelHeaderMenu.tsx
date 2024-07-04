@@ -4,8 +4,6 @@ import { PanelMenuItem } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 import { Menu } from '@grafana/ui';
 
-import { PanelHeaderMenuItem } from './PanelHeaderMenuItem';
-
 export interface Props {
   items: PanelMenuItem[];
   style?: React.CSSProperties;

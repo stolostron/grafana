@@ -16,8 +16,6 @@ const setup = (propOverrides?: Partial<QueryOperationRowProps>) => {
   return render(<QueryOperationRow {...props}></QueryOperationRow>);
 };
 
-import { QueryOperationRow } from './QueryOperationRow';
-
 describe('QueryOperationRow', () => {
   it('renders without exploding', () => {
     expect(() => setup()).not.toThrow();

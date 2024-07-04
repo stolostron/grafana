@@ -2,8 +2,6 @@ import { Field, FieldType } from '../types';
 
 import { getSeriesTimeStep, hasMsResolution } from './series';
 
-import { getSeriesTimeStep, hasMsResolution } from './series';
-
 const uniformTimeField: Field = {
   name: 'time',
   type: FieldType.time,

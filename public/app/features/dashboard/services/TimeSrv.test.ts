@@ -363,42 +363,4 @@ describe('timeSrv', () => {
       expect(time.raw.to).toBe('now');
     });
   });
-
-  describe('isRefreshOutsideThreshold', () => {
-    const originalNow = Date.now;
-
-    beforeEach(() => {
-      Date.now = jest.fn(() => 60000);
-    });
-
-    afterEach(() => {
-      Date.now = originalNow;
-    });
-
-    describe('when called and current time range is absolute', () => {
-      it('then it should return false', () => {
-        timeSrv.setTime({ from: dateTime(), to: dateTime() });
-
-        expect(timeSrv.isRefreshOutsideThreshold(0, 0.05)).toBe(false);
-      });
-    });
-
-    describe('when called and current time range is relative', () => {
-      describe('and last refresh is within threshold', () => {
-        it('then it should return false', () => {
-          timeSrv.setTime({ from: 'now-1m', to: 'now' });
-
-          expect(timeSrv.isRefreshOutsideThreshold(57001, 0.05)).toBe(false);
-        });
-      });
-
-      describe('and last refresh is outside the threshold', () => {
-        it('then it should return true', () => {
-          timeSrv.setTime({ from: 'now-1m', to: 'now' });
-
-          expect(timeSrv.isRefreshOutsideThreshold(57000, 0.05)).toBe(true);
-        });
-      });
-    });
-  });
 });

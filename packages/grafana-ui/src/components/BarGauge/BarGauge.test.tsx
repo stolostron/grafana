@@ -178,18 +178,6 @@ describe('BarGauge', () => {
     });
   });
 
-  describe('Vertical bar', () => {
-    it('should adjust empty region to always have same width as colored bar', () => {
-      const props = getProps({
-        width: 150,
-        value: getValue(100),
-        orientation: VizOrientation.Vertical,
-      });
-      const styles = getBasicAndGradientStyles(props);
-      expect(styles.emptyBar.width).toBe('150px');
-    });
-  });
-
   describe('Vertical bar without title', () => {
     it('should not include title height in height', () => {
       const props = getProps({

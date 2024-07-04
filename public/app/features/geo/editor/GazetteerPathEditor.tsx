@@ -62,7 +62,6 @@ export const GazetteerPathEditor = ({
   return (
     <>
       <Select
-        menuShouldPortal
         value={current}
         options={options}
         onChange={(v) => onChange(v.value)}

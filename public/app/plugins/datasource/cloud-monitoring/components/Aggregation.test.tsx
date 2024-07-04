@@ -7,12 +7,6 @@ import { MetricDescriptor } from '../types/types';
 
 import { Aggregation, Props } from './Aggregation';
 
-import { Select } from '@grafana/ui';
-
-import { ValueTypes, MetricKind } from '../types';
-
-import { Aggregation, Props } from './Aggregation';
-
 const props: Props = {
   onChange: () => {},
   metricDescriptor: {

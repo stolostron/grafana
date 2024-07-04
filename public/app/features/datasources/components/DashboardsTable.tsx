@@ -3,8 +3,6 @@ import React from 'react';
 import { Button, Icon } from '@grafana/ui';
 import { PluginDashboard } from 'app/types';
 
-import { PluginDashboard } from '../../types';
-
 export interface Props {
   // List of plugin dashboards to show in the table
   dashboards: PluginDashboard[];

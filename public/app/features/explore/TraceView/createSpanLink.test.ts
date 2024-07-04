@@ -1170,6 +1170,7 @@ describe('createSpanLinkFactory', () => {
         filterByTraceID: true,
         filterBySpanID: true,
       });
+
       expect(createLink).toBeDefined();
       const links = createLink!(createTraceSpan());
 

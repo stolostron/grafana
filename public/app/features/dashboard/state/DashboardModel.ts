@@ -1264,20 +1264,6 @@ export class DashboardModel implements TimeModel {
     return canDelete && this.canEditDashboard();
   }
 
-  canEditAnnotations(dashboardId: number) {
-    let canEdit = true;
-
-    // if FGAC is enabled there are additional conditions to check
-    if (contextSrv.accessControlEnabled()) {
-      if (dashboardId === 0) {
-        canEdit = !!this.meta.annotationsPermissions?.organization.canEdit;
-      } else {
-        canEdit = !!this.meta.annotationsPermissions?.dashboard.canEdit;
-      }
-    }
-    return this.canEditDashboard() && canEdit;
-  }
-
   canAddAnnotations() {
     // When the builtin annotations are disabled, we should not add any in the UI
     const found = this.annotations.list.find((item) => item.builtIn === 1);
@@ -1376,35 +1362,6 @@ export class DashboardModel implements TimeModel {
       }
       return isAngularPanel || isAngularDs;
     });
-  }
-
-  private variablesTimeRangeProcessDoneHandler(event: VariablesTimeRangeProcessDone) {
-    const processRepeats = event.payload.variableIds.length > 0;
-    this.variablesChangedHandler(new VariablesChanged({ panelIds: [], refreshAll: true }), processRepeats);
-  }
-
-  private variablesChangedHandler(event: VariablesChanged, processRepeats = true) {
-    if (processRepeats) {
-      this.processRepeats();
-    }
-
-    if (event.payload.refreshAll || getTimeSrv().isRefreshOutsideThreshold(this.lastRefresh)) {
-      this.startRefresh({ refreshAll: true, panelIds: [] });
-      return;
-    }
-
-    if (this.panelInEdit || this.panelInView) {
-      this.panelsAffectedByVariableChange = event.payload.panelIds.filter(
-        (id) => id !== (this.panelInEdit?.id ?? this.panelInView?.id)
-      );
-    }
-
-    this.startRefresh(event.payload);
-  }
-
-  private variablesChangedInUrlHandler(event: VariablesChangedInUrl) {
-    this.templateVariableValueUpdated();
-    this.startRefresh(event.payload);
   }
 }
 

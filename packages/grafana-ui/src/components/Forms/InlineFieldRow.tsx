@@ -5,8 +5,6 @@ import { GrafanaTheme2 } from '@grafana/data';
 
 import { useStyles2 } from '../../themes';
 
-import { useStyles } from '../../themes';
-
 export interface Props extends Omit<HTMLProps<HTMLDivElement>, 'css'> {
   children: ReactNode | ReactNode[];
 }

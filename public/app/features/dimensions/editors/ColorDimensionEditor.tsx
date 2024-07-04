@@ -22,8 +22,6 @@ export const ColorDimensionEditor = (props: StandardEditorProps<ColorDimensionCo
 
   const defaultColor = 'dark-green';
 
-  const defaultColor = 'dark-green';
-
   const styles = useStyles2(getStyles);
   const fieldName = value?.field;
   const isFixed = value && Boolean(!fieldName) && value?.fixed;
@@ -70,7 +68,6 @@ export const ColorDimensionEditor = (props: StandardEditorProps<ColorDimensionCo
     <>
       <div className={styles.container}>
         <Select
-          menuShouldPortal
           value={selectedOption}
           options={selectOptions}
           onChange={onSelectChange}

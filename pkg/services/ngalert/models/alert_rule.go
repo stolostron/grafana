@@ -97,12 +97,6 @@ const (
 	KeepLastErrState ExecutionErrorState = "KeepLast"
 )
 
-// InternalLabelNameSet are labels that grafana automatically include as part of the labelset.
-var InternalLabelNameSet = map[string]struct{}{
-	RuleUIDLabel:      {},
-	NamespaceUIDLabel: {},
-}
-
 const (
 	// Annotations are actually a set of labels, so technically this is the label name of an annotation.
 	DashboardUIDAnnotation = "__dashboardUid__"
@@ -395,47 +389,6 @@ func (alertRule *AlertRule) SetDashboardAndPanelFromAnnotations() error {
 		alertRule.PanelID = &panelIDValue
 	}
 	return nil
-}
-
-type LabelOption func(map[string]string)
-
-func WithoutInternalLabels() LabelOption {
-	return func(labels map[string]string) {
-		for k := range labels {
-			if _, ok := InternalLabelNameSet[k]; ok {
-				delete(labels, k)
-			}
-		}
-	}
-}
-
-// GetLabels returns the labels specified as part of the alert rule.
-func (alertRule *AlertRule) GetLabels(opts ...LabelOption) map[string]string {
-	labels := alertRule.Labels
-
-	for _, opt := range opts {
-		opt(labels)
-	}
-
-	return labels
-}
-
-// Diff calculates diff between two alert rules. Returns nil if two rules are equal. Otherwise, returns cmputil.DiffReport
-func (alertRule *AlertRule) Diff(rule *AlertRule, ignore ...string) cmputil.DiffReport {
-	var reporter cmputil.DiffReporter
-	ops := make([]cmp.Option, 0, 4)
-
-	// json.RawMessage is a slice of bytes and therefore cmp's default behavior is to compare it by byte, which is not really useful
-	var jsonCmp = cmp.Transformer("", func(in json.RawMessage) string {
-		return string(in)
-	})
-	ops = append(ops, cmp.Reporter(&reporter), cmpopts.IgnoreFields(AlertQuery{}, "modelProps"), jsonCmp)
-
-	if len(ignore) > 0 {
-		ops = append(ops, cmpopts.IgnoreFields(AlertRule{}, ignore...))
-	}
-	cmp.Equal(alertRule, rule, ops...)
-	return reporter.Diffs
 }
 
 // AlertRuleKey is the alert definition identifier

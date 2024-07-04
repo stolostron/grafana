@@ -8,7 +8,6 @@ import { Trans, t } from 'app/core/internationalization';
 
 import { ALL_VARIABLE_VALUE } from '../../constants';
 import { VariableOption } from '../../types';
-import { css, cx } from '@emotion/css';
 
 export interface Props extends React.HTMLProps<HTMLUListElement>, Themeable2 {
   multi: boolean;

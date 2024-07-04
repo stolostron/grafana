@@ -311,17 +311,6 @@ export function rulerRuleToFormValues(ruleWithLocation: RuleWithLocation): RuleF
         namespace,
         group: group.name,
       };
-    } else if (isRecordingRulerRule(rule)) {
-      return {
-        ...defaultFormValues,
-        name: rule.record,
-        type: RuleFormType.cloudRecording,
-        dataSourceName: ruleSourceName,
-        namespace,
-        group: group.name,
-        expression: rule.expr,
-        labels: listifyLabelsOrAnnotations(rule.labels),
-      };
     } else {
       throw new Error('Unexpected type of rule for cloud rules source');
     }

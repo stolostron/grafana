@@ -1,6 +1,7 @@
 package cloudwatch
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"

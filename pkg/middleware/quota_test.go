@@ -183,16 +183,3 @@ func getQuotaHandler(reached bool, target string) web.Handler {
 func configure(cfg *setting.Cfg) {
 	cfg.AnonymousEnabled = false
 }
-
-type mockQuotaService struct {
-	reached bool
-	err     error
-}
-
-func (m *mockQuotaService) QuotaReached(c *models.ReqContext, target string) (bool, error) {
-	return m.reached, m.err
-}
-
-func (m *mockQuotaService) CheckQuotaReached(c context.Context, target string, params *quota.ScopeParameters) (bool, error) {
-	return m.reached, m.err
-}

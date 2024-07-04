@@ -70,7 +70,6 @@ func TestCreatingNewDashboardFileReader(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			fullPath = `c:\var\lib\grafana`
 		}
-	}
 
 		cfg.Options["folder"] = fullPath
 		reader, err := NewDashboardFileReader(cfg, log.New("test-logger"), nil, nil, nil)

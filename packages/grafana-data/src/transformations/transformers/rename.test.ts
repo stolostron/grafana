@@ -6,8 +6,6 @@ import { transformDataFrame } from '../transformDataFrame';
 import { DataTransformerID } from './ids';
 import { renameFieldsTransformer, RenameFieldsTransformerOptions } from './rename';
 
-import { renameFieldsTransformer, RenameFieldsTransformerOptions } from './rename';
-
 describe('Rename Transformer', () => {
   beforeAll(() => {
     mockTransformationsRegistry([renameFieldsTransformer]);

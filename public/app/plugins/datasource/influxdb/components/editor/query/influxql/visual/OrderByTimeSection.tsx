@@ -7,7 +7,6 @@ import { Select } from '@grafana/ui';
 import { unwrap } from '../utils/unwrap';
 
 import { paddingRightClass } from './styles';
-import { unwrap } from './unwrap';
 
 type Mode = 'ASC' | 'DESC';
 

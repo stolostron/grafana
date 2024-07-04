@@ -79,18 +79,6 @@ export const PIPE_PARSERS: CompletionItem[] = [
     documentation:
       'Parses a JSON log line, unpacking all embedded labels in the pack stage. A special property "_entry" will also be used to replace the original log line. Only available in Loki 2.2+.',
   },
-  {
-    label: 'pattern',
-    insertText: 'pattern',
-    documentation: 'Extracting labels from the log line using pattern parser. Only available in Loki 2.3+.',
-  },
-  {
-    label: 'unpack',
-    insertText: 'unpack',
-    detail: 'unpack identifier',
-    documentation:
-      'Parses a JSON log line, unpacking all embedded labels in the pack stage. A special property "_entry" will also be used to replace the original log line. Only available in Loki 2.2+.',
-  },
 ];
 
 export const PIPE_OPERATORS: CompletionItem[] = [

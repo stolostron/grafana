@@ -224,40 +224,6 @@ grafana-cli user-manager conflicts ingest-file <filepath>
 			},
 		},
 	},
-	{
-		Name:   "trim-resource",
-		Usage:  "trim schema-specified defaults from a resource",
-		Action: runCueCommand(cmd.trimResource),
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "dashboard",
-				Usage: "path to file containing (valid) dashboard JSON",
-			},
-			&cli.BoolFlag{
-				Name:  "apply",
-				Usage: "invert the operation: apply defaults instead of trimming them",
-				Value: false,
-			},
-		},
-	},
-	{
-		Name:  "gen-ts",
-		Usage: "generate TypeScript from all known CUE file types",
-		Description: `gen-ts generates TypeScript from all CUE files at
-		expected positions in the filesystem tree of a Grafana repository.`,
-		Action: runCueCommand(cmd.generateTypescript),
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "grafana-root",
-				Usage: "path to the root of a Grafana repository in which to generate TypeScript from CUE files",
-			},
-			&cli.BoolFlag{
-				Name:  "diff",
-				Usage: "diff results of codegen against files already on disk. Exits 1 if diff is non-empty",
-				Value: false,
-			},
-		},
-	},
 }
 
 var Commands = []*cli.Command{

@@ -16,7 +16,6 @@ export function USAQueryEditor({ query, onChange }: Props) {
       <InlineFieldRow>
         <InlineField labelWidth={14} label="Mode">
           <Select
-            menuShouldPortal
             options={usaQueryModes}
             onChange={(v) => {
               onChange({ ...query, mode: v.value });

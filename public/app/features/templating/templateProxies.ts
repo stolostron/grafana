@@ -1,7 +1,5 @@
 import { Field, DataFrame, getFieldDisplayName, formatLabels } from '@grafana/data';
 
-import { getFieldDisplayName } from './fieldState';
-
 /**
  * This object is created often, and only used when tmplates exist.  Using a proxy lets us delay
  * calculations of the more complex structures (label names) until they are actually used

@@ -25,7 +25,6 @@ export const TemplatesTable = ({ config, alertManagerName }: Props) => {
   const dispatch = useDispatch();
   const [expandedTemplates, setExpandedTemplates] = useState<Record<string, boolean>>({});
   const tableStyles = useStyles2(getAlertTableStyles);
-  const permissions = getNotificationsPermissions(alertManagerName);
 
   const templateRows = useMemo(() => {
     const templates = Object.entries(config.template_files);

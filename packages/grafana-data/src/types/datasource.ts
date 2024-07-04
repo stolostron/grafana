@@ -270,15 +270,6 @@ abstract class DataSourceApi<
   filterQuery?(query: TQuery): boolean;
 
   /**
-   * Override to skip executing a query
-   *
-   * @returns false if the query should be skipped
-   *
-   * @virtual
-   */
-  filterQuery?(query: TQuery): boolean;
-
-  /**
    *  Get hints for query improvements
    */
   getQueryHints?(query: TQuery, results: any[], ...rest: any): QueryHint[];
@@ -329,11 +320,6 @@ abstract class DataSourceApi<
    * Used in explore
    */
   modifyQuery?(query: TQuery, action: QueryFixAction): TQuery;
-
-  /** Get an identifier object for this datasource instance */
-  getRef(): DataSourceRef {
-    return { type: this.type, uid: this.uid };
-  }
 
   /** Get an identifier object for this datasource instance */
   getRef(): DataSourceRef {

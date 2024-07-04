@@ -6,11 +6,6 @@ import { IconSize, useStyles2 } from '@grafana/ui';
 
 import { CollapseToggle } from '../../CollapseToggle';
 
-import { GrafanaTheme2 } from '@grafana/data';
-import { IconSize, useStyles2 } from '@grafana/ui';
-
-import { CollapseToggle } from '../../CollapseToggle';
-
 interface Props {
   label: string;
   description?: string;

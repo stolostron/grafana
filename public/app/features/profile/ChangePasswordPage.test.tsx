@@ -10,9 +10,6 @@ import { backendSrv } from '../../core/services/backend_srv';
 import { Props, ChangePasswordPage } from './ChangePasswordPage';
 import { initialUserState } from './state/reducers';
 
-import { Props, ChangePasswordPage } from './ChangePasswordPage';
-import { initialUserState } from './state/reducers';
-
 const defaultProps: Props = {
   ...initialUserState,
   user: {
@@ -76,9 +73,9 @@ describe('ChangePasswordPage', () => {
   it('should call changePassword if change password is valid', async () => {
     const { props } = await getTestContext();
 
-    userEvent.type(screen.getByLabelText('Old password'), 'test');
-    userEvent.type(screen.getByLabelText('New password'), 'admin');
-    userEvent.type(screen.getByLabelText('Confirm password'), 'admin');
+    await userEvent.type(screen.getByLabelText('Old password'), 'test');
+    await userEvent.type(screen.getByLabelText('New password'), 'admin');
+    await userEvent.type(screen.getByLabelText('Confirm password'), 'admin');
     fireEvent.click(screen.getByRole('button', { name: 'Change Password' }));
     await waitFor(() => {
       expect(props.changePassword).toHaveBeenCalledTimes(1);

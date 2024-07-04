@@ -10,12 +10,6 @@ export enum LabelsToFieldsMode {
   Rows = 'rows',
 }
 
-import { DataTransformerID } from './ids';
-
-export enum LabelsToFieldsMode {
-  Columns = 'columns', // default mode
-  Rows = 'rows',
-}
 export interface LabelsToFieldsOptions {
   mode?: LabelsToFieldsMode;
 

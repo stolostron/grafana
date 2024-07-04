@@ -61,9 +61,6 @@ func (hs *HTTPServer) AddOrgUser(c *contextmodel.ReqContext) response.Response {
 	if err := web.Bind(c.Req, &cmd); err != nil {
 		return response.Error(http.StatusBadRequest, "bad request data", err)
 	}
-	if !c.OrgRole.Includes(cmd.Role) && !c.IsGrafanaAdmin {
-		return response.Error(http.StatusForbidden, "Cannot assign a role higher than user's role", nil)
-	}
 
 	var err error
 	cmd.OrgID, err = strconv.ParseInt(web.Params(c.Req)[":orgId"], 10, 64)

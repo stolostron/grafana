@@ -48,12 +48,6 @@ var selector = func(keyvals ...any) syslog.Priority {
 func NewSyslog(sec *ini.Section, format Formatedlogger) *SysLogHandler {
 	handler := &SysLogHandler{}
 
-	return syslog.LOG_INFO
-}
-
-func NewSyslog(sec *ini.Section, format Formatedlogger) *SysLogHandler {
-	handler := &SysLogHandler{}
-
 	handler.Format = format
 	handler.Network = sec.Key("network").MustString("")
 	handler.Address = sec.Key("address").MustString("")

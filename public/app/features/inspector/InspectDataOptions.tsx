@@ -104,7 +104,6 @@ export const InspectDataOptions = ({
             {data!.length > 1 && (
               <Field label={t('dashboard.inspect-data.dataframe-label', 'Show data frame')}>
                 <Select
-                  menuShouldPortal
                   options={selectableOptions}
                   value={selectedDataFrame}
                   onChange={onDataFrameChange}

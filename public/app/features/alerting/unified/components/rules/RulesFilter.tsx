@@ -18,11 +18,6 @@ import { MultipleDataSourcePicker } from './MultipleDataSourcePicker';
 
 const ViewOptions: SelectableValue[] = [
   {
-    icon: 'list-ul',
-    label: 'List',
-    value: 'list',
-  },
-  {
     icon: 'folder',
     label: 'Grouped',
     value: 'grouped',

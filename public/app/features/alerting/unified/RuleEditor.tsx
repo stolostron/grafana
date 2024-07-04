@@ -35,28 +35,6 @@ const getPageNav = (identifier?: RuleIdentifier, type?: 'recording' | 'alerting'
     }
   }
 
-  const { loading } = useAsync(async () => {
-    await dispatch(fetchAllPromBuildInfoAction());
-  }, [dispatch]);
-
-  const { canCreateGrafanaRules, canCreateCloudRules, canEditRules } = useRulesAccess();
-
-  if (!identifier && !canCreateGrafanaRules && !canCreateCloudRules) {
-    return <AlertWarning title="Cannot create rules">Sorry! You are not allowed to create rules.</AlertWarning>;
-  }
-
-  if (identifier && !canEditRules(identifier.ruleSourceName)) {
-    return <AlertWarning title="Cannot edit rules">Sorry! You are not allowed to edit rules.</AlertWarning>;
-  }
-
-  if (loading) {
-    return (
-      <Page.Contents>
-        <LoadingPlaceholder text="Loading..." />
-      </Page.Contents>
-    );
-  }
-
   if (identifier) {
     // keep this one ambiguous, don't mentiond a specific alert type here
     return { ...defaultPageNav, id: 'alert-rule-edit', text: 'Edit rule' };
