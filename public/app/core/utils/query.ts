@@ -1,5 +1,6 @@
 import { DataQuery, DataSourceRef } from '@grafana/data';
 
+// @deprecated use the `getNextRefId` function from grafana/data instead
 export const getNextRefIdChar = (queries: DataQuery[]): string => {
   for (let num = 0; ; num++) {
     const refId = getRefId(num);
@@ -9,24 +10,39 @@ export const getNextRefIdChar = (queries: DataQuery[]): string => {
   }
 };
 
+// This function checks if the query has defined properties beyond those defined in the DataQuery interface.
+export function queryIsEmpty(query: DataQuery): boolean {
+  const dataQueryProps = ['refId', 'hide', 'key', 'queryType', 'datasource'];
+
+  for (const key in query) {
+    // label is not a DataQuery prop, but it's defined in the query when called from the QueryRunner.
+    if (key === 'label') {
+      continue;
+    }
+    if (!dataQueryProps.includes(key)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function addQuery(queries: DataQuery[], query?: Partial<DataQuery>, datasource?: DataSourceRef): DataQuery[] {
-  const q = query || {};
-  q.refId = getNextRefIdChar(queries);
-  q.hide = false;
+  const q: DataQuery = {
+    ...query,
+    refId: getNextRefIdChar(queries),
+    hide: false,
+  };
 
   if (!q.datasource && datasource) {
     q.datasource = datasource;
   }
 
-  return [...queries, q as DataQuery];
+  return [...queries, q];
 }
 
 export function isDataQuery(url: string): boolean {
-  if (
-    url.indexOf('api/datasources/proxy') !== -1 ||
-    url.indexOf('api/tsdb/query') !== -1 ||
-    url.indexOf('api/ds/query') !== -1
-  ) {
+  if (url.indexOf('api/datasources/proxy') !== -1 || url.indexOf('api/ds/query') !== -1) {
     return true;
   }
 

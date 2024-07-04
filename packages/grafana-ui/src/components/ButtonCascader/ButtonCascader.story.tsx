@@ -1,16 +1,11 @@
-import { Story, Meta } from '@storybook/react';
+import { StoryFn, Meta } from '@storybook/react';
 import React from 'react';
 
 import { ButtonCascader } from '@grafana/ui';
 
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
-import { ButtonCascaderProps } from './ButtonCascader';
-
-export default {
+const meta: Meta<typeof ButtonCascader> = {
   title: 'Forms/Cascader/ButtonCascader',
   component: ButtonCascader,
-  decorators: [withCenteredStory],
   parameters: {
     controls: {
       exclude: ['className', 'value', 'fieldNames', 'loadData', 'onChange', 'onPopupVisibleChange'],
@@ -35,9 +30,9 @@ export default {
     icon: { control: { type: 'select', options: ['plus', 'minus', 'table'] } },
     options: { control: 'object' },
   },
-} as Meta;
+};
 
-const Template: Story<ButtonCascaderProps> = ({ children, ...args }) => {
+const Template: StoryFn<typeof ButtonCascader> = ({ children, ...args }) => {
   return <ButtonCascader {...args}>{children}</ButtonCascader>;
 };
 
@@ -47,3 +42,5 @@ export const withIcon = Template.bind({});
 withIcon.args = {
   icon: 'plus',
 };
+
+export default meta;

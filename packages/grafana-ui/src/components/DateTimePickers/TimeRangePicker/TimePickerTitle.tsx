@@ -1,25 +1,24 @@
 import { css } from '@emotion/css';
 import React, { memo, PropsWithChildren } from 'react';
 
-import { GrafanaTheme } from '@grafana/data';
+import { GrafanaTheme2 } from '@grafana/data';
 
-import { useTheme, stylesFactory } from '../../../themes';
+import { useStyles2 } from '../../../themes';
 
-const getStyle = stylesFactory((theme: GrafanaTheme) => {
+const getStyles = (theme: GrafanaTheme2) => {
   return {
-    text: css`
-      font-size: ${theme.typography.size.md};
-      font-weight: ${theme.typography.weight.semibold};
-      color: ${theme.colors.formLabel};
-      margin: 0;
-      display: flex;
-    `,
+    text: css({
+      fontSize: theme.typography.size.md,
+      fontWeight: theme.typography.fontWeightMedium,
+      color: theme.colors.text.primary,
+      margin: 0,
+      display: 'flex',
+    }),
   };
-});
+};
 
 export const TimePickerTitle = memo<PropsWithChildren<{}>>(({ children }) => {
-  const theme = useTheme();
-  const styles = getStyle(theme);
+  const styles = useStyles2(getStyles);
 
   return <h3 className={styles.text}>{children}</h3>;
 });

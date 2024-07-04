@@ -10,10 +10,12 @@ import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 import { Props } from './BarGauge';
 import mdx from './BarGauge.mdx';
 
-export default {
+import { Props } from './BarGauge';
+import mdx from './BarGauge.mdx';
+
+const meta: Meta = {
   title: 'Visualizations/BarGauge',
   component: BarGauge,
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
@@ -58,7 +60,7 @@ export default {
     threshold1Color: { control: 'color' },
     threshold2Color: { control: 'color' },
   },
-} as Meta;
+};
 
 interface StoryProps extends Partial<Props> {
   numeric: number;
@@ -125,3 +127,5 @@ barGaugeHorizontal.args = {
   width: 500,
   orientation: VizOrientation.Horizontal,
 };
+
+export default meta;

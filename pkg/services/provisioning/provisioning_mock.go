@@ -3,14 +3,15 @@ package provisioning
 import "context"
 
 type Calls struct {
-	RunInitProvisioners                 []interface{}
-	ProvisionDatasources                []interface{}
-	ProvisionPlugins                    []interface{}
-	ProvisionNotifications              []interface{}
-	ProvisionDashboards                 []interface{}
-	GetDashboardProvisionerResolvedPath []interface{}
-	GetAllowUIUpdatesFromConfig         []interface{}
-	Run                                 []interface{}
+	RunInitProvisioners                 []any
+	ProvisionDatasources                []any
+	ProvisionPlugins                    []any
+	ProvisionNotifications              []any
+	ProvisionDashboards                 []any
+	ProvisionAlerting                   []any
+	GetDashboardProvisionerResolvedPath []any
+	GetAllowUIUpdatesFromConfig         []any
+	Run                                 []any
 }
 
 type ProvisioningServiceMock struct {
@@ -68,6 +69,11 @@ func (mock *ProvisioningServiceMock) ProvisionDashboards(ctx context.Context) er
 	if mock.ProvisionDashboardsFunc != nil {
 		return mock.ProvisionDashboardsFunc()
 	}
+	return nil
+}
+
+func (mock *ProvisioningServiceMock) ProvisionAlerting(ctx context.Context) error {
+	mock.Calls.ProvisionAlerting = append(mock.Calls.ProvisionAlerting, nil)
 	return nil
 }
 

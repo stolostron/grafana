@@ -1,7 +1,7 @@
 import { findIndex, isObject, map } from 'lodash';
 
 import { Column, TableData } from '@grafana/data';
-import TableModel, { mergeTablesIntoModel } from 'app/core/table_model';
+import TableModel, { mergeTablesIntoModel } from 'app/core/TableModel';
 import TimeSeries from 'app/core/time_series2';
 import flatten from 'app/core/utils/flatten';
 
@@ -175,7 +175,7 @@ transformers['table'] = {
     const filteredData = tableDataFormatFilterer(data);
 
     // Track column indexes: name -> index
-    const columnNames: any = {};
+    const columnNames: Record<string, number> = {};
 
     // Union of all columns
     const columns = filteredData.reduce((acc: Column[], series: TableData) => {
@@ -216,7 +216,7 @@ transformers['json'] = {
       return [];
     }
 
-    const names: any = {};
+    const names: Record<string, boolean> = {};
     for (let i = 0; i < data.length; i++) {
       const series = data[i];
       if (series.type !== 'docs') {

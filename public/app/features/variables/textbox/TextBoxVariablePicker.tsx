@@ -1,5 +1,17 @@
 import React, { ChangeEvent, FocusEvent, KeyboardEvent, ReactElement, useCallback, useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
+
+import { isEmptyObject } from '@grafana/data';
+import { Input } from '@grafana/ui';
+import { t } from 'app/core/internationalization';
+import { useDispatch } from 'app/types';
+
+import { variableAdapters } from '../adapters';
+import { VARIABLE_PREFIX } from '../constants';
+import { VariablePickerProps } from '../pickers/types';
+import { toKeyedAction } from '../state/keyedVariablesReducer';
+import { changeVariableProp } from '../state/sharedReducer';
+import { TextBoxVariableModel } from '../types';
+import { toVariablePayload } from '../utils';
 
 import { Input } from '@grafana/ui';
 
@@ -12,7 +24,7 @@ import { toVariablePayload } from '../utils';
 
 export interface Props extends VariablePickerProps<TextBoxVariableModel> {}
 
-export function TextBoxVariablePicker({ variable, onVariableChange }: Props): ReactElement {
+export function TextBoxVariablePicker({ variable, onVariableChange, readOnly }: Props): ReactElement {
   const dispatch = useDispatch();
   const [updatedValue, setUpdatedValue] = useState(variable.current.value);
   useEffect(() => {
@@ -41,7 +53,7 @@ export function TextBoxVariablePicker({ variable, onVariableChange }: Props): Re
     if (onVariableChange) {
       onVariableChange({
         ...variable,
-        current: { ...variable.current, value: updatedValue },
+        current: isEmptyObject(variable.current) ? {} : { ...variable.current, value: updatedValue },
       });
       return;
     }
@@ -68,9 +80,10 @@ export function TextBoxVariablePicker({ variable, onVariableChange }: Props): Re
       value={updatedValue}
       onChange={onChange}
       onBlur={onBlur}
+      disabled={readOnly}
       onKeyDown={onKeyDown}
-      placeholder="Enter variable value"
-      id={`var-${variable.id}`}
+      placeholder={t('variable.textbox.placeholder', 'Enter variable value')}
+      id={VARIABLE_PREFIX + variable.id}
     />
   );
 }

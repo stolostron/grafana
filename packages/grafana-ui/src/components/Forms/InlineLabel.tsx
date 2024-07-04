@@ -1,9 +1,9 @@
 import { css, cx } from '@emotion/css';
-import React, { FunctionComponent } from 'react';
+import React from 'react';
 
-import { GrafanaTheme } from '@grafana/data';
+import { GrafanaTheme2 } from '@grafana/data';
 
-import { useTheme } from '../../themes';
+import { useStyles2 } from '../../themes';
 import { Icon } from '../Icon/Icon';
 import { PopoverContent, Tooltip } from '../Tooltip';
 
@@ -17,12 +17,6 @@ export interface Props extends Omit<LabelProps, 'css' | 'description' | 'categor
   width?: number | 'auto';
   /** Make labels's background transparent */
   transparent?: boolean;
-  /** @deprecated */
-  /** This prop is deprecated and is not used anymore */
-  isFocused?: boolean;
-  /** @deprecated */
-  /** This prop is deprecated and is not used anymore */
-  isInvalid?: boolean;
   /** Make tooltip interactive */
   interactive?: boolean;
   /** @beta */
@@ -30,7 +24,7 @@ export interface Props extends Omit<LabelProps, 'css' | 'description' | 'categor
   as?: React.ElementType;
 }
 
-export const InlineLabel: FunctionComponent<Props> = ({
+export const InlineLabel = ({
   children,
   className,
   tooltip,
@@ -39,9 +33,9 @@ export const InlineLabel: FunctionComponent<Props> = ({
   interactive,
   as: Component = 'label',
   ...rest
-}) => {
-  const theme = useTheme();
-  const styles = getInlineLabelStyles(theme, transparent, width);
+}: Props) => {
+  const styles = useStyles2(getInlineLabelStyles, transparent, width);
+
   return (
     <Component className={cx(styles.label, className)} {...rest}>
       {children}
@@ -54,32 +48,32 @@ export const InlineLabel: FunctionComponent<Props> = ({
   );
 };
 
-export const getInlineLabelStyles = (theme: GrafanaTheme, transparent = false, width?: number | 'auto') => {
+export const getInlineLabelStyles = (theme: GrafanaTheme2, transparent = false, width?: number | 'auto') => {
   return {
-    label: css`
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-      padding: 0 ${theme.spacing.sm};
-      font-weight: ${theme.typography.weight.semibold};
-      font-size: ${theme.typography.size.sm};
-      background-color: ${transparent ? 'transparent' : theme.colors.bg2};
-      height: ${theme.height.md}px;
-      line-height: ${theme.height.md}px;
-      margin-right: ${theme.spacing.xs};
-      border-radius: ${theme.border.radius.md};
-      border: none;
-      width: ${width ? (width !== 'auto' ? `${8 * width}px` : width) : '100%'};
-      color: ${theme.colors.textHeading};
-    `,
-    icon: css`
-      color: ${theme.colors.textWeak};
-      margin-left: 10px;
+    label: css({
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexShrink: 0,
+      padding: theme.spacing(0, 1),
+      fontWeight: theme.typography.fontWeightMedium,
+      fontSize: theme.typography.size.sm,
+      backgroundColor: transparent ? 'transparent' : theme.colors.background.secondary,
+      height: theme.spacing(theme.components.height.md),
+      lineHeight: theme.spacing(theme.components.height.md),
+      marginRight: theme.spacing(0.5),
+      borderRadius: theme.shape.radius.default,
+      border: 'none',
+      width: width ? (width !== 'auto' ? `${8 * width}px` : width) : '100%',
+      color: theme.colors.text.primary,
+    }),
+    icon: css({
+      color: theme.colors.text.secondary,
+      marginLeft: '10px',
 
-      :hover {
-        color: ${theme.colors.text};
-      }
-    `,
+      ':hover': {
+        color: theme.colors.text.primary,
+      },
+    }),
   };
 };

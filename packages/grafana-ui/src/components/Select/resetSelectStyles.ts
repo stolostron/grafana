@@ -30,13 +30,16 @@ export default function resetSelectStyles(theme: GrafanaTheme2) {
       maxHeight,
     }),
     multiValue: () => ({}),
-    multiValueLabel: () => ({}),
+    multiValueLabel: () => ({
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    }),
     multiValueRemove: () => ({}),
     noOptionsMessage: () => ({}),
     option: () => ({}),
     placeholder: (originalStyles: CSSObjectWithLabel) => ({
       ...originalStyles,
-      color: theme.colors.text.disabled,
+      color: theme.colors.text.secondary,
     }),
     singleValue: () => ({}),
     valueContainer: () => ({}),

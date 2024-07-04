@@ -2,24 +2,30 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 
-import { setDataSourceSrv } from '@grafana/runtime';
+import { DataSourceApi } from '@grafana/data';
+import { DataSourceSrv, setDataSourceSrv } from '@grafana/runtime';
+import { DataQuery } from '@grafana/schema';
 import { configureStore } from 'app/store/configureStore';
-import { ExploreId, ExploreState } from 'app/types';
+import { ExploreState } from 'app/types';
 
-import { DataQuery } from '../../../../packages/grafana-data/src';
 import { UserState } from '../profile/state/reducers';
 
 import { QueryRows } from './QueryRows';
 import { makeExplorePaneState } from './state/utils';
+
+jest.mock('@grafana/runtime', () => ({
+  ...jest.requireActual('@grafana/runtime'),
+  reportInteraction: () => null,
+}));
 
 function setup(queries: DataQuery[]) {
   const defaultDs = {
     name: 'newDs',
     uid: 'newDs-uid',
     meta: { id: 'newDs' },
-  };
+  } as DataSourceApi;
 
-  const datasources: Record<string, any> = {
+  const datasources: Record<string, DataSourceApi> = {
     'newDs-uid': defaultDs,
     'someDs-uid': {
       name: 'someDs',
@@ -28,7 +34,7 @@ function setup(queries: DataQuery[]) {
       components: {
         QueryEditor: () => 'someDs query editor',
       },
-    },
+    } as unknown as DataSourceApi,
   };
 
   setDataSourceSrv({
@@ -41,18 +47,21 @@ function setup(queries: DataQuery[]) {
     get(uid?: string) {
       return Promise.resolve(uid ? datasources[uid] || defaultDs : defaultDs);
     },
-  } as any);
+  } as unknown as DataSourceSrv);
 
   const leftState = makeExplorePaneState();
   const initialState: ExploreState = {
-    left: {
-      ...leftState,
-      richHistory: [],
-      datasourceInstance: datasources['someDs-uid'],
-      queries,
+    panes: {
+      left: {
+        ...leftState,
+        richHistory: [],
+        datasourceInstance: datasources['someDs-uid'],
+        queries,
+        correlations: [],
+      },
     },
+    correlationEditorDetails: { editorMode: false, correlationDirty: false, queryEditorDirty: false, isExiting: false },
     syncedTimes: false,
-    right: undefined,
     richHistoryStorageFull: false,
     richHistoryLimitExceededWarningShown: false,
   };
@@ -70,14 +79,14 @@ describe('Explore QueryRows', () => {
 
     render(
       <Provider store={store}>
-        <QueryRows exploreId={ExploreId.left} />
+        <QueryRows exploreId={'left'} />
       </Provider>
     );
 
     // waiting for the d&d component to fully render.
     await screen.findAllByText('someDs query editor');
 
-    let duplicateButton = screen.getByTitle('Duplicate query');
+    let duplicateButton = screen.getByLabelText(/Duplicate query/i);
 
     fireEvent.click(duplicateButton);
 

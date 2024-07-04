@@ -4,32 +4,35 @@ import (
 	"context"
 
 	"github.com/grafana/grafana/pkg/api/routing"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/plugins"
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/infra/metrics"
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
+	"github.com/grafana/grafana/pkg/services/auth/identity"
 	"github.com/grafana/grafana/pkg/services/dashboardimport"
 	"github.com/grafana/grafana/pkg/services/dashboardimport/api"
 	"github.com/grafana/grafana/pkg/services/dashboardimport/utils"
 	"github.com/grafana/grafana/pkg/services/dashboards"
+	"github.com/grafana/grafana/pkg/services/folder"
 	"github.com/grafana/grafana/pkg/services/librarypanels"
 	"github.com/grafana/grafana/pkg/services/plugindashboards"
+	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginstore"
 	"github.com/grafana/grafana/pkg/services/quota"
-	"github.com/grafana/grafana/pkg/services/schemaloader"
 )
 
 func ProvideService(routeRegister routing.RouteRegister,
-	quotaService *quota.QuotaService, schemaLoaderService *schemaloader.SchemaLoaderService,
-	pluginDashboardService plugindashboards.Service, pluginStore plugins.Store,
+	quotaService quota.Service,
+	pluginDashboardService plugindashboards.Service, pluginStore pluginstore.Store,
 	libraryPanelService librarypanels.Service, dashboardService dashboards.DashboardService,
-	ac accesscontrol.AccessControl,
+	ac accesscontrol.AccessControl, folderService folder.Service,
 ) *ImportDashboardService {
 	s := &ImportDashboardService{
 		pluginDashboardService: pluginDashboardService,
 		dashboardService:       dashboardService,
 		libraryPanelService:    libraryPanelService,
+		folderService:          folderService,
 	}
 
-	dashboardImportAPI := api.New(s, quotaService, schemaLoaderService, pluginStore, ac)
+	dashboardImportAPI := api.New(s, quotaService, pluginStore, ac)
 	dashboardImportAPI.RegisterAPIEndpoints(routeRegister)
 
 	return s
@@ -39,10 +42,11 @@ type ImportDashboardService struct {
 	pluginDashboardService plugindashboards.Service
 	dashboardService       dashboards.DashboardService
 	libraryPanelService    librarypanels.Service
+	folderService          folder.Service
 }
 
 func (s *ImportDashboardService) ImportDashboard(ctx context.Context, req *dashboardimport.ImportDashboardRequest) (*dashboardimport.ImportDashboardResponse, error) {
-	var draftDashboard *models.Dashboard
+	var draftDashboard *dashboards.Dashboard
 	if req.PluginId != "" {
 		loadReq := &plugindashboards.LoadPluginDashboardRequest{
 			PluginID:  req.PluginId,
@@ -54,7 +58,7 @@ func (s *ImportDashboardService) ImportDashboard(ctx context.Context, req *dashb
 			draftDashboard = resp.Dashboard
 		}
 	} else {
-		draftDashboard = models.NewDashboardFromJson(req.Dashboard)
+		draftDashboard = dashboards.NewDashboardFromJson(req.Dashboard)
 	}
 
 	evaluator := utils.NewDashTemplateEvaluator(draftDashboard.Data, req.Inputs)
@@ -63,17 +67,68 @@ func (s *ImportDashboardService) ImportDashboard(ctx context.Context, req *dashb
 		return nil, err
 	}
 
-	saveCmd := models.SaveDashboardCommand{
+	// Maintain backwards compatibility by transforming array of library elements to map
+	libraryElements := generatedDash.Get("__elements")
+	libElementsArr, err := libraryElements.Array()
+	if err == nil {
+		elementMap := map[string]any{}
+		for _, el := range libElementsArr {
+			libElement := simplejson.NewFromAny(el)
+			elementMap[libElement.Get("uid").MustString()] = el
+		}
+		libraryElements = simplejson.NewFromAny(elementMap)
+	}
+
+	// No need to keep these in the stored dashboard JSON
+	generatedDash.Del("__elements")
+	generatedDash.Del("__inputs")
+	generatedDash.Del("__requires")
+
+	metrics.MFolderIDsServiceCount.WithLabelValues(metrics.DashboardImport).Inc()
+	// here we need to get FolderId from FolderUID if it present in the request, if both exist, FolderUID would overwrite FolderID
+	if req.FolderUid != "" {
+		folder, err := s.folderService.Get(ctx, &folder.GetFolderQuery{
+			OrgID:        req.User.GetOrgID(),
+			UID:          &req.FolderUid,
+			SignedInUser: req.User,
+		})
+		if err != nil {
+			return nil, err
+		}
+		// nolint:staticcheck
+		req.FolderId = folder.ID
+	} else {
+		folder, err := s.folderService.Get(ctx, &folder.GetFolderQuery{
+			ID:           &req.FolderId, // nolint:staticcheck
+			OrgID:        req.User.GetOrgID(),
+			SignedInUser: req.User,
+		})
+		if err != nil {
+			return nil, err
+		}
+		req.FolderUid = folder.UID
+	}
+
+	namespaceID, identifier := req.User.GetNamespacedID()
+	userID := int64(0)
+
+	switch namespaceID {
+	case identity.NamespaceUser, identity.NamespaceServiceAccount:
+		userID, _ = identity.IntIdentifier(namespaceID, identifier)
+	}
+
+	saveCmd := dashboards.SaveDashboardCommand{
 		Dashboard: generatedDash,
-		OrgId:     req.User.OrgId,
-		UserId:    req.User.UserId,
+		OrgID:     req.User.GetOrgID(),
+		UserID:    userID,
 		Overwrite: req.Overwrite,
-		PluginId:  req.PluginId,
-		FolderId:  req.FolderId,
+		PluginID:  req.PluginId,
+		FolderID:  req.FolderId, // nolint:staticcheck
+		FolderUID: req.FolderUid,
 	}
 
 	dto := &dashboards.SaveDashboardDTO{
-		OrgId:     saveCmd.OrgId,
+		OrgID:     saveCmd.OrgID,
 		Dashboard: saveCmd.GetDashboardModel(),
 		Overwrite: saveCmd.Overwrite,
 		User:      req.User,
@@ -84,7 +139,9 @@ func (s *ImportDashboardService) ImportDashboard(ctx context.Context, req *dashb
 		return nil, err
 	}
 
-	err = s.libraryPanelService.ImportLibraryPanelsForDashboard(ctx, req.User, savedDashboard, req.FolderId)
+	metrics.MFolderIDsServiceCount.WithLabelValues(metrics.DashboardImport).Inc()
+	// nolint:staticcheck
+	err = s.libraryPanelService.ImportLibraryPanelsForDashboard(ctx, req.User, libraryElements, generatedDash.Get("panels").MustArray(), req.FolderId, req.FolderUid)
 	if err != nil {
 		return nil, err
 	}
@@ -94,18 +151,21 @@ func (s *ImportDashboardService) ImportDashboard(ctx context.Context, req *dashb
 		return nil, err
 	}
 
+	revision := savedDashboard.Data.Get("revision").MustInt64(0)
+	metrics.MFolderIDsServiceCount.WithLabelValues(metrics.DashboardImport).Inc()
 	return &dashboardimport.ImportDashboardResponse{
-		UID:              savedDashboard.Uid,
+		UID:              savedDashboard.UID,
 		PluginId:         req.PluginId,
 		Title:            savedDashboard.Title,
 		Path:             req.Path,
-		Revision:         savedDashboard.Data.Get("revision").MustInt64(1),
-		FolderId:         savedDashboard.FolderId,
+		Revision:         revision,                // only used for plugin version tracking
+		FolderId:         savedDashboard.FolderID, // nolint:staticcheck
+		FolderUID:        req.FolderUid,
 		ImportedUri:      "db/" + savedDashboard.Slug,
-		ImportedUrl:      savedDashboard.GetUrl(),
-		ImportedRevision: savedDashboard.Data.Get("revision").MustInt64(1),
+		ImportedUrl:      savedDashboard.GetURL(),
+		ImportedRevision: revision,
 		Imported:         true,
-		DashboardId:      savedDashboard.Id,
+		DashboardId:      savedDashboard.ID,
 		Slug:             savedDashboard.Slug,
 	}, nil
 }

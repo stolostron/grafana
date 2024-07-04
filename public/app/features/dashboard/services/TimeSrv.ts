@@ -9,30 +9,43 @@ import {
   RawTimeRange,
   TimeRange,
   toUtc,
+  IntervalValues,
+  AppEvents,
 } from '@grafana/data';
 import { locationService } from '@grafana/runtime';
+import { sceneGraph } from '@grafana/scenes';
+import { t } from '@grafana/ui/src/utils/i18n';
 import appEvents from 'app/core/app_events';
 import { config } from 'app/core/config';
-import { contextSrv, ContextSrv } from 'app/core/services/context_srv';
-import { getShiftedTimeRange, getZoomedTimeRange } from 'app/core/utils/timePicker';
+import { AutoRefreshInterval, contextSrv, ContextSrv } from 'app/core/services/context_srv';
+import { getCopiedTimeRange, getShiftedTimeRange, getZoomedTimeRange } from 'app/core/utils/timePicker';
+import { getTimeRange } from 'app/features/dashboard/utils/timeRange';
 
-import { AbsoluteTimeEvent, ShiftTimeEvent, ShiftTimeEventDirection, ZoomOutEvent } from '../../../types/events';
+import {
+  AbsoluteTimeEvent,
+  CopyTimeEvent,
+  PasteTimeEvent,
+  ShiftTimeEvent,
+  ShiftTimeEventDirection,
+  ZoomOutEvent,
+} from '../../../types/events';
 import { TimeModel } from '../state/TimeModel';
 import { getRefreshFromUrl } from '../utils/getRefreshFromUrl';
 
 export class TimeSrv {
-  time: any;
-  refreshTimer: any;
-  refresh: any;
-  previousAutoRefresh: any;
-  oldRefresh: string | null | undefined;
+  time: RawTimeRange;
+  refreshTimer: number | undefined;
+  refresh?: string | false;
+  oldRefresh?: string;
   timeModel?: TimeModel;
-  timeAtLoad: any;
+  timeAtLoad: RawTimeRange;
+  refreshMS?: number;
   private autoRefreshBlocked?: boolean;
 
   constructor(private contextSrv: ContextSrv) {
     // default time
     this.time = getDefaultTimeRange().raw;
+    this.timeAtLoad = getDefaultTimeRange().raw;
     this.refreshTimeModel = this.refreshTimeModel.bind(this);
 
     appEvents.subscribe(ZoomOutEvent, (e) => {
@@ -43,8 +56,16 @@ export class TimeSrv {
       this.shiftTime(e.payload.direction, e.payload.updateUrl);
     });
 
-    appEvents.subscribe(AbsoluteTimeEvent, () => {
-      this.makeAbsoluteTime();
+    appEvents.subscribe(AbsoluteTimeEvent, (e) => {
+      this.makeAbsoluteTime(e.payload.updateUrl);
+    });
+
+    appEvents.subscribe(CopyTimeEvent, () => {
+      this.copyTimeRangeToClipboard();
+    });
+
+    appEvents.subscribe(PasteTimeEvent, (e) => {
+      this.pasteTimeRangeFromClipboard(e.payload.updateUrl);
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -66,33 +87,13 @@ export class TimeSrv {
     // remember time at load so we can go back to it
     this.timeAtLoad = cloneDeep(this.time);
 
-    const range = rangeUtil.convertRawToRange(
-      this.time,
-      this.timeModel?.getTimezone(),
-      this.timeModel?.fiscalYearStartMonth
-    );
-
-    if (range.to.isBefore(range.from)) {
-      this.setTime(
-        {
-          from: range.raw.to,
-          to: range.raw.from,
-        },
-        false
-      );
-    }
-
     if (this.refresh) {
       this.setAutoRefresh(this.refresh);
     }
   }
 
   getValidIntervals(intervals: string[]): string[] {
-    if (!this.contextSrv.minRefreshInterval) {
-      return intervals;
-    }
-
-    return intervals.filter((str) => str !== '').filter(this.contextSrv.isAllowedInterval);
+    return this.contextSrv.getValidIntervals(intervals);
   }
 
   private parseTime() {
@@ -105,7 +106,7 @@ export class TimeSrv {
     }
   }
 
-  private parseUrlParam(value: any) {
+  private parseUrlParam(value: string) {
     if (value.indexOf('now') !== -1) {
       return value;
     }
@@ -121,7 +122,7 @@ export class TimeSrv {
       }
     }
 
-    if (!isNaN(value)) {
+    if (!isNaN(Number(value))) {
       const epoch = parseInt(value, 10);
       return toUtc(epoch);
     }
@@ -147,6 +148,10 @@ export class TimeSrv {
   }
 
   private initTimeFromUrl() {
+    if (config.publicDashboardAccessToken && this.timeModel?.timepicker?.hidden) {
+      return;
+    }
+
     const params = locationService.getSearch();
 
     if (params.get('time') && params.get('time.window')) {
@@ -165,7 +170,7 @@ export class TimeSrv {
     if (params.get('to') && params.get('to')!.indexOf('now') === -1) {
       this.refresh = false;
       if (this.timeModel) {
-        this.timeModel.refresh = false;
+        this.timeModel.refresh = undefined;
       }
     }
 
@@ -209,7 +214,7 @@ export class TimeSrv {
     return this.timeAtLoad && (this.timeAtLoad.from !== this.time.from || this.timeAtLoad.to !== this.time.to);
   }
 
-  setAutoRefresh(interval: any) {
+  setAutoRefresh(interval: string) {
     if (this.timeModel) {
       this.timeModel.refresh = interval;
     }
@@ -227,19 +232,33 @@ export class TimeSrv {
       return;
     }
 
-    const validInterval = this.contextSrv.getValidInterval(interval);
-    const intervalMs = rangeUtil.intervalToMs(validInterval);
+    let refresh = interval;
+    let intervalMs = 60 * 1000;
+    if (interval === AutoRefreshInterval) {
+      intervalMs = this.getAutoRefreshInteval().intervalMs;
+    } else {
+      refresh = this.contextSrv.getValidInterval(interval);
+      intervalMs = rangeUtil.intervalToMs(refresh);
+    }
 
-    this.refreshTimer = setTimeout(() => {
+    this.refreshMS = intervalMs;
+    this.refreshTimer = window.setTimeout(() => {
       this.startNextRefreshTimer(intervalMs);
       this.refreshTimeModel();
     }, intervalMs);
 
-    const refresh = this.contextSrv.getValidInterval(interval);
-
     if (currentUrlState.refresh !== refresh) {
       locationService.partial({ refresh }, true);
     }
+  }
+
+  getAutoRefreshInteval(): IntervalValues {
+    const resolution = window?.innerWidth ?? 2000;
+    return rangeUtil.calculateInterval(
+      this.timeRange(),
+      resolution, // the max pixels possibles
+      config.minRefreshInterval
+    );
   }
 
   refreshTimeModel() {
@@ -247,7 +266,7 @@ export class TimeSrv {
   }
 
   private startNextRefreshTimer(afterMs: number) {
-    this.refreshTimer = setTimeout(() => {
+    this.refreshTimer = window.setTimeout(() => {
       this.startNextRefreshTimer(afterMs);
       if (this.contextSrv.isGrafanaVisible()) {
         this.refreshTimeModel();
@@ -259,18 +278,15 @@ export class TimeSrv {
 
   stopAutoRefresh() {
     clearTimeout(this.refreshTimer);
-  }
-
-  // store timeModel refresh value and pause auto-refresh in some places
-  // i.e panel edit
-  pauseAutoRefresh() {
-    this.previousAutoRefresh = this.timeModel?.refresh;
-    this.setAutoRefresh('');
+    this.refreshTimer = undefined;
+    this.refreshMS = undefined;
   }
 
   // resume auto-refresh based on old dashboard refresh property
   resumeAutoRefresh() {
-    this.setAutoRefresh(this.previousAutoRefresh);
+    if (this.timeModel?.refresh) {
+      this.setAutoRefresh(this.timeModel.refresh);
+    }
   }
 
   setTime(time: RawTimeRange, updateUrl = true) {
@@ -279,10 +295,10 @@ export class TimeSrv {
     // disable refresh if zoom in or zoom out
     if (isDateTime(time.to)) {
       this.oldRefresh = this.timeModel?.refresh || this.oldRefresh;
-      this.setAutoRefresh(false);
+      this.setAutoRefresh('');
     } else if (this.oldRefresh && this.oldRefresh !== this.timeModel?.refresh) {
       this.setAutoRefresh(this.oldRefresh);
-      this.oldRefresh = null;
+      this.oldRefresh = undefined;
     }
 
     if (updateUrl === true) {
@@ -297,6 +313,14 @@ export class TimeSrv {
       urlParams.to = urlRange.to.toString();
 
       locationService.partial(urlParams);
+    }
+
+    // Check if the auto refresh interval has changed
+    if (this.timeModel?.refresh === AutoRefreshInterval) {
+      const v = this.getAutoRefreshInteval().intervalMs;
+      if (v !== this.refreshMS) {
+        this.setAutoRefresh(AutoRefreshInterval);
+      }
     }
 
     this.refreshTimeModel();
@@ -316,19 +340,13 @@ export class TimeSrv {
   };
 
   timeRange(): TimeRange {
-    // make copies if they are moment  (do not want to return out internal moment, because they are mutable!)
-    const raw = {
-      from: isDateTime(this.time.from) ? dateTime(this.time.from) : this.time.from,
-      to: isDateTime(this.time.to) ? dateTime(this.time.to) : this.time.to,
-    };
+    // Scenes can set this global object to the current time range.
+    // This is a patch to support data sources that rely on TimeSrv.getTimeRange()
+    if (window.__grafanaSceneContext && window.__grafanaSceneContext.isActive) {
+      return sceneGraph.getTimeRange(window.__grafanaSceneContext).state.value;
+    }
 
-    const timezone = this.timeModel ? this.timeModel.getTimezone() : undefined;
-
-    return {
-      from: dateMath.parse(raw.from, false, timezone, this.timeModel?.fiscalYearStartMonth)!,
-      to: dateMath.parse(raw.to, true, timezone, this.timeModel?.fiscalYearStartMonth)!,
-      raw: raw,
-    };
+    return getTimeRange(this.time, this.timeModel);
   }
 
   zoomOut(factor: number, updateUrl = true) {
@@ -351,14 +369,33 @@ export class TimeSrv {
     );
   }
 
-  makeAbsoluteTime() {
-    const params = locationService.getSearch();
-    if (params.get('left')) {
-      return; // explore handles this;
+  makeAbsoluteTime(updateUrl: boolean) {
+    const { from, to } = this.timeRange();
+    this.setTime({ from, to }, updateUrl);
+  }
+
+  copyTimeRangeToClipboard() {
+    const { raw } = this.timeRange();
+    navigator.clipboard.writeText(JSON.stringify({ from: raw.from, to: raw.to }));
+    appEvents.emit(AppEvents.alertSuccess, [
+      t('time-picker.copy-paste.copy-success-message', 'Time range copied to clipboard'),
+    ]);
+  }
+
+  async pasteTimeRangeFromClipboard(updateUrl = true) {
+    const { range, isError } = await getCopiedTimeRange();
+
+    if (isError === true) {
+      appEvents.emit(AppEvents.alertError, [
+        t('time-picker.copy-paste.default-error-title', 'Invalid time range'),
+        t('time-picker.copy-paste.default-error-message', '{{error}} is not a valid time range', { error: range }),
+      ]);
+      return;
     }
 
-    const { from, to } = this.timeRange();
-    this.setTime({ from, to }, true);
+    const { from, to } = range;
+
+    this.setTime({ from, to }, updateUrl);
   }
 
   // isRefreshOutsideThreshold function calculates the difference between last refresh and now

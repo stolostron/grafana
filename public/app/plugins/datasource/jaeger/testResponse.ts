@@ -1,4 +1,6 @@
-import { ArrayVector, FieldDTO } from '@grafana/data';
+import { FieldDTO } from '@grafana/data';
+
+import { TraceResponse } from './types';
 
 import { TraceResponse } from './types';
 
@@ -51,7 +53,7 @@ export const testResponse: TraceResponse = {
 };
 
 function toVectors(fields: FieldDTO[]) {
-  return fields.map((f) => ({ ...f, values: new ArrayVector<any>(f.values as any[]) }));
+  return fields.map((f) => ({ ...f, values: f.values }));
 }
 
 export const testResponseDataFrameFields = toVectors([

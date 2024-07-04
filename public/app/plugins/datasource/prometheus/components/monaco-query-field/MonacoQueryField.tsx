@@ -1,11 +1,18 @@
 import { css } from '@emotion/css';
+import { parser } from '@prometheus-io/lezer-promql';
+import { debounce } from 'lodash';
 import { promLanguageDefinition } from 'monaco-promql';
 import React, { useRef, useEffect } from 'react';
 import { useLatest } from 'react-use';
+import { v4 as uuidv4 } from 'uuid';
 
 import { GrafanaTheme2 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 import { useTheme2, ReactMonacoEditor, Monaco, monacoTypes } from '@grafana/ui';
+import {
+  placeHolderScopedVars,
+  validateQuery,
+} from 'app/plugins/datasource/loki/components/monaco-query-field/monaco-completion-provider/validation';
 
 import { Props } from './MonacoQueryFieldProps';
 import { getOverrideServices } from './getOverrideServices';
@@ -36,6 +43,7 @@ const options: monacoTypes.editor.IStandaloneEditorConstructionOptions = {
     verticalScrollbarSize: 8, // used as "padding-right"
     horizontal: 'hidden',
     horizontalScrollbarSize: 0,
+    alwaysConsumeMouseWheel: false,
   },
   scrollBeyondLastLine: false,
   suggest: getSuggestOptions(),
@@ -70,30 +78,40 @@ function ensurePromQL(monaco: Monaco) {
   }
 }
 
-const getStyles = (theme: GrafanaTheme2) => {
+const getStyles = (theme: GrafanaTheme2, placeholder: string) => {
   return {
     container: css`
-      border-radius: ${theme.shape.borderRadius()};
+      border-radius: ${theme.shape.radius.default};
       border: 1px solid ${theme.components.input.borderColor};
+    `,
+    placeholder: css`
+      ::after {
+        content: '${placeholder}';
+        font-family: ${theme.typography.fontFamilyMonospace};
+        opacity: 0.6;
+      }
     `,
   };
 };
 
 const MonacoQueryField = (props: Props) => {
+  const id = uuidv4();
+
   // we need only one instance of `overrideServices` during the lifetime of the react component
   const overrideServicesRef = useRef(getOverrideServices());
   const containerRef = useRef<HTMLDivElement>(null);
-  const { languageProvider, history, onBlur, onRunQuery, initialValue } = props;
+  const { languageProvider, history, onBlur, onRunQuery, initialValue, placeholder, onChange, datasource } = props;
 
   const lpRef = useLatest(languageProvider);
   const historyRef = useLatest(history);
   const onRunQueryRef = useLatest(onRunQuery);
   const onBlurRef = useLatest(onBlur);
+  const onChangeRef = useLatest(onChange);
 
   const autocompleteDisposeFun = useRef<(() => void) | null>(null);
 
   const theme = useTheme2();
-  const styles = getStyles(theme);
+  const styles = getStyles(theme, placeholder);
 
   useEffect(() => {
     // when we unmount, we unregister the autocomplete-function, if it was registered
@@ -104,7 +122,7 @@ const MonacoQueryField = (props: Props) => {
 
   return (
     <div
-      aria-label={selectors.components.QueryField.container}
+      data-testid={selectors.components.QueryField.container}
       className={styles.container}
       // NOTE: we will be setting inline-style-width/height on this element
       ref={containerRef}
@@ -118,14 +136,17 @@ const MonacoQueryField = (props: Props) => {
           ensurePromQL(monaco);
         }}
         onMount={(editor, monaco) => {
+          const isEditorFocused = editor.createContextKey<boolean>('isEditorFocused' + id, false);
           // we setup on-blur
           editor.onDidBlurEditorWidget(() => {
+            isEditorFocused.set(false);
             onBlurRef.current(editor.getValue());
+          });
+          editor.onDidFocusEditorText(() => {
+            isEditorFocused.set(true);
           });
 
           // we construct a DataProvider object
-          const getSeries = (selector: string) => lpRef.current.getSeries(selector);
-
           const getHistory = () =>
             Promise.resolve(historyRef.current.map((h) => h.query.expr).filter((expr) => expr !== undefined));
 
@@ -147,7 +168,18 @@ const MonacoQueryField = (props: Props) => {
 
           const getLabelValues = (labelName: string) => lpRef.current.getLabelValues(labelName);
 
-          const dataProvider = { getSeries, getHistory, getAllMetricNames, getAllLabelNames, getLabelValues };
+          const getSeriesValues = lpRef.current.getSeriesValues;
+
+          const getSeriesLabels = lpRef.current.getSeriesLabels;
+
+          const dataProvider = {
+            getHistory,
+            getAllMetricNames,
+            getAllLabelNames,
+            getLabelValues,
+            getSeriesValues,
+            getSeriesLabels,
+          };
           const completionProvider = getCompletionProvider(monaco, dataProvider);
 
           // completion-providers in monaco are not registered directly to editor-instances,
@@ -194,11 +226,92 @@ const MonacoQueryField = (props: Props) => {
           editor.onDidContentSizeChange(updateElementHeight);
           updateElementHeight();
 
+          // Whenever the editor changes, lets save the last value so the next query for this editor will be up-to-date.
+          // This change is being introduced to fix a bug where you can submit a query via shift+enter:
+          // If you clicked into another field and haven't un-blurred the active field,
+          // then the query that is run will be stale, as the reference is only updated
+          // with the value of the last blurred input.
+          // This can run quite slowly, so we're debouncing this which should accomplish two things
+          // 1. Should prevent this function from blocking the current call stack by pushing into the web API callback queue
+          // 2. Should prevent a bunch of duplicates of this function being called as the user is typing
+          const updateCurrentEditorValue = debounce(() => {
+            const editorValue = editor.getValue();
+            onChangeRef.current(editorValue);
+          }, lpRef.current.datasource.getDebounceTimeInMilliseconds());
+
+          editor.getModel()?.onDidChangeContent(() => {
+            updateCurrentEditorValue();
+          });
+
           // handle: shift + enter
           // FIXME: maybe move this functionality into CodeEditor?
-          editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
-            onRunQueryRef.current(editor.getValue());
+          editor.addCommand(
+            monaco.KeyMod.Shift | monaco.KeyCode.Enter,
+            () => {
+              onRunQueryRef.current(editor.getValue());
+            },
+            'isEditorFocused' + id
+          );
+
+          /* Something in this configuration of monaco doesn't bubble up [mod]+K, which the
+          command palette uses. Pass the event out of monaco manually
+          */
+          editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, function () {
+            global.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
           });
+
+          if (placeholder) {
+            const placeholderDecorators = [
+              {
+                range: new monaco.Range(1, 1, 1, 1),
+                options: {
+                  className: styles.placeholder,
+                  isWholeLine: true,
+                },
+              },
+            ];
+
+            let decorators: string[] = [];
+
+            const checkDecorators: () => void = () => {
+              const model = editor.getModel();
+
+              if (!model) {
+                return;
+              }
+
+              const newDecorators = model.getValueLength() === 0 ? placeholderDecorators : [];
+              decorators = model.deltaDecorations(decorators, newDecorators);
+            };
+
+            checkDecorators();
+            editor.onDidChangeModelContent(checkDecorators);
+
+            editor.onDidChangeModelContent((e) => {
+              const model = editor.getModel();
+              if (!model) {
+                return;
+              }
+              const query = model.getValue();
+              const errors =
+                validateQuery(
+                  query,
+                  datasource.interpolateString(query, placeHolderScopedVars),
+                  model.getLinesContent(),
+                  parser
+                ) || [];
+
+              const markers = errors.map(({ error, ...boundary }) => ({
+                message: `${
+                  error ? `Error parsing "${error}"` : 'Parse error'
+                }. The query appears to be incorrect and could fail to be executed.`,
+                severity: monaco.MarkerSeverity.Error,
+                ...boundary,
+              }));
+
+              monaco.editor.setModelMarkers(model, 'owner', markers);
+            });
+          }
         }}
       />
     </div>

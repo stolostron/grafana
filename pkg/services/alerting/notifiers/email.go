@@ -4,12 +4,11 @@ import (
 	"os"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/util"
-
 	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/util"
 )
 
 func init() {
@@ -44,11 +43,12 @@ type EmailNotifier struct {
 	Addresses   []string
 	SingleEmail bool
 	log         log.Logger
+	appURL      string
 }
 
 // NewEmailNotifier is the constructor function
 // for the EmailNotifier.
-func NewEmailNotifier(model *models.AlertNotification, _ alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewEmailNotifier(cfg *setting.Cfg, model *models.AlertNotification, _ alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
 	addressesString := model.Settings.Get("addresses").MustString()
 	singleEmail := model.Settings.Get("singleEmail").MustBool(false)
 
@@ -64,6 +64,7 @@ func NewEmailNotifier(model *models.AlertNotification, _ alerting.GetDecryptedVa
 		Addresses:    addresses,
 		SingleEmail:  singleEmail,
 		log:          log.New("alerting.notifier.email"),
+		appURL:       cfg.AppURL,
 	}, nil
 }
 
@@ -82,10 +83,10 @@ func (en *EmailNotifier) Notify(evalContext *alerting.EvalContext) error {
 		error = evalContext.Error.Error()
 	}
 
-	cmd := &models.SendEmailCommandSync{
-		SendEmailCommand: models.SendEmailCommand{
+	cmd := &notifications.SendEmailCommandSync{
+		SendEmailCommand: notifications.SendEmailCommand{
 			Subject: evalContext.GetNotificationTitle(),
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"Title":         evalContext.GetNotificationTitle(),
 				"State":         evalContext.Rule.State,
 				"Name":          evalContext.Rule.Name,
@@ -95,7 +96,7 @@ func (en *EmailNotifier) Notify(evalContext *alerting.EvalContext) error {
 				"RuleUrl":       ruleURL,
 				"ImageLink":     "",
 				"EmbeddedImage": "",
-				"AlertPageUrl":  setting.AppUrl + "alerting",
+				"AlertPageUrl":  en.appURL + "alerting",
 				"EvalMatches":   evalContext.EvalMatches,
 			},
 			To:            en.Addresses,

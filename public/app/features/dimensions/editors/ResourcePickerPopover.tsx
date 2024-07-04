@@ -5,10 +5,13 @@ import { useOverlay } from '@react-aria/overlays';
 import React, { createRef, useState } from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
-import { Button, ButtonGroup, useStyles2 } from '@grafana/ui';
+import { getBackendSrv } from '@grafana/runtime';
+import { Button, useStyles2 } from '@grafana/ui';
+import { config } from 'app/core/config';
 
 import { MediaType, PickerTabType, ResourceFolderName } from '../types';
 
+import { FileUploader } from './FileUploader';
 import { FolderPickerTab } from './FolderPickerTab';
 import { URLPickerTab } from './URLPickerTab';
 
@@ -17,10 +20,14 @@ interface Props {
   onChange: (value?: string) => void;
   mediaType: MediaType;
   folderName: ResourceFolderName;
+  maxFiles?: number;
 }
 
+interface ErrorResponse {
+  message: string;
+}
 export const ResourcePickerPopover = (props: Props) => {
-  const { value, onChange, mediaType, folderName } = props;
+  const { value, onChange, mediaType, folderName, maxFiles } = props;
   const styles = useStyles2(getStyles);
 
   const onClose = () => {
@@ -31,8 +38,12 @@ export const ResourcePickerPopover = (props: Props) => {
   const { dialogProps } = useDialog({}, ref);
   const { overlayProps } = useOverlay({ onClose, isDismissable: true, isOpen: true }, ref);
 
+  const isURL = value && value.includes('://');
   const [newValue, setNewValue] = useState<string>(value ?? '');
-  const [activePicker, setActivePicker] = useState<PickerTabType>(PickerTabType.Folder);
+  const [activePicker, setActivePicker] = useState<PickerTabType>(isURL ? PickerTabType.URL : PickerTabType.Folder);
+  const [formData, setFormData] = useState<FormData>(new FormData());
+  const [upload, setUpload] = useState<boolean>(false);
+  const [error, setError] = useState<ErrorResponse>({ message: '' });
 
   const getTabClassName = (tabName: PickerTabType) => {
     return `${styles.resourcePickerPopoverTab} ${activePicker === tabName && styles.resourcePickerPopoverActiveTab}`;
@@ -45,17 +56,28 @@ export const ResourcePickerPopover = (props: Props) => {
       folderName={folderName}
       newValue={newValue}
       setNewValue={setNewValue}
+      maxFiles={maxFiles}
     />
   );
 
   const renderURLPicker = () => <URLPickerTab newValue={newValue} setNewValue={setNewValue} mediaType={mediaType} />;
-
+  const renderUploader = () => (
+    <FileUploader
+      mediaType={mediaType}
+      setFormData={setFormData}
+      setUpload={setUpload}
+      newValue={newValue}
+      error={error}
+    />
+  );
   const renderPicker = () => {
     switch (activePicker) {
       case PickerTabType.Folder:
         return renderFolderPicker();
       case PickerTabType.URL:
         return renderURLPicker();
+      case PickerTabType.Upload:
+        return renderUploader();
       default:
         return renderFolderPicker();
     }
@@ -78,18 +100,41 @@ export const ResourcePickerPopover = (props: Props) => {
           </div>
           <div className={styles.resourcePickerPopoverContent}>
             {renderPicker()}
-            <ButtonGroup className={styles.buttonGroup}>
-              <Button className={styles.button} variant={'secondary'} onClick={() => onClose()}>
+            <div className={styles.buttonRow}>
+              <Button variant={'secondary'} onClick={() => onClose()} fill="outline">
                 Cancel
               </Button>
               <Button
-                className={styles.button}
                 variant={newValue && newValue !== value ? 'primary' : 'secondary'}
-                onClick={() => onChange(newValue)}
+                onClick={() => {
+                  if (upload) {
+                    fetch('/api/storage/upload', {
+                      method: 'POST',
+                      body: formData,
+                    })
+                      .then((res) => {
+                        if (res.status >= 400) {
+                          res.json().then((data) => setError(data));
+                          return;
+                        } else {
+                          return res.json();
+                        }
+                      })
+                      .then((data) => {
+                        getBackendSrv()
+                          .get(`api/storage/read/${data.path}`)
+                          .then(() => setNewValue(`${config.appUrl}api/storage/read/${data.path}`))
+                          .then(() => onChange(`${config.appUrl}api/storage/read/${data.path}`));
+                      })
+                      .catch((err) => console.error(err));
+                  } else {
+                    onChange(newValue);
+                  }
+                }}
               >
                 Select
               </Button>
-            </ButtonGroup>
+            </div>
           </div>
         </div>
       </section>
@@ -99,10 +144,10 @@ export const ResourcePickerPopover = (props: Props) => {
 
 const getStyles = (theme: GrafanaTheme2) => ({
   resourcePickerPopover: css`
-    border-radius: ${theme.shape.borderRadius()};
+    border-radius: ${theme.shape.radius.default};
     box-shadow: ${theme.shadows.z3};
     background: ${theme.colors.background.primary};
-    border: 1px solid ${theme.colors.border.medium};
+    border: 1px solid ${theme.colors.border.weak};
   `,
   resourcePickerPopoverTab: css`
     width: 50%;
@@ -139,13 +184,12 @@ const getStyles = (theme: GrafanaTheme2) => ({
   resourcePickerPopoverTabs: css`
     display: flex;
     width: 100%;
-    border-radius: ${theme.shape.borderRadius()} ${theme.shape.borderRadius()} 0 0;
+    border-radius: ${theme.shape.radius.default} ${theme.shape.radius.default} 0 0;
   `,
-  buttonGroup: css`
-    align-self: center;
-    flex-direction: row;
-  `,
-  button: css`
-    margin: 12px 20px 5px;
-  `,
+  buttonRow: css({
+    display: 'flex',
+    justifyContent: 'center',
+    gap: theme.spacing(2),
+    padding: theme.spacing(1),
+  }),
 });

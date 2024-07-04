@@ -1,3 +1,4 @@
+import { css } from '@emotion/css';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMountedState } from 'react-use';
 import uPlot from 'uplot';
@@ -12,11 +13,12 @@ import {
   formattedValueToString,
   getDisplayProcessor,
   getFieldDisplayName,
+  GrafanaTheme2,
   TimeZone,
 } from '@grafana/data';
 import { TooltipDisplayMode, SortOrder } from '@grafana/schema';
 
-import { useTheme2 } from '../../../themes/ThemeContext';
+import { useStyles2, useTheme2 } from '../../../themes/ThemeContext';
 import { Portal } from '../../Portal/Portal';
 import { SeriesTable, SeriesTableRowProps, VizTooltipContainer } from '../../VizTooltip';
 import { UPlotConfigBuilder } from '../config/UPlotConfigBuilder';
@@ -25,6 +27,7 @@ import { findMidPointYPosition, pluginLog } from '../utils';
 interface TooltipPluginProps {
   timeZone: TimeZone;
   data: DataFrame;
+  frames?: DataFrame[];
   config: UPlotConfigBuilder;
   mode?: TooltipDisplayMode;
   sortOrder?: SortOrder;
@@ -39,7 +42,7 @@ const TOOLTIP_OFFSET = 10;
 /**
  * @alpha
  */
-export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
+export const TooltipPlugin = ({
   mode = TooltipDisplayMode.Single,
   sortOrder = SortOrder.None,
   sync,
@@ -47,7 +50,7 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
   config,
   renderTooltip,
   ...otherProps
-}) => {
+}: TooltipPluginProps) => {
   const plotInstance = useRef<uPlot>();
   const theme = useTheme2();
   const [focusedSeriesIdx, setFocusedSeriesIdx] = useState<number | null>(null);
@@ -56,8 +59,11 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
   const [coords, setCoords] = useState<CartesianCoords2D | null>(null);
   const [isActive, setIsActive] = useState<boolean>(false);
   const isMounted = useMountedState();
+  let parentWithFocus: HTMLElement | null = null;
 
   const pluginId = `TooltipPlugin`;
+
+  const style = useStyles2(getStyles);
 
   // Debug logs
   useEffect(() => {
@@ -91,11 +97,15 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
     config.addHook('init', (u) => {
       plotInstance.current = u;
 
-      u.root.parentElement?.addEventListener('focus', plotEnter);
       u.over.addEventListener('mouseenter', plotEnter);
-
-      u.root.parentElement?.addEventListener('blur', plotLeave);
       u.over.addEventListener('mouseleave', plotLeave);
+
+      parentWithFocus = u.root.closest('[tabindex]');
+
+      if (parentWithFocus) {
+        parentWithFocus.addEventListener('focus', plotEnter);
+        parentWithFocus.addEventListener('blur', plotLeave);
+      }
 
       if (sync && sync() === DashboardCursorSync.Crosshair) {
         u.root.classList.add('shared-crosshair');
@@ -161,11 +171,15 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
 
     return () => {
       setCoords(null);
+
       if (plotInstance.current) {
         plotInstance.current.over.removeEventListener('mouseleave', plotLeave);
         plotInstance.current.over.removeEventListener('mouseenter', plotEnter);
-        plotInstance.current.root.parentElement?.removeEventListener('focus', plotEnter);
-        plotInstance.current.root.parentElement?.removeEventListener('blur', plotLeave);
+
+        if (parentWithFocus) {
+          parentWithFocus.removeEventListener('focus', plotEnter);
+          parentWithFocus.removeEventListener('blur', plotLeave);
+        }
       }
     };
   }, [config, setCoords, setIsActive, setFocusedPointIdx, setFocusedPointIdxs]);
@@ -182,7 +196,7 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
   const xFieldFmt = xField.display || getDisplayProcessor({ field: xField, timeZone, theme });
   let tooltip: React.ReactNode = null;
 
-  let xVal = xFieldFmt(xField!.values.get(focusedPointIdx)).text;
+  let xVal = xFieldFmt(xField!.values[focusedPointIdx]).text;
 
   if (!renderTooltip) {
     // when interacting with a point in single mode
@@ -194,16 +208,16 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
       }
 
       const dataIdx = focusedPointIdxs?.[focusedSeriesIdx] ?? focusedPointIdx;
-      xVal = xFieldFmt(xField!.values.get(dataIdx)).text;
+      xVal = xFieldFmt(xField!.values[dataIdx]).text;
       const fieldFmt = field.display || getDisplayProcessor({ field, timeZone, theme });
-      const display = fieldFmt(field.values.get(dataIdx));
+      const display = fieldFmt(field.values[dataIdx]);
 
       tooltip = (
         <SeriesTable
           series={[
             {
               color: display.color || FALLBACK_COLOR,
-              label: getFieldDisplayName(field, otherProps.data),
+              label: getFieldDisplayName(field, otherProps.data, otherProps.frames),
               value: display ? formattedValueToString(display) : null,
             },
           ]}
@@ -216,7 +230,7 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
       let series: SeriesTableRowProps[] = [];
       const frame = otherProps.data;
       const fields = frame.fields;
-      const sortIdx: any[] = [];
+      const sortIdx: unknown[] = [];
 
       for (let i = 0; i < fields.length; i++) {
         const field = frame.fields[i];
@@ -231,13 +245,13 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
           continue;
         }
 
-        const v = otherProps.data.fields[i].values.get(focusedPointIdxs[i]!);
+        const v = otherProps.data.fields[i].values[focusedPointIdxs[i]!];
         const display = field.display!(v);
 
         sortIdx.push(v);
         series.push({
           color: display.color || FALLBACK_COLOR,
-          label: getFieldDisplayName(field, frame),
+          label: getFieldDisplayName(field, frame, otherProps.frames),
           value: display ? formattedValueToString(display) : null,
           isActive: focusedSeriesIdx === i,
         });
@@ -263,7 +277,7 @@ export const TooltipPlugin: React.FC<TooltipPluginProps> = ({
   }
 
   return (
-    <Portal>
+    <Portal className={isActive ? style.tooltipWrapper : undefined}>
       {tooltip && coords && (
         <VizTooltipContainer position={{ x: coords.x, y: coords.y }} offset={{ x: TOOLTIP_OFFSET, y: TOOLTIP_OFFSET }}>
           {tooltip}
@@ -311,3 +325,9 @@ export function positionTooltip(u: uPlot, bbox: DOMRect) {
 
   return { x, y };
 }
+
+const getStyles = (theme: GrafanaTheme2) => ({
+  tooltipWrapper: css({
+    'z-index': theme.zIndex.portal + 1 + ' !important',
+  }),
+});

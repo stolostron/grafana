@@ -7,17 +7,20 @@ import { locationService } from '@grafana/runtime';
 
 import { silenceConsoleOutput } from '../../../../test/core/utils/silenceConsoleOutput';
 import { backendSrv } from '../../../core/services/backend_srv';
-import { setDashboardSrv } from '../../../features/dashboard/services/DashboardSrv';
+import { DashboardSrv, setDashboardSrv } from '../../../features/dashboard/services/DashboardSrv';
+
+import { AnnoListPanel, Props } from './AnnoListPanel';
+import { Options } from './panelcfg.gen';
 
 import { AnnoListPanel, Props } from './AnnoListPanel';
 import { AnnoOptions } from './types';
 
 jest.mock('@grafana/runtime', () => ({
-  ...(jest.requireActual('@grafana/runtime') as unknown as object),
+  ...jest.requireActual('@grafana/runtime'),
   getBackendSrv: () => backendSrv,
 }));
 
-const defaultOptions: AnnoOptions = {
+const defaultOptions: Options = {
   limit: 10,
   navigateAfter: '10m',
   navigateBefore: '10m',
@@ -30,7 +33,7 @@ const defaultOptions: AnnoOptions = {
   tags: ['tag A', 'tag B'],
 };
 
-const defaultResult: any = {
+const defaultResult = {
   text: 'Result text',
   userId: 1,
   login: 'Result login',
@@ -40,21 +43,23 @@ const defaultResult: any = {
   time: Date.UTC(2021, 0, 1, 0, 0, 0, 0),
   panelId: 13,
   dashboardId: 14, // deliberately different from panelId
-  id: 14,
+  id: '14',
+  uid: '7MeksYbmk',
+  dashboardUID: '7MeksYbmk',
   url: '/d/asdkjhajksd/some-dash',
 };
 
 async function setupTestContext({
   options = defaultOptions,
   results = [defaultResult],
-}: { options?: AnnoOptions; results?: AnnotationEvent[] } = {}) {
+}: { options?: Options; results?: AnnotationEvent[] } = {}) {
   jest.clearAllMocks();
 
   const getMock = jest.spyOn(backendSrv, 'get');
   getMock.mockResolvedValue(results);
 
-  const dash: any = { id: 1, formatDate: (time: number) => new Date(time).toISOString() };
-  const dashSrv: any = { getCurrent: () => dash };
+  const dash = { uid: 'srx16xR4z', formatDate: (time: number) => new Date(time).toISOString() };
+  const dashSrv = { getCurrent: () => dash } as DashboardSrv;
   setDashboardSrv(dashSrv);
   const pushSpy = jest.spyOn(locationService, 'push');
 
@@ -62,10 +67,9 @@ async function setupTestContext({
     data: { state: LoadingState.Done, timeRange: getDefaultTimeRange(), series: [] },
     eventBus: {
       subscribe: jest.fn(),
-      getStream: () =>
-        ({
-          subscribe: jest.fn(),
-        } as any),
+      getStream: jest.fn().mockImplementation(() => ({
+        subscribe: jest.fn(),
+      })),
       publish: jest.fn(),
       removeAllListeners: jest.fn(),
       newScopedBus: jest.fn(),
@@ -99,7 +103,7 @@ describe('AnnoListPanel', () => {
       expect(getMock).toHaveBeenCalledWith(
         '/api/annotations',
         {
-          dashboardId: 1,
+          dashboardUID: 'srx16xR4z',
           limit: 10,
           tags: ['tag A', 'tag B'],
           type: 'annotation',
@@ -128,6 +132,16 @@ describe('AnnoListPanel', () => {
       expect(screen.getByText('Result tag A')).toBeInTheDocument();
       expect(screen.getByText('Result tag B')).toBeInTheDocument();
       expect(screen.getByText(/2021-01-01T00:00:00.000Z/i)).toBeInTheDocument();
+    });
+
+    it("renders annotation item's html content", async () => {
+      const { getMock } = await setupTestContext({
+        results: [{ ...defaultResult, text: '<a href="">test link </a> ' }],
+      });
+
+      getMock.mockClear();
+      expect(screen.getByRole('link')).toBeInTheDocument();
+      expect(getMock).not.toHaveBeenCalled();
     });
 
     describe('and login property is missing in annotation', () => {
@@ -201,11 +215,11 @@ describe('AnnoListPanel', () => {
         const { getMock, pushSpy } = await setupTestContext();
 
         getMock.mockClear();
-        expect(screen.getByText(/result text/i)).toBeInTheDocument();
-        userEvent.click(screen.getByText(/result text/i));
+        expect(screen.getByRole('button', { name: /result text/i })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: /result text/i }));
         await waitFor(() => expect(getMock).toHaveBeenCalledTimes(1));
 
-        expect(getMock).toHaveBeenCalledWith('/api/search', { dashboardIds: 14 });
+        expect(getMock).toHaveBeenCalledWith('/api/search', { dashboardUIDs: '7MeksYbmk' });
         expect(pushSpy).toHaveBeenCalledTimes(1);
         expect(pushSpy).toHaveBeenCalledWith('/d/asdkjhajksd/some-dash?from=1609458600000&to=1609459800000');
       });
@@ -216,14 +230,15 @@ describe('AnnoListPanel', () => {
         const { getMock } = await setupTestContext();
 
         getMock.mockClear();
-        expect(screen.getByText('Result tag B')).toBeInTheDocument();
-        userEvent.click(screen.getByText('Result tag B'));
+
+        expect(screen.getByRole('button', { name: /result tag b/i })).toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: /result tag b/i }));
 
         expect(getMock).toHaveBeenCalledTimes(1);
         expect(getMock).toHaveBeenCalledWith(
           '/api/annotations',
           {
-            dashboardId: 1,
+            dashboardUID: 'srx16xR4z',
             limit: 10,
             tags: ['tag A', 'tag B', 'Result tag B'],
             type: 'annotation',
@@ -241,13 +256,13 @@ describe('AnnoListPanel', () => {
 
         getMock.mockClear();
         expect(screen.getByRole('img')).toBeInTheDocument();
-        userEvent.click(screen.getByRole('img'));
+        await userEvent.click(screen.getByRole('img'));
 
         expect(getMock).toHaveBeenCalledTimes(1);
         expect(getMock).toHaveBeenCalledWith(
           '/api/annotations',
           {
-            dashboardId: 1,
+            dashboardUID: 'srx16xR4z',
             limit: 10,
             tags: ['tag A', 'tag B'],
             type: 'annotation',
@@ -256,7 +271,7 @@ describe('AnnoListPanel', () => {
           'anno-list-panel-1'
         );
         expect(screen.getByText(/filter:/i)).toBeInTheDocument();
-        expect(screen.getByText(/result email/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /result email/i })).toBeInTheDocument();
       });
     });
 

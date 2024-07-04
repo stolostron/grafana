@@ -4,15 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/encryption/ossencryption"
-	"github.com/grafana/grafana/pkg/services/validations"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
+	"github.com/grafana/grafana/pkg/services/annotations/annotationstest"
+	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	"github.com/grafana/grafana/pkg/services/validations"
+	"github.com/grafana/grafana/pkg/setting"
 )
 
 func TestReplaceIllegalCharswithUnderscore(t *testing.T) {
@@ -68,7 +70,7 @@ func TestWhenAlertManagerShouldNotify(t *testing.T) {
 		am := &AlertmanagerNotifier{log: log.New("test.logger")}
 		evalContext := alerting.NewEvalContext(context.Background(), &alerting.Rule{
 			State: tc.prevState,
-		}, &validations.OSSPluginRequestValidator{}, nil)
+		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 
 		evalContext.Rule.State = tc.newState
 
@@ -81,6 +83,8 @@ func TestWhenAlertManagerShouldNotify(t *testing.T) {
 
 //nolint:goconst
 func TestAlertmanagerNotifier(t *testing.T) {
+	encryptionService := encryptionservice.SetupTestService(t)
+
 	t.Run("Parsing alert notification from settings", func(t *testing.T) {
 		t.Run("empty settings should return error", func(t *testing.T) {
 			json := `{ }`
@@ -92,7 +96,7 @@ func TestAlertmanagerNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			_, err := NewAlertmanagerNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			_, err := NewAlertmanagerNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 			require.Error(t, err)
 		})
 
@@ -106,7 +110,7 @@ func TestAlertmanagerNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			not, err := NewAlertmanagerNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			not, err := NewAlertmanagerNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 			alertmanagerNotifier := not.(*AlertmanagerNotifier)
 
 			require.NoError(t, err)
@@ -125,7 +129,7 @@ func TestAlertmanagerNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			not, err := NewAlertmanagerNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			not, err := NewAlertmanagerNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 			alertmanagerNotifier := not.(*AlertmanagerNotifier)
 
 			require.NoError(t, err)

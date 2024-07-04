@@ -1,19 +1,16 @@
-import { css as cssCore, Global } from '@emotion/react';
-import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useClickAway } from 'react-use';
 
 import { CartesianCoords2D, DataFrame, getFieldDisplayName, InterpolateFunction, TimeZone } from '@grafana/data';
 import {
   ContextMenu,
   GraphContextMenuHeader,
-  IconName,
   MenuItemProps,
   MenuItemsGroup,
   MenuGroup,
   MenuItem,
   UPlotConfigBuilder,
 } from '@grafana/ui';
-import { pluginLog } from '@grafana/ui/src/components/uPlot/utils';
 
 type ContextMenuSelectionCoords = { viewport: CartesianCoords2D; plotCanvas: CartesianCoords2D };
 type ContextMenuSelectionPoint = { seriesIdx: number | null; dataIdx: number | null };
@@ -24,6 +21,7 @@ export interface ContextMenuItemClickPayload {
 
 interface ContextMenuPluginProps {
   data: DataFrame;
+  frames?: DataFrame[];
   config: UPlotConfigBuilder;
   defaultItems?: Array<MenuItemsGroup<ContextMenuItemClickPayload>>;
   timeZone: TimeZone;
@@ -32,58 +30,20 @@ interface ContextMenuPluginProps {
   replaceVariables?: InterpolateFunction;
 }
 
-export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
+export const ContextMenuPlugin = ({
   data,
   config,
   onClose,
   timeZone,
   replaceVariables,
   ...otherProps
-}) => {
-  const plotCanvas = useRef<HTMLDivElement>();
+}: ContextMenuPluginProps) => {
   const [coords, setCoords] = useState<ContextMenuSelectionCoords | null>(null);
   const [point, setPoint] = useState<ContextMenuSelectionPoint | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
-  const openMenu = useCallback(() => {
-    setIsOpen(true);
-  }, [setIsOpen]);
-
-  const closeMenu = useCallback(() => {
-    setIsOpen(false);
-  }, [setIsOpen]);
-
-  const clearSelection = useCallback(() => {
-    pluginLog('ContextMenuPlugin', false, 'clearing click selection');
-    setPoint(null);
-  }, [setPoint]);
-
-  // Add uPlot hooks to the config, or re-add when the config changed
   useLayoutEffect(() => {
-    let bbox: DOMRect | undefined = undefined;
-
-    const onMouseCapture = (e: MouseEvent) => {
-      let update = {
-        viewport: {
-          x: e.clientX,
-          y: e.clientY,
-        },
-        plotCanvas: {
-          x: 0,
-          y: 0,
-        },
-      };
-      if (bbox) {
-        update = {
-          ...update,
-          plotCanvas: {
-            x: e.clientX - bbox.left,
-            y: e.clientY - bbox.top,
-          },
-        };
-      }
-      setCoords(update);
-    };
+    let seriesIdx: number | null = null;
 
     // cache uPlot plotting area bounding box
     config.addHook('syncRect', (u, rect) => {
@@ -91,58 +51,29 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
     });
 
     config.addHook('init', (u) => {
-      const canvas = u.over;
-      plotCanvas.current = canvas || undefined;
-      plotCanvas.current?.addEventListener('mousedown', onMouseCapture);
-
-      pluginLog('ContextMenuPlugin', false, 'init');
-      // for naive click&drag check
-      let isClick = false;
-
-      // REF: https://github.com/leeoniya/uPlot/issues/239
-      let pts = Array.from(u.root.querySelectorAll<HTMLDivElement>('.u-cursor-pt'));
-
-      plotCanvas.current?.addEventListener('mousedown', () => {
-        isClick = true;
-      });
-
-      plotCanvas.current?.addEventListener('mousemove', () => {
-        isClick = false;
-      });
-
-      // TODO: remove listeners on unmount
-      plotCanvas.current?.addEventListener('mouseup', (e: MouseEvent) => {
-        // ignore cmd+click, this is handled by annotation editor
-        if (!isClick || e.metaKey || e.ctrlKey) {
-          setPoint(null);
-          return;
-        }
-        isClick = true;
-
-        if (e.target) {
-          const target = e.target as HTMLElement;
-          if (!target.classList.contains('u-cursor-pt')) {
-            pluginLog('ContextMenuPlugin', false, 'canvas click');
-            setPoint({ seriesIdx: null, dataIdx: null });
-          }
-        }
-
-        openMenu();
-      });
-
-      if (pts.length > 0) {
-        pts.forEach((pt, i) => {
-          // TODO: remove listeners on unmount
-          pt.addEventListener('click', () => {
-            const seriesIdx = i + 1;
-            const dataIdx = u.cursor.idx;
-            pluginLog('ContextMenuPlugin', false, seriesIdx, dataIdx);
-            setPoint({ seriesIdx, dataIdx: dataIdx ?? null });
+      u.over.addEventListener('click', (e) => {
+        // only open when have a focused point, and not for explicit annotations, zooms, etc.
+        if (seriesIdx != null && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+          setCoords({
+            viewport: {
+              x: e.clientX,
+              y: e.clientY,
+            },
+            plotCanvas: {
+              x: e.clientX - u.rect.left,
+              y: e.clientY - u.rect.top,
+            },
           });
-        });
-      }
+          setPoint({ seriesIdx, dataIdx: u.cursor.idxs![seriesIdx] });
+          setIsOpen(true);
+        }
+      });
     });
-  }, [config, openMenu, setCoords, setPoint]);
+
+    config.addHook('setSeries', (u, _seriesIdx) => {
+      seriesIdx = _seriesIdx;
+    });
+  }, [config]);
 
   const defaultItems = useMemo(() => {
     return otherProps.defaultItems
@@ -152,13 +83,12 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
             items: i.items.map((j) => {
               return {
                 ...j,
-                onClick: (e?: React.SyntheticEvent<HTMLElement>) => {
+                onClick: (e: React.MouseEvent<HTMLElement>) => {
                   if (!coords) {
                     return;
                   }
-                  if (j.onClick) {
-                    j.onClick(e, { coords });
-                  }
+
+                  j.onClick?.(e, { coords });
                 },
               };
             }),
@@ -169,23 +99,17 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
 
   return (
     <>
-      <Global
-        styles={cssCore`
-        .uplot .u-cursor-pt {
-          pointer-events: auto !important;
-        }
-      `}
-      />
       {isOpen && coords && (
         <ContextMenuView
           data={data}
+          frames={otherProps.frames}
           defaultItems={defaultItems}
           timeZone={timeZone}
           selection={{ point, coords }}
           replaceVariables={replaceVariables}
           onClose={() => {
-            clearSelection();
-            closeMenu();
+            setPoint(null);
+            setIsOpen(false);
             if (onClose) {
               onClose();
             }
@@ -196,8 +120,9 @@ export const ContextMenuPlugin: React.FC<ContextMenuPluginProps> = ({
   );
 };
 
-interface ContextMenuProps {
+interface ContextMenuViewProps {
   data: DataFrame;
+  frames?: DataFrame[];
   defaultItems?: MenuItemsGroup[];
   timeZone: TimeZone;
   onClose?: () => void;
@@ -208,14 +133,14 @@ interface ContextMenuProps {
   replaceVariables?: InterpolateFunction;
 }
 
-export const ContextMenuView: React.FC<ContextMenuProps> = ({
+export const ContextMenuView = ({
   selection,
   timeZone,
   defaultItems,
   replaceVariables,
   data,
   ...otherProps
-}) => {
+}: ContextMenuViewProps) => {
   const ref = useRef(null);
 
   const onClose = () => {
@@ -243,7 +168,7 @@ export const ContextMenuView: React.FC<ContextMenuProps> = ({
     if (seriesIdx && dataIdx !== null) {
       const field = data.fields[seriesIdx];
 
-      const displayValue = field.display!(field.values.get(dataIdx));
+      const displayValue = field.display!(field.values[dataIdx]);
 
       const hasLinks = field.config.links && field.config.links.length > 0;
 
@@ -260,7 +185,7 @@ export const ContextMenuView: React.FC<ContextMenuProps> = ({
                   ariaLabel: link.title,
                   url: link.href,
                   target: link.target,
-                  icon: `${link.target === '_self' ? 'link' : 'external-link-alt'}` as IconName,
+                  icon: link.target === '_self' ? 'link' : 'external-link-alt',
                   onClick: link.onClick,
                 };
               }),
@@ -271,10 +196,10 @@ export const ContextMenuView: React.FC<ContextMenuProps> = ({
       // eslint-disable-next-line react/display-name
       renderHeader = () => (
         <GraphContextMenuHeader
-          timestamp={xFieldFmt(xField.values.get(dataIdx)).text}
+          timestamp={xFieldFmt(xField.values[dataIdx]).text}
           displayValue={displayValue}
           seriesColor={displayValue.color!}
-          displayName={getFieldDisplayName(field, data)}
+          displayName={getFieldDisplayName(field, data, otherProps.frames)}
         />
       );
     }
@@ -285,7 +210,7 @@ export const ContextMenuView: React.FC<ContextMenuProps> = ({
       <MenuGroup key={`${group.label}${index}`} label={group.label}>
         {(group.items || []).map((item) => (
           <MenuItem
-            key={item.label}
+            key={item.url}
             url={item.url}
             label={item.label}
             target={item.target}

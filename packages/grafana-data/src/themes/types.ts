@@ -29,7 +29,10 @@ export interface GrafanaTheme2 {
   shadows: ThemeShadows;
   visualization: ThemeVisualizationColors;
   transitions: ThemeTransitions;
+  /** @deprecated Will be removed in a future version */
   v1: GrafanaTheme;
+  /** feature flags that might impact component looks */
+  flags: {};
 }
 
 /** @alpha */
@@ -46,6 +49,8 @@ export interface ThemeRichColor {
   border: string;
   /** Used subtly colored backgrounds */
   transparent: string;
+  /** Used for weak colored borders like larger alert/banner boxes and smaller badges and tags */
+  borderTransparent: string;
   /** Text color for text ontop of main */
   contrastText: string;
 }

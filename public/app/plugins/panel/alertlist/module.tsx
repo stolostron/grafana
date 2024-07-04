@@ -1,9 +1,25 @@
 import React from 'react';
 
-import { PanelPlugin } from '@grafana/data';
-import { config, DataSourcePicker } from '@grafana/runtime';
-import { TagsInput } from '@grafana/ui';
-import { RuleFolderPicker } from 'app/features/alerting/unified/components/rule-editor/RuleFolderPicker';
+import { DataSourceInstanceSettings, PanelPlugin } from '@grafana/data';
+import { config } from '@grafana/runtime';
+import { Button, Stack, TagsInput } from '@grafana/ui';
+import { OldFolderPicker } from 'app/core/components/Select/OldFolderPicker';
+import {
+  ALL_FOLDER,
+  GENERAL_FOLDER,
+  ReadonlyFolderPicker,
+} from 'app/core/components/Select/ReadonlyFolderPicker/ReadonlyFolderPicker';
+import { DataSourcePicker } from 'app/features/datasources/components/picker/DataSourcePicker';
+import { PermissionLevelString } from 'app/types';
+
+import { GRAFANA_DATASOURCE_NAME } from '../../../features/alerting/unified/utils/datasource';
+
+import { AlertList } from './AlertList';
+import { alertListPanelMigrationHandler } from './AlertListMigrationHandler';
+import { GroupBy } from './GroupByWithLoading';
+import { UnifiedAlertListPanel } from './UnifiedAlertList';
+import { AlertListSuggestionsSupplier } from './suggestions';
+import { AlertListOptions, GroupMode, ShowOption, SortOrder, UnifiedAlertListOptions, ViewMode } from './types';
 
 import {
   ALL_FOLDER,
@@ -153,8 +169,21 @@ const alertList = new PanelPlugin<AlertListOptions>(AlertList)
   .setMigrationHandler(alertListPanelMigrationHandler)
   .setSuggestionsSupplier(new AlertListSuggestionsSupplier());
 
-const unifiedAlertList = new PanelPlugin<UnifiedAlertListOptions>(UnifiedAlertList).setPanelOptions((builder) => {
+const unifiedAlertList = new PanelPlugin<UnifiedAlertListOptions>(UnifiedAlertListPanel).setPanelOptions((builder) => {
   builder
+    .addRadio({
+      path: 'viewMode',
+      name: 'View mode',
+      description: 'Toggle between list view and stat view',
+      defaultValue: ViewMode.List,
+      settings: {
+        options: [
+          { label: 'List', value: ViewMode.List },
+          { label: 'Stat', value: ViewMode.Stat },
+        ],
+      },
+      category: ['Options'],
+    })
     .addRadio({
       path: 'groupMode',
       name: 'Group mode',
@@ -182,6 +211,7 @@ const unifiedAlertList = new PanelPlugin<UnifiedAlertListOptions>(UnifiedAlertLi
             id={props.id ?? 'groupBy'}
             defaultValue={props.value.map((value: string) => ({ label: value, value }))}
             onChange={props.onChange}
+            dataSource={props.context.options.datasource}
           />
         );
       },
@@ -211,8 +241,8 @@ const unifiedAlertList = new PanelPlugin<UnifiedAlertListOptions>(UnifiedAlertLi
     })
     .addBooleanSwitch({
       path: 'dashboardAlerts',
-      name: 'Alerts from this dashboard',
-      description: 'Show alerts from this dashboard',
+      name: 'Alerts linked to this dashboard',
+      description: 'Only show alerts linked to this dashboard',
       defaultValue: false,
       category: ['Options'],
     })
@@ -231,19 +261,47 @@ const unifiedAlertList = new PanelPlugin<UnifiedAlertListOptions>(UnifiedAlertLi
       category: ['Filter'],
     })
     .addCustomEditor({
+      path: 'datasource',
+      name: 'Datasource',
+      description: 'Filter from alert source',
+      id: 'datasource',
+      defaultValue: null,
+      editor: function RenderDatasourcePicker(props) {
+        return (
+          <Stack gap={1}>
+            <DataSourcePicker
+              {...props}
+              type={['prometheus', 'loki', 'grafana']}
+              noDefault
+              current={props.value}
+              onChange={(ds: DataSourceInstanceSettings) => props.onChange(ds.name)}
+            />
+            <Button variant="secondary" onClick={() => props.onChange(null)}>
+              Clear
+            </Button>
+          </Stack>
+        );
+      },
+      category: ['Filter'],
+    })
+    .addCustomEditor({
+      showIf: (options) => options.datasource === GRAFANA_DATASOURCE_NAME || !Boolean(options.datasource),
       path: 'folder',
       name: 'Folder',
-      description: 'Filter for alerts in the selected folder',
+      description: 'Filter for alerts in the selected folder (only for Grafana alerts)',
       id: 'folder',
       defaultValue: null,
       editor: function RenderFolderPicker(props) {
         return (
-          <RuleFolderPicker
-            {...props}
+          <OldFolderPicker
             enableReset={true}
-            onChange={({ title, id }) => {
-              return props.onChange({ title, id });
-            }}
+            showRoot={false}
+            allowEmpty={true}
+            initialTitle={props.value?.title}
+            initialFolderUid={props.value?.uid}
+            permissionLevel={PermissionLevelString.View}
+            onClear={() => props.onChange('')}
+            {...props}
           />
         );
       },
@@ -279,12 +337,6 @@ const unifiedAlertList = new PanelPlugin<UnifiedAlertListOptions>(UnifiedAlertLi
       path: 'stateFilter.pending',
       name: 'Pending',
       defaultValue: true,
-      category: ['Alert state filter'],
-    })
-    .addBooleanSwitch({
-      path: 'stateFilter.inactive',
-      name: 'Inactive',
-      defaultValue: false,
       category: ['Alert state filter'],
     })
     .addBooleanSwitch({

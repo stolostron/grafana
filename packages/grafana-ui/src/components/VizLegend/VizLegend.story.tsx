@@ -1,18 +1,15 @@
 import { Story, Meta } from '@storybook/react';
 import React, { FC, useEffect, useState } from 'react';
 
-import { DisplayValue, getColorForTheme, GrafanaTheme } from '@grafana/data';
+import { DisplayValue, GrafanaTheme2 } from '@grafana/data';
 import { LegendDisplayMode, LegendPlacement } from '@grafana/schema';
-import { useTheme, VizLegend } from '@grafana/ui';
-
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { useTheme2, VizLegend } from '@grafana/ui';
 
 import { VizLegendItem } from './types';
 
-export default {
+const meta: Meta = {
   title: 'Visualizations/VizLegend',
   component: VizLegend,
-  decorators: [withCenteredStory],
   args: {
     containerWidth: '100%',
     seriesCount: 5,
@@ -32,7 +29,7 @@ export default {
       },
     },
   },
-} as Meta;
+};
 
 interface LegendStoryDemoProps {
   name: string;
@@ -43,7 +40,7 @@ interface LegendStoryDemoProps {
 }
 
 const LegendStoryDemo: FC<LegendStoryDemoProps> = ({ displayMode, seriesCount, name, placement, stats }) => {
-  const theme = useTheme();
+  const theme = useTheme2();
   const [items, setItems] = useState<VizLegendItem[]>(generateLegendItems(seriesCount, theme, stats));
 
   useEffect(() => {
@@ -149,12 +146,12 @@ export const WithValues: Story = ({ containerWidth, seriesCount }) => {
 
 function generateLegendItems(
   numberOfSeries: number,
-  theme: GrafanaTheme,
+  theme: GrafanaTheme2,
   statsToDisplay?: DisplayValue[]
 ): VizLegendItem[] {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
   const colors = ['green', 'blue', 'red', 'purple', 'orange', 'dark-green', 'yellow', 'light-blue'].map((c) =>
-    getColorForTheme(c, theme)
+    theme.visualization.getColorByName(c)
   );
 
   return [...new Array(numberOfSeries)].map((item, i) => {
@@ -166,3 +163,5 @@ function generateLegendItems(
     };
   });
 }
+
+export default meta;

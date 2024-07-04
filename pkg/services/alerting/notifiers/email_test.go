@@ -3,14 +3,17 @@ package notifiers
 import (
 	"testing"
 
-	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/encryption/ossencryption"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
+	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	"github.com/grafana/grafana/pkg/setting"
 )
 
 func TestEmailNotifier(t *testing.T) {
+	encryptionService := encryptionservice.SetupTestService(t)
+
 	t.Run("Parsing alert notification from settings", func(t *testing.T) {
 		t.Run("empty settings should return error", func(t *testing.T) {
 			json := `{ }`
@@ -22,7 +25,7 @@ func TestEmailNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			_, err := NewEmailNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			_, err := NewEmailNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 			require.Error(t, err)
 		})
 
@@ -39,7 +42,7 @@ func TestEmailNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			not, err := NewEmailNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			not, err := NewEmailNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 			emailNotifier := not.(*EmailNotifier)
 
 			require.Nil(t, err)
@@ -63,7 +66,7 @@ func TestEmailNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			not, err := NewEmailNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			not, err := NewEmailNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 			emailNotifier := not.(*EmailNotifier)
 
 			require.Nil(t, err)

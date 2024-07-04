@@ -10,29 +10,30 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/alertmanager/pkg/labels"
+	apiv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+
 	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/accesscontrol"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	"github.com/grafana/grafana/pkg/services/folder"
 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
 	"github.com/grafana/grafana/pkg/services/ngalert/eval"
 	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
 	"github.com/grafana/grafana/pkg/services/ngalert/state"
-	"github.com/grafana/grafana/pkg/services/ngalert/store"
-
-	apiv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/grafana/grafana/pkg/util"
 )
 
 type PrometheusSrv struct {
 	log     log.Logger
 	manager state.AlertInstanceManager
-	store   store.RuleStore
-	ac      accesscontrol.AccessControl
+	store   RuleStore
+	authz   RuleAccessControlService
 }
 
 const queryIncludeInternalLabels = "includeInternalLabels"
 
-func (srv PrometheusSrv) RouteGetAlertStatuses(c *models.ReqContext) response.Response {
+func (srv PrometheusSrv) RouteGetAlertStatuses(c *contextmodel.ReqContext) response.Response {
 	alertResponse := apimodels.AlertResponse{
 		DiscoveryBase: apimodels.DiscoveryBase{
 			Status: "success",
@@ -47,7 +48,7 @@ func (srv PrometheusSrv) RouteGetAlertStatuses(c *models.ReqContext) response.Re
 		labelOptions = append(labelOptions, ngmodels.WithoutInternalLabels())
 	}
 
-	for _, alertState := range srv.manager.GetAll(c.OrgId) {
+	for _, alertState := range srv.manager.GetAll(c.SignedInUser.GetOrgID()) {
 		startsAt := alertState.StartsAt
 		valString := ""
 
@@ -58,9 +59,12 @@ func (srv PrometheusSrv) RouteGetAlertStatuses(c *models.ReqContext) response.Re
 		alertResponse.Data.Alerts = append(alertResponse.Data.Alerts, &apimodels.Alert{
 			Labels:      alertState.GetLabels(labelOptions...),
 			Annotations: alertState.Annotations,
-			State:       alertState.State.String(),
-			ActiveAt:    &startsAt,
-			Value:       valString,
+
+			// TODO: or should we make this two fields? Using one field lets the
+			// frontend use the same logic for parsing text on annotations and this.
+			State:    state.FormatStateAndReason(alertState.State, alertState.StateReason),
+			ActiveAt: &startsAt,
+			Value:    valString,
 		})
 	}
 
@@ -102,7 +106,45 @@ func getPanelIDFromRequest(r *http.Request) (int64, error) {
 	return 0, nil
 }
 
-func (srv PrometheusSrv) RouteGetRuleStatuses(c *models.ReqContext) response.Response {
+func getMatchersFromRequest(r *http.Request) (labels.Matchers, error) {
+	var matchers labels.Matchers
+	for _, s := range r.URL.Query()["matcher"] {
+		var m labels.Matcher
+		if err := json.Unmarshal([]byte(s), &m); err != nil {
+			return nil, err
+		}
+		if len(m.Name) == 0 {
+			return nil, errors.New("bad matcher: the name cannot be blank")
+		}
+		matchers = append(matchers, &m)
+	}
+	return matchers, nil
+}
+
+func getStatesFromRequest(r *http.Request) ([]eval.State, error) {
+	var states []eval.State
+	for _, s := range r.URL.Query()["state"] {
+		s = strings.ToLower(s)
+		switch s {
+		case "normal", "inactive":
+			states = append(states, eval.Normal)
+		case "alerting", "firing":
+			states = append(states, eval.Alerting)
+		case "pending":
+			states = append(states, eval.Pending)
+		case "nodata":
+			states = append(states, eval.NoData)
+		// nolint:goconst
+		case "error":
+			states = append(states, eval.Error)
+		default:
+			return states, fmt.Errorf("unknown state '%s'", s)
+		}
+	}
+	return states, nil
+}
+
+func (srv PrometheusSrv) RouteGetRuleStatuses(c *contextmodel.ReqContext) response.Response {
 	dashboardUID := c.Query("dashboard_uid")
 	panelID, err := getPanelIDFromRequest(c.Req)
 	if err != nil {
@@ -112,12 +154,28 @@ func (srv PrometheusSrv) RouteGetRuleStatuses(c *models.ReqContext) response.Res
 		return ErrResp(http.StatusBadRequest, errors.New("panel_id must be set with dashboard_uid"), "")
 	}
 
+	limitGroups := c.QueryInt64WithDefault("limit", -1)
+	limitRulesPerGroup := c.QueryInt64WithDefault("limit_rules", -1)
+	limitAlertsPerRule := c.QueryInt64WithDefault("limit_alerts", -1)
+	matchers, err := getMatchersFromRequest(c.Req)
+	if err != nil {
+		return ErrResp(http.StatusBadRequest, err, "")
+	}
+	withStates, err := getStatesFromRequest(c.Req)
+	if err != nil {
+		return ErrResp(http.StatusBadRequest, err, "")
+	}
+	withStatesFast := make(map[eval.State]struct{})
+	for _, state := range withStates {
+		withStatesFast[state] = struct{}{}
+	}
+
 	ruleResponse := apimodels.RuleResponse{
 		DiscoveryBase: apimodels.DiscoveryBase{
 			Status: "success",
 		},
 		Data: apimodels.RuleDiscovery{
-			RuleGroups: []*apimodels.RuleGroup{},
+			RuleGroups: []apimodels.RuleGroup{},
 		},
 	}
 
@@ -126,7 +184,7 @@ func (srv PrometheusSrv) RouteGetRuleStatuses(c *models.ReqContext) response.Res
 		labelOptions = append(labelOptions, ngmodels.WithoutInternalLabels())
 	}
 
-	namespaceMap, err := srv.store.GetUserVisibleNamespaces(c.Req.Context(), c.OrgId, c.SignedInUser)
+	namespaceMap, err := srv.store.GetUserVisibleNamespaces(c.Req.Context(), c.SignedInUser.GetOrgID(), c.SignedInUser)
 	if err != nil {
 		return ErrResp(http.StatusInternalServerError, err, "failed to get namespaces visible to the user")
 	}
@@ -142,12 +200,13 @@ func (srv PrometheusSrv) RouteGetRuleStatuses(c *models.ReqContext) response.Res
 	}
 
 	alertRuleQuery := ngmodels.ListAlertRulesQuery{
-		OrgID:         c.SignedInUser.OrgId,
+		OrgID:         c.SignedInUser.GetOrgID(),
 		NamespaceUIDs: namespaceUIDs,
 		DashboardUID:  dashboardUID,
 		PanelID:       panelID,
 	}
-	if err := srv.store.ListAlertRules(c.Req.Context(), &alertRuleQuery); err != nil {
+	ruleList, err := srv.store.ListAlertRules(c.Req.Context(), &alertRuleQuery)
+	if err != nil {
 		ruleResponse.DiscoveryBase.Status = "error"
 		ruleResponse.DiscoveryBase.Error = fmt.Sprintf("failure getting rules: %s", err.Error())
 		ruleResponse.DiscoveryBase.ErrorType = apiv1.ErrServer
@@ -157,28 +216,104 @@ func (srv PrometheusSrv) RouteGetRuleStatuses(c *models.ReqContext) response.Res
 		return accesscontrol.HasAccess(srv.ac, c)(accesscontrol.ReqViewer, evaluator)
 	}
 
-	groupMap := make(map[string]*apimodels.RuleGroup)
+	// Group rules together by Namespace and Rule Group. Rules are also grouped by Org ID,
+	// but in this API all rules belong to the same organization.
+	groupedRules := make(map[ngmodels.AlertRuleGroupKey][]*ngmodels.AlertRule)
+	for _, rule := range ruleList {
+		groupKey := rule.GetGroupKey()
+		ruleGroup := groupedRules[groupKey]
+		ruleGroup = append(ruleGroup, rule)
+		groupedRules[groupKey] = ruleGroup
+	}
+	// Sort the rules in each rule group by index. We do this at the end instead of
+	// after each append to avoid having to sort each group multiple times.
+	for _, groupRules := range groupedRules {
+		ngmodels.AlertRulesBy(ngmodels.AlertRulesByIndex).Sort(groupRules)
+	}
 
-	for _, rule := range alertRuleQuery.Result {
-		if !authorizeDatasourceAccessForRule(rule, hasAccess) {
+	rulesTotals := make(map[string]int64, len(groupedRules))
+	for groupKey, rules := range groupedRules {
+		folder := namespaceMap[groupKey.NamespaceUID]
+		if folder == nil {
+			srv.log.Warn("Query returned rules that belong to folder the user does not have access to. All rules that belong to that namespace will not be added to the response", "folder_uid", groupKey.NamespaceUID)
 			continue
 		}
-		groupKey := rule.RuleGroup + "-" + rule.NamespaceUID
-		newGroup, ok := groupMap[groupKey]
+		ok, err := srv.authz.HasAccessToRuleGroup(c.Req.Context(), c.SignedInUser, rules)
+		if err != nil {
+			return response.ErrOrFallback(http.StatusInternalServerError, "cannot authorize access to rule group", err)
+		}
 		if !ok {
-			folder := namespaceMap[rule.NamespaceUID]
-			if folder == nil {
-				srv.log.Warn("query returned rules that belong to folder the user does not have access to. The rule will not be added to the response", "folder_uid", rule.NamespaceUID, "rule_uid", rule.UID)
-				continue
-			}
-			newGroup = &apimodels.RuleGroup{
-				Name: rule.RuleGroup,
-				File: folder.Title, // file is what Prometheus uses for provisioning, we replace it with namespace.
-			}
-			groupMap[groupKey] = newGroup
-			ruleResponse.Data.RuleGroups = append(ruleResponse.Data.RuleGroups, newGroup)
+			continue
+		}
+		ruleGroup, totals := srv.toRuleGroup(groupKey, folder, rules, limitAlertsPerRule, withStatesFast, matchers, labelOptions)
+		ruleGroup.Totals = totals
+		for k, v := range totals {
+			rulesTotals[k] += v
 		}
 
+		if len(withStates) > 0 {
+			// Filtering is weird but firing, pending, and normal filters also need to be
+			// applied to the rule. Others such as nodata and error should have no effect.
+			// This is to match the current behavior in the UI.
+			filteredRules := make([]apimodels.AlertingRule, 0, len(ruleGroup.Rules))
+			for _, rule := range ruleGroup.Rules {
+				var state *eval.State
+				switch rule.State {
+				case "normal", "inactive":
+					state = util.Pointer(eval.Normal)
+				case "alerting", "firing":
+					state = util.Pointer(eval.Alerting)
+				case "pending":
+					state = util.Pointer(eval.Pending)
+				}
+				if state != nil {
+					if _, ok := withStatesFast[*state]; ok {
+						filteredRules = append(filteredRules, rule)
+					}
+				}
+			}
+			ruleGroup.Rules = filteredRules
+		}
+
+		if limitRulesPerGroup > -1 && int64(len(ruleGroup.Rules)) > limitRulesPerGroup {
+			ruleGroup.Rules = ruleGroup.Rules[0:limitRulesPerGroup]
+		}
+
+		ruleResponse.Data.RuleGroups = append(ruleResponse.Data.RuleGroups, *ruleGroup)
+	}
+
+	ruleResponse.Data.Totals = rulesTotals
+
+	// Sort Rule Groups before checking limits
+	apimodels.RuleGroupsBy(apimodels.RuleGroupsByFileAndName).Sort(ruleResponse.Data.RuleGroups)
+	if limitGroups > -1 && int64(len(ruleResponse.Data.RuleGroups)) >= limitGroups {
+		ruleResponse.Data.RuleGroups = ruleResponse.Data.RuleGroups[0:limitGroups]
+	}
+
+	return response.JSON(http.StatusOK, ruleResponse)
+}
+
+// This is the same as matchers.Matches but avoids the need to create a LabelSet
+func matchersMatch(matchers []*labels.Matcher, labels map[string]string) bool {
+	for _, m := range matchers {
+		if !m.Matches(labels[m.Name]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (srv PrometheusSrv) toRuleGroup(groupKey ngmodels.AlertRuleGroupKey, folder *folder.Folder, rules []*ngmodels.AlertRule, limitAlerts int64, withStates map[eval.State]struct{}, matchers labels.Matchers, labelOptions []ngmodels.LabelOption) (*apimodels.RuleGroup, map[string]int64) {
+	newGroup := &apimodels.RuleGroup{
+		Name: groupKey.RuleGroup,
+		// file is what Prometheus uses for provisioning, we replace it with namespace which is the folder in Grafana.
+		File: folder.Fullpath,
+	}
+
+	rulesTotals := make(map[string]int64, len(rules))
+
+	ngmodels.RulesGroup(rules).SortByGroupIndex()
+	for _, rule := range rules {
 		alertingRule := apimodels.AlertingRule{
 			State:       "inactive",
 			Name:        rule.Title,
@@ -195,19 +330,30 @@ func (srv PrometheusSrv) RouteGetRuleStatuses(c *models.ReqContext) response.Res
 			LastEvaluation: time.Time{},
 		}
 
-		for _, alertState := range srv.manager.GetStatesForRuleUID(c.OrgId, rule.UID) {
+		states := srv.manager.GetStatesForRuleUID(rule.OrgID, rule.UID)
+		totals := make(map[string]int64)
+		totalsFiltered := make(map[string]int64)
+		for _, alertState := range states {
 			activeAt := alertState.StartsAt
 			valString := ""
 			if alertState.State == eval.Alerting || alertState.State == eval.Pending {
 				valString = formatValues(alertState)
 			}
-
-			alert := &apimodels.Alert{
+			stateKey := strings.ToLower(alertState.State.String())
+			totals[stateKey] += 1
+			// Do not add error twice when execution error state is Error
+			if alertState.Error != nil && rule.ExecErrState != ngmodels.ErrorErrState {
+				totals["error"] += 1
+			}
+			alert := apimodels.Alert{
 				Labels:      alertState.GetLabels(labelOptions...),
 				Annotations: alertState.Annotations,
-				State:       alertState.State.String(),
-				ActiveAt:    &activeAt,
-				Value:       valString,
+
+				// TODO: or should we make this two fields? Using one field lets the
+				// frontend use the same logic for parsing text on annotations and this.
+				State:    state.FormatStateAndReason(alertState.State, alertState.StateReason),
+				ActiveAt: &activeAt,
+				Value:    valString,
 			}
 
 			if alertState.LastEvaluationTime.After(newRule.LastEvaluation) {
@@ -223,6 +369,9 @@ func (srv PrometheusSrv) RouteGetRuleStatuses(c *models.ReqContext) response.Res
 					alertingRule.State = "pending"
 				}
 			case eval.Alerting:
+				if alertingRule.ActiveAt == nil || alertingRule.ActiveAt.After(activeAt) {
+					alertingRule.ActiveAt = &activeAt
+				}
 				alertingRule.State = "firing"
 			case eval.Error:
 				newRule.Health = "error"
@@ -235,17 +384,50 @@ func (srv PrometheusSrv) RouteGetRuleStatuses(c *models.ReqContext) response.Res
 				newRule.Health = "error"
 			}
 
+			if len(withStates) > 0 {
+				if _, ok := withStates[alertState.State]; !ok {
+					continue
+				}
+			}
+
+			if !matchersMatch(matchers, alertState.Labels) {
+				continue
+			}
+
+			totalsFiltered[stateKey] += 1
+			// Do not add error twice when execution error state is Error
+			if alertState.Error != nil && rule.ExecErrState != ngmodels.ErrorErrState {
+				totalsFiltered["error"] += 1
+			}
+
 			alertingRule.Alerts = append(alertingRule.Alerts, alert)
 		}
 
+		if alertingRule.State != "" {
+			rulesTotals[alertingRule.State] += 1
+		}
+
+		if newRule.Health == "error" || newRule.Health == "nodata" {
+			rulesTotals[newRule.Health] += 1
+		}
+
+		apimodels.AlertsBy(apimodels.AlertsByImportance).Sort(alertingRule.Alerts)
+
+		if limitAlerts > -1 && int64(len(alertingRule.Alerts)) > limitAlerts {
+			alertingRule.Alerts = alertingRule.Alerts[0:limitAlerts]
+		}
+
 		alertingRule.Rule = newRule
+		alertingRule.Totals = totals
+		alertingRule.TotalsFiltered = totalsFiltered
 		newGroup.Rules = append(newGroup.Rules, alertingRule)
 		newGroup.Interval = float64(rule.IntervalSeconds)
+		// TODO yuri. Change that when scheduler will process alerts in groups
 		newGroup.EvaluationTime = newRule.EvaluationTime
 		newGroup.LastEvaluation = newRule.LastEvaluation
 	}
 
-	return response.JSON(http.StatusOK, ruleResponse)
+	return newGroup, rulesTotals
 }
 
 // ruleToQuery attempts to extract the datasource queries from the alert query model.
@@ -264,7 +446,7 @@ func ruleToQuery(logger log.Logger, rule *ngmodels.AlertRule) string {
 			}
 
 			// For any other type of error, it is unexpected abort and return the whole JSON.
-			logger.Debug("failed to parse a query", "err", err)
+			logger.Debug("Failed to parse a query", "error", err)
 			queryErr = err
 			break
 		}

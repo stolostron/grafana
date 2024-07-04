@@ -5,26 +5,25 @@
 package log
 
 import (
+	"context"
 	"fmt"
 	"io"
-	"io/ioutil"  //nolint:staticcheck // No need to change in v8.
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	gokitlog "github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/go-stack/stack"
 	"github.com/mattn/go-isatty"
 	"gopkg.in/ini.v1"
 
-	"github.com/grafana/grafana/pkg/infra/log/level"
 	"github.com/grafana/grafana/pkg/infra/log/term"
+	"github.com/grafana/grafana/pkg/infra/log/text"
 	"github.com/grafana/grafana/pkg/util"
-	"github.com/grafana/grafana/pkg/util/errutil"
 )
 
 var (
@@ -32,7 +31,8 @@ var (
 	loggersToReload []ReloadableHandler
 	root            *logManager
 	now             = time.Now
-	logTimeFormat   = "2006-01-02T15:04:05.99-0700"
+	logTimeFormat   = time.RFC3339Nano
+	ctxLogProviders = []ContextualLogProviderFunc{}
 )
 
 const (
@@ -47,19 +47,26 @@ func init() {
 
 	// Use discard by default
 	format := func(w io.Writer) gokitlog.Logger {
-		return gokitlog.NewLogfmtLogger(gokitlog.NewSyncWriter(ioutil.Discard))
+		return gokitlog.NewLogfmtLogger(gokitlog.NewSyncWriter(io.Discard))
 	}
 	logger := level.NewFilter(format(os.Stderr), level.AllowInfo())
 	root = newManager(logger)
+
+	RegisterContextualLogProvider(func(ctx context.Context) ([]any, bool) {
+		pFromCtx := ctx.Value(logParamsContextKey{})
+		if pFromCtx != nil {
+			return pFromCtx.([]any), true
+		}
+		return nil, false
+	})
 }
 
 // logManager manage loggers
 type logManager struct {
 	*ConcreteLogger
-	loggersByName     map[string]*ConcreteLogger
-	logFilters        []logWithFilters
-	mutex             sync.RWMutex
-	gokitLogActivated bool
+	loggersByName map[string]*ConcreteLogger
+	logFilters    []logWithFilters
+	mutex         sync.RWMutex
 }
 
 func newManager(logger gokitlog.Logger) *logManager {
@@ -72,12 +79,6 @@ func newManager(logger gokitlog.Logger) *logManager {
 func (lm *logManager) initialize(loggers []logWithFilters) {
 	lm.mutex.Lock()
 	defer lm.mutex.Unlock()
-
-	if lm.gokitLogActivated {
-		level.SetLevelKeyAndValuesToGokitLog()
-		term.SetTimeFormatGokitLog()
-		logTimeFormat = time.RFC3339Nano
-	}
 
 	defaultLoggers := make([]gokitlog.Logger, len(loggers))
 	for index, logger := range loggers {
@@ -109,7 +110,7 @@ func (lm *logManager) initialize(loggers []logWithFilters) {
 	}
 }
 
-func (lm *logManager) New(ctx ...interface{}) *ConcreteLogger {
+func (lm *logManager) New(ctx ...any) *ConcreteLogger {
 	if len(ctx) == 0 {
 		return lm.ConcreteLogger
 	}
@@ -150,15 +151,15 @@ func (lm *logManager) New(ctx ...interface{}) *ConcreteLogger {
 }
 
 type ConcreteLogger struct {
-	ctx []interface{}
+	ctx []any
 	gokitlog.SwapLogger
 }
 
-func newConcreteLogger(logger gokitlog.Logger, ctx ...interface{}) *ConcreteLogger {
+func newConcreteLogger(logger gokitlog.Logger, ctx ...any) *ConcreteLogger {
 	var swapLogger gokitlog.SwapLogger
 
 	if len(ctx) == 0 {
-		ctx = []interface{}{}
+		ctx = []any{}
 		swapLogger.Swap(logger)
 	} else {
 		swapLogger.Swap(gokitlog.With(logger, ctx...))
@@ -174,32 +175,48 @@ func (cl ConcreteLogger) GetLogger() gokitlog.Logger {
 	return &cl.SwapLogger
 }
 
-func (cl *ConcreteLogger) Warn(msg string, args ...interface{}) {
+func (cl *ConcreteLogger) Warn(msg string, args ...any) {
 	_ = cl.log(msg, level.WarnValue(), args...)
 }
 
-func (cl *ConcreteLogger) Debug(msg string, args ...interface{}) {
+func (cl *ConcreteLogger) Debug(msg string, args ...any) {
 	_ = cl.log(msg, level.DebugValue(), args...)
 }
 
-func (cl *ConcreteLogger) Log(ctx ...interface{}) error {
+func (cl *ConcreteLogger) Log(ctx ...any) error {
 	logger := gokitlog.With(&cl.SwapLogger, "t", gokitlog.TimestampFormat(now, logTimeFormat))
 	return logger.Log(ctx...)
 }
 
-func (cl *ConcreteLogger) Error(msg string, args ...interface{}) {
+func (cl *ConcreteLogger) Error(msg string, args ...any) {
 	_ = cl.log(msg, level.ErrorValue(), args...)
 }
 
-func (cl *ConcreteLogger) Info(msg string, args ...interface{}) {
+func (cl *ConcreteLogger) Info(msg string, args ...any) {
 	_ = cl.log(msg, level.InfoValue(), args...)
 }
 
-func (cl *ConcreteLogger) log(msg string, logLevel level.Value, args ...interface{}) error {
-	return cl.Log(append([]interface{}{level.Key(), logLevel, "msg", msg}, args...)...)
+func (cl *ConcreteLogger) log(msg string, logLevel level.Value, args ...any) error {
+	return cl.Log(append([]any{level.Key(), logLevel, "msg", msg}, args...)...)
 }
 
-func (cl *ConcreteLogger) New(ctx ...interface{}) *ConcreteLogger {
+func (cl *ConcreteLogger) FromContext(ctx context.Context) Logger {
+	args := []any{}
+
+	for _, p := range ctxLogProviders {
+		if pArgs, exists := p(ctx); exists {
+			args = append(args, pArgs...)
+		}
+	}
+
+	if len(args) > 0 {
+		return cl.New(args...)
+	}
+
+	return cl
+}
+
+func (cl *ConcreteLogger) New(ctx ...any) *ConcreteLogger {
 	if len(ctx) == 0 {
 		root.New()
 	}
@@ -213,15 +230,18 @@ func (cl *ConcreteLogger) New(ctx ...interface{}) *ConcreteLogger {
 // name plus additional contextual information, you must use the
 // Logger interface New method for it to work as expected.
 // Example creating a shared logger:
-//   requestLogger := log.New("request-logger")
+//
+//	requestLogger := log.New("request-logger")
+//
 // Example creating a contextual logger:
-//   contextualLogger := requestLogger.New("username", "user123")
-func New(ctx ...interface{}) *ConcreteLogger {
+//
+//	contextualLogger := requestLogger.New("username", "user123")
+func New(ctx ...any) *ConcreteLogger {
 	if len(ctx) == 0 {
 		return root.New()
 	}
 
-	ctx = append([]interface{}{"logger"}, ctx...)
+	ctx = append([]any{"logger"}, ctx...)
 	return root.New(ctx...)
 }
 
@@ -230,7 +250,7 @@ func NewNopLogger() *ConcreteLogger {
 	return newConcreteLogger(gokitlog.NewNopLogger())
 }
 
-func with(ctxLogger *ConcreteLogger, withFunc func(gokitlog.Logger, ...interface{}) gokitlog.Logger, ctx []interface{}) *ConcreteLogger {
+func with(ctxLogger *ConcreteLogger, withFunc func(gokitlog.Logger, ...any) gokitlog.Logger, ctx []any) *ConcreteLogger {
 	if len(ctx) == 0 {
 		return ctxLogger
 	}
@@ -240,13 +260,34 @@ func with(ctxLogger *ConcreteLogger, withFunc func(gokitlog.Logger, ...interface
 }
 
 // WithPrefix adds context that will be added to the log message
-func WithPrefix(ctxLogger *ConcreteLogger, ctx ...interface{}) *ConcreteLogger {
+func WithPrefix(ctxLogger *ConcreteLogger, ctx ...any) *ConcreteLogger {
 	return with(ctxLogger, gokitlog.WithPrefix, ctx)
 }
 
 // WithSuffix adds context that will be appended at the end of the log message
-func WithSuffix(ctxLogger *ConcreteLogger, ctx ...interface{}) *ConcreteLogger {
+func WithSuffix(ctxLogger *ConcreteLogger, ctx ...any) *ConcreteLogger {
 	return with(ctxLogger, gokitlog.WithSuffix, ctx)
+}
+
+// ContextualLogProviderFunc contextual log provider function definition.
+type ContextualLogProviderFunc func(ctx context.Context) ([]any, bool)
+
+// RegisterContextualLogProvider registers a ContextualLogProviderFunc
+// that will be used to provide context when Logger.FromContext is called.
+func RegisterContextualLogProvider(mw ContextualLogProviderFunc) {
+	ctxLogProviders = append(ctxLogProviders, mw)
+}
+
+type logParamsContextKey struct{}
+
+// WithContextualAttributes adds contextual attributes to the logger based on the given context.
+// That allows loggers further down the chain to automatically log those attributes.
+func WithContextualAttributes(ctx context.Context, logParams []any) context.Context {
+	p := logParams
+	if ctx.Value(logParamsContextKey{}) != nil {
+		p = append(ctx.Value(logParamsContextKey{}).([]any), logParams...)
+	}
+	return context.WithValue(ctx, logParamsContextKey{}, p)
 }
 
 var logLevels = map[string]level.Option{
@@ -307,7 +348,7 @@ func Stack(skip int) string {
 
 // StackCaller returns a go-kit Valuer function that returns the stack trace from the place it is called. Argument `skip` allows skipping top n lines from the stack.
 func StackCaller(skip int) gokitlog.Valuer {
-	return func() interface{} {
+	return func() any {
 		return Stack(skip + 1)
 	}
 }
@@ -329,11 +370,11 @@ func getLogFormat(format string) Formatedlogger {
 			}
 		}
 		return func(w io.Writer) gokitlog.Logger {
-			return gokitlog.NewLogfmtLogger(w)
+			return text.NewTextLogger(w)
 		}
 	case "text":
 		return func(w io.Writer) gokitlog.Logger {
-			return gokitlog.NewLogfmtLogger(w)
+			return text.NewTextLogger(w)
 		}
 	case "json":
 		return func(w io.Writer) gokitlog.Logger {
@@ -341,7 +382,7 @@ func getLogFormat(format string) Formatedlogger {
 		}
 	default:
 		return func(w io.Writer) gokitlog.Logger {
-			return gokitlog.NewLogfmtLogger(w)
+			return text.NewTextLogger(w)
 		}
 	}
 }
@@ -381,6 +422,11 @@ func ReadLoggingConfig(modes []string, logsPath string, cfg *ini.File) error {
 		return err
 	}
 
+	logEnabled := cfg.Section("log").Key("enabled").MustBool(true)
+	if !logEnabled {
+		return nil
+	}
+
 	defaultLevelName, _ := getLogLevelFromConfig("log", "info", cfg)
 	defaultFilters := getFilters(util.SplitString(cfg.Section("log").Key("filters").String()))
 
@@ -390,7 +436,7 @@ func ReadLoggingConfig(modes []string, logsPath string, cfg *ini.File) error {
 		sec, err := cfg.GetSection("log." + mode)
 		if err != nil {
 			_ = level.Error(root).Log("Unknown log mode", "mode", mode)
-			return errutil.Wrapf(err, "failed to get config section log.%s", mode)
+			return fmt.Errorf("failed to get config section log. %s: %w", mode, err)
 		}
 
 		// Log level.
@@ -447,56 +493,9 @@ func ReadLoggingConfig(modes []string, logsPath string, cfg *ini.File) error {
 		handler.maxLevel = leveloption
 		configLoggers = append(configLoggers, handler)
 	}
-
-	var err error
-	root.gokitLogActivated, err = isNewLoggerActivated(cfg)
-	if err != nil {
-		return err
-	}
 	if len(configLoggers) > 0 {
 		root.initialize(configLoggers)
 	}
 
 	return nil
-}
-
-// This would be removed eventually, no need to make a fancy design.
-// For the sake of important cycle I just copied the function
-func isNewLoggerActivated(cfg *ini.File) (bool, error) {
-	section := cfg.Section("feature_toggles")
-	toggles, err := readFeatureTogglesFromInitFile(section)
-	if err != nil {
-		return false, err
-	}
-	return toggles["newlog"], nil
-}
-
-func readFeatureTogglesFromInitFile(featureTogglesSection *ini.Section) (map[string]bool, error) {
-	featureToggles := make(map[string]bool, 10)
-
-	// parse the comma separated list in `enable`.
-	featuresTogglesStr := valueAsString(featureTogglesSection, "enable", "")
-	for _, feature := range util.SplitString(featuresTogglesStr) {
-		featureToggles[feature] = true
-	}
-
-	// read all other settings under [feature_toggles]. If a toggle is
-	// present in both the value in `enable` is overridden.
-	for _, v := range featureTogglesSection.Keys() {
-		if v.Name() == "enable" {
-			continue
-		}
-
-		b, err := strconv.ParseBool(v.Value())
-		if err != nil {
-			return featureToggles, err
-		}
-
-		featureToggles[v.Name()] = b
-	}
-	return featureToggles, nil
-}
-
-func valueAsString(section *ini.Section, keyName string, defaultValue string) string {
-	return section.Key(keyName).MustString(defaultValue)
 }

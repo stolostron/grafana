@@ -1,6 +1,3 @@
-//go:build integration
-// +build integration
-
 package queryhistory
 
 import (
@@ -13,13 +10,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/sqlstore"
+	"github.com/grafana/grafana/pkg/infra/db"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	"github.com/grafana/grafana/pkg/services/org"
+	"github.com/grafana/grafana/pkg/services/org/orgimpl"
+	"github.com/grafana/grafana/pkg/services/quota/quotatest"
+	"github.com/grafana/grafana/pkg/services/supportbundles/supportbundlestest"
+	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/grafana/grafana/pkg/services/user/userimpl"
 	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/tests/testsuite"
 	"github.com/grafana/grafana/pkg/web"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -29,11 +34,15 @@ var (
 	testDsUID2 = "ABch1a1"
 )
 
+func TestMain(m *testing.M) {
+	testsuite.Run(m)
+}
+
 type scenarioContext struct {
 	ctx           *web.Context
 	service       *QueryHistoryService
-	reqContext    *models.ReqContext
-	sqlStore      *sqlstore.SQLStore
+	reqContext    *contextmodel.ReqContext
+	sqlStore      db.DB
 	initialResult QueryHistoryResponse
 }
 
@@ -46,25 +55,30 @@ func testScenario(t *testing.T, desc string, fn func(t *testing.T, sc scenarioCo
 			Form:   url.Values{},
 		}}
 		ctx.Req.Header.Add("Content-Type", "application/json")
-		sqlStore := sqlstore.InitTestDB(t)
+		sqlStore := db.InitTestDB(t)
 		service := QueryHistoryService{
-			Cfg:      setting.NewCfg(),
-			SQLStore: sqlStore,
+			Cfg:   setting.NewCfg(),
+			store: sqlStore,
+			now:   time.Now,
 		}
-
 		service.Cfg.QueryHistoryEnabled = true
+		quotaService := quotatest.New(false, nil)
+		orgSvc, err := orgimpl.ProvideService(sqlStore, sqlStore.Cfg, quotaService)
+		require.NoError(t, err)
+		usrSvc, err := userimpl.ProvideService(sqlStore, orgSvc, sqlStore.Cfg, nil, nil, quotaService, supportbundlestest.NewFakeBundleService())
+		require.NoError(t, err)
 
-		user := models.SignedInUser{
-			UserId:     testUserID,
+		usr := user.SignedInUser{
+			UserID:     testUserID,
 			Name:       "Signed In User",
 			Login:      "signed_in_user",
 			Email:      "signed.in.user@test.com",
-			OrgId:      testOrgID,
-			OrgRole:    models.ROLE_VIEWER,
-			LastSeenAt: time.Now(),
+			OrgID:      testOrgID,
+			OrgRole:    org.RoleViewer,
+			LastSeenAt: service.now(),
 		}
 
-		_, err := sqlStore.CreateUser(context.Background(), models.CreateUserCommand{
+		_, err = usrSvc.Create(context.Background(), &user.CreateUserCommand{
 			Email: "signed.in.user@test.com",
 			Name:  "Signed In User",
 			Login: "signed_in_user",
@@ -75,9 +89,9 @@ func testScenario(t *testing.T, desc string, fn func(t *testing.T, sc scenarioCo
 			ctx:      &ctx,
 			service:  &service,
 			sqlStore: sqlStore,
-			reqContext: &models.ReqContext{
+			reqContext: &contextmodel.ReqContext{
 				Context:      &ctx,
-				SignedInUser: &user,
+				SignedInUser: &usr,
 			},
 		}
 		fn(t, sc)
@@ -90,7 +104,7 @@ func testScenarioWithQueryInQueryHistory(t *testing.T, desc string, fn func(t *t
 	testScenario(t, desc, func(t *testing.T, sc scenarioContext) {
 		command := CreateQueryInQueryHistoryCommand{
 			DatasourceUID: testDsUID1,
-			Queries: simplejson.NewFromAny(map[string]interface{}{
+			Queries: simplejson.NewFromAny(map[string]any{
 				"expr": "test",
 			}),
 		}
@@ -105,9 +119,11 @@ func testScenarioWithMultipleQueriesInQueryHistory(t *testing.T, desc string, fn
 	t.Helper()
 
 	testScenario(t, desc, func(t *testing.T, sc scenarioContext) {
+		start := time.Now().Add(-3 * time.Second)
+		sc.service.now = func() time.Time { return start }
 		command1 := CreateQueryInQueryHistoryCommand{
 			DatasourceUID: testDsUID1,
-			Queries: simplejson.NewFromAny(map[string]interface{}{
+			Queries: simplejson.NewFromAny(map[string]any{
 				"expr": "test",
 			}),
 		}
@@ -115,10 +131,16 @@ func testScenarioWithMultipleQueriesInQueryHistory(t *testing.T, desc string, fn
 		resp1 := sc.service.createHandler(sc.reqContext)
 		sc.initialResult = validateAndUnMarshalResponse(t, resp1)
 
-		time.Sleep(1 * time.Second)
+		// Add comment
+		cmd := PatchQueryCommentInQueryHistoryCommand{Comment: "test comment 2"}
+		sc.ctx.Req = web.SetURLParams(sc.ctx.Req, map[string]string{":uid": sc.initialResult.Result.UID})
+		sc.reqContext.Req.Body = mockRequestBody(cmd)
+		sc.service.patchCommentHandler(sc.reqContext)
+
+		sc.service.now = func() time.Time { return start.Add(time.Second) }
 		command2 := CreateQueryInQueryHistoryCommand{
 			DatasourceUID: testDsUID1,
-			Queries: simplejson.NewFromAny(map[string]interface{}{
+			Queries: simplejson.NewFromAny(map[string]any{
 				"expr": "test2",
 			}),
 		}
@@ -128,10 +150,10 @@ func testScenarioWithMultipleQueriesInQueryHistory(t *testing.T, desc string, fn
 		sc.ctx.Req = web.SetURLParams(sc.ctx.Req, map[string]string{":uid": result2.Result.UID})
 		sc.service.starHandler(sc.reqContext)
 
-		time.Sleep(1 * time.Second)
+		sc.service.now = func() time.Time { return start.Add(2 * time.Second) }
 		command3 := CreateQueryInQueryHistoryCommand{
 			DatasourceUID: testDsUID2,
-			Queries: simplejson.NewFromAny(map[string]interface{}{
+			Queries: simplejson.NewFromAny(map[string]any{
 				"expr": "test2",
 			}),
 		}
@@ -145,7 +167,7 @@ func testScenarioWithMultipleQueriesInQueryHistory(t *testing.T, desc string, fn
 	})
 }
 
-func mockRequestBody(v interface{}) io.ReadCloser {
+func mockRequestBody(v any) io.ReadCloser {
 	b, _ := json.Marshal(v)
 	return io.NopCloser(bytes.NewReader(b))
 }

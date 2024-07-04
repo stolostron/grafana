@@ -1,4 +1,4 @@
-import React, { Context, createContext, PropsWithChildren, useCallback, useContext } from 'react';
+import React, { Context, createContext, PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
 
 import { TimeRange } from '@grafana/data';
 
@@ -52,11 +52,20 @@ export const ElasticsearchProvider = ({
     reducer
   );
 
+  const isUninitialized = !query.metrics || !query.bucketAggs || query.query === undefined;
+
+  const [shouldRunInit, setShouldRunInit] = useState(isUninitialized);
+
   // This initializes the query by dispatching an init action to each reducer.
   // useStatelessReducer will then call `onChange` with the newly generated query
-  if (!query.metrics || !query.bucketAggs || query.query === undefined) {
-    dispatch(initQuery());
+  useEffect(() => {
+    if (shouldRunInit && isUninitialized) {
+      dispatch(initQuery());
+      setShouldRunInit(false);
+    }
+  }, [shouldRunInit, dispatch, isUninitialized]);
 
+  if (isUninitialized) {
     return null;
   }
 
@@ -82,7 +91,7 @@ const getHook: GetHook = (c) => () => {
     throw new Error('use ElasticsearchProvider first.');
   }
 
-  return contextValue as NonNullable<typeof contextValue>;
+  return contextValue;
 };
 
 export const useQuery = getHook(QueryContext);

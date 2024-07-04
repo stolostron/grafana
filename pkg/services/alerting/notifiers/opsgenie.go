@@ -7,8 +7,8 @@ import (
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/setting"
 )
@@ -84,10 +84,10 @@ const (
 )
 
 // NewOpsGenieNotifier is the constructor for OpsGenie.
-func NewOpsGenieNotifier(model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewOpsGenieNotifier(cfg *setting.Cfg, model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
 	autoClose := model.Settings.Get("autoClose").MustBool(true)
 	overridePriority := model.Settings.Get("overridePriority").MustBool(true)
-	apiKey := fn(context.Background(), model.SecureSettings, "apiKey", model.Settings.Get("apiKey").MustString(), setting.SecretKey)
+	apiKey := fn(context.Background(), model.SecureSettings, "apiKey", model.Settings.Get("apiKey").MustString(), cfg.SecretKey)
 	apiURL := model.Settings.Get("apiUrl").MustString()
 	if apiKey == "" {
 		return nil, alerting.ValidationError{Reason: "Could not find api key property in settings"}
@@ -195,7 +195,7 @@ func (on *OpsGenieNotifier) createAlert(evalContext *alerting.EvalContext) error
 
 	body, _ := bodyJSON.MarshalJSON()
 
-	cmd := &models.SendWebhookSync{
+	cmd := &notifications.SendWebhookSync{
 		Url:        on.APIUrl,
 		Body:       string(body),
 		HttpMethod: "POST",
@@ -219,7 +219,7 @@ func (on *OpsGenieNotifier) closeAlert(evalContext *alerting.EvalContext) error 
 	bodyJSON.Set("source", "Grafana")
 	body, _ := bodyJSON.MarshalJSON()
 
-	cmd := &models.SendWebhookSync{
+	cmd := &notifications.SendWebhookSync{
 		Url:        fmt.Sprintf("%s/alertId-%d/close?identifierType=alias", on.APIUrl, evalContext.Rule.ID),
 		Body:       string(body),
 		HttpMethod: "POST",

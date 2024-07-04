@@ -1,9 +1,10 @@
 import { isEqual } from 'lodash';
-import React, { createRef } from 'react';
+import React, { createRef, PureComponent } from 'react';
 import ReactDOM from 'react-dom';
 import { FixedSizeList } from 'react-window';
 
-import { ThemeContext } from '../../themes/ThemeContext';
+import { ThemeContext } from '@grafana/data';
+
 import { CompletionItem, CompletionItemGroup, CompletionItemKind } from '../../types/completion';
 import { flattenGroupItems, calculateLongestLabel, calculateListSizes } from '../../utils/typeahead';
 
@@ -30,7 +31,7 @@ export interface State {
   typeaheadIndex: number | null;
 }
 
-export class Typeahead extends React.PureComponent<Props, State> {
+export class Typeahead extends PureComponent<Props, State> {
   static contextType = ThemeContext;
   context!: React.ContextType<typeof ThemeContext>;
   listRef = createRef<FixedSizeList>();
@@ -53,7 +54,7 @@ export class Typeahead extends React.PureComponent<Props, State> {
 
     const allItems = flattenGroupItems(this.props.groupedItems);
     const longestLabel = calculateLongestLabel(allItems);
-    const { listWidth, listHeight, itemHeight } = calculateListSizes(this.context.v1, allItems, longestLabel);
+    const { listWidth, listHeight, itemHeight } = calculateListSizes(this.context, allItems, longestLabel);
     this.setState({
       listWidth,
       listHeight,
@@ -87,7 +88,7 @@ export class Typeahead extends React.PureComponent<Props, State> {
     if (isEqual(prevProps.groupedItems, this.props.groupedItems) === false) {
       const allItems = flattenGroupItems(this.props.groupedItems);
       const longestLabel = calculateLongestLabel(allItems);
-      const { listWidth, listHeight, itemHeight } = calculateListSizes(this.context.v1, allItems, longestLabel);
+      const { listWidth, listHeight, itemHeight } = calculateListSizes(this.context, allItems, longestLabel);
       this.setState({ listWidth, listHeight, itemHeight, allItems, typeaheadIndex: null });
     }
   };
@@ -162,7 +163,7 @@ export class Typeahead extends React.PureComponent<Props, State> {
 
     return (
       <Portal origin={origin} isOpen={isOpen} style={this.menuPosition}>
-        <ul className="typeahead">
+        <ul role="menu" className="typeahead" data-testid="typeahead">
           <FixedSizeList
             ref={this.listRef}
             itemCount={allItems.length}
@@ -209,10 +210,10 @@ interface PortalProps {
   style: string;
 }
 
-class Portal extends React.PureComponent<PortalProps, {}> {
+class Portal extends PureComponent<React.PropsWithChildren<PortalProps>, {}> {
   node: HTMLElement;
 
-  constructor(props: PortalProps) {
+  constructor(props: React.PropsWithChildren<PortalProps>) {
     super(props);
     const { index = 0, origin = 'query', style } = props;
     this.node = document.createElement('div');

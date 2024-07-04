@@ -5,104 +5,130 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
+	"strings"
+	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
-	"github.com/grafana/grafana/pkg/infra/httpclient"
-	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/infra/tracing"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
-	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/tsdb/intervalv2"
-	"github.com/grafana/grafana/pkg/tsdb/prometheus/promclient"
-	"github.com/grafana/grafana/pkg/util/maputil"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+	"github.com/patrickmn/go-cache"
 	apiv1 "github.com/prometheus/client_golang/api/prometheus/v1"
-)
 
-var (
-	plog         = log.New("tsdb.prometheus")
-	legendFormat = regexp.MustCompile(`\{\{\s*(.+?)\s*\}\}`)
-	safeRes      = 11000
+	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
+
+	"github.com/grafana/grafana/pkg/tsdb/prometheus/client"
+	"github.com/grafana/grafana/pkg/tsdb/prometheus/instrumentation"
+	"github.com/grafana/grafana/pkg/tsdb/prometheus/querydata"
+	"github.com/grafana/grafana/pkg/tsdb/prometheus/resource"
 )
 
 type Service struct {
-	intervalCalculator intervalv2.Calculator
-	im                 instancemgmt.InstanceManager
-	tracer             tracing.Tracer
+	im     instancemgmt.InstanceManager
+	logger log.Logger
 }
 
-func ProvideService(httpClientProvider httpclient.Provider, cfg *setting.Cfg, features featuremgmt.FeatureToggles, tracer tracing.Tracer) *Service {
-	plog.Debug("initializing")
+type instance struct {
+	queryData    *querydata.QueryData
+	resource     *resource.Resource
+	versionCache *cache.Cache
+}
+
+func ProvideService(httpClientProvider *httpclient.Provider) *Service {
+	plog := backend.NewLoggerWith("logger", "tsdb.prometheus")
+	plog.Debug("Initializing")
 	return &Service{
-		intervalCalculator: intervalv2.NewCalculator(),
-		im:                 datasource.NewInstanceManager(newInstanceSettings(httpClientProvider, cfg, features)),
-		tracer:             tracer,
+		im:     datasource.NewInstanceManager(newInstanceSettings(httpClientProvider, plog)),
+		logger: plog,
 	}
 }
 
-func newInstanceSettings(httpClientProvider httpclient.Provider, cfg *setting.Cfg, features featuremgmt.FeatureToggles) datasource.InstanceFactoryFunc {
-	return func(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-		var jsonData map[string]interface{}
-		err := json.Unmarshal(settings.JSONData, &jsonData)
+func newInstanceSettings(httpClientProvider *httpclient.Provider, log log.Logger) datasource.InstanceFactoryFunc {
+	return func(ctx context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
+		// Creates a http roundTripper.
+		opts, err := client.CreateTransportOptions(ctx, settings, log)
 		if err != nil {
-			return nil, fmt.Errorf("error reading settings: %w", err)
+			return nil, fmt.Errorf("error creating transport options: %v", err)
+		}
+		httpClient, err := httpClientProvider.New(*opts)
+		if err != nil {
+			return nil, fmt.Errorf("error creating http client: %v", err)
 		}
 
-		p := promclient.NewProvider(settings, jsonData, httpClientProvider, cfg, features, plog)
-		pc, err := promclient.NewProviderCache(p)
+		// New version using custom client and better response parsing
+		qd, err := querydata.New(httpClient, settings, log)
 		if err != nil {
 			return nil, err
 		}
 
-		timeInterval, err := maputil.GetStringOptional(jsonData, "timeInterval")
+		// Resource call management using new custom client same as querydata
+		r, err := resource.New(httpClient, settings, log)
 		if err != nil {
 			return nil, err
 		}
 
-		mdl := DatasourceInfo{
-			ID:           settings.ID,
-			URL:          settings.URL,
-			TimeInterval: timeInterval,
-			getClient:    pc.GetClient,
-		}
-
-		return mdl, nil
+		return instance{
+			queryData:    qd,
+			resource:     r,
+			versionCache: cache.New(time.Minute*1, time.Minute*5),
+		}, nil
 	}
 }
 
 func (s *Service) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	if len(req.Queries) == 0 {
-		return &backend.QueryDataResponse{}, fmt.Errorf("query contains no queries")
+		err := fmt.Errorf("query contains no queries")
+		instrumentation.UpdateQueryDataMetrics(err, nil)
+		return &backend.QueryDataResponse{}, err
 	}
 
-	q := req.Queries[0]
-	dsInfo, err := s.getDSInfo(req.PluginContext)
+	i, err := s.getInstance(ctx, req.PluginContext)
 	if err != nil {
+		instrumentation.UpdateQueryDataMetrics(err, nil)
 		return nil, err
 	}
 
-	var result *backend.QueryDataResponse
-	switch q.QueryType {
-	case "timeSeriesQuery":
-		fallthrough
-	default:
-		result, err = s.executeTimeSeriesQuery(ctx, req, dsInfo)
-	}
+	qd, err := i.queryData.Execute(ctx, req)
+	instrumentation.UpdateQueryDataMetrics(err, qd)
 
-	return result, err
+	return qd, err
 }
 
-func (s *Service) getDSInfo(pluginCtx backend.PluginContext) (*DatasourceInfo, error) {
-	i, err := s.im.Get(pluginCtx)
+func (s *Service) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
+	i, err := s.getInstance(ctx, req.PluginContext)
+	if err != nil {
+		return err
+	}
+
+	if strings.EqualFold(req.Path, "version-detect") {
+		versionObj, found := i.versionCache.Get("version")
+		if found {
+			return sender.Send(versionObj.(*backend.CallResourceResponse))
+		}
+
+		vResp, err := i.resource.DetectVersion(ctx, req)
+		if err != nil {
+			return err
+		}
+		i.versionCache.Set("version", vResp, cache.DefaultExpiration)
+		return sender.Send(vResp)
+	}
+
+	resp, err := i.resource.Execute(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return sender.Send(resp)
+}
+
+func (s *Service) getInstance(ctx context.Context, pluginCtx backend.PluginContext) (*instance, error) {
+	i, err := s.im.Get(ctx, pluginCtx)
 	if err != nil {
 		return nil, err
 	}
-
-	instance := i.(DatasourceInfo)
-
-	return &instance, nil
+	in := i.(instance)
+	return &in, nil
 }
 
 // IsAPIError returns whether err is or wraps a Prometheus error.

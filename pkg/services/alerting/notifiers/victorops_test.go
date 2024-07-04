@@ -5,13 +5,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/encryption/ossencryption"
-	"github.com/grafana/grafana/pkg/services/validations"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
+	"github.com/grafana/grafana/pkg/services/annotations/annotationstest"
+	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	"github.com/grafana/grafana/pkg/services/tag"
+	"github.com/grafana/grafana/pkg/services/validations"
 )
 
 func presenceComparerInt(a, b int64) bool {
@@ -24,6 +26,8 @@ func presenceComparerInt(a, b int64) bool {
 	return a == b
 }
 func TestVictoropsNotifier(t *testing.T) {
+	encryptionService := encryptionservice.SetupTestService(t)
+
 	t.Run("Parsing alert notification from settings", func(t *testing.T) {
 		t.Run("empty settings should return error", func(t *testing.T) {
 			json := `{ }`
@@ -35,7 +39,7 @@ func TestVictoropsNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			_, err := NewVictoropsNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			_, err := NewVictoropsNotifier(nil, model, encryptionService.GetDecryptedValue, nil)
 			require.Error(t, err)
 		})
 
@@ -52,7 +56,7 @@ func TestVictoropsNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			not, err := NewVictoropsNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			not, err := NewVictoropsNotifier(nil, model, encryptionService.GetDecryptedValue, nil)
 			victoropsNotifier := not.(*VictoropsNotifier)
 
 			require.Nil(t, err)
@@ -76,7 +80,7 @@ func TestVictoropsNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			not, err := NewVictoropsNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			not, err := NewVictoropsNotifier(nil, model, encryptionService.GetDecryptedValue, nil)
 			require.Nil(t, err)
 
 			victoropsNotifier := not.(*VictoropsNotifier)
@@ -86,22 +90,22 @@ func TestVictoropsNotifier(t *testing.T) {
 				Name:    "someRule",
 				Message: "someMessage",
 				State:   models.AlertStateAlerting,
-				AlertRuleTags: []*models.Tag{
+				AlertRuleTags: []*tag.Tag{
 					{Key: "keyOnly"},
 					{Key: "severity", Value: "warning"},
 				},
-			}, &validations.OSSPluginRequestValidator{}, nil)
+			}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 			evalContext.IsTestRun = true
 
 			payload, err := victoropsNotifier.buildEventPayload(evalContext)
 			require.Nil(t, err)
 
-			diff := cmp.Diff(map[string]interface{}{
+			diff := cmp.Diff(map[string]any{
 				"alert_url":           "",
 				"entity_display_name": "[Alerting] someRule",
 				"entity_id":           "someRule",
 				"message_type":        "WARNING",
-				"metrics":             map[string]interface{}{},
+				"metrics":             map[string]any{},
 				"monitoring_tool":     "Grafana v",
 				"state_message":       "someMessage",
 				"state_start_time":    int64(-1),
@@ -124,7 +128,7 @@ func TestVictoropsNotifier(t *testing.T) {
 				Settings: settingsJSON,
 			}
 
-			not, err := NewVictoropsNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+			not, err := NewVictoropsNotifier(nil, model, encryptionService.GetDecryptedValue, nil)
 			require.Nil(t, err)
 
 			victoropsNotifier := not.(*VictoropsNotifier)
@@ -134,22 +138,22 @@ func TestVictoropsNotifier(t *testing.T) {
 				Name:    "someRule",
 				Message: "someMessage",
 				State:   models.AlertStateOK,
-				AlertRuleTags: []*models.Tag{
+				AlertRuleTags: []*tag.Tag{
 					{Key: "keyOnly"},
 					{Key: "severity", Value: "warning"},
 				},
-			}, &validations.OSSPluginRequestValidator{}, nil)
+			}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 			evalContext.IsTestRun = true
 
 			payload, err := victoropsNotifier.buildEventPayload(evalContext)
 			require.Nil(t, err)
 
-			diff := cmp.Diff(map[string]interface{}{
+			diff := cmp.Diff(map[string]any{
 				"alert_url":           "",
 				"entity_display_name": "[OK] someRule",
 				"entity_id":           "someRule",
 				"message_type":        "RECOVERY",
-				"metrics":             map[string]interface{}{},
+				"metrics":             map[string]any{},
 				"monitoring_tool":     "Grafana v",
 				"state_message":       "someMessage",
 				"state_start_time":    int64(-1),

@@ -3,20 +3,21 @@ import { action } from '@storybook/addon-actions';
 import { Meta, Story } from '@storybook/react';
 import React, { useState } from 'react';
 
-import { SelectableValue } from '@grafana/data';
+import { SelectableValue, toIconName } from '@grafana/data';
 import { Icon, Select, AsyncSelect, MultiSelect, AsyncMultiSelect } from '@grafana/ui';
 
-import { getAvailableIcons, IconName } from '../../types';
-import { withCenteredStory, withHorizontallyCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { getAvailableIcons } from '../../types';
 
 import mdx from './Select.mdx';
-import { generateOptions } from './mockOptions';
+import { generateOptions, generateThousandsOfOptions } from './mockOptions';
 import { SelectCommonProps } from './types';
 
-export default {
+const meta: Meta = {
   title: 'Forms/Select',
   component: Select,
-  decorators: [withCenteredStory, withHorizontallyCenteredStory],
+  // SB7 has broken subcomponent types due to dropping support for the feature
+  // https://github.com/storybookjs/storybook/issues/20782
+  // @ts-ignore
   subcomponents: { AsyncSelect, MultiSelect, AsyncMultiSelect },
   parameters: {
     docs: {
@@ -44,7 +45,6 @@ export default {
         'renderControl',
         'options',
         'isOptionDisabled',
-        'maxVisibleValues',
         'aria-label',
         'noOptionsMessage',
         'menuPosition',
@@ -69,7 +69,7 @@ export default {
       },
     },
   },
-} as Meta;
+};
 
 const loadAsyncOptions = () => {
   return new Promise<Array<SelectableValue<string>>>((resolve) => {
@@ -80,7 +80,7 @@ const loadAsyncOptions = () => {
 };
 
 const getPrefix = (prefix: string) => {
-  const prefixEl = <Icon name={prefix as IconName} />;
+  const prefixEl = <Icon name={toIconName(prefix) ?? 'question-circle'} />;
   return prefixEl;
 };
 
@@ -96,6 +96,24 @@ export const Basic: Story<StoryProps> = (args) => {
       <Select
         menuShouldPortal
         options={generateOptions()}
+        value={value}
+        onChange={(v) => {
+          setValue(v);
+          action('onChange')(v);
+        }}
+        {...args}
+      />
+    </>
+  );
+};
+export const BasicVirtualizedList: Story<StoryProps> = (args) => {
+  const [value, setValue] = useState<SelectableValue<string>>();
+
+  return (
+    <>
+      <Select
+        options={generateThousandsOfOptions()}
+        virtualized
         value={value}
         onChange={(v) => {
           setValue(v);
@@ -175,7 +193,7 @@ export const MultiPlainValue: Story = (args) => {
         options={generateOptions()}
         value={value}
         onChange={(v) => {
-          setValue(v.map((v: any) => v.value));
+          setValue(v.map((v) => v.value!));
         }}
         prefix={getPrefix(args.icon)}
         {...args}
@@ -197,7 +215,7 @@ export const MultiSelectWithOptionGroups: Story = (args) => {
         ]}
         value={value}
         onChange={(v) => {
-          setValue(v.map((v: any) => v.value));
+          setValue(v.map((v) => v.value!));
           action('onChange')(v);
         }}
         prefix={getPrefix(args.icon)}
@@ -211,7 +229,7 @@ export const MultiSelectBasic: Story = (args) => {
   const [value, setValue] = useState<Array<SelectableValue<string>>>([]);
 
   return (
-    <>
+    <div style={{ maxWidth: '450px' }}>
       <MultiSelect
         menuShouldPortal
         options={generateOptions()}
@@ -223,13 +241,15 @@ export const MultiSelectBasic: Story = (args) => {
         prefix={getPrefix(args.icon)}
         {...args}
       />
-    </>
+    </div>
   );
 };
+
 MultiSelectBasic.args = {
   isClearable: false,
   closeMenuOnSelect: false,
   maxVisibleValues: 5,
+  noMultiValueWrap: false,
 };
 
 export const MultiSelectAsync: Story = (args) => {
@@ -305,7 +325,6 @@ export const WidthAuto: Story = (args) => {
     <>
       <div style={{ width: '100%' }}>
         <Select
-          menuShouldPortal
           options={generateOptions()}
           value={value}
           onChange={(v) => {
@@ -351,3 +370,5 @@ export const CustomValueCreation: Story = (args) => {
 CustomValueCreation.args = {
   allowCustomValue: true,
 };
+
+export default meta;

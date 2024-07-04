@@ -2,21 +2,24 @@ import { css, cx } from '@emotion/css';
 import React, { FormEvent, HTMLProps, useEffect, useRef } from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
-import { useStyles2, getInputStyles, sharedInputStyle, styleMixins, Tooltip, Icon } from '@grafana/ui';
+import { useStyles2, getInputStyles, sharedInputStyle, styleMixins, Tooltip, Icon, Spinner } from '@grafana/ui';
 
 import { Role } from '../../../types';
 
 import { ValueContainer } from './ValueContainer';
+import { ROLE_PICKER_WIDTH } from './constants';
 
 const stopPropagation = (event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation();
 
 interface InputProps extends HTMLProps<HTMLInputElement> {
   appliedRoles: Role[];
-  builtInRole?: string;
+  basicRole?: string;
   query: string;
-  showBuiltInRole?: boolean;
+  showBasicRole?: boolean;
   isFocused?: boolean;
   disabled?: boolean;
+  width?: string;
+  isLoading?: boolean;
   onQueryChange: (query?: string) => void;
   onOpen: (event: FormEvent<HTMLElement>) => void;
   onClose: () => void;
@@ -24,17 +27,19 @@ interface InputProps extends HTMLProps<HTMLInputElement> {
 
 export const RolePickerInput = ({
   appliedRoles,
-  builtInRole,
+  basicRole,
   disabled,
   isFocused,
   query,
-  showBuiltInRole,
+  showBasicRole,
+  width,
+  isLoading,
   onOpen,
   onClose,
   onQueryChange,
   ...rest
 }: InputProps): JSX.Element => {
-  const styles = useStyles2((theme) => getRolePickerInputStyles(theme, false, !!isFocused, !!disabled, false));
+  const styles = useStyles2(getRolePickerInputStyles, false, !!isFocused, !!disabled, false, width);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -48,18 +53,29 @@ export const RolePickerInput = ({
     onQueryChange(query);
   };
 
-  const numberOfRoles = appliedRoles.length;
+  const showBasicRoleOnLabel = showBasicRole && basicRole !== 'None';
 
   return !isFocused ? (
-    <div className={styles.selectedRoles} onMouseDown={onOpen}>
-      {showBuiltInRole && <ValueContainer>{builtInRole}</ValueContainer>}
-      <RolesLabel appliedRoles={appliedRoles} numberOfRoles={numberOfRoles} showBuiltInRole={showBuiltInRole} />
+    // TODO: fix keyboard a11y
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+    <div className={cx(styles.wrapper, styles.selectedRoles)} onMouseDown={onOpen}>
+      {showBasicRoleOnLabel && <ValueContainer>{basicRole}</ValueContainer>}
+      <RolesLabel
+        appliedRoles={appliedRoles}
+        numberOfRoles={appliedRoles.length}
+        showBuiltInRole={showBasicRoleOnLabel}
+      />
+      {isLoading && (
+        <div className={styles.spinner}>
+          <Spinner size={16} inline />
+        </div>
+      )}
     </div>
   ) : (
     <div className={styles.wrapper}>
-      {showBuiltInRole && <ValueContainer>{builtInRole}</ValueContainer>}
+      {showBasicRoleOnLabel && <ValueContainer>{basicRole}</ValueContainer>}
       {appliedRoles.map((role) => (
-        <ValueContainer key={role.uid}>{role.displayName}</ValueContainer>
+        <ValueContainer key={role.uid}>{role.group + ':' + (role.displayName || role.name)}</ValueContainer>
       ))}
 
       {!disabled && (
@@ -98,24 +114,16 @@ export const RolesLabel = ({ showBuiltInRole, numberOfRoles, appliedRoles }: Rol
         <Tooltip
           content={
             <div className={styles.tooltip}>
-              {appliedRoles?.map((role) => (
-                <p key={role.uid}>{role.displayName}</p>
-              ))}
+              {appliedRoles?.map((role) => <p key={role.uid}>{role.group + ':' + (role.displayName || role.name)}</p>)}
             </div>
           }
         >
-          <div>
-            <ValueContainer>{`${showBuiltInRole ? '+' : ''}${numberOfRoles} role${
-              numberOfRoles > 1 ? 's' : ''
-            }`}</ValueContainer>
-          </div>
+          <ValueContainer>{`${showBuiltInRole ? '+' : ''}${numberOfRoles} role${
+            numberOfRoles > 1 ? 's' : ''
+          }`}</ValueContainer>
         </Tooltip>
       ) : (
-        !showBuiltInRole && (
-          <div>
-            <ValueContainer>No roles assigned</ValueContainer>
-          </div>
-        )
+        !showBuiltInRole && <ValueContainer>No roles assigned</ValueContainer>
       )}
     </>
   );
@@ -126,7 +134,8 @@ const getRolePickerInputStyles = (
   invalid: boolean,
   focused: boolean,
   disabled: boolean,
-  withPrefix: boolean
+  withPrefix: boolean,
+  width?: string
 ) => {
   const styles = getInputStyles({ theme, invalid });
 
@@ -139,21 +148,22 @@ const getRolePickerInputStyles = (
           ${styleMixins.focusCss(theme.v1)}
         `,
       disabled && styles.inputDisabled,
-      css`
-        width: 520px;
-        min-height: 32px;
-        height: auto;
-        flex-direction: row;
-        padding-right: 24px;
-        max-width: 100%;
-        align-items: center;
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: flex-start;
-        position: relative;
-        box-sizing: border-box;
-        cursor: default;
-      `,
+      css({
+        minWidth: width || ROLE_PICKER_WIDTH + 'px',
+        width: width,
+        minHeight: '32px',
+        height: 'auto',
+        flexDirection: 'row',
+        paddingRight: theme.spacing(1),
+        maxWidth: '100%',
+        alignItems: 'center',
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-start',
+        position: 'relative',
+        boxSizing: 'border-box',
+        cursor: 'default',
+      }),
       withPrefix &&
         css`
           padding-left: 0;
@@ -181,6 +191,11 @@ const getRolePickerInputStyles = (
         margin-bottom: ${theme.spacing(0.5)};
       }
     `,
+    spinner: css({
+      display: 'flex',
+      flexGrow: 1,
+      justifyContent: 'flex-end',
+    }),
   };
 };
 

@@ -4,19 +4,30 @@ import { DataSourceRef, PanelPluginMeta } from '@grafana/data';
 import { getDataSourceSrv } from '@grafana/runtime';
 import config from 'app/core/config';
 import { PanelModel } from 'app/features/dashboard/state';
+import { getLibraryPanel } from 'app/features/library-panels/state/api';
 
 import { isPanelModelLibraryPanel } from '../../../library-panels/guard';
 import { LibraryElementKind } from '../../../library-panels/types';
 import { isConstant, isQuery } from '../../../variables/guard';
 import { VariableOption, VariableRefresh } from '../../../variables/types';
 import { DashboardModel } from '../../state/DashboardModel';
+import { GridPos } from '../../state/PanelModel';
 
-interface Input {
+export interface InputUsage {
+  libraryPanels?: LibraryPanel[];
+}
+
+export interface LibraryPanel {
+  name: string;
+  uid: string;
+}
+export interface Input {
   name: string;
   type: string;
   label: string;
   value: any;
   description: string;
+  usage?: InputUsage;
 }
 
 interface Requires {
@@ -28,6 +39,25 @@ interface Requires {
   };
 }
 
+export interface ExternalDashboard {
+  __inputs?: Input[];
+  __elements?: Record<string, LibraryElementExport>;
+  __requires?: Array<Requires[string]>;
+  panels: Array<PanelModel | PanelWithExportableLibraryPanel>;
+}
+
+interface PanelWithExportableLibraryPanel {
+  gridPos: GridPos;
+  id: number;
+  libraryPanel: LibraryPanel;
+}
+
+function isExportableLibraryPanel(
+  p: PanelModel | PanelWithExportableLibraryPanel
+): p is PanelWithExportableLibraryPanel {
+  return Boolean(p.libraryPanel?.name && p.libraryPanel?.uid);
+}
+
 interface DataSources {
   [key: string]: {
     name: string;
@@ -36,6 +66,7 @@ interface DataSources {
     type: string;
     pluginId: string;
     pluginName: string;
+    usage?: InputUsage;
   };
 }
 
@@ -54,7 +85,7 @@ export class DashboardExporter {
     // this is pretty hacky and needs to be changed
     dashboard.cleanUpRepeats();
 
-    const saveModel = dashboard.getSaveModelClone();
+    const saveModel = dashboard.getSaveModelCloneOld();
     saveModel.id = null;
 
     // undo repeat cleanup
@@ -76,14 +107,14 @@ export class DashboardExporter {
         return;
       }
 
-      let datasource: string = obj.datasource;
+      let datasource = obj.datasource;
       let datasourceVariable: any = null;
 
+      const datasourceUid: string = datasource?.uid;
       // ignore data source properties that contain a variable
-      if (datasource && (datasource as any).uid) {
-        const uid = (datasource as any).uid as string;
-        if (uid.indexOf('$') === 0) {
-          datasourceVariable = variableLookup[uid.substring(1)];
+      if (datasourceUid) {
+        if (datasourceUid.indexOf('$') === 0) {
+          datasourceVariable = variableLookup[datasourceUid.substring(1)];
           if (datasourceVariable && datasourceVariable.current) {
             datasource = datasourceVariable.current.value;
           }
@@ -110,7 +141,10 @@ export class DashboardExporter {
             return;
           }
 
-          const refName = 'DS_' + ds.name.replace(' ', '_').toUpperCase();
+          const libraryPanel = obj.libraryPanel;
+          const libraryPanelSuffix = !!libraryPanel ? '-for-library-panel' : '';
+          let refName = 'DS_' + ds.name.replace(' ', '_').toUpperCase() + libraryPanelSuffix.toUpperCase();
+
           datasources[refName] = {
             name: refName,
             label: ds.name,
@@ -118,7 +152,17 @@ export class DashboardExporter {
             type: 'datasource',
             pluginId: ds.meta?.id,
             pluginName: ds.meta?.name,
+            usage: datasources[refName]?.usage,
           };
+
+          if (!!libraryPanel) {
+            const libPanels = datasources[refName]?.usage?.libraryPanels || [];
+            libPanels.push({ name: libraryPanel.name, uid: libraryPanel.uid });
+
+            datasources[refName].usage = {
+              libraryPanels: libPanels,
+            };
+          }
 
           obj.datasource = { type: ds.meta.id, uid: '${' + refName + '}' };
         });
@@ -146,12 +190,20 @@ export class DashboardExporter {
       }
     };
 
-    const processLibraryPanels = (panel: any) => {
+    const processLibraryPanels = async (panel: PanelModel) => {
       if (isPanelModelLibraryPanel(panel)) {
-        const { libraryPanel, ...model } = panel;
-        const { name, uid } = libraryPanel;
+        const { name, uid } = panel.libraryPanel;
+        let model = panel.libraryPanel.model;
+        if (!model) {
+          const libPanel = await getLibraryPanel(uid, true);
+          model = libPanel.model;
+        }
+
+        await templateizeDatasourceUsage(model);
+
+        const { gridPos, id, ...rest } = model as any;
         if (!libraryPanels.has(uid)) {
-          libraryPanels.set(uid, { name, uid, kind: LibraryElementKind.Panel, model });
+          libraryPanels.set(uid, { name, uid, kind: LibraryElementKind.Panel, model: rest });
         }
       }
     };
@@ -193,20 +245,20 @@ export class DashboardExporter {
         version: config.buildInfo.version,
       };
 
-      each(datasources, (value: any) => {
-        inputs.push(value);
-      });
-
       // we need to process all panels again after all the promises are resolved
       // so all data sources, variables and targets have been templateized when we process library panels
       for (const panel of saveModel.panels) {
-        processLibraryPanels(panel);
+        await processLibraryPanels(panel);
         if (panel.collapsed !== undefined && panel.collapsed === true && panel.panels) {
           for (const rowPanel of panel.panels) {
-            processLibraryPanels(rowPanel);
+            await processLibraryPanels(rowPanel);
           }
         }
       }
+
+      each(datasources, (value: any) => {
+        inputs.push(value);
+      });
 
       // templatize constants
       for (const variable of saveModel.getVariables()) {
@@ -230,13 +282,36 @@ export class DashboardExporter {
         }
       }
 
-      // make inputs and requires a top thing
-      const newObj: { [key: string]: {} } = {};
-      newObj['__inputs'] = inputs;
-      newObj['__elements'] = [...libraryPanels.values()];
-      newObj['__requires'] = sortBy(requires, ['id']);
+      const __elements = [...libraryPanels.entries()].reduce<Record<string, LibraryElementExport>>(
+        (prev, [curKey, curLibPanel]) => {
+          prev[curKey] = curLibPanel;
+          return prev;
+        },
+        {}
+      );
 
-      defaults(newObj, saveModel);
+      // make inputs and requires a top thing
+      const newObj: ExternalDashboard = defaults(
+        {
+          __inputs: inputs,
+          __elements,
+          __requires: sortBy(requires, ['id']),
+        },
+        saveModel
+      );
+
+      // Remove extraneous props from library panels
+      for (let i = 0; i < newObj.panels.length; i++) {
+        const libPanel = newObj.panels[i];
+        if (isExportableLibraryPanel(libPanel)) {
+          newObj.panels[i] = {
+            gridPos: libPanel.gridPos,
+            id: libPanel.id,
+            libraryPanel: { uid: libPanel.libraryPanel.uid, name: libPanel.libraryPanel.name },
+          };
+        }
+      }
+
       return newObj;
     } catch (err) {
       console.error('Export failed:', err);

@@ -25,7 +25,7 @@ export const initialQueryVariableModelState: QueryVariableModel = {
   includeAll: false,
   allValue: null,
   options: [],
-  current: {} as VariableOption,
+  current: {},
   definition: '',
 };
 
@@ -55,6 +55,18 @@ export const sortVariableValues = (options: any[], sortOrder: VariableSort) => {
   } else if (sortType === 3) {
     options = sortBy(options, (opt) => {
       return toLower(opt.text);
+    });
+  } else if (sortType === 4) {
+    options.sort((a, b) => {
+      if (!a.text) {
+        return -1;
+      }
+
+      if (!b.text) {
+        return 1;
+      }
+
+      return a.text.localeCompare(b.text, undefined, { numeric: true });
     });
   }
 
@@ -141,7 +153,11 @@ export const queryVariableSlice = createSlice({
   reducers: {
     updateVariableOptions: (state: VariablesState, action: PayloadAction<VariablePayload<VariableOptionsUpdate>>) => {
       const { results, templatedRegex } = action.payload.data;
-      const instanceState = getInstanceState<QueryVariableModel>(state, action.payload.id);
+      const instanceState = getInstanceState(state, action.payload.id);
+      if (instanceState.type !== 'query') {
+        return;
+      }
+
       const { includeAll, sort } = instanceState;
       const options = metricNamesToVariableValues(templatedRegex, sort, results);
 

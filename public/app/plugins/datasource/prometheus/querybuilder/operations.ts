@@ -4,11 +4,11 @@ import {
   defaultAddOperationHandler,
   functionRendererLeft,
   functionRendererRight,
-  getPromAndLokiOperationDisplayName,
+  getPromOperationDisplayName,
   getRangeVectorParamDef,
   rangeRendererLeftWithParams,
   rangeRendererRightWithParams,
-} from './shared/operationUtils';
+} from './operationUtils';
 import {
   QueryBuilderOperation,
   QueryBuilderOperationDef,
@@ -101,6 +101,7 @@ export function getOperationDefinitions(): QueryBuilderOperationDef[] {
       renderer: (model, def, innerExpr) => innerExpr,
       addOperationHandler: addNestedQueryHandler,
     },
+    createFunction({ id: PromOperationId.Abs }),
     createFunction({ id: PromOperationId.Absent }),
     createFunction({
       id: PromOperationId.Acos,
@@ -164,6 +165,10 @@ export function getOperationDefinitions(): QueryBuilderOperationDef[] {
       category: PromVisualQueryOperationCategory.Time,
     }),
     createFunction({
+      id: PromOperationId.DayOfYear,
+      category: PromVisualQueryOperationCategory.Time,
+    }),
+    createFunction({
       id: PromOperationId.DaysInMonth,
       category: PromVisualQueryOperationCategory.Time,
     }),
@@ -196,6 +201,7 @@ export function getOperationDefinitions(): QueryBuilderOperationDef[] {
       ],
       defaultParams: ['', ',', ''],
       renderer: labelJoinRenderer,
+      explainHandler: labelJoinExplainHandler,
       addOperationHandler: labelJoinAddOperationHandler,
     }),
     createFunction({ id: PromOperationId.Log10 }),
@@ -260,7 +266,7 @@ export function createFunction(definition: Partial<QueryBuilderOperationDef>): Q
   return {
     ...definition,
     id: definition.id!,
-    name: definition.name ?? getPromAndLokiOperationDisplayName(definition.id!),
+    name: definition.name ?? getPromOperationDisplayName(definition.id!),
     params: definition.params ?? [],
     defaultParams: definition.defaultParams ?? [],
     category: definition.category ?? PromVisualQueryOperationCategory.Functions,
@@ -272,7 +278,7 @@ export function createFunction(definition: Partial<QueryBuilderOperationDef>): Q
 export function createRangeFunction(name: string, withRateInterval = false): QueryBuilderOperationDef {
   return {
     id: name,
-    name: getPromAndLokiOperationDisplayName(name),
+    name: getPromOperationDisplayName(name),
     params: [getRangeVectorParamDef(withRateInterval)],
     defaultParams: [withRateInterval ? '$__rate_interval' : '$__interval'],
     alternativesKey: 'range function',
@@ -351,11 +357,21 @@ function addNestedQueryHandler(def: QueryBuilderOperationDef, query: PromVisualQ
 }
 
 function labelJoinRenderer(model: QueryBuilderOperation, def: QueryBuilderOperationDef, innerExpr: string) {
-  if (typeof model.params[1] !== 'string') {
-    throw 'The separator must be a string';
+  const paramZero = model.params[0] ?? '';
+  const paramOne = model.params[1] ?? '';
+
+  const separator = `"${paramOne}"`;
+  return `${model.id}(${innerExpr}, "${paramZero}", ${separator}, "${model.params.slice(2).join(separator)}")`;
+}
+
+function labelJoinExplainHandler(op: QueryBuilderOperation, def?: QueryBuilderOperationDef) {
+  let explainMessage = def?.documentation ?? 'no docs';
+
+  if (typeof op.params[1] !== 'string') {
+    explainMessage += ' 🚨🚨🚨 The `separator` must be a string.';
   }
-  const separator = `"${model.params[1]}"`;
-  return `${model.id}(${innerExpr}, "${model.params[0]}", ${separator}, "${model.params.slice(2).join(separator)}")`;
+
+  return explainMessage;
 }
 
 function labelJoinAddOperationHandler<T extends QueryWithOperations>(def: QueryBuilderOperationDef, query: T) {

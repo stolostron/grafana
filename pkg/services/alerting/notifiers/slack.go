@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/setting"
 )
@@ -121,8 +121,8 @@ func init() {
 const slackAPIEndpoint = "https://slack.com/api/chat.postMessage"
 
 // NewSlackNotifier is the constructor for the Slack notifier.
-func NewSlackNotifier(model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
-	urlStr := fn(context.Background(), model.SecureSettings, "url", model.Settings.Get("url").MustString(), setting.SecretKey)
+func NewSlackNotifier(cfg *setting.Cfg, model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+	urlStr := fn(context.Background(), model.SecureSettings, "url", model.Settings.Get("url").MustString(), cfg.SecretKey)
 	if urlStr == "" {
 		urlStr = slackAPIEndpoint
 	}
@@ -143,7 +143,7 @@ func NewSlackNotifier(model *models.AlertNotification, fn alerting.GetDecryptedV
 	mentionUsersStr := model.Settings.Get("mentionUsers").MustString()
 	mentionGroupsStr := model.Settings.Get("mentionGroups").MustString()
 	mentionChannel := model.Settings.Get("mentionChannel").MustString()
-	token := fn(context.Background(), model.SecureSettings, "token", model.Settings.Get("token").MustString(), setting.SecretKey)
+	token := fn(context.Background(), model.SecureSettings, "token", model.Settings.Get("token").MustString(), cfg.SecretKey)
 	if token == "" && apiURL.String() == slackAPIEndpoint {
 		return nil, alerting.ValidationError{
 			Reason: "token must be specified when using the Slack chat API",
@@ -185,6 +185,7 @@ func NewSlackNotifier(model *models.AlertNotification, fn alerting.GetDecryptedV
 		token:          token,
 		upload:         uploadImage,
 		log:            log.New("alerting.notifier.slack"),
+		homePath:       cfg.HomePath,
 	}, nil
 }
 
@@ -203,6 +204,7 @@ type SlackNotifier struct {
 	token          string
 	upload         bool
 	log            log.Logger
+	homePath       string
 }
 
 // Notify sends an alert notification to Slack.
@@ -284,7 +286,7 @@ func (sn *SlackNotifier) Notify(evalContext *alerting.EvalContext) error {
 		"fallback":    evalContext.GetNotificationTitle(),
 		"fields":      fields,
 		"footer":      "Grafana v" + setting.BuildVersion,
-		"footer_icon": "https://grafana.com/assets/img/fav32.png",
+		"footer_icon": "https://grafana.com/static/assets/img/fav32.png",
 		"ts":          time.Now().Unix(),
 	}
 	if sn.NeedsImage() && imageURL != "" {
@@ -408,14 +410,14 @@ func (sn *SlackNotifier) slackFileUpload(evalContext *alerting.EvalContext, log 
 	if evalContext.ImageOnDiskPath == "" {
 		// nolint:gosec
 		// We can ignore the gosec G304 warning on this one because `setting.HomePath` comes from Grafana's configuration file.
-		evalContext.ImageOnDiskPath = filepath.Join(setting.HomePath, "public/img/mixed_styles.png")
+		evalContext.ImageOnDiskPath = filepath.Join(sn.homePath, "public/img/mixed_styles.png")
 	}
 	log.Info("Uploading to slack via file.upload API")
 	headers, uploadBody, err := sn.generateSlackBody(evalContext.ImageOnDiskPath, token, recipient)
 	if err != nil {
 		return err
 	}
-	cmd := &models.SendWebhookSync{
+	cmd := &notifications.SendWebhookSync{
 		Url: "https://slack.com/api/files.upload", Body: uploadBody.String(), HttpHeader: headers, HttpMethod: "POST",
 	}
 	if err := sn.NotificationService.SendWebhookSync(evalContext.Ctx, cmd); err != nil {

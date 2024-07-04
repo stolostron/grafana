@@ -4,7 +4,6 @@ import { AnnotationEvent, dateTime } from '@grafana/data';
 import { coreModule } from 'app/angular/core_module';
 import { MetricsPanelCtrl } from 'app/angular/panel/metrics_panel_ctrl';
 
-import { contextSrv } from '../../../core/services/context_srv';
 import { deleteAnnotation, saveAnnotation, updateAnnotation } from '../../../features/annotations/api';
 import { getDashboardQueryRunner } from '../../../features/query/state/DashboardQueryRunner/DashboardQueryRunner';
 
@@ -18,12 +17,11 @@ export class EventEditorCtrl {
   close: any;
   timeFormated?: string;
 
-  /** @ngInject */
   constructor() {}
 
   $onInit() {
     this.event.panelId = this.panelCtrl.panel.id; // set correct id if in panel edit
-    this.event.dashboardId = this.panelCtrl.dashboard.id;
+    this.event.dashboardUID = this.panelCtrl.dashboard.uid;
 
     // Annotations query returns time as Unix timestamp in milliseconds
     this.event.time = tryEpochToMoment(this.event.time);
@@ -35,13 +33,10 @@ export class EventEditorCtrl {
   }
 
   canDelete(): boolean {
-    if (contextSrv.accessControlEnabled()) {
-      if (this.event.source.type === 'dashboard') {
-        return !!this.panelCtrl.dashboard.meta.annotationsPermissions?.dashboard.canDelete;
-      }
-      return !!this.panelCtrl.dashboard.meta.annotationsPermissions?.organization.canDelete;
+    if (this.event.source?.type === 'dashboard') {
+      return !!this.panelCtrl.dashboard.meta.annotationsPermissions?.dashboard.canDelete;
     }
-    return true;
+    return !!this.panelCtrl.dashboard.meta.annotationsPermissions?.organization.canDelete;
   }
 
   async save(): Promise<void> {

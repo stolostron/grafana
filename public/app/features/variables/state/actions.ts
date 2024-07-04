@@ -4,12 +4,23 @@ import {
   DataQuery,
   getDataSourceRef,
   isDataSourceRef,
+  isEmptyObject,
+  isObject,
   LoadingState,
   TimeRange,
+  TypedVariableModel,
   UrlQueryMap,
   UrlQueryValue,
+  OrgVariableModel,
+  QueryVariableModel,
+  DashboardVariableModel,
+  UserVariableModel,
+  VariableHide,
+  VariableOption,
+  VariableRefresh,
+  VariableWithOptions,
 } from '@grafana/data';
-import { locationService } from '@grafana/runtime';
+import { config, locationService } from '@grafana/runtime';
 import { notifyApp } from 'app/core/actions';
 import { contextSrv } from 'app/core/services/context_srv';
 import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
@@ -19,48 +30,30 @@ import { store } from 'app/store/store';
 import { createErrorNotification } from '../../../core/copy/appNotification';
 import { appEvents } from '../../../core/core';
 import { getBackendSrv } from '../../../core/services/backend_srv';
-import { Graph } from '../../../core/utils/dag';
+import { Graph, Node } from '../../../core/utils/dag';
 import { AppNotification, StoreState, ThunkResult } from '../../../types';
 import { getDatasourceSrv } from '../../plugins/datasource_srv';
 import { getTemplateSrv, TemplateSrv } from '../../templating/template_srv';
 import { variableAdapters } from '../adapters';
-import { ALL_VARIABLE_TEXT, ALL_VARIABLE_VALUE } from '../constants';
+import { ALL_VARIABLE_TEXT, ALL_VARIABLE_VALUE, VARIABLE_PREFIX } from '../constants';
 import { cleanEditorState } from '../editor/reducer';
-import {
-  hasCurrent,
-  hasLegacyVariableSupport,
-  hasOptions,
-  hasStandardVariableSupport,
-  isAdHoc,
-  isConstant,
-  isMulti,
-  isQuery,
-} from '../guard';
-import { getAllAffectedPanelIdsForVariableChange } from '../inspect/utils';
+import { hasCurrent, hasLegacyVariableSupport, hasOptions, hasStandardVariableSupport, isMulti } from '../guard';
+import { getAllAffectedPanelIdsForVariableChange, getPanelVars } from '../inspect/utils';
 import { cleanPickerState } from '../pickers/OptionsPicker/reducer';
 import { alignCurrentWithMulti } from '../shared/multiOptions';
 import {
-  DashboardVariableModel,
   initialVariableModelState,
-  OrgVariableModel,
-  QueryVariableModel,
   TransactionStatus,
-  UserVariableModel,
-  VariableHide,
-  VariableModel,
-  VariableOption,
-  VariableRefresh,
   VariablesChanged,
   VariablesChangedEvent,
   VariablesChangedInUrl,
   VariablesTimeRangeProcessDone,
-  VariableWithMultiSupport,
-  VariableWithOptions,
 } from '../types';
 import {
   ensureStringValues,
   ExtendedUrlQueryMap,
   getCurrentText,
+  getCurrentValue,
   getVariableRefresh,
   hasOngoingTransaction,
   toKeyedVariableIdentifier,
@@ -68,6 +61,7 @@ import {
   toVariablePayload,
 } from '../utils';
 
+import { findVariableNodeInList, isVariableOnTimeRangeConfigured } from './helpers';
 import { toKeyedAction } from './keyedVariablesReducer';
 import { getIfExistsLastKey, getVariable, getVariablesByKey, getVariablesState } from './selectors';
 import {
@@ -142,7 +136,7 @@ export const initDashboardTemplating = (key: string, dashboard: DashboardModel):
   };
 };
 
-export function fixSelectedInconsistency(model: VariableModel): VariableModel | VariableWithOptions {
+export function fixSelectedInconsistency(model: TypedVariableModel): TypedVariableModel | VariableWithOptions {
   if (!hasOptions(model)) {
     return model;
   }
@@ -256,7 +250,11 @@ export const addSystemTemplateVariables = (key: string, dashboard: DashboardMode
 export const changeVariableMultiValue = (identifier: KeyedVariableIdentifier, multi: boolean): ThunkResult<void> => {
   return (dispatch, getState) => {
     const { rootStateKey: key } = identifier;
-    const variable = getVariable<VariableWithMultiSupport>(identifier, getState());
+    const variable = getVariable(identifier, getState());
+    if (!isMulti(variable) || isEmptyObject(variable.current)) {
+      return;
+    }
+
     const current = alignCurrentWithMulti(variable.current, multi);
 
     dispatch(
@@ -268,7 +266,7 @@ export const changeVariableMultiValue = (identifier: KeyedVariableIdentifier, mu
   };
 };
 
-export const processVariableDependencies = async (variable: VariableModel, state: StoreState) => {
+export const processVariableDependencies = async (variable: TypedVariableModel, state: StoreState) => {
   if (!variable.rootStateKey) {
     throw new Error(`rootStateKey not found for variable with id:${variable.id}`);
   }
@@ -298,7 +296,7 @@ export const processVariableDependencies = async (variable: VariableModel, state
 };
 
 const isDependencyGraphCircular = (
-  variable: VariableModel,
+  variable: TypedVariableModel,
   state: StoreState,
   encounteredDependencyIds: Set<string> = new Set()
 ): boolean => {
@@ -313,12 +311,12 @@ const isDependencyGraphCircular = (
   });
 };
 
-const getDirectDependencies = (variable: VariableModel, state: StoreState) => {
+const getDirectDependencies = (variable: TypedVariableModel, state: StoreState) => {
   if (!variable.rootStateKey) {
     return [];
   }
 
-  const directDependencies: VariableModel[] = [];
+  const directDependencies: TypedVariableModel[] = [];
 
   for (const otherVariable of getVariablesByKey(variable.rootStateKey, state)) {
     if (variable === otherVariable) {
@@ -335,7 +333,7 @@ const getDirectDependencies = (variable: VariableModel, state: StoreState) => {
   return directDependencies;
 };
 
-const isWaitingForDependencies = (key: string, dependencies: VariableModel[], state: StoreState): boolean => {
+const isWaitingForDependencies = (key: string, dependencies: TypedVariableModel[], state: StoreState): boolean => {
   if (dependencies.length === 0) {
     return false;
   }
@@ -356,7 +354,7 @@ export const processVariable = (
     const variable = getVariable(identifier, getState());
     await processVariableDependencies(variable, getState());
 
-    const urlValue = queryParams['var-' + variable.name];
+    const urlValue = queryParams[VARIABLE_PREFIX + variable.name];
     if (urlValue !== void 0) {
       const stringUrlValue = ensureStringValues(urlValue);
       await variableAdapters.get(variable.type).setValueFromUrl(variable, stringUrlValue);
@@ -374,6 +372,11 @@ export const processVariable = (
       }
     }
 
+    if (variable.type === 'custom') {
+      await dispatch(updateOptions(toKeyedVariableIdentifier(variable)));
+      return;
+    }
+
     // for variables that aren't updated via URL or refresh, let's simulate the same state changes
     dispatch(completeVariableLoading(identifier));
   };
@@ -383,8 +386,7 @@ export const processVariables = (key: string): ThunkResult<Promise<void>> => {
   return async (dispatch, getState) => {
     const queryParams = locationService.getSearchObject();
     const promises = getVariablesByKey(key, getState()).map(
-      async (variable: VariableModel) =>
-        await dispatch(processVariable(toKeyedVariableIdentifier(variable), queryParams))
+      async (variable) => await dispatch(processVariable(toKeyedVariableIdentifier(variable), queryParams))
     );
 
     await Promise.all(promises);
@@ -404,7 +406,11 @@ export const setOptionFromUrl = (
     }
 
     // get variable from state
-    const variableFromState = getVariable<VariableWithOptions>(toKeyedVariableIdentifier(variable), getState());
+    const variableFromState = getVariable(toKeyedVariableIdentifier(variable), getState());
+    if (!hasOptions(variableFromState)) {
+      return;
+    }
+
     if (!variableFromState) {
       throw new Error(`Couldn't find variable with name: ${variable.name}`);
     }
@@ -486,7 +492,11 @@ export const validateVariableSelectionState = (
   defaultValue?: string
 ): ThunkResult<Promise<void>> => {
   return (dispatch, getState) => {
-    const variableInState = getVariable<VariableWithOptions>(identifier, getState());
+    const variableInState = getVariable(identifier, getState());
+    if (!hasOptions(variableInState)) {
+      return Promise.resolve();
+    }
+
     const current = variableInState.current || ({} as unknown as VariableOption);
     const setValue = variableAdapters.get(variableInState.type).setValue;
 
@@ -496,7 +506,11 @@ export const validateVariableSelectionState = (
       // if none pick first
       if (selected.length === 0) {
         const option = variableInState.options[0];
-        return setValue(variableInState, option);
+        return setValue(variableInState, {
+          value: typeof option.value === 'string' ? [option.value] : option.value,
+          text: typeof option.text === 'string' ? [option.text] : option.text,
+          selected: true,
+        });
       }
 
       const option: VariableOption = {
@@ -511,14 +525,16 @@ export const validateVariableSelectionState = (
 
     // 1. find the current value
     const text = getCurrentText(variableInState);
-    option = variableInState.options?.find((v) => v.text === text);
+    const value = getCurrentValue(variableInState);
+
+    option = variableInState.options?.find((v: VariableOption) => v.text === text || v.value === value);
     if (option) {
       return setValue(variableInState, option);
     }
 
     // 2. find the default value
     if (defaultValue) {
-      option = variableInState.options?.find((v) => v.text === defaultValue);
+      option = variableInState.options?.find((v) => v.text === defaultValue || v.value === defaultValue);
       if (option) {
         return setValue(variableInState, option);
       }
@@ -549,7 +565,7 @@ export const setOptionAsCurrent = (
   };
 };
 
-const createGraph = (variables: VariableModel[]) => {
+export const createGraph = (variables: TypedVariableModel[]) => {
   const g = new Graph();
 
   variables.forEach((v) => {
@@ -594,12 +610,19 @@ export const variableUpdated = (
     const variables = getVariablesByKey(rootStateKey, state);
     const g = createGraph(variables);
     const panels = state.dashboard?.getModel()?.panels ?? [];
-    const event: VariablesChangedEvent = isAdHoc(variableInState)
-      ? { refreshAll: true, panelIds: [] } // for adhoc variables we don't know which panels that will be impacted
-      : { refreshAll: false, panelIds: getAllAffectedPanelIdsForVariableChange(variableInState.id, variables, panels) };
+    const panelVars = getPanelVars(panels);
+
+    const event: VariablesChangedEvent =
+      variableInState.type === 'adhoc'
+        ? { refreshAll: true, panelIds: [] } // for adhoc variables we don't know which panels that will be impacted
+        : {
+            refreshAll: false,
+            panelIds: Array.from(getAllAffectedPanelIdsForVariableChange([variableInState.id], g, panelVars)),
+            variable: getVariable(identifier, state),
+          };
 
     const node = g.getNode(variableInState.name);
-    let promises: Array<Promise<any>> = [];
+    let promises: Array<Promise<void>> = [];
     if (node) {
       promises = node.getOptimizedInputEdges().map((e) => {
         const variable = variables.find((v) => v.name === e.inputNode?.name);
@@ -625,6 +648,131 @@ export interface OnTimeRangeUpdatedDependencies {
   events: typeof appEvents;
 }
 
+const dfs = (
+  node: Node,
+  visited: string[],
+  variables: TypedVariableModel[],
+  variablesRefreshTimeRange: TypedVariableModel[]
+) => {
+  if (!visited.includes(node.name)) {
+    visited.push(node.name);
+  }
+  node.outputEdges.forEach((e) => {
+    const child = e.outputNode;
+    if (child && !visited.includes(child.name)) {
+      const childVariable = variables.find((v) => v.name === child.name) as QueryVariableModel;
+      // when a variable is refreshed on time range change, we need to add that variable to be refreshed and mark its children as visited
+      if (
+        childVariable &&
+        childVariable.refresh === VariableRefresh.onTimeRangeChanged &&
+        variablesRefreshTimeRange.indexOf(childVariable) === -1
+      ) {
+        variablesRefreshTimeRange.push(childVariable);
+        visited.push(child.name);
+      } else {
+        dfs(child, visited, variables, variablesRefreshTimeRange);
+      }
+    }
+  });
+  return variablesRefreshTimeRange;
+};
+
+// verify if the output edges of a node are not time range dependent
+const areOuputEdgesNotTimeRange = (node: Node, variables: TypedVariableModel[]) => {
+  return node.outputEdges.every((e) => {
+    const childNode = e.outputNode;
+    if (childNode) {
+      const childVariable = findVariableNodeInList(variables, childNode.name);
+      if (childVariable && childVariable.type === 'query') {
+        return childVariable.refresh !== VariableRefresh.onTimeRangeChanged;
+      }
+    }
+    return true;
+  });
+};
+
+/**
+ * This function returns a list of variables that need to be refreshed when the time range changes
+ * It follows this logic
+ * Create a graph based on all template variables.
+ * Loop through all the variables and perform the following checks for each variable:
+ *
+ * -- a) If a variable A is a query variable, it’s time range, and has no dependent nodes
+ * ----- it should be added to the variablesRefreshTimeRange.
+ *
+ * -- b) If a variable A is a query variable, it’s time range, and has dependent nodes (B, C)
+ * ----- 1. add the variable A to variablesRefreshTimeRange
+ * ----- 2. skip all the dependent nodes (B, C).
+ *       Here, we should traverse the tree using DFS (Depth First Search), as the dependent nodes will be updated in cascade when the parent variable is updated.
+ */
+
+export const getVariablesThatNeedRefreshNew = (key: string, state: StoreState): TypedVariableModel[] => {
+  const allVariables = getVariablesByKey(key, state);
+
+  //create dependency graph
+  const g = createGraph(allVariables);
+  // create a list of nodes that were visited
+  const visitedDfs: string[] = [];
+  const variablesRefreshTimeRange: TypedVariableModel[] = [];
+  allVariables.forEach((v) => {
+    const node = g.getNode(v.name);
+    if (visitedDfs.includes(v.name)) {
+      return;
+    }
+    if (node) {
+      const parentVariableNode = findVariableNodeInList(allVariables, node.name);
+      if (!parentVariableNode) {
+        return;
+      }
+      const isVariableTimeRange = isVariableOnTimeRangeConfigured(parentVariableNode);
+      // if variable is time range and has no output edges add it to the list of variables that need refresh
+      if (isVariableTimeRange && node.outputEdges.length === 0) {
+        variablesRefreshTimeRange.push(parentVariableNode);
+      }
+
+      // if variable is time range and other variables depend on it (output edges) add it to the list of variables that need refresh and dont visit its dependents
+      if (
+        isVariableTimeRange &&
+        variablesRefreshTimeRange.includes(parentVariableNode) &&
+        node.outputEdges.length > 0
+      ) {
+        variablesRefreshTimeRange.push(parentVariableNode);
+        dfs(node, visitedDfs, allVariables, variablesRefreshTimeRange);
+      }
+
+      // If is variable time range, has outputEdges, but the output edges are not time range configured, it means this
+      // is the top variable that need to be refreshed
+      if (isVariableTimeRange && node.outputEdges.length > 0 && areOuputEdgesNotTimeRange(node, allVariables)) {
+        if (!variablesRefreshTimeRange.includes(parentVariableNode)) {
+          variablesRefreshTimeRange.push(parentVariableNode);
+        }
+      }
+
+      // if variable is not time range but has dependents (output edges) visit its dependants and repeat the process
+      if (!isVariableTimeRange && node.outputEdges.length > 0) {
+        dfs(node, visitedDfs, allVariables, variablesRefreshTimeRange);
+      }
+    }
+  });
+
+  return variablesRefreshTimeRange;
+};
+
+// old approach of refreshing variables that need refresh
+const getVariablesThatNeedRefreshOld = (key: string, state: StoreState): VariableWithOptions[] => {
+  const allVariables = getVariablesByKey(key, state);
+
+  const variablesThatNeedRefresh = allVariables.filter((variable) => {
+    if ('refresh' in variable && 'options' in variable) {
+      const variableWithRefresh = variable;
+      return variableWithRefresh.refresh === VariableRefresh.onTimeRangeChanged;
+    }
+    return false;
+  }) as VariableWithOptions[];
+
+  return variablesThatNeedRefresh;
+};
+
 export const onTimeRangeUpdated =
   (
     key: string,
@@ -633,17 +781,18 @@ export const onTimeRangeUpdated =
   ): ThunkResult<Promise<void>> =>
   async (dispatch, getState) => {
     dependencies.templateSrv.updateTimeRange(timeRange);
-    const variablesThatNeedRefresh = getVariablesByKey(key, getState()).filter((variable) => {
-      if (variable.hasOwnProperty('refresh') && variable.hasOwnProperty('options')) {
-        const variableWithRefresh = variable as unknown as QueryVariableModel;
-        return variableWithRefresh.refresh === VariableRefresh.onTimeRangeChanged;
-      }
 
-      return false;
-    }) as VariableWithOptions[];
+    // approach # 2, get variables that need refresh but use the dependency graph to only update the ones that are affected
+    // TODO: remove the VariableWithOptions type once the feature flag is on GA
+    let variablesThatNeedRefresh: VariableWithOptions[] | TypedVariableModel[] = [];
+    if (config.featureToggles.refactorVariablesTimeRange) {
+      variablesThatNeedRefresh = getVariablesThatNeedRefreshNew(key, getState());
+    } else {
+      variablesThatNeedRefresh = getVariablesThatNeedRefreshOld(key, getState());
+    }
 
     const variableIds = variablesThatNeedRefresh.map((variable) => variable.id);
-    const promises = variablesThatNeedRefresh.map((variable: VariableWithOptions) =>
+    const promises = variablesThatNeedRefresh.map((variable) =>
       dispatch(timeRangeUpdated(toKeyedVariableIdentifier(variable)))
     );
 
@@ -656,15 +805,23 @@ export const onTimeRangeUpdated =
     }
   };
 
-const timeRangeUpdated =
+export const timeRangeUpdated =
   (identifier: KeyedVariableIdentifier): ThunkResult<Promise<void>> =>
   async (dispatch, getState) => {
-    const variableInState = getVariable<VariableWithOptions>(identifier, getState());
+    const variableInState = getVariable(identifier, getState());
+    if (!hasOptions(variableInState)) {
+      return;
+    }
+
     const previousOptions = variableInState.options.slice();
 
     await dispatch(updateOptions(toKeyedVariableIdentifier(variableInState), true));
 
-    const updatedVariable = getVariable<VariableWithOptions>(identifier, getState());
+    const updatedVariable = getVariable(identifier, getState());
+    if (!hasOptions(updatedVariable)) {
+      return;
+    }
+
     const updatedOptions = updatedVariable.options;
 
     if (JSON.stringify(previousOptions) !== JSON.stringify(updatedOptions)) {
@@ -676,12 +833,12 @@ const timeRangeUpdated =
 export const templateVarsChangedInUrl =
   (key: string, vars: ExtendedUrlQueryMap, events: typeof appEvents = appEvents): ThunkResult<void> =>
   async (dispatch, getState) => {
-    const update: Array<Promise<any>> = [];
+    const update: Array<Promise<void>> = [];
     const dashboard = getState().dashboard.getModel();
-    const panelIds = new Set<number>();
     const variables = getVariablesByKey(key, getState());
+
     for (const variable of variables) {
-      const key = `var-${variable.name}`;
+      const key = VARIABLE_PREFIX + variable.name;
       if (!vars.hasOwnProperty(key)) {
         // key not found quick exit
         continue;
@@ -701,35 +858,42 @@ export const templateVarsChangedInUrl =
           value = variableInModel.current.value; // revert value to the value stored in dashboard json
         }
 
-        if (variableInModel && isConstant(variableInModel)) {
+        if (variableInModel && variableInModel.type === 'constant') {
           value = variableInModel.query; // revert value to the value stored in dashboard json, constants don't store current values in dashboard json
         }
-      }
-
-      // for adhoc variables we don't know which panels that will be impacted
-      if (!isAdHoc(variable)) {
-        getAllAffectedPanelIdsForVariableChange(variable.id, variables, dashboard?.panels ?? []).forEach((id) =>
-          panelIds.add(id)
-        );
       }
 
       const promise = variableAdapters.get(variable.type).setValueFromUrl(variable, value);
       update.push(promise);
     }
 
+    const filteredVars = variables.filter((v) => {
+      const key = VARIABLE_PREFIX + v.name;
+      return (
+        vars.hasOwnProperty(key) && isVariableUrlValueDifferentFromCurrent(v, vars[key].value) && v.type !== 'adhoc'
+      );
+    });
+    const varGraph = createGraph(variables);
+    const panelVars = getPanelVars(dashboard?.panels ?? []);
+    const affectedPanels = getAllAffectedPanelIdsForVariableChange(
+      filteredVars.map((v) => v.id),
+      varGraph,
+      panelVars
+    );
+
     if (update.length) {
       await Promise.all(update);
 
       events.publish(
         new VariablesChangedInUrl({
-          refreshAll: panelIds.size === 0,
-          panelIds: Array.from(panelIds),
+          refreshAll: affectedPanels.size === 0,
+          panelIds: Array.from(affectedPanels),
         })
       );
     }
   };
 
-export function isVariableUrlValueDifferentFromCurrent(variable: VariableModel, urlValue: any): boolean {
+export function isVariableUrlValueDifferentFromCurrent(variable: TypedVariableModel, urlValue: unknown): boolean {
   const variableValue = variableAdapters.get(variable.type).getValueForUrl(variable);
   let stringUrlValue = ensureStringValues(urlValue);
   if (Array.isArray(variableValue) && !Array.isArray(stringUrlValue)) {
@@ -743,11 +907,11 @@ const getQueryWithVariables = (key: string, getState: () => StoreState): UrlQuer
   const queryParams = locationService.getSearchObject();
 
   const queryParamsNew = Object.keys(queryParams)
-    .filter((key) => key.indexOf('var-') === -1)
-    .reduce((obj, key) => {
+    .filter((key) => key.indexOf(VARIABLE_PREFIX) === -1)
+    .reduce<UrlQueryMap>((obj, key) => {
       obj[key] = queryParams[key];
       return obj;
-    }, {} as UrlQueryMap);
+    }, {});
 
   for (const variable of getVariablesByKey(key, getState())) {
     if (variable.skipUrlSync) {
@@ -755,7 +919,7 @@ const getQueryWithVariables = (key: string, getState: () => StoreState): UrlQuer
     }
 
     const adapter = variableAdapters.get(variable.type);
-    queryParamsNew['var-' + variable.name] = adapter.getValueForUrl(variable);
+    queryParamsNew[VARIABLE_PREFIX + variable.name] = adapter.getValueForUrl(variable);
   }
 
   return queryParamsNew;
@@ -801,7 +965,7 @@ export function migrateVariablesDatasourceNameToRef(
   return (dispatch, getState) => {
     const variables = getVariablesByKey(key, getState());
     for (const variable of variables) {
-      if (!isAdHoc(variable) && !isQuery(variable)) {
+      if (variable.type !== 'adhoc' && variable.type !== 'query') {
         continue;
       }
 
@@ -873,12 +1037,12 @@ export const updateOptions =
 
 export const createVariableErrorNotification = (
   message: string,
-  error: any,
+  error: unknown,
   identifier?: KeyedVariableIdentifier
 ): AppNotification =>
   createErrorNotification(
     `${identifier ? `Templating [${identifier.id}]` : 'Templating'}`,
-    `${message} ${error.message}`
+    error instanceof Error ? `${message} ${error.message}` : `${message}`
   );
 
 export const completeVariableLoading =
@@ -908,9 +1072,8 @@ export function upgradeLegacyQueries(
       return;
     }
 
-    const variable = getVariable<QueryVariableModel>(identifier, getState());
-
-    if (!isQuery(variable)) {
+    const variable = getVariable(identifier, getState());
+    if (variable.type !== 'query') {
       return;
     }
 
@@ -947,10 +1110,6 @@ export function upgradeLegacyQueries(
   };
 }
 
-function isDataQueryType(query: any): query is DataQuery {
-  if (!query) {
-    return false;
-  }
-
-  return query.hasOwnProperty('refId') && typeof query.refId === 'string';
+function isDataQueryType(query: unknown): query is DataQuery {
+  return isObject(query) && 'refId' in query && typeof query.refId === 'string';
 }

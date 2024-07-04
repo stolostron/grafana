@@ -4,7 +4,7 @@ import { connect, MapDispatchToProps, MapStateToProps } from 'react-redux';
 import { EventBusSrv } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 import { AngularComponent, config, getAngularLoader, getDataSourceSrv } from '@grafana/runtime';
-import { Alert, Button, ConfirmModal, Container, CustomScrollbar, HorizontalGroup, IconName, Modal } from '@grafana/ui';
+import { Alert, Button, ConfirmModal, Container, CustomScrollbar, HorizontalGroup, Modal } from '@grafana/ui';
 import EmptyListCTA from 'app/core/components/EmptyListCTA/EmptyListCTA';
 import { getPanelStateForModel } from 'app/features/panel/state/selectors';
 import { AppNotificationSeverity, StoreState } from 'app/types';
@@ -220,7 +220,7 @@ class UnConnectedAlertTab extends PureComponent<Props, State> {
 
     const model = {
       title: 'Panel has no alert rule defined',
-      buttonIcon: 'bell' as IconName,
+      buttonIcon: 'bell' as const,
       onClick: this.onAddAlert,
       buttonTitle: 'Create Alert',
     };
@@ -229,7 +229,7 @@ class UnConnectedAlertTab extends PureComponent<Props, State> {
       <>
         <CustomScrollbar autoHeightMin="100%">
           <Container padding="md">
-            <div aria-label={selectors.components.AlertTab.content}>
+            <div data-testid={selectors.components.AlertTab.content}>
               {alert && hasTransformations && (
                 <Alert
                   severity={AppNotificationSeverity.Error}

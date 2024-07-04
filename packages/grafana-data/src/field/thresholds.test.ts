@@ -1,5 +1,7 @@
 import { ThresholdsConfig, ThresholdsMode, FieldConfig, Threshold, Field, FieldType } from '../types';
-import { ArrayVector } from '../vector/ArrayVector';
+
+import { validateFieldConfig } from './fieldOverrides';
+import { sortThresholds, getActiveThreshold, getActiveThresholdForValue } from './thresholds';
 
 import { validateFieldConfig } from './fieldOverrides';
 import { sortThresholds, getActiveThreshold, getActiveThresholdForValue } from './thresholds';
@@ -50,7 +52,7 @@ describe('thresholds', () => {
       name: 'test',
       config: { thresholds: { mode: mode, steps: sortThresholds(steps) } },
       type: FieldType.number,
-      values: new ArrayVector([]),
+      values: [],
     };
     validateFieldConfig(field.config!);
     return getActiveThresholdForValue(field, value, percent);

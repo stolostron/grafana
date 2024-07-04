@@ -5,17 +5,19 @@ import (
 	"time"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
 type schedulerImpl struct {
+	cfg  *setting.Cfg
 	jobs map[int64]*Job
 	log  log.Logger
 }
 
-func newScheduler() scheduler {
+func newScheduler(cfg *setting.Cfg) scheduler {
 	return &schedulerImpl{
+		cfg:  cfg,
 		jobs: make(map[int64]*Job),
 		log:  log.New("alerting.scheduler"),
 	}
@@ -64,8 +66,8 @@ func (s *schedulerImpl) Tick(tickTime time.Time, execQueue chan *Job) {
 
 		// Check the job frequency against the minimum interval required
 		interval := job.Rule.Frequency
-		if interval < setting.AlertingMinInterval {
-			interval = setting.AlertingMinInterval
+		if interval < s.cfg.AlertingMinInterval {
+			interval = s.cfg.AlertingMinInterval
 		}
 
 		if now%interval == 0 {

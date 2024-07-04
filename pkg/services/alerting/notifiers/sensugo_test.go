@@ -4,10 +4,9 @@ import (
 	"testing"
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/encryption/ossencryption"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
+	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	"github.com/grafana/grafana/pkg/setting"
 )
 
 func TestSensuGoNotifier(t *testing.T) {
@@ -21,7 +20,9 @@ func TestSensuGoNotifier(t *testing.T) {
 		Settings: settingsJSON,
 	}
 
-	_, err = NewSensuGoNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+	encryptionService := encryptionservice.SetupTestService(t)
+
+	_, err = NewSensuGoNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 	require.Error(t, err)
 
 	json = `
@@ -42,7 +43,7 @@ func TestSensuGoNotifier(t *testing.T) {
 		Settings: settingsJSON,
 	}
 
-	not, err := NewSensuGoNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+	not, err := NewSensuGoNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 	require.NoError(t, err)
 	sensuGoNotifier := not.(*SensuGoNotifier)
 

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/setting"
 )
@@ -60,13 +60,13 @@ func init() {
 
 // NewWebHookNotifier is the constructor for
 // the WebHook notifier.
-func NewWebHookNotifier(model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewWebHookNotifier(cfg *setting.Cfg, model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
 	url := model.Settings.Get("url").MustString()
 	if url == "" {
 		return nil, alerting.ValidationError{Reason: "Could not find url property in settings"}
 	}
 
-	password := fn(context.Background(), model.SecureSettings, "password", model.Settings.Get("password").MustString(), setting.SecretKey)
+	password := fn(context.Background(), model.SecureSettings, "password", model.Settings.Get("password").MustString(), cfg.SecretKey)
 
 	return &WebhookNotifier{
 		NotifierBase: NewNotifierBase(model, ns),
@@ -145,7 +145,7 @@ func (wn *WebhookNotifier) Notify(evalContext *alerting.EvalContext) error {
 
 	bodyJSON, _ := json.Marshal(body)
 
-	cmd := &models.SendWebhookSync{
+	cmd := &notifications.SendWebhookSync{
 		Url:        wn.URL,
 		User:       wn.User,
 		Password:   wn.Password,

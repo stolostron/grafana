@@ -7,14 +7,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/infra/localcache"
 	"github.com/grafana/grafana/pkg/infra/tracing"
 	"github.com/grafana/grafana/pkg/infra/usagestats"
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/encryption/ossencryption"
+	"github.com/grafana/grafana/pkg/infra/usagestats/validator"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
+	"github.com/grafana/grafana/pkg/services/annotations/annotationstest"
+	"github.com/grafana/grafana/pkg/services/dashboards"
+	"github.com/grafana/grafana/pkg/services/datasources"
+	fd "github.com/grafana/grafana/pkg/services/datasources/fakes"
+	encryptionprovider "github.com/grafana/grafana/pkg/services/encryption/provider"
+	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
 	"github.com/grafana/grafana/pkg/setting"
-
-	"github.com/stretchr/testify/require"
 )
 
 type FakeEvalHandler struct {
@@ -44,45 +51,41 @@ func (handler *FakeResultHandler) handle(evalContext *EvalContext) error {
 
 // A mock implementation of the AlertStore interface, allowing to override certain methods individually
 type AlertStoreMock struct {
-	getAllAlerts                       func(context.Context, *models.GetAllAlertsQuery) error
-	getDataSource                      func(context.Context, *models.GetDataSourceQuery) error
-	getAlertNotificationsWithUidToSend func(ctx context.Context, query *models.GetAlertNotificationsWithUidToSendQuery) error
-	getOrCreateNotificationState       func(ctx context.Context, query *models.GetOrCreateNotificationStateQuery) error
+	getAllAlerts                       func(context.Context, *models.GetAllAlertsQuery) ([]*models.Alert, error)
+	getAlertNotificationsWithUidToSend func(ctx context.Context, query *models.GetAlertNotificationsWithUidToSendQuery) ([]*models.AlertNotification, error)
+	getOrCreateNotificationState       func(ctx context.Context, query *models.GetOrCreateNotificationStateQuery) (*models.AlertNotificationState, error)
 }
 
-func (a *AlertStoreMock) GetDataSource(c context.Context, cmd *models.GetDataSourceQuery) error {
-	if a.getDataSource != nil {
-		return a.getDataSource(c, cmd)
-	}
-	return nil
+func (a *AlertStoreMock) GetAlertById(c context.Context, cmd *models.GetAlertByIdQuery) (res *models.Alert, err error) {
+	return nil, nil
 }
 
-func (a *AlertStoreMock) GetAllAlertQueryHandler(c context.Context, cmd *models.GetAllAlertsQuery) error {
+func (a *AlertStoreMock) GetAllAlertQueryHandler(c context.Context, cmd *models.GetAllAlertsQuery) (res []*models.Alert, err error) {
 	if a.getAllAlerts != nil {
 		return a.getAllAlerts(c, cmd)
 	}
-	return nil
+	return nil, nil
 }
 
-func (a *AlertStoreMock) GetAlertNotificationUidWithId(c context.Context, query *models.GetAlertNotificationUidQuery) error {
-	return nil
+func (a *AlertStoreMock) GetAlertNotificationUidWithId(c context.Context, query *models.GetAlertNotificationUidQuery) (res string, err error) {
+	return "", nil
 }
 
-func (a *AlertStoreMock) GetAlertNotificationsWithUidToSend(c context.Context, cmd *models.GetAlertNotificationsWithUidToSendQuery) error {
+func (a *AlertStoreMock) GetAlertNotificationsWithUidToSend(c context.Context, cmd *models.GetAlertNotificationsWithUidToSendQuery) (res []*models.AlertNotification, err error) {
 	if a.getAlertNotificationsWithUidToSend != nil {
 		return a.getAlertNotificationsWithUidToSend(c, cmd)
 	}
-	return nil
+	return nil, nil
 }
 
-func (a *AlertStoreMock) GetOrCreateAlertNotificationState(c context.Context, cmd *models.GetOrCreateNotificationStateQuery) error {
+func (a *AlertStoreMock) GetOrCreateAlertNotificationState(c context.Context, cmd *models.GetOrCreateNotificationStateQuery) (res *models.AlertNotificationState, err error) {
 	if a.getOrCreateNotificationState != nil {
 		return a.getOrCreateNotificationState(c, cmd)
 	}
-	return nil
+	return nil, nil
 }
 
-func (a *AlertStoreMock) GetDashboardUIDById(_ context.Context, _ *models.GetDashboardRefByIdQuery) error {
+func (a *AlertStoreMock) GetDashboardUIDById(_ context.Context, _ *dashboards.GetDashboardRefByIDQuery) error {
 	return nil
 }
 
@@ -94,36 +97,54 @@ func (a *AlertStoreMock) SetAlertNotificationStateToPendingCommand(_ context.Con
 	return nil
 }
 
-func (a *AlertStoreMock) SetAlertState(_ context.Context, _ *models.SetAlertStateCommand) error {
+func (a *AlertStoreMock) SetAlertState(_ context.Context, _ *models.SetAlertStateCommand) (res models.Alert, err error) {
+	return models.Alert{}, nil
+}
+
+func (a *AlertStoreMock) GetAlertStatesForDashboard(_ context.Context, _ *models.GetAlertStatesForDashboardQuery) (res []*models.AlertStateInfoDTO, err error) {
+	return nil, nil
+}
+
+func (a *AlertStoreMock) HandleAlertsQuery(context.Context, *models.GetAlertsQuery) (res []*models.AlertListItemDTO, err error) {
+	return nil, nil
+}
+
+func (a *AlertStoreMock) PauseAlert(context.Context, *models.PauseAlertCommand) error {
+	return nil
+}
+
+func (a *AlertStoreMock) PauseAllAlerts(context.Context, *models.PauseAllAlertCommand) error {
 	return nil
 }
 
 func TestEngineProcessJob(t *testing.T) {
 	usMock := &usagestats.UsageStatsMock{T: t}
-	tracer, err := tracing.InitializeTracerForTest()
+	usValidatorMock := &validator.FakeUsageStatsValidator{}
+
+	encProvider := encryptionprovider.ProvideEncryptionProvider()
+	cfg := setting.NewCfg()
+	encService, err := encryptionservice.ProvideEncryptionService(encProvider, usMock, cfg)
 	require.NoError(t, err)
+	tracer := tracing.InitializeTracerForTest()
 
 	store := &AlertStoreMock{}
-	engine := ProvideAlertEngine(nil, nil, nil, usMock, ossencryption.ProvideService(), nil, tracer, store, setting.NewCfg(), nil)
-	setting.AlertingEvaluationTimeout = 30 * time.Second
-	setting.AlertingNotificationTimeout = 30 * time.Second
-	setting.AlertingMaxAttempts = 3
+	dsMock := &fd.FakeDataSourceService{
+		DataSources: []*datasources.DataSource{{ID: 1, Type: datasources.DS_PROMETHEUS}},
+	}
+	engine := ProvideAlertEngine(nil, nil, nil, usMock, usValidatorMock, encService, nil, tracer, store, cfg, nil, nil, localcache.New(time.Minute, time.Minute), dsMock, annotationstest.NewFakeAnnotationsRepo())
+	cfg.AlertingEvaluationTimeout = 30 * time.Second
+	cfg.AlertingNotificationTimeout = 30 * time.Second
+	cfg.AlertingMaxAttempts = 3
 	engine.resultHandler = &FakeResultHandler{}
 	job := &Job{running: true, Rule: &Rule{}}
 
 	t.Run("Should register usage metrics func", func(t *testing.T) {
-		store.getAllAlerts = func(ctx context.Context, q *models.GetAllAlertsQuery) error {
+		store.getAllAlerts = func(ctx context.Context, q *models.GetAllAlertsQuery) (res []*models.Alert, err error) {
 			settings, err := simplejson.NewJson([]byte(`{"conditions": [{"query": { "datasourceId": 1}}]}`))
 			if err != nil {
-				return err
+				return nil, err
 			}
-			q.Result = []*models.Alert{{Settings: settings}}
-			return nil
-		}
-
-		store.getDataSource = func(ctx context.Context, q *models.GetDataSourceQuery) error {
-			q.Result = &models.DataSource{Id: 1, Type: models.DS_PROMETHEUS}
-			return nil
+			return []*models.Alert{{Settings: settings}}, nil
 		}
 
 		report, err := usMock.GetUsageReport(context.Background())
@@ -137,9 +158,9 @@ func TestEngineProcessJob(t *testing.T) {
 		t.Run("error + not last attempt -> retry", func(t *testing.T) {
 			engine.evalHandler = NewFakeEvalHandler(0)
 
-			for i := 1; i < setting.AlertingMaxAttempts; i++ {
+			for i := 1; i < cfg.AlertingMaxAttempts; i++ {
 				attemptChan := make(chan int, 1)
-				cancelChan := make(chan context.CancelFunc, setting.AlertingMaxAttempts)
+				cancelChan := make(chan context.CancelFunc, cfg.AlertingMaxAttempts)
 
 				engine.processJob(i, attemptChan, cancelChan, job)
 				nextAttemptID, more := <-attemptChan
@@ -153,9 +174,9 @@ func TestEngineProcessJob(t *testing.T) {
 		t.Run("error + last attempt -> no retry", func(t *testing.T) {
 			engine.evalHandler = NewFakeEvalHandler(0)
 			attemptChan := make(chan int, 1)
-			cancelChan := make(chan context.CancelFunc, setting.AlertingMaxAttempts)
+			cancelChan := make(chan context.CancelFunc, cfg.AlertingMaxAttempts)
 
-			engine.processJob(setting.AlertingMaxAttempts, attemptChan, cancelChan, job)
+			engine.processJob(cfg.AlertingMaxAttempts, attemptChan, cancelChan, job)
 			nextAttemptID, more := <-attemptChan
 
 			require.Equal(t, 0, nextAttemptID)
@@ -166,7 +187,7 @@ func TestEngineProcessJob(t *testing.T) {
 		t.Run("no error -> no retry", func(t *testing.T) {
 			engine.evalHandler = NewFakeEvalHandler(1)
 			attemptChan := make(chan int, 1)
-			cancelChan := make(chan context.CancelFunc, setting.AlertingMaxAttempts)
+			cancelChan := make(chan context.CancelFunc, cfg.AlertingMaxAttempts)
 
 			engine.processJob(1, attemptChan, cancelChan, job)
 			nextAttemptID, more := <-attemptChan
@@ -179,7 +200,7 @@ func TestEngineProcessJob(t *testing.T) {
 
 	t.Run("Should trigger as many retries as needed", func(t *testing.T) {
 		t.Run("never success -> max retries number", func(t *testing.T) {
-			expectedAttempts := setting.AlertingMaxAttempts
+			expectedAttempts := cfg.AlertingMaxAttempts
 			evalHandler := NewFakeEvalHandler(0)
 			engine.evalHandler = evalHandler
 
@@ -199,7 +220,7 @@ func TestEngineProcessJob(t *testing.T) {
 		})
 
 		t.Run("some errors before success -> some retries", func(t *testing.T) {
-			expectedAttempts := int(math.Ceil(float64(setting.AlertingMaxAttempts) / 2))
+			expectedAttempts := int(math.Ceil(float64(cfg.AlertingMaxAttempts) / 2))
 			evalHandler := NewFakeEvalHandler(expectedAttempts)
 			engine.evalHandler = evalHandler
 

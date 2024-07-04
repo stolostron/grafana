@@ -8,8 +8,8 @@ import (
 	"os"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	gokitsyslog "github.com/go-kit/log/syslog"
-	"github.com/grafana/grafana/pkg/infra/log/level"
 	"gopkg.in/ini.v1"
 )
 
@@ -23,10 +23,10 @@ type SysLogHandler struct {
 	logger   log.Logger
 }
 
-var selector = func(keyvals ...interface{}) syslog.Priority {
+var selector = func(keyvals ...any) syslog.Priority {
 	for i := 0; i < len(keyvals); i += 2 {
-		if level.IsKey(keyvals[i]) {
-			val := level.GetValue(keyvals[i+1])
+		if keyvals[i] == level.Key() {
+			val := keyvals[i+1]
 			if val != nil {
 				switch val {
 				case level.ErrorValue():
@@ -39,10 +39,14 @@ var selector = func(keyvals ...interface{}) syslog.Priority {
 					return syslog.LOG_DEBUG
 				}
 			}
-
 			break
 		}
 	}
+	return syslog.LOG_INFO
+}
+
+func NewSyslog(sec *ini.Section, format Formatedlogger) *SysLogHandler {
+	handler := &SysLogHandler{}
 
 	return syslog.LOG_INFO
 }
@@ -77,7 +81,7 @@ func (sw *SysLogHandler) Init() error {
 	return nil
 }
 
-func (sw *SysLogHandler) Log(keyvals ...interface{}) error {
+func (sw *SysLogHandler) Log(keyvals ...any) error {
 	err := sw.logger.Log(keyvals...)
 	return err
 }

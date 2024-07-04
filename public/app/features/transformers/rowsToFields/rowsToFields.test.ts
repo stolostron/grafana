@@ -27,31 +27,31 @@ describe('Rows to fields', () => {
     );
 
     expect(result).toMatchInlineSnapshot(`
-      Object {
-        "fields": Array [
-          Object {
-            "config": Object {
+      {
+        "fields": [
+          {
+            "config": {
               "max": 15,
               "min": 3,
               "unit": "degree",
             },
-            "labels": Object {},
+            "labels": {},
             "name": "Temperature",
             "type": "number",
-            "values": Array [
+            "values": [
               10,
             ],
           },
-          Object {
-            "config": Object {
+          {
+            "config": {
               "max": 200,
               "min": 100,
               "unit": "pressurebar",
             },
-            "labels": Object {},
+            "labels": {},
             "name": "Pressure",
             "type": "number",
-            "values": Array [
+            "values": [
               200,
             ],
           },
@@ -83,7 +83,7 @@ describe('Rows to fields', () => {
 
     expect(result.fields[0].name).toBe('Temperature');
     expect(result.fields[0].config).toEqual({});
-    expect(result.fields[0].values.get(0)).toBe(100);
+    expect(result.fields[0].values[0]).toBe(100);
   });
 
   it('Can handle colors', () => {
@@ -150,7 +150,29 @@ describe('Rows to fields', () => {
     );
 
     expect(result.fields[0].name).toEqual('Stockholm');
-    expect(result.fields[0].values.get(0)).toEqual(20);
+    expect(result.fields[0].values[0]).toEqual(20);
+  });
+
+  it('Can handle number fields as name field', () => {
+    const input = toDataFrame({
+      fields: [
+        { name: 'SensorID', type: FieldType.number, values: [10, 20, 30] },
+        { name: 'Value', type: FieldType.number, values: [1, 2, 3] },
+      ],
+    });
+
+    const result = rowsToFields(
+      {
+        mappings: [
+          { fieldName: 'SensorID', handlerKey: 'field.name' },
+          { fieldName: 'Value', handlerKey: 'field.value' },
+        ],
+      },
+      input
+    );
+
+    expect(result.fields[0].name).toEqual('10');
+    expect(result.fields[0].values[0]).toEqual(1);
   });
 
   it('Can handle number fields as name field', () => {

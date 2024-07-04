@@ -10,7 +10,7 @@ import { AsyncSelect, Select } from '../Select/Select';
  * when a value is selected. See comment below on closeMenuOnSelect()
  */
 export interface Props<T> extends Omit<HTMLProps<HTMLDivElement>, 'value' | 'onChange'> {
-  value?: SelectableValue<T>;
+  value?: T | SelectableValue<T>;
   options: Array<SelectableValue<T>>;
   onChange: (item: SelectableValue<T>) => void;
   /**
@@ -60,7 +60,6 @@ export function SegmentSelect<T>({
   return (
     <div {...rest} ref={ref}>
       <Component
-        menuShouldPortal
         width={width}
         noOptionsMessage={noOptionsMessage}
         placeholder={placeholder}
@@ -77,9 +76,9 @@ export function SegmentSelect<T>({
           if (ref && ref.current) {
             // https://github.com/JedWatson/react-select/issues/188#issuecomment-279240292
             // Unfortunately there's no other way of retrieving the value (not yet) created new option
-            const input = ref.current.querySelector('input[id^="react-select-"]') as HTMLInputElement;
+            const input = ref.current.querySelector<HTMLInputElement>('input[id^="react-select-"]');
             if (input && (input.value || allowEmptyValue)) {
-              onChange({ value: input.value as any, label: input.value });
+              onChange({ value: input.value as T, label: input.value });
             } else {
               onClickOutside();
             }

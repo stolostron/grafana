@@ -21,7 +21,7 @@ export function PluginDetailsDisabledError({ className, plugin }: Props): ReactE
       severity="error"
       title="Plugin disabled"
       className={className}
-      aria-label={selectors.pages.PluginPage.disabledInfo}
+      data-testid={selectors.pages.PluginPage.disabledInfo}
     >
       {renderDescriptionFromError(plugin.error)}
       <p>Please contact your server administrator to get this resolved.</p>
@@ -69,7 +69,7 @@ function renderDescriptionFromError(error?: PluginErrorCode): ReactElement {
     default:
       return (
         <p>
-          We failed to run this plugin due to an unkown reason and have therefor disabled it. We recommend you to
+          We failed to run this plugin due to an unkown reason and have therefore disabled it. We recommend you to
           reinstall the plugin to make sure you are running a working version of this plugin.
         </p>
       );

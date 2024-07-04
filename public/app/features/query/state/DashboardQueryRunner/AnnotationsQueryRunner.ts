@@ -15,7 +15,7 @@ export class AnnotationsQueryRunner implements AnnotationQueryRunner {
       return false;
     }
 
-    return !Boolean(datasource.annotationQuery && !datasource.annotations);
+    return Boolean(!datasource.annotationQuery || datasource.annotations);
   }
 
   run({ annotation, datasource, dashboard, range }: AnnotationQueryRunnerOptions): Observable<AnnotationEvent[]> {
@@ -23,7 +23,7 @@ export class AnnotationsQueryRunner implements AnnotationQueryRunner {
       return of([]);
     }
 
-    const panel: PanelModel = {} as unknown as PanelModel; // deliberate setting panel to empty object because executeAnnotationQuery shouldn't depend on panelModel
+    const panel: PanelModel = {} as PanelModel; // deliberate setting panel to empty object because executeAnnotationQuery shouldn't depend on panelModel
 
     return executeAnnotationQuery({ dashboard, range, panel }, datasource!, annotation).pipe(
       map((result) => {

@@ -10,6 +10,7 @@ import { getPanelStateForModel } from 'app/features/panel/state/selectors';
 import { StoreState } from 'app/types';
 
 import { GetDataOptions } from '../../../query/state/PanelQueryRunner';
+import { HelpWizard } from '../HelpWizard/HelpWizard';
 import { usePanelLatestData } from '../PanelEditor/usePanelLatestData';
 
 import { InspectContent } from './InspectContent';
@@ -26,17 +27,17 @@ export interface ConnectedProps {
 
 export type Props = OwnProps & ConnectedProps;
 
-const PanelInspectorUnconnected: React.FC<Props> = ({ panel, dashboard, plugin }) => {
+const PanelInspectorUnconnected = ({ panel, dashboard, plugin }: Props) => {
+  const location = useLocation();
+  const defaultTab = new URLSearchParams(location.search).get('inspectTab') as InspectTab;
   const [dataOptions, setDataOptions] = useState<GetDataOptions>({
-    withTransforms: false,
+    withTransforms: defaultTab === InspectTab.Error,
     withFieldConfig: true,
   });
 
-  const location = useLocation();
-  const { data, isLoading, error } = usePanelLatestData(panel, dataOptions, true);
+  const { data, isLoading, hasError } = usePanelLatestData(panel, dataOptions, false);
   const metaDs = useDatasourceMetadata(data);
-  const tabs = useInspectTabs(panel, dashboard, plugin, error, metaDs);
-  const defaultTab = new URLSearchParams(location.search).get('inspectTab') as InspectTab;
+  const tabs = useInspectTabs(panel, dashboard, plugin, hasError, metaDs);
 
   const onClose = () => {
     locationService.partial({
@@ -47,6 +48,10 @@ const PanelInspectorUnconnected: React.FC<Props> = ({ panel, dashboard, plugin }
 
   if (!plugin) {
     return null;
+  }
+
+  if (defaultTab === InspectTab.Help) {
+    return <HelpWizard panel={panel} plugin={plugin} onClose={onClose} />;
   }
 
   return (

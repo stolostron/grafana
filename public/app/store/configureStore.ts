@@ -1,11 +1,13 @@
-import { configureStore as reduxConfigureStore } from '@reduxjs/toolkit';
-import { ThunkMiddlewareFor } from '@reduxjs/toolkit/src/getDefaultMiddleware';
-import { AnyAction } from 'redux';
+import { configureStore as reduxConfigureStore, createListenerMiddleware } from '@reduxjs/toolkit';
+import { setupListeners } from '@reduxjs/toolkit/query';
 
+import { browseDashboardsAPI } from 'app/features/browse-dashboards/api/browseDashboardsAPI';
+import { publicDashboardApi } from 'app/features/dashboard/api/publicDashboardApi';
 import { StoreState } from 'app/types/store';
 
 import { buildInitialState } from '../core/reducers/navModel';
 import { addReducer, createRootReducer } from '../core/reducers/root';
+import { alertingApi } from '../features/alerting/unified/api/alertingApi';
 
 import { setStore } from './store';
 
@@ -16,15 +18,18 @@ export function addRootReducer(reducers: any) {
   addReducer(reducers);
 }
 
+const listenerMiddleware = createListenerMiddleware();
+
 export function configureStore(initialState?: Partial<StoreState>) {
-  const store = reduxConfigureStore<
-    StoreState,
-    AnyAction,
-    ReadonlyArray<ThunkMiddlewareFor<StoreState, { thunk: true }>>
-  >({
+  const store = reduxConfigureStore({
     reducer: createRootReducer(),
     middleware: (getDefaultMiddleware) =>
-      getDefaultMiddleware({ thunk: true, serializableCheck: false, immutableCheck: false }),
+      getDefaultMiddleware({ thunk: true, serializableCheck: false, immutableCheck: false }).concat(
+        listenerMiddleware.middleware,
+        alertingApi.middleware,
+        publicDashboardApi.middleware,
+        browseDashboardsAPI.middleware
+      ),
     devTools: process.env.NODE_ENV !== 'production',
     preloadedState: {
       navIndex: buildInitialState(),
@@ -32,9 +37,15 @@ export function configureStore(initialState?: Partial<StoreState>) {
     },
   });
 
+  // this enables "refetchOnFocus" and "refetchOnReconnect" for RTK Query
+  setupListeners(store.dispatch);
+
   setStore(store);
   return store;
 }
+
+export type RootState = ReturnType<ReturnType<typeof configureStore>['getState']>;
+export type AppDispatch = ReturnType<typeof configureStore>['dispatch'];
 
 /*
 function getActionsToIgnoreSerializableCheckOn() {

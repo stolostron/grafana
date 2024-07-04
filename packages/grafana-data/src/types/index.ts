@@ -36,17 +36,34 @@ export * from './live';
 export * from './variables';
 export * from './geometry';
 export { isUnsignedPluginSignature } from './pluginSignature';
-export {
+export type {
   CurrentUserDTO,
+  AnalyticsSettings,
   BootData,
   OAuth,
   OAuthSettings,
+  AuthSettings,
   GrafanaConfig,
   BuildInfo,
   LicenseInfo,
-  PreloadPlugin,
 } from './config';
-export { FeatureToggles } from './featureToggles.gen';
+export type { FeatureToggles } from './featureToggles.gen';
 export * from './alerts';
 export * from './slider';
 export * from './accesscontrol';
+export * from './icon';
+export {
+  PluginExtensionTypes,
+  PluginExtensionPoints,
+  type PluginExtension,
+  type PluginExtensionLink,
+  type PluginExtensionComponent,
+  type PluginExtensionConfig,
+  type PluginExtensionLinkConfig,
+  type PluginExtensionComponentConfig,
+  type PluginExtensionEventHelpers,
+  type PluginExtensionPanelContext,
+  type PluginExtensionDataSourceConfigContext,
+  type PluginExtensionCommandPaletteContext,
+  type PluginExtensionOpenModalOptions,
+} from './pluginExtensions';

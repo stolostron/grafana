@@ -14,14 +14,6 @@ const defaultProviderProps = {
   range: getDefaultTimeRange(),
 };
 
-const defaultProviderProps = {
-  datasource: {} as ElasticDatasource,
-  query: { refId: 'A' },
-  onChange: () => void 0,
-  onRunQuery: () => void 0,
-  range: getDefaultTimeRange(),
-};
-
 export const renderWithESProvider = (
   ui: ReactNode,
   {

@@ -1,4 +1,4 @@
-import { Observable, from, mergeMap } from 'rxjs';
+import { from, mergeMap, Observable } from 'rxjs';
 
 import {
   DataQueryRequest,
@@ -12,7 +12,7 @@ import { DataSourceWithBackend, getDataSourceSrv, getTemplateSrv } from '@grafan
 import { ExpressionDatasourceRef } from '@grafana/runtime/src/utils/DataSourceWithBackend';
 
 import { ExpressionQueryEditor } from './ExpressionQueryEditor';
-import { ExpressionQuery, ExpressionQueryType } from './types';
+import { ExpressionDatasourceUID, ExpressionQuery, ExpressionQueryType } from './types';
 
 /**
  * This is a singleton instance that just pretends to be a DataSource
@@ -22,7 +22,7 @@ export class ExpressionDatasourceApi extends DataSourceWithBackend<ExpressionQue
     super(instanceSettings);
   }
 
-  applyTemplateVariables(query: ExpressionQuery, scopedVars: ScopedVars): Record<string, any> {
+  applyTemplateVariables(query: ExpressionQuery, scopedVars: ScopedVars) {
     const templateSrv = getTemplateSrv();
     return {
       ...query,
@@ -43,7 +43,7 @@ export class ExpressionDatasourceApi extends DataSourceWithBackend<ExpressionQue
         return query;
       }
 
-      return ds?.interpolateVariablesInQueries([query], request.scopedVars)[0] as ExpressionQuery;
+      return ds?.interpolateVariablesInQueries([query], request.scopedVars, request.filters)[0] as ExpressionQuery;
     });
 
     let sub = from(Promise.all(targets));
@@ -53,23 +53,17 @@ export class ExpressionDatasourceApi extends DataSourceWithBackend<ExpressionQue
   newQuery(query?: Partial<ExpressionQuery>): ExpressionQuery {
     return {
       refId: '--', // Replaced with query
-      type: query?.type ?? ExpressionQueryType.math,
       datasource: ExpressionDatasourceRef,
-      conditions: query?.conditions ?? undefined,
+      type: query?.type ?? ExpressionQueryType.math,
+      ...query,
     };
   }
 }
 
-/**
- * MATCHES a constant in DataSourceWithBackend, this should be '__expr__'
- * @deprecated
- */
-export const ExpressionDatasourceUID = '-100';
-
 export const instanceSettings: DataSourceInstanceSettings = {
   id: -100,
   uid: ExpressionDatasourceUID,
-  name: ExpressionDatasourceRef.type,
+  name: ExpressionDatasourceRef.name,
   type: ExpressionDatasourceRef.type,
   access: 'proxy',
   meta: {
@@ -94,6 +88,7 @@ export const instanceSettings: DataSourceInstanceSettings = {
     },
   },
   jsonData: {},
+  readOnly: true,
 };
 
 export const dataSource = new ExpressionDatasourceApi(instanceSettings);

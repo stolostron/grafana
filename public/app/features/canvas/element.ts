@@ -2,10 +2,12 @@ import { ComponentType } from 'react';
 
 import { RegistryItem } from '@grafana/data';
 import { PanelOptionsSupplier } from '@grafana/data/src/panel/PanelPlugin';
+import { ColorDimensionConfig, ScaleDimensionConfig } from '@grafana/schema';
+import { config } from 'app/core/config';
 
-import { DimensionContext } from '../dimensions/context';
+import { DimensionContext } from '../dimensions';
 
-import { Anchor, BackgroundConfig, LineConfig, Placement } from './types';
+import { BackgroundConfig, Constraint, LineConfig, Placement, StandardEditorConfig } from './types';
 
 /**
  * This gets saved in panel json
@@ -22,22 +24,43 @@ export interface CanvasElementOptions<TConfig = any> {
   config?: TConfig;
 
   // Standard options available for all elements
-  anchor?: Anchor; // defaults top, left, width and height
+  constraint?: Constraint; // defaults vertical - top, horizontal - left
   placement?: Placement;
   background?: BackgroundConfig;
   border?: LineConfig;
+  connections?: CanvasConnection[];
+}
+
+// Unit is percentage from the middle of the element
+// 0, 0 middle; -1, -1 bottom left; 1, 1 top right
+export interface ConnectionCoordinates {
+  x: number;
+  y: number;
+}
+
+export enum ConnectionPath {
+  Straight = 'straight',
+}
+
+export interface CanvasConnection {
+  source: ConnectionCoordinates;
+  target: ConnectionCoordinates;
+  targetName?: string;
+  path: ConnectionPath;
+  color?: ColorDimensionConfig;
+  size?: ScaleDimensionConfig;
+  // See https://github.com/anseki/leader-line#options for more examples of more properties
 }
 
 export interface CanvasElementProps<TConfig = any, TData = any> {
   // Saved config
   config: TConfig;
 
-  // Calculated position info
-  width: number;
-  height: number;
-
   // Raw data
   data?: TData;
+
+  // If the element is currently selected
+  isSelected?: boolean;
 }
 
 /**
@@ -56,6 +79,17 @@ export interface CanvasElementItem<TConfig = any, TData = any> extends RegistryI
 
   getNewOptions: (options?: CanvasElementOptions) => Omit<CanvasElementOptions<TConfig>, 'type' | 'name'>;
 
-  /** Build the configuraiton UI */
+  /** Build the configuration UI */
   registerOptionsUI?: PanelOptionsSupplier<CanvasElementOptions<TConfig>>;
+
+  /** If item has an edit mode */
+  hasEditMode?: boolean;
+
+  /** Optional config to customize what standard element editor options are available for the item */
+  standardEditorConfig?: StandardEditorConfig;
 }
+
+export const defaultBgColor = '#D9D9D9';
+export const defaultTextColor = '#000000';
+export const defaultLightTextColor = '#F0F4FD';
+export const defaultThemeTextColor = config.theme2.colors.text.primary;

@@ -1,28 +1,35 @@
 import { css } from '@emotion/css';
-import { uniqBy } from 'lodash';
-import React, { useState, useEffect } from 'react';
-import { useDebounce } from 'react-use';
+import React, { useEffect } from 'react';
 
-import { GrafanaTheme, SelectableValue } from '@grafana/data';
-import { stylesFactory, useTheme, Select, MultiSelect, FilterInput } from '@grafana/ui';
-import { filterAndSortQueries, createDatasourcesList, SortOrder } from 'app/core/utils/richHistory';
-import { RichHistoryQuery, ExploreId } from 'app/types/explore';
+import { GrafanaTheme2, SelectableValue } from '@grafana/data';
+import { config } from '@grafana/runtime';
+import { useStyles2, Select, MultiSelect, FilterInput, Button } from '@grafana/ui';
+import { Trans, t } from 'app/core/internationalization';
+import {
+  createDatasourcesList,
+  SortOrder,
+  RichHistorySearchFilters,
+  RichHistorySettings,
+} from 'app/core/utils/richHistory';
+import { RichHistoryQuery } from 'app/types/explore';
 
-import { sortOrderOptions } from './RichHistory';
+import { getSortOrderOptions } from './RichHistory';
 import RichHistoryCard from './RichHistoryCard';
 
-export interface Props {
+export interface RichHistoryStarredTabProps {
   queries: RichHistoryQuery[];
-  sortOrder: SortOrder;
-  activeDatasourceOnly: boolean;
-  datasourceFilters: SelectableValue[];
-  exploreId: ExploreId;
-  onChangeSortOrder: (sortOrder: SortOrder) => void;
-  onSelectDatasourceFilters: (value: SelectableValue[]) => void;
+  totalQueries: number;
+  loading: boolean;
+  activeDatasourceInstance: string;
+  updateFilters: (filtersToUpdate: Partial<RichHistorySearchFilters>) => void;
+  clearRichHistoryResults: () => void;
+  loadMoreRichHistory: () => void;
+  richHistorySearchFilters?: RichHistorySearchFilters;
+  richHistorySettings: RichHistorySettings;
+  exploreId: string;
 }
 
-const getStyles = stylesFactory((theme: GrafanaTheme) => {
-  const bgColor = theme.isLight ? theme.palette.gray5 : theme.palette.dark4;
+const getStyles = (theme: GrafanaTheme2) => {
   return {
     container: css`
       display: flex;
@@ -37,74 +44,76 @@ const getStyles = stylesFactory((theme: GrafanaTheme) => {
     `,
     multiselect: css`
       width: 100%;
-      margin-bottom: ${theme.spacing.sm};
-      .gf-form-select-box__multi-value {
-        background-color: ${bgColor};
-        padding: ${theme.spacing.xxs} ${theme.spacing.xs} ${theme.spacing.xxs} ${theme.spacing.sm};
-        border-radius: ${theme.border.radius.sm};
-      }
+      margin-bottom: ${theme.spacing(1)};
     `,
     filterInput: css`
-      margin-bottom: ${theme.spacing.sm};
+      margin-bottom: ${theme.spacing(1)};
     `,
     sort: css`
       width: 170px;
     `,
     footer: css`
       height: 60px;
-      margin-top: ${theme.spacing.lg};
       display: flex;
       justify-content: center;
-      font-weight: ${theme.typography.weight.light};
-      font-size: ${theme.typography.size.sm};
+      align-items: center;
+      font-weight: ${theme.typography.fontWeightLight};
+      font-size: ${theme.typography.bodySmall.fontSize};
       a {
-        font-weight: ${theme.typography.weight.semibold};
-        margin-left: ${theme.spacing.xxs};
+        font-weight: ${theme.typography.fontWeightMedium};
+        margin-left: ${theme.spacing(0.25)};
       }
     `,
   };
-});
+};
 
-export function RichHistoryStarredTab(props: Props) {
+export function RichHistoryStarredTab(props: RichHistoryStarredTabProps) {
   const {
-    datasourceFilters,
-    onSelectDatasourceFilters,
+    updateFilters,
+    clearRichHistoryResults,
+    loadMoreRichHistory,
+    activeDatasourceInstance,
+    richHistorySettings,
     queries,
-    onChangeSortOrder,
-    sortOrder,
-    activeDatasourceOnly,
+    totalQueries,
+    loading,
+    richHistorySearchFilters,
     exploreId,
   } = props;
 
-  const [data, setData] = useState<[RichHistoryQuery[], ReturnType<typeof createDatasourcesList>]>([[], []]);
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearchInput, setDebouncedSearchInput] = useState('');
+  const styles = useStyles2(getStyles);
 
-  const theme = useTheme();
-  const styles = getStyles(theme);
-
-  useDebounce(
-    () => {
-      setDebouncedSearchInput(searchInput);
-    },
-    300,
-    [searchInput]
-  );
+  const listOfDatasources = createDatasourcesList();
 
   useEffect(() => {
-    const datasourcesRetrievedFromQueryHistory = uniqBy(queries, 'datasourceName').map((d) => d.datasourceName);
-    const listOfDatasources = createDatasourcesList(datasourcesRetrievedFromQueryHistory);
-    const starredQueries = queries.filter((q) => q.starred === true);
-    setData([
-      filterAndSortQueries(
-        starredQueries,
-        sortOrder,
-        datasourceFilters.map((d) => d.value),
-        debouncedSearchInput
-      ),
-      listOfDatasources,
-    ]);
-  }, [queries, sortOrder, datasourceFilters, debouncedSearchInput]);
+    const datasourceFilters =
+      richHistorySettings.activeDatasourceOnly && richHistorySettings.lastUsedDatasourceFilters
+        ? richHistorySettings.lastUsedDatasourceFilters
+        : [activeDatasourceInstance];
+    const filters: RichHistorySearchFilters = {
+      search: '',
+      sortOrder: SortOrder.Descending,
+      datasourceFilters,
+      from: 0,
+      to: richHistorySettings.retentionPeriod,
+      starred: true,
+    };
+    updateFilters(filters);
+    return () => {
+      clearRichHistoryResults();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!richHistorySearchFilters) {
+    return (
+      <span>
+        <Trans i18nKey="explore.rich-history-starred-tab.loading">Loading...</Trans>;
+      </span>
+    );
+  }
+
+  const sortOrderOptions = getSortOrderOptions();
 
   const [filteredQueries, listOfDatasources] = data;
 
@@ -112,49 +121,77 @@ export function RichHistoryStarredTab(props: Props) {
     <div className={styles.container}>
       <div className={styles.containerContent}>
         <div className={styles.selectors}>
-          {!activeDatasourceOnly && (
-            <div aria-label="Filter datasources" className={styles.multiselect}>
-              <MultiSelect
-                menuShouldPortal
-                options={listOfDatasources}
-                value={datasourceFilters}
-                placeholder="Filter queries for specific data sources(s)"
-                onChange={onSelectDatasourceFilters}
-              />
-            </div>
+          {!richHistorySettings.activeDatasourceOnly && (
+            <MultiSelect
+              className={styles.multiselect}
+              options={listOfDatasources.map((ds) => {
+                return { value: ds.name, label: ds.name };
+              })}
+              value={richHistorySearchFilters.datasourceFilters}
+              placeholder={t(
+                'explore.rich-history-starred-tab.filter-queries-placeholder',
+                'Filter queries for data sources(s)'
+              )}
+              aria-label={t(
+                'explore.rich-history-starred-tab.filter-queries-aria-label',
+                'Filter queries for data sources(s)'
+              )}
+              onChange={(options: SelectableValue[]) => {
+                updateFilters({ datasourceFilters: options.map((option) => option.value) });
+              }}
+            />
           )}
           <div className={styles.filterInput}>
             <FilterInput
-              placeholder="Search queries"
-              value={searchInput}
-              onChange={(value: string) => {
-                setSearchInput(value);
-              }}
+              escapeRegex={false}
+              placeholder={t('explore.rich-history-starred-tab.search-queries-placeholder', 'Search queries')}
+              value={richHistorySearchFilters.search}
+              onChange={(search: string) => updateFilters({ search })}
             />
           </div>
-          <div aria-label="Sort queries" className={styles.sort}>
+          <div
+            aria-label={t('explore.rich-history-starred-tab.sort-queries-aria-label', 'Sort queries')}
+            className={styles.sort}
+          >
             <Select
-              menuShouldPortal
+              value={sortOrderOptions.filter((order) => order.value === richHistorySearchFilters.sortOrder)}
               options={sortOrderOptions}
-              value={sortOrderOptions.filter((order) => order.value === sortOrder)}
-              placeholder="Sort queries by"
-              onChange={(e) => onChangeSortOrder(e.value as SortOrder)}
+              placeholder={t('explore.rich-history-starred-tab.sort-queries-placeholder', 'Sort queries by')}
+              onChange={(e: SelectableValue<SortOrder>) => updateFilters({ sortOrder: e.value })}
             />
           </div>
         </div>
-        {filteredQueries.map((q) => {
-          const idx = listOfDatasources.findIndex((d) => d.label === q.datasourceName);
-          return (
-            <RichHistoryCard
-              query={q}
-              key={q.id}
-              exploreId={exploreId}
-              dsImg={listOfDatasources[idx].imgUrl}
-              isRemoved={listOfDatasources[idx].isRemoved}
+        {loading && (
+          <span>
+            <Trans i18nKey="explore.rich-history-starred-tab.loading-results">Loading results...</Trans>
+          </span>
+        )}
+        {!loading &&
+          queries.map((q) => {
+            return <RichHistoryCard queryHistoryItem={q} key={q.id} exploreId={exploreId} />;
+          })}
+        {queries.length && queries.length !== totalQueries ? (
+          <div>
+            <Trans
+              i18nKey="explore.rich-history-starred-tab.showing-queries"
+              defaults="Showing {{ shown }} of {{ total }} <0>Load more</0>"
+              values={{ shown: queries.length, total: totalQueries }}
+              components={[
+                <Button onClick={loadMoreRichHistory} key="loadMoreButton">
+                  Load more
+                </Button>,
+              ]}
             />
-          );
-        })}
-        <div className={styles.footer}>The history is local to your browser and is not shared with others.</div>
+          </div>
+        ) : null}
+        <div className={styles.footer}>
+          {!config.queryHistoryEnabled
+            ? t(
+                'explore.rich-history-starred-tab.local-history-message',
+                'The history is local to your browser and is not shared with others.'
+              )
+            : ''}
+        </div>
       </div>
     </div>
   );

@@ -1,99 +1,76 @@
 package definitions
 
-import (
-	"fmt"
-	"html/template"
-	"regexp"
-	"strings"
-
-	"github.com/grafana/grafana/pkg/services/ngalert/models"
-)
-
-// swagger:route GET /api/provisioning/templates provisioning RouteGetTemplates
+// swagger:route GET /v1/provisioning/templates provisioning stable RouteGetTemplates
 //
-// Get all message templates.
+// Get all notification templates.
 //
 //     Responses:
-//       200: []MessageTemplate
-//       400: ValidationError
+//       200: NotificationTemplates
+//       404: description: Not found.
 
-// swagger:route GET /api/provisioning/templates/{name} provisioning RouteGetTemplate
+// swagger:route GET /v1/provisioning/templates/{name} provisioning stable RouteGetTemplate
 //
-// Get a message template.
+// Get a notification template.
 //
 //     Responses:
-//       200: MessageTemplate
-//       404: NotFound
+//       200: NotificationTemplate
+//       404: description: Not found.
 
-// swagger:route PUT /api/provisioning/templates/{name} provisioning RoutePutTemplate
+// swagger:route PUT /v1/provisioning/templates/{name} provisioning stable RoutePutTemplate
 //
-// Updates an existing template.
+// Updates an existing notification template.
 //
 //     Consumes:
 //     - application/json
 //
 //     Responses:
-//       202: Accepted
+//       202: NotificationTemplate
 //       400: ValidationError
 
-// swagger:route DELETE /api/provisioning/templates/{name} provisioning RouteDeleteTemplate
+// swagger:route DELETE /v1/provisioning/templates/{name} provisioning stable RouteDeleteTemplate
 //
 // Delete a template.
 //
 //     Responses:
-//       204: Accepted
+//       204: description: The template was deleted successfully.
 
-type MessageTemplate struct {
-	Name       string
-	Template   string
-	Provenance models.Provenance `json:"provenance,omitempty"`
+// swagger:parameters RouteGetTemplate RoutePutTemplate RouteDeleteTemplate
+type RouteGetTemplateParam struct {
+	// Template Name
+	// in:path
+	Name string `json:"name"`
 }
 
-type MessageTemplateContent struct {
-	Template string
+// swagger:model
+type NotificationTemplate struct {
+	Name       string     `json:"name"`
+	Template   string     `json:"template"`
+	Provenance Provenance `json:"provenance,omitempty"`
+}
+
+// swagger:model
+type NotificationTemplates []NotificationTemplate
+
+type NotificationTemplateContent struct {
+	Template string `json:"template"`
 }
 
 // swagger:parameters RoutePutTemplate
-type MessageTemplatePayload struct {
+type NotificationTemplatePayload struct {
 	// in:body
-	Body MessageTemplateContent
+	Body NotificationTemplateContent
 }
 
-func (t *MessageTemplate) ResourceType() string {
+// swagger:parameters RoutePutTemplate
+type NotificationTemplateHeaders struct {
+	// in:header
+	XDisableProvenance string `json:"X-Disable-Provenance"`
+}
+
+func (t *NotificationTemplate) ResourceType() string {
 	return "template"
 }
 
-func (t *MessageTemplate) ResourceID() string {
+func (t *NotificationTemplate) ResourceID() string {
 	return t.Name
-}
-
-func (t *MessageTemplate) Validate() error {
-	if t.Name == "" {
-		return fmt.Errorf("template must have a name")
-	}
-	if t.Template == "" {
-		return fmt.Errorf("template must have content")
-	}
-
-	_, err := template.New("").Parse(t.Template)
-	if err != nil {
-		return fmt.Errorf("invalid template: %w", err)
-	}
-
-	content := strings.TrimSpace(t.Template)
-	found, err := regexp.MatchString(`\{\{\s*define`, content)
-	if err != nil {
-		return fmt.Errorf("failed to match regex: %w", err)
-	}
-	if !found {
-		lines := strings.Split(content, "\n")
-		for i, s := range lines {
-			lines[i] = "  " + s
-		}
-		content = strings.Join(lines, "\n")
-		content = fmt.Sprintf("{{ define \"%s\" }}\n%s\n{{ end }}", t.Name, content)
-	}
-	t.Template = content
-
-	return nil
 }

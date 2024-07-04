@@ -1,15 +1,4 @@
-<<<<<<<< HEAD:docs/sources/visualizations/news-panel.md
-+++
-title = "News"
-keywords = ["grafana", "news", "documentation", "panels", "news panel"]
-aliases = ["/docs/grafana/latest/panels/visualizations/news-graph/"]
-weight = 800
-+++
-
-## News
-========
 # News
->>>>>>>> tags/v8.5.20:public/app/plugins/panel/news/README.md
 
 This panel visualization displays an RSS feed. By default, it displays articles from the Grafana Labs blog.
 

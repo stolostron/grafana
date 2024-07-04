@@ -1,4 +1,4 @@
-import { Story } from '@storybook/react';
+import { Meta, Story } from '@storybook/react';
 import React, { useState } from 'react';
 
 import { TabsBar, Tab, TabContent, Counter as TabCounter } from '@grafana/ui';
@@ -9,9 +9,11 @@ import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 import { CounterProps } from './Counter';
 import mdx from './TabsBar.mdx';
 
-export default {
+import { CounterProps } from './Counter';
+import mdx from './TabsBar.mdx';
+
+const meta: Meta = {
   title: 'Layout/Tabs',
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
@@ -25,7 +27,7 @@ const tabs = [
   { label: '3rd child', key: 'third', active: false },
 ];
 
-export const Simple = () => {
+export const Simple: Story = () => {
   const [state, updateState] = useState(tabs);
   return (
     <DashboardStoryCanvas>
@@ -58,3 +60,5 @@ export const Counter: Story<CounterProps> = (args) => {
 Counter.args = {
   value: 10,
 };
+
+export default meta;

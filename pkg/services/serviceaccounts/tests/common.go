@@ -4,12 +4,19 @@ import (
 	"context"
 	"testing"
 
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/accesscontrol"
-	accesscontrolmock "github.com/grafana/grafana/pkg/services/accesscontrol/mock"
-	"github.com/grafana/grafana/pkg/services/serviceaccounts"
-	"github.com/grafana/grafana/pkg/services/sqlstore"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/grafana/pkg/infra/db"
+	"github.com/grafana/grafana/pkg/services/apikey"
+	"github.com/grafana/grafana/pkg/services/apikey/apikeyimpl"
+	"github.com/grafana/grafana/pkg/services/org"
+	"github.com/grafana/grafana/pkg/services/org/orgimpl"
+	"github.com/grafana/grafana/pkg/services/quota/quotaimpl"
+	"github.com/grafana/grafana/pkg/services/quota/quotatest"
+	"github.com/grafana/grafana/pkg/services/sqlstore"
+	"github.com/grafana/grafana/pkg/services/supportbundles/supportbundlestest"
+	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/grafana/grafana/pkg/services/user/userimpl"
 )
 
 type TestUser struct {
@@ -19,132 +26,111 @@ type TestUser struct {
 	IsServiceAccount bool
 }
 
-func SetupUserServiceAccount(t *testing.T, sqlStore *sqlstore.SQLStore, testUser TestUser) *models.User {
-	role := string(models.ROLE_VIEWER)
+type TestApiKey struct {
+	Name             string
+	Role             org.RoleType
+	OrgId            int64
+	Key              string
+	IsExpired        bool
+	ServiceAccountID *int64
+}
+
+func SetupUserServiceAccount(t *testing.T, sqlStore *sqlstore.SQLStore, testUser TestUser) *user.User {
+	role := string(org.RoleViewer)
 	if testUser.Role != "" {
 		role = testUser.Role
 	}
 
-	u1, err := sqlStore.CreateUser(context.Background(), models.CreateUserCommand{
+	quotaService := quotaimpl.ProvideService(sqlStore, sqlStore.Cfg)
+	orgService, err := orgimpl.ProvideService(sqlStore, sqlStore.Cfg, quotaService)
+	require.NoError(t, err)
+	usrSvc, err := userimpl.ProvideService(sqlStore, orgService, sqlStore.Cfg, nil, nil, quotaService, supportbundlestest.NewFakeBundleService())
+	require.NoError(t, err)
+
+	org, err := orgService.CreateWithMember(context.Background(), &org.CreateOrgCommand{
+		Name: "test org",
+	})
+	require.NoError(t, err)
+
+	u1, err := usrSvc.Create(context.Background(), &user.CreateUserCommand{
 		Login:            testUser.Login,
 		IsServiceAccount: testUser.IsServiceAccount,
 		DefaultOrgRole:   role,
 		Name:             testUser.Name,
+		OrgID:            org.ID,
 	})
 	require.NoError(t, err)
 	return u1
 }
 
-// create mock for serviceaccountservice
-type ServiceAccountMock struct{}
-
-func (s *ServiceAccountMock) CreateServiceAccount(ctx context.Context, orgID int64, name string) (*serviceaccounts.ServiceAccountDTO, error) {
-	return nil, nil
-}
-
-func (s *ServiceAccountMock) DeleteServiceAccount(ctx context.Context, orgID, serviceAccountID int64) error {
-	return nil
-}
-
-func (s *ServiceAccountMock) Migrated(ctx context.Context, orgID int64) bool {
-	return false
-}
-
-func SetupMockAccesscontrol(t *testing.T,
-	userpermissionsfunc func(c context.Context, siu *models.SignedInUser, opt accesscontrol.Options) ([]*accesscontrol.Permission, error),
-	disableAccessControl bool) *accesscontrolmock.Mock {
-	t.Helper()
-	acmock := accesscontrolmock.New()
-	if disableAccessControl {
-		acmock = acmock.WithDisabled()
+func SetupApiKey(t *testing.T, sqlStore *sqlstore.SQLStore, testKey TestApiKey) *apikey.APIKey {
+	role := org.RoleViewer
+	if testKey.Role != "" {
+		role = testKey.Role
 	}
-	acmock.GetUserPermissionsFunc = userpermissionsfunc
-	return acmock
+
+	addKeyCmd := &apikey.AddCommand{
+		Name:             testKey.Name,
+		Role:             role,
+		OrgID:            testKey.OrgId,
+		ServiceAccountID: testKey.ServiceAccountID,
+	}
+
+	if testKey.Key != "" {
+		addKeyCmd.Key = testKey.Key
+	} else {
+		addKeyCmd.Key = "secret"
+	}
+
+	quotaService := quotatest.New(false, nil)
+	apiKeyService, err := apikeyimpl.ProvideService(sqlStore, sqlStore.Cfg, quotaService)
+	require.NoError(t, err)
+	key, err := apiKeyService.AddAPIKey(context.Background(), addKeyCmd)
+	require.NoError(t, err)
+
+	if testKey.IsExpired {
+		err := sqlStore.WithTransactionalDbSession(context.Background(), func(sess *db.Session) error {
+			// Force setting expires to time before now to make key expired
+			var expires int64 = 1
+			expiringKey := apikey.APIKey{Expires: &expires}
+			rowsAffected, err := sess.ID(key.ID).Update(&expiringKey)
+			require.Equal(t, int64(1), rowsAffected)
+			return err
+		})
+		require.NoError(t, err)
+	}
+
+	return key
 }
 
-// this is a way to see
-// that the Mock implements the store interface
-var _ serviceaccounts.Store = new(ServiceAccountsStoreMock)
+// SetupUsersServiceAccounts creates in "test org" all users or service accounts passed in parameter
+// To achieve this, it sets the AutoAssignOrg and AutoAssignOrgId settings.
+func SetupUsersServiceAccounts(t *testing.T, sqlStore *sqlstore.SQLStore, testUsers []TestUser) (orgID int64) {
+	role := string(org.RoleNone)
 
-type Calls struct {
-	CreateServiceAccount      []interface{}
-	RetrieveServiceAccount    []interface{}
-	DeleteServiceAccount      []interface{}
-	UpgradeServiceAccounts    []interface{}
-	ConvertServiceAccounts    []interface{}
-	ListTokens                []interface{}
-	DeleteServiceAccountToken []interface{}
-	UpdateServiceAccount      []interface{}
-	AddServiceAccountToken    []interface{}
-	SearchOrgServiceAccounts  []interface{}
-}
+	quotaService := quotaimpl.ProvideService(sqlStore, sqlStore.Cfg)
+	orgService, err := orgimpl.ProvideService(sqlStore, sqlStore.Cfg, quotaService)
+	require.NoError(t, err)
+	usrSvc, err := userimpl.ProvideService(sqlStore, orgService, sqlStore.Cfg, nil, nil, quotaService, supportbundlestest.NewFakeBundleService())
+	require.NoError(t, err)
 
-type ServiceAccountsStoreMock struct {
-	Calls Calls
-}
+	org, err := orgService.CreateWithMember(context.Background(), &org.CreateOrgCommand{
+		Name: "test org",
+	})
+	require.NoError(t, err)
 
-func (s *ServiceAccountsStoreMock) CreateServiceAccount(ctx context.Context, orgID int64, name string) (*serviceaccounts.ServiceAccountDTO, error) {
-	// now we can test that the mock has these calls when we call the function
-	s.Calls.CreateServiceAccount = append(s.Calls.CreateServiceAccount, []interface{}{ctx, orgID, name})
-	return nil, nil
-}
+	sqlStore.Cfg.AutoAssignOrg = true
+	sqlStore.Cfg.AutoAssignOrgId = int(org.ID)
 
-func (s *ServiceAccountsStoreMock) DeleteServiceAccount(ctx context.Context, orgID, serviceAccountID int64) error {
-	// now we can test that the mock has these calls when we call the function
-	s.Calls.DeleteServiceAccount = append(s.Calls.DeleteServiceAccount, []interface{}{ctx, orgID, serviceAccountID})
-	return nil
-}
-
-func (s *ServiceAccountsStoreMock) UpgradeServiceAccounts(ctx context.Context) error {
-	s.Calls.UpgradeServiceAccounts = append(s.Calls.UpgradeServiceAccounts, []interface{}{ctx})
-	return nil
-}
-
-func (s *ServiceAccountsStoreMock) ConvertToServiceAccounts(ctx context.Context, keys []int64) error {
-	s.Calls.ConvertServiceAccounts = append(s.Calls.ConvertServiceAccounts, []interface{}{ctx})
-	return nil
-}
-
-func (s *ServiceAccountsStoreMock) ListTokens(ctx context.Context, orgID int64, serviceAccount int64) ([]*models.ApiKey, error) {
-	s.Calls.ListTokens = append(s.Calls.ListTokens, []interface{}{ctx, orgID, serviceAccount})
-	return nil, nil
-}
-
-func (s *ServiceAccountsStoreMock) RetrieveServiceAccount(ctx context.Context, orgID, serviceAccountID int64) (*serviceaccounts.ServiceAccountProfileDTO, error) {
-	s.Calls.RetrieveServiceAccount = append(s.Calls.RetrieveServiceAccount, []interface{}{ctx, orgID, serviceAccountID})
-	return nil, nil
-}
-
-func (s *ServiceAccountsStoreMock) UpdateServiceAccount(ctx context.Context,
-	orgID, serviceAccountID int64,
-	saForm *serviceaccounts.UpdateServiceAccountForm) (*serviceaccounts.ServiceAccountProfileDTO, error) {
-	s.Calls.UpdateServiceAccount = append(s.Calls.UpdateServiceAccount, []interface{}{ctx, orgID, serviceAccountID, saForm})
-
-	return nil, nil
-}
-
-func (s *ServiceAccountsStoreMock) SearchOrgServiceAccounts(
-	ctx context.Context,
-	orgID int64,
-	query string,
-	filter serviceaccounts.ServiceAccountFilter,
-	page int,
-	limit int,
-	user *models.SignedInUser) (*serviceaccounts.SearchServiceAccountsResult, error) {
-	s.Calls.SearchOrgServiceAccounts = append(s.Calls.SearchOrgServiceAccounts, []interface{}{ctx, orgID, query, page, limit, user})
-	return nil, nil
-}
-
-func (s *ServiceAccountsStoreMock) DeleteServiceAccountToken(ctx context.Context, orgID, serviceAccountID, tokenID int64) error {
-	s.Calls.DeleteServiceAccountToken = append(s.Calls.DeleteServiceAccountToken, []interface{}{ctx, orgID, serviceAccountID, tokenID})
-	return nil
-}
-
-func (s *ServiceAccountsStoreMock) AddServiceAccountToken(ctx context.Context, serviceAccountID int64, cmd *serviceaccounts.AddServiceAccountTokenCommand) error {
-	s.Calls.AddServiceAccountToken = append(s.Calls.AddServiceAccountToken, []interface{}{ctx, cmd})
-	return nil
-}
-
-func (s *ServiceAccountsStoreMock) GetUsageMetrics(ctx context.Context) (map[string]interface{}, error) {
-	return map[string]interface{}{}, nil
+	for i := range testUsers {
+		_, err := usrSvc.Create(context.Background(), &user.CreateUserCommand{
+			Login:            testUsers[i].Login,
+			IsServiceAccount: testUsers[i].IsServiceAccount,
+			DefaultOrgRole:   role,
+			Name:             testUsers[i].Name,
+			OrgID:            org.ID,
+		})
+		require.NoError(t, err)
+	}
+	return org.ID
 }

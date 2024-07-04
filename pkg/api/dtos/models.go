@@ -8,7 +8,9 @@ import (
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/auth/identity"
+	"github.com/grafana/grafana/pkg/services/org"
+	"github.com/grafana/grafana/pkg/services/user"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
@@ -28,23 +30,32 @@ type LoginCommand struct {
 type CurrentUser struct {
 	IsSignedIn                 bool               `json:"isSignedIn"`
 	Id                         int64              `json:"id"`
-	ExternalUserId             string             `json:"externalUserId"`
+	UID                        string             `json:"uid"`
 	Login                      string             `json:"login"`
 	Email                      string             `json:"email"`
 	Name                       string             `json:"name"`
-	LightTheme                 bool               `json:"lightTheme"`
+	Theme                      string             `json:"theme"`
+	LightTheme                 bool               `json:"lightTheme"` // deprecated, use theme instead
 	OrgCount                   int                `json:"orgCount"`
 	OrgId                      int64              `json:"orgId"`
 	OrgName                    string             `json:"orgName"`
-	OrgRole                    models.RoleType    `json:"orgRole"`
+	OrgRole                    org.RoleType       `json:"orgRole"`
 	IsGrafanaAdmin             bool               `json:"isGrafanaAdmin"`
 	GravatarUrl                string             `json:"gravatarUrl"`
 	Timezone                   string             `json:"timezone"`
 	WeekStart                  string             `json:"weekStart"`
 	Locale                     string             `json:"locale"`
-	HelpFlags1                 models.HelpFlags1  `json:"helpFlags1"`
+	Language                   string             `json:"language"`
+	HelpFlags1                 user.HelpFlags1    `json:"helpFlags1"`
 	HasEditPermissionInFolders bool               `json:"hasEditPermissionInFolders"`
+	AuthenticatedBy            string             `json:"authenticatedBy"`
 	Permissions                UserPermissionsMap `json:"permissions,omitempty"`
+	Analytics                  AnalyticsSettings  `json:"analytics"`
+}
+
+type AnalyticsSettings struct {
+	Identifier         string `json:"identifier"`
+	IntercomIdentifier string `json:"intercomIdentifier,omitempty"`
 }
 
 type UserPermissionsMap map[string]bool
@@ -70,9 +81,37 @@ type MetricRequest struct {
 	Debug bool `json:"debug"`
 }
 
-func GetGravatarUrl(text string) string {
-	if setting.DisableGravatar {
-		return setting.AppSubUrl + "/public/img/user_profile.png"
+func (mr *MetricRequest) GetUniqueDatasourceTypes() []string {
+	dsTypes := make(map[string]bool)
+	for _, query := range mr.Queries {
+		if dsType, ok := query.Get("datasource").CheckGet("type"); ok {
+			name := dsType.MustString()
+			if _, ok := dsTypes[name]; !ok {
+				dsTypes[name] = true
+			}
+		}
+	}
+
+	res := make([]string, 0, len(dsTypes))
+	for dsType := range dsTypes {
+		res = append(res, dsType)
+	}
+
+	return res
+}
+
+func (mr *MetricRequest) CloneWithQueries(queries []*simplejson.Json) MetricRequest {
+	return MetricRequest{
+		From:    mr.From,
+		To:      mr.To,
+		Queries: queries,
+		Debug:   mr.Debug,
+	}
+}
+
+func GetGravatarUrl(cfg *setting.Cfg, text string) string {
+	if cfg.DisableGravatar {
+		return cfg.AppSubURL + "/public/img/user_profile.png"
 	}
 
 	if text == "" {
@@ -80,7 +119,7 @@ func GetGravatarUrl(text string) string {
 	}
 
 	hash, _ := GetGravatarHash(text)
-	return fmt.Sprintf(setting.AppSubUrl+"/avatar/%x", hash)
+	return fmt.Sprintf(cfg.AppSubURL+"/avatar/%x", hash)
 }
 
 func GetGravatarHash(text string) ([]byte, bool) {
@@ -95,18 +134,18 @@ func GetGravatarHash(text string) ([]byte, bool) {
 	return hasher.Sum(nil), true
 }
 
-func GetGravatarUrlWithDefault(text string, defaultText string) string {
+func GetGravatarUrlWithDefault(cfg *setting.Cfg, text string, defaultText string) string {
 	if text != "" {
-		return GetGravatarUrl(text)
+		return GetGravatarUrl(cfg, text)
 	}
 
 	text = regNonAlphaNumeric.ReplaceAllString(defaultText, "") + "@localhost"
 
-	return GetGravatarUrl(text)
+	return GetGravatarUrl(cfg, text)
 }
 
-func IsHiddenUser(userLogin string, signedInUser *models.SignedInUser, cfg *setting.Cfg) bool {
-	if userLogin == "" || signedInUser.IsGrafanaAdmin || userLogin == signedInUser.Login {
+func IsHiddenUser(userLogin string, signedInUser identity.Requester, cfg *setting.Cfg) bool {
+	if userLogin == "" || signedInUser.GetIsGrafanaAdmin() || userLogin == signedInUser.GetLogin() {
 		return false
 	}
 

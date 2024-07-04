@@ -1,11 +1,12 @@
 import { lastValueFrom } from 'rxjs';
 
+import { isObject } from '@grafana/data';
 import { FetchResponse, getBackendSrv } from '@grafana/runtime';
 import { RulerDataSourceConfig } from 'app/types/unified-alerting';
 import { PostableRulerRuleGroupDTO, RulerRuleGroupDTO, RulerRulesConfigDTO } from 'app/types/unified-alerting-dto';
 
 import { RULER_NOT_SUPPORTED_MSG } from '../utils/constants';
-import { getDatasourceAPIId, GRAFANA_RULES_SOURCE_NAME } from '../utils/datasource';
+import { getDatasourceAPIUid, GRAFANA_RULES_SOURCE_NAME } from '../utils/datasource';
 
 import { prepareRulesFilterQueryParams } from './prometheus';
 
@@ -20,7 +21,7 @@ export interface RulerRequestUrl {
 }
 
 export function rulerUrlBuilder(rulerConfig: RulerDataSourceConfig) {
-  const grafanaServerPath = `/api/ruler/${getDatasourceAPIId(rulerConfig.dataSourceName)}`;
+  const grafanaServerPath = `/api/ruler/${getDatasourceAPIUid(rulerConfig.dataSourceName)}`;
 
   const rulerPath = `${grafanaServerPath}/api/v1/rules`;
   const rulerSearchParams = new URLSearchParams();
@@ -40,8 +41,8 @@ export function rulerUrlBuilder(rulerConfig: RulerDataSourceConfig) {
       path: `${rulerPath}/${encodeURIComponent(namespace)}`,
       params: Object.fromEntries(rulerSearchParams),
     }),
-    namespaceGroup: (namespace: string, group: string): RulerRequestUrl => ({
-      path: `${rulerPath}/${encodeURIComponent(namespace)}/${encodeURIComponent(group)}`,
+    namespaceGroup: (namespaceUID: string, group: string): RulerRequestUrl => ({
+      path: `${rulerPath}/${encodeURIComponent(namespaceUID)}/${encodeURIComponent(group)}`,
       params: Object.fromEntries(rulerSearchParams),
     }),
   };
@@ -50,10 +51,10 @@ export function rulerUrlBuilder(rulerConfig: RulerDataSourceConfig) {
 // upsert a rule group. use this to update rule
 export async function setRulerRuleGroup(
   rulerConfig: RulerDataSourceConfig,
-  namespace: string,
+  namespaceIdentifier: string,
   group: PostableRulerRuleGroupDTO
 ): Promise<void> {
-  const { path, params } = rulerUrlBuilder(rulerConfig).namespace(namespace);
+  const { path, params } = rulerUrlBuilder(rulerConfig).namespace(namespaceIdentifier);
   await lastValueFrom(
     getBackendSrv().fetch<unknown>({
       method: 'POST',
@@ -94,17 +95,17 @@ export async function fetchRulerRulesNamespace(rulerConfig: RulerDataSourceConfi
 // will throw with { status: 404 } if rule group does not exist
 export async function fetchTestRulerRulesGroup(dataSourceName: string): Promise<RulerRuleGroupDTO | null> {
   return rulerGetRequest<RulerRuleGroupDTO | null>(
-    `/api/ruler/${getDatasourceAPIId(dataSourceName)}/api/v1/rules/test/test`,
+    `/api/ruler/${getDatasourceAPIUid(dataSourceName)}/api/v1/rules/test/test`,
     null
   );
 }
 
 export async function fetchRulerRulesGroup(
   rulerConfig: RulerDataSourceConfig,
-  namespace: string,
+  namespaceIdentifier: string, // can be the namespace name or namespace UID
   group: string
 ): Promise<RulerRuleGroupDTO | null> {
-  const { path, params } = rulerUrlBuilder(rulerConfig).namespaceGroup(namespace, group);
+  const { path, params } = rulerUrlBuilder(rulerConfig).namespaceGroup(namespaceIdentifier, group);
   return rulerGetRequest<RulerRuleGroupDTO | null>(path, null, params);
 }
 
@@ -155,8 +156,13 @@ async function rulerGetRequest<T>(url: string, empty: T, params?: Record<string,
 }
 
 function isResponseError(error: unknown): error is FetchResponse<ErrorResponseMessage> {
-  const hasErrorMessage = (error as FetchResponse<ErrorResponseMessage>).data != null;
-  const hasErrorCode = Number.isFinite((error as FetchResponse<ErrorResponseMessage>).status);
+  if (!isObject(error)) {
+    return false;
+  }
+
+  const hasErrorMessage = 'data' in error && error.data !== null && error.data !== undefined;
+  const hasErrorCode = 'status' in error && Number.isFinite(error.status);
+
   return hasErrorCode && hasErrorMessage;
 }
 

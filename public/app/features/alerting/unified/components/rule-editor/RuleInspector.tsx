@@ -1,21 +1,28 @@
 import { css } from '@emotion/css';
 import { dump, load } from 'js-yaml';
-import React, { FC, useState } from 'react';
+import React, { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import AutoSizer from 'react-virtualized-auto-sizer';
 
 import { GrafanaTheme2 } from '@grafana/data';
-import { Button, CodeEditor, Drawer, Tab, TabsBar, useStyles2 } from '@grafana/ui';
+import { Button, CodeEditor, Drawer, Icon, Tab, TabsBar, useStyles2, Tooltip } from '@grafana/ui';
 
+import { RulerRuleDTO } from '../../../../../types/unified-alerting-dto';
 import { RuleFormValues } from '../../types/rule-form';
+import {
+  alertingRulerRuleToRuleForm,
+  formValuesToRulerRuleDTO,
+  recordingRulerRuleToRuleForm,
+} from '../../utils/rule-form';
+import { isAlertingRulerRule, isRecordingRulerRule } from '../../utils/rules';
 
 interface Props {
   onClose: () => void;
 }
 
-const tabs = [{ label: 'Yaml', value: 'yaml' }];
+const cloudRulesTabs = [{ label: 'Yaml', value: 'yaml' }];
 
-export const RuleInspector: FC<Props> = ({ onClose }) => {
+export const RuleInspector = ({ onClose }: Props) => {
   const [activeTab, setActiveTab] = useState('yaml');
   const { setValue } = useFormContext<RuleFormValues>();
   const styles = useStyles2(drawerStyles);
@@ -35,7 +42,7 @@ export const RuleInspector: FC<Props> = ({ onClose }) => {
       title="Inspect Alert rule"
       subtitle={
         <div className={styles.subtitle}>
-          <RuleInspectorSubtitle setActiveTab={setActiveTab} activeTab={activeTab} />
+          <RuleInspectorTabs tabs={cloudRulesTabs} setActiveTab={setActiveTab} activeTab={activeTab} />
         </div>
       }
       onClose={onClose}
@@ -45,12 +52,13 @@ export const RuleInspector: FC<Props> = ({ onClose }) => {
   );
 };
 
-interface SubtitleProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
+interface RuleInspectorTabsProps<T = string> {
+  tabs: Array<{ label: string; value: T }>;
+  activeTab: T;
+  setActiveTab: (tab: T) => void;
 }
 
-const RuleInspectorSubtitle: FC<SubtitleProps> = ({ activeTab, setActiveTab }) => {
+export function RuleInspectorTabs<T extends string>({ tabs, activeTab, setActiveTab }: RuleInspectorTabsProps<T>) {
   return (
     <TabsBar>
       {tabs.map((tab, index) => {
@@ -66,19 +74,25 @@ const RuleInspectorSubtitle: FC<SubtitleProps> = ({ activeTab, setActiveTab }) =
       })}
     </TabsBar>
   );
-};
+}
 
 interface YamlTabProps {
   onSubmit: (newModel: RuleFormValues) => void;
 }
 
-const InspectorYamlTab: FC<YamlTabProps> = ({ onSubmit }) => {
+const InspectorYamlTab = ({ onSubmit }: YamlTabProps) => {
   const styles = useStyles2(yamlTabStyle);
   const { getValues } = useFormContext<RuleFormValues>();
-  const [alertRuleAsYaml, setAlertRuleAsYaml] = useState(dump(getValues()));
+
+  const yamlValues = formValuesToRulerRuleDTO(getValues());
+  const [alertRuleAsYaml, setAlertRuleAsYaml] = useState(dump(yamlValues));
 
   const onApply = () => {
-    onSubmit(load(alertRuleAsYaml) as RuleFormValues);
+    const rulerRule = load(alertRuleAsYaml) as RulerRuleDTO;
+    const currentFormValues = getValues();
+
+    const yamlFormValues = rulerRuleToRuleFormValues(rulerRule);
+    onSubmit({ ...currentFormValues, ...yamlFormValues });
   };
 
   return (
@@ -87,6 +101,9 @@ const InspectorYamlTab: FC<YamlTabProps> = ({ onSubmit }) => {
         <Button type="button" onClick={onApply}>
           Apply
         </Button>
+        <Tooltip content={<YamlContentInfo />} theme="info" placement="left-start" interactive={true}>
+          <Icon name="exclamation-triangle" size="xl" />
+        </Tooltip>
       </div>
 
       <div className={styles.content}>
@@ -111,7 +128,33 @@ const InspectorYamlTab: FC<YamlTabProps> = ({ onSubmit }) => {
   );
 };
 
-const yamlTabStyle = (theme: GrafanaTheme2) => ({
+function YamlContentInfo() {
+  return (
+    <div>
+      The YAML content in the editor only contains alert rule configuration <br />
+      To configure Prometheus, you need to provide the rest of the{' '}
+      <a
+        href="https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/"
+        target="_blank"
+        rel="noreferrer"
+      >
+        configuration file content.
+      </a>
+    </div>
+  );
+}
+
+function rulerRuleToRuleFormValues(rulerRule: RulerRuleDTO): Partial<RuleFormValues> {
+  if (isAlertingRulerRule(rulerRule)) {
+    return alertingRulerRuleToRuleForm(rulerRule);
+  } else if (isRecordingRulerRule(rulerRule)) {
+    return recordingRulerRuleToRuleForm(rulerRule);
+  }
+
+  return {};
+}
+
+export const yamlTabStyle = (theme: GrafanaTheme2) => ({
   content: css`
     flex-grow: 1;
     height: 100%;
@@ -120,11 +163,15 @@ const yamlTabStyle = (theme: GrafanaTheme2) => ({
   `,
   applyButton: css`
     display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
     flex-grow: 0;
+    margin-bottom: ${theme.spacing(2)};
   `,
 });
 
-const drawerStyles = () => ({
+export const drawerStyles = () => ({
   subtitle: css`
     display: flex;
     align-items: center;

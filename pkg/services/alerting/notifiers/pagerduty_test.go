@@ -6,14 +6,17 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/grafana/pkg/components/null"
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/encryption/ossencryption"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
+	"github.com/grafana/grafana/pkg/services/annotations/annotationstest"
+	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	"github.com/grafana/grafana/pkg/services/tag"
 	"github.com/grafana/grafana/pkg/services/validations"
-
-	"github.com/stretchr/testify/require"
+	"github.com/grafana/grafana/pkg/setting"
 )
 
 func presenceComparer(a, b string) bool {
@@ -27,6 +30,8 @@ func presenceComparer(a, b string) bool {
 }
 
 func TestPagerdutyNotifier(t *testing.T) {
+	encryptionService := encryptionservice.SetupTestService(t)
+
 	t.Run("empty settings should return error", func(t *testing.T) {
 		json := `{ }`
 
@@ -39,7 +44,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		_, err = NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		_, err = NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		require.Error(t, err)
 	})
 
@@ -55,7 +60,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
 
 		require.Nil(t, err)
@@ -78,7 +83,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
 
 		require.Nil(t, err)
@@ -105,7 +110,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
 
 		require.Nil(t, err)
@@ -130,7 +135,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		require.Nil(t, err)
 
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
@@ -139,7 +144,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Name:    "someRule",
 			Message: "someMessage",
 			State:   models.AlertStateAlerting,
-		}, &validations.OSSPluginRequestValidator{}, nil)
+		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 		evalContext.IsTestRun = true
 
 		payloadJSON, err := pagerdutyNotifier.buildEventPayload(evalContext)
@@ -147,20 +152,20 @@ func TestPagerdutyNotifier(t *testing.T) {
 		payload, err := simplejson.NewJson(payloadJSON)
 		require.Nil(t, err)
 
-		diff := cmp.Diff(map[string]interface{}{
+		diff := cmp.Diff(map[string]any{
 			"client":       "Grafana",
 			"client_url":   "",
 			"dedup_key":    "alertId-0",
 			"event_action": "trigger",
-			"links": []interface{}{
-				map[string]interface{}{
+			"links": []any{
+				map[string]any{
 					"href": "",
 				},
 			},
-			"payload": map[string]interface{}{
+			"payload": map[string]any{
 				"component": "Grafana",
 				"source":    "<<PRESENCE>>",
-				"custom_details": map[string]interface{}{
+				"custom_details": map[string]any{
 					"state": "alerting",
 				},
 				"severity":  "critical",
@@ -187,7 +192,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		require.Nil(t, err)
 
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
@@ -195,7 +200,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			ID:    0,
 			Name:  "someRule",
 			State: models.AlertStateAlerting,
-		}, &validations.OSSPluginRequestValidator{}, nil)
+		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 		evalContext.IsTestRun = true
 
 		payloadJSON, err := pagerdutyNotifier.buildEventPayload(evalContext)
@@ -203,20 +208,20 @@ func TestPagerdutyNotifier(t *testing.T) {
 		payload, err := simplejson.NewJson(payloadJSON)
 		require.Nil(t, err)
 
-		diff := cmp.Diff(map[string]interface{}{
+		diff := cmp.Diff(map[string]any{
 			"client":       "Grafana",
 			"client_url":   "",
 			"dedup_key":    "alertId-0",
 			"event_action": "trigger",
-			"links": []interface{}{
-				map[string]interface{}{
+			"links": []any{
+				map[string]any{
 					"href": "",
 				},
 			},
-			"payload": map[string]interface{}{
+			"payload": map[string]any{
 				"component": "Grafana",
 				"source":    "<<PRESENCE>>",
-				"custom_details": map[string]interface{}{
+				"custom_details": map[string]any{
 					"state": "alerting",
 				},
 				"severity":  "critical",
@@ -244,7 +249,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		require.Nil(t, err)
 
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
@@ -253,7 +258,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Name:    "someRule",
 			Message: "someMessage",
 			State:   models.AlertStateAlerting,
-		}, &validations.OSSPluginRequestValidator{}, nil)
+		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 		evalContext.IsTestRun = true
 		evalContext.EvalMatches = []*alerting.EvalMatch{
 			{
@@ -270,22 +275,22 @@ func TestPagerdutyNotifier(t *testing.T) {
 		payload, err := simplejson.NewJson(payloadJSON)
 		require.NoError(t, err)
 
-		diff := cmp.Diff(map[string]interface{}{
+		diff := cmp.Diff(map[string]any{
 			"client":       "Grafana",
 			"client_url":   "",
 			"dedup_key":    "alertId-0",
 			"event_action": "trigger",
-			"links": []interface{}{
-				map[string]interface{}{
+			"links": []any{
+				map[string]any{
 					"href": "",
 				},
 			},
-			"payload": map[string]interface{}{
+			"payload": map[string]any{
 				"component": "Grafana",
 				"source":    "<<PRESENCE>>",
-				"custom_details": map[string]interface{}{
+				"custom_details": map[string]any{
 					"message": "someMessage",
-					"queries": map[string]interface{}{
+					"queries": map[string]any{
 						"someMetric": nil,
 					},
 					"state": "alerting",
@@ -314,7 +319,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		require.NoError(t, err)
 
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
@@ -324,7 +329,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Name:    "someRule",
 			Message: "someMessage",
 			State:   models.AlertStateAlerting,
-			AlertRuleTags: []*models.Tag{
+			AlertRuleTags: []*tag.Tag{
 				{Key: "keyOnly"},
 				{Key: "group", Value: "aGroup"},
 				{Key: "class", Value: "aClass"},
@@ -332,7 +337,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 				{Key: "severity", Value: "warning"},
 				{Key: "dedup_key", Value: "key-" + strings.Repeat("x", 260)},
 			},
-		}, &validations.OSSPluginRequestValidator{}, nil)
+		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 		evalContext.ImagePublicURL = "http://somewhere.com/omg_dont_panic.png"
 		evalContext.IsTestRun = true
 
@@ -341,20 +346,20 @@ func TestPagerdutyNotifier(t *testing.T) {
 		payload, err := simplejson.NewJson(payloadJSON)
 		require.NoError(t, err)
 
-		diff := cmp.Diff(map[string]interface{}{
+		diff := cmp.Diff(map[string]any{
 			"client":       "Grafana",
 			"client_url":   "",
 			"dedup_key":    "key-" + strings.Repeat("x", 250),
 			"event_action": "trigger",
-			"links": []interface{}{
-				map[string]interface{}{
+			"links": []any{
+				map[string]any{
 					"href": "",
 				},
 			},
-			"payload": map[string]interface{}{
+			"payload": map[string]any{
 				"source":    "<<PRESENCE>>",
 				"component": "aComponent",
-				"custom_details": map[string]interface{}{
+				"custom_details": map[string]any{
 					"group":     "aGroup",
 					"class":     "aClass",
 					"component": "aComponent",
@@ -369,8 +374,8 @@ func TestPagerdutyNotifier(t *testing.T) {
 				"class":     "aClass",
 				"group":     "aGroup",
 			},
-			"images": []interface{}{
-				map[string]interface{}{
+			"images": []any{
+				map[string]any{
 					"src": "http://somewhere.com/omg_dont_panic.png",
 				},
 			},
@@ -394,7 +399,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		require.NoError(t, err)
 
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
@@ -404,14 +409,14 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Name:    "someRule",
 			Message: "someMessage",
 			State:   models.AlertStateAlerting,
-			AlertRuleTags: []*models.Tag{
+			AlertRuleTags: []*tag.Tag{
 				{Key: "keyOnly"},
 				{Key: "group", Value: "aGroup"},
 				{Key: "class", Value: "aClass"},
 				{Key: "component", Value: "aComponent"},
 				{Key: "severity", Value: "info"},
 			},
-		}, &validations.OSSPluginRequestValidator{}, nil)
+		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 		evalContext.ImagePublicURL = "http://somewhere.com/omg_dont_panic.png"
 		evalContext.IsTestRun = true
 
@@ -420,20 +425,20 @@ func TestPagerdutyNotifier(t *testing.T) {
 		payload, err := simplejson.NewJson(payloadJSON)
 		require.NoError(t, err)
 
-		diff := cmp.Diff(map[string]interface{}{
+		diff := cmp.Diff(map[string]any{
 			"client":       "Grafana",
 			"client_url":   "",
 			"dedup_key":    "alertId-0",
 			"event_action": "trigger",
-			"links": []interface{}{
-				map[string]interface{}{
+			"links": []any{
+				map[string]any{
 					"href": "",
 				},
 			},
-			"payload": map[string]interface{}{
+			"payload": map[string]any{
 				"source":    "<<PRESENCE>>",
 				"component": "aComponent",
-				"custom_details": map[string]interface{}{
+				"custom_details": map[string]any{
 					"group":     "aGroup",
 					"class":     "aClass",
 					"component": "aComponent",
@@ -447,8 +452,8 @@ func TestPagerdutyNotifier(t *testing.T) {
 				"class":     "aClass",
 				"group":     "aGroup",
 			},
-			"images": []interface{}{
-				map[string]interface{}{
+			"images": []any{
+				map[string]any{
 					"src": "http://somewhere.com/omg_dont_panic.png",
 				},
 			},
@@ -473,7 +478,7 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewPagerdutyNotifier(model, ossencryption.ProvideService().GetDecryptedValue, nil)
+		not, err := NewPagerdutyNotifier(setting.NewCfg(), model, encryptionService.GetDecryptedValue, nil)
 		require.NoError(t, err)
 
 		pagerdutyNotifier := not.(*PagerdutyNotifier)
@@ -483,14 +488,14 @@ func TestPagerdutyNotifier(t *testing.T) {
 			Name:    "someRule",
 			Message: "someMessage",
 			State:   models.AlertStateAlerting,
-			AlertRuleTags: []*models.Tag{
+			AlertRuleTags: []*tag.Tag{
 				{Key: "keyOnly"},
 				{Key: "group", Value: "aGroup"},
 				{Key: "class", Value: "aClass"},
 				{Key: "component", Value: "aComponent"},
 				{Key: "severity", Value: "llama"},
 			},
-		}, &validations.OSSPluginRequestValidator{}, nil)
+		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
 		evalContext.ImagePublicURL = "http://somewhere.com/omg_dont_panic.png"
 		evalContext.IsTestRun = true
 
@@ -499,20 +504,20 @@ func TestPagerdutyNotifier(t *testing.T) {
 		payload, err := simplejson.NewJson(payloadJSON)
 		require.NoError(t, err)
 
-		diff := cmp.Diff(map[string]interface{}{
+		diff := cmp.Diff(map[string]any{
 			"client":       "Grafana",
 			"client_url":   "",
 			"dedup_key":    "alertId-0",
 			"event_action": "trigger",
-			"links": []interface{}{
-				map[string]interface{}{
+			"links": []any{
+				map[string]any{
 					"href": "",
 				},
 			},
-			"payload": map[string]interface{}{
+			"payload": map[string]any{
 				"source":    "<<PRESENCE>>",
 				"component": "aComponent",
-				"custom_details": map[string]interface{}{
+				"custom_details": map[string]any{
 					"group":     "aGroup",
 					"class":     "aClass",
 					"component": "aComponent",
@@ -526,8 +531,8 @@ func TestPagerdutyNotifier(t *testing.T) {
 				"class":     "aClass",
 				"group":     "aGroup",
 			},
-			"images": []interface{}{
-				map[string]interface{}{
+			"images": []any{
+				map[string]any{
 					"src": "http://somewhere.com/omg_dont_panic.png",
 				},
 			},

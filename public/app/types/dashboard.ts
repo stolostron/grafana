@@ -1,8 +1,6 @@
 import { DataQuery } from '@grafana/data';
+import { Dashboard, DataSourceRef } from '@grafana/schema';
 import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
-import { VariableModel } from 'app/features/variables/types';
-
-import { DashboardAcl } from './acl';
 
 export interface DashboardDTO {
   redirectUri?: string;
@@ -10,7 +8,35 @@ export interface DashboardDTO {
   meta: DashboardMeta;
 }
 
+export interface ImportDashboardResponseDTO {
+  uid: string;
+  pluginId: string;
+  title: string;
+  imported: boolean;
+  importedRevision?: number;
+  importedUri: string;
+  importedUrl: string;
+  slug: string;
+  dashboardId: number;
+  folderId: number;
+  folderUid: string;
+  description: string;
+  path: string;
+  removed: boolean;
+}
+
+export interface SaveDashboardResponseDTO {
+  id: number;
+  slug: string;
+  status: string;
+  uid: string;
+  url: string;
+  version: number;
+}
+
 export interface DashboardMeta {
+  slug?: string;
+  uid?: string;
   canSave?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -18,15 +44,14 @@ export interface DashboardMeta {
   canStar?: boolean;
   canAdmin?: boolean;
   url?: string;
-  folderId?: number;
   folderUid?: string;
   canMakeEditable?: boolean;
-  submenuEnabled?: boolean;
   provisioned?: boolean;
   provisionedExternalId?: string;
   isStarred?: boolean;
   showSettings?: boolean;
   expires?: string;
+  isFolder?: boolean;
   isSnapshot?: boolean;
   folderTitle?: string;
   folderUrl?: string;
@@ -38,6 +63,11 @@ export interface DashboardMeta {
   fromFile?: boolean;
   hasUnsavedFolderChange?: boolean;
   annotationsPermissions?: AnnotationsPermissions;
+  publicDashboardUid?: string;
+  publicDashboardEnabled?: boolean;
+  dashboardNotFound?: boolean;
+  isEmbedded?: boolean;
+  isNew?: boolean;
 }
 
 export interface AnnotationActions {
@@ -51,12 +81,10 @@ export interface AnnotationsPermissions {
   organization: AnnotationActions;
 }
 
-export interface DashboardDataDTO {
+// FIXME: This should not override Dashboard types
+export interface DashboardDataDTO extends Dashboard {
   title: string;
   uid: string;
-  templating: {
-    list: VariableModel[];
-  };
   panels?: any[];
 }
 
@@ -64,7 +92,10 @@ export enum DashboardRoutes {
   Home = 'home-dashboard',
   New = 'new-dashboard',
   Normal = 'normal-dashboard',
+  Path = 'path-dashboard',
   Scripted = 'scripted-dashboard',
+  Public = 'public-dashboard',
+  Embedded = 'embedded-dashboard',
 }
 
 export enum DashboardInitPhase {
@@ -77,11 +108,10 @@ export enum DashboardInitPhase {
 
 export interface DashboardInitError {
   message: string;
-  error: any;
+  error: unknown;
 }
 
 export enum KioskMode {
-  Off = 'off',
   TV = 'tv',
   Full = 'full',
 }
@@ -96,6 +126,6 @@ export interface QueriesToUpdateOnDashboardLoad {
 export interface DashboardState {
   getModel: GetMutableDashboardModelFn;
   initPhase: DashboardInitPhase;
+  initialDatasource?: DataSourceRef['uid'];
   initError: DashboardInitError | null;
-  permissions: DashboardAcl[];
 }

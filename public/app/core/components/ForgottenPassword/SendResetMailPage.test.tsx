@@ -41,7 +41,7 @@ describe('VerifyEmail Page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send reset email' }));
     expect(await screen.findByText('Email or username is required')).toBeInTheDocument();
 
-    userEvent.type(screen.getByRole('textbox', { name: /User Enter your information/i }), 'test@gmail.com');
+    await userEvent.type(screen.getByRole('textbox', { name: /User Enter your information/i }), 'test@gmail.com');
     await waitFor(() => expect(screen.queryByText('Email is invalid')).not.toBeInTheDocument());
   });
   it('should show success meessage if reset-password is successful', async () => {

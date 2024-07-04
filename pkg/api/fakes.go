@@ -4,54 +4,43 @@ import (
 	"context"
 
 	"github.com/grafana/grafana/pkg/plugins"
+	"github.com/grafana/grafana/pkg/services/rendering"
 )
 
-type fakePluginStore struct {
-	plugins map[string]plugins.PluginDTO
+type fakePluginInstaller struct {
+	plugins.Installer
+
+	plugins map[string]fakePlugin
 }
 
-func (ps fakePluginStore) Plugin(_ context.Context, pluginID string) (plugins.PluginDTO, bool) {
-	p, exists := ps.plugins[pluginID]
-
-	return p, exists
+type fakePlugin struct {
+	pluginID string
+	version  string
 }
 
-func (ps fakePluginStore) Plugins(_ context.Context, pluginTypes ...plugins.Type) []plugins.PluginDTO {
-	var result []plugins.PluginDTO
-	for _, v := range ps.plugins {
-		for _, t := range pluginTypes {
-			if v.Type == t {
-				result = append(result, v)
-			}
-		}
-	}
-
-	return result
+func NewFakePluginInstaller() *fakePluginInstaller {
+	return &fakePluginInstaller{plugins: map[string]fakePlugin{}}
 }
 
-func (ps fakePluginStore) Add(_ context.Context, pluginID, version string) error {
-	ps.plugins[pluginID] = plugins.PluginDTO{
-		JSONData: plugins.JSONData{
-			ID: pluginID,
-			Info: plugins.Info{
-				Version: version,
-			},
-		},
+func (pm *fakePluginInstaller) Add(_ context.Context, pluginID, version string, _ plugins.CompatOpts) error {
+	pm.plugins[pluginID] = fakePlugin{
+		pluginID: pluginID,
+		version:  version,
 	}
 	return nil
 }
 
-func (ps fakePluginStore) Remove(_ context.Context, pluginID string) error {
-	delete(ps.plugins, pluginID)
+func (pm *fakePluginInstaller) Remove(_ context.Context, pluginID, _ string) error {
+	delete(pm.plugins, pluginID)
 	return nil
 }
 
-type fakeRendererManager struct {
-	plugins.RendererManager
+type fakeRendererPluginManager struct {
+	rendering.PluginManager
 }
 
-func (ps *fakeRendererManager) Renderer() *plugins.Plugin {
-	return nil
+func (ps *fakeRendererPluginManager) Renderer(_ context.Context) (rendering.Plugin, bool) {
+	return nil, false
 }
 
 type fakePluginStaticRouteResolver struct {
@@ -60,6 +49,6 @@ type fakePluginStaticRouteResolver struct {
 	routes []*plugins.StaticRoute
 }
 
-func (psrr *fakePluginStaticRouteResolver) Routes() []*plugins.StaticRoute {
+func (psrr *fakePluginStaticRouteResolver) Routes(_ context.Context) []*plugins.StaticRoute {
 	return psrr.routes
 }

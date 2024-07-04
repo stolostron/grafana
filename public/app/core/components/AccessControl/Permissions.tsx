@@ -1,9 +1,13 @@
+import { css } from '@emotion/css';
 import { sortBy } from 'lodash';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Button } from '@grafana/ui';
+import { GrafanaTheme2 } from '@grafana/data';
+import { Text, Box, Button, useStyles2, Space } from '@grafana/ui';
 import { SlideDown } from 'app/core/components/Animations/SlideDown';
+import { Trans, t } from 'app/core/internationalization';
 import { getBackendSrv } from 'app/core/services/backend_srv';
+import { DescendantCount } from 'app/features/browse-dashboards/components/BrowseActions/DescendantCount';
 
 import { AddPermission } from './AddPermission';
 import { PermissionList } from './PermissionList';
@@ -16,40 +20,47 @@ const INITIAL_DESCRIPTION: Description = {
   assignments: {
     teams: false,
     users: false,
+    serviceAccounts: false,
     builtInRoles: false,
   },
 };
 
 type ResourceId = string | number;
-type Type = 'users' | 'teams' | 'builtInRoles';
+type Type = 'users' | 'teams' | 'serviceAccounts' | 'builtInRoles';
 
 export type Props = {
   title?: string;
   buttonLabel?: string;
+  emptyLabel?: string;
   addPermissionTitle?: string;
   resource: string;
   resourceId: ResourceId;
-
-  canListUsers: boolean;
   canSetPermissions: boolean;
+  getWarnings?: (items: ResourcePermission[]) => ResourcePermission[];
 };
 
 export const Permissions = ({
-  title = 'Permissions',
-  buttonLabel = 'Add a permission',
+  title = t('access-control.permissions.title', 'Permissions'),
+  buttonLabel = t('access-control.permissions.add-label', 'Add a permission'),
+  emptyLabel = t('access-control.permissions.no-permissions', 'There are no permissions'),
   resource,
   resourceId,
-  canListUsers,
   canSetPermissions,
   addPermissionTitle,
+  getWarnings,
 }: Props) => {
+  const styles = useStyles2(getStyles);
   const [isAdding, setIsAdding] = useState(false);
   const [items, setItems] = useState<ResourcePermission[]>([]);
   const [desc, setDesc] = useState(INITIAL_DESCRIPTION);
 
-  const fetchItems = useCallback(() => {
-    return getPermissions(resource, resourceId).then((r) => setItems(r));
-  }, [resource, resourceId]);
+  const fetchItems = useCallback(async () => {
+    let items = await getPermissions(resource, resourceId);
+    if (getWarnings) {
+      items = getWarnings(items);
+    }
+    setItems(items);
+  }, [resource, resourceId, getWarnings]);
 
   useEffect(() => {
     getDescription(resource).then((r) => {
@@ -61,6 +72,8 @@ export const Permissions = ({
   const onAdd = (state: SetPermission) => {
     let promise: Promise<void> | null = null;
     if (state.target === PermissionTarget.User) {
+      promise = setUserPermission(resource, resourceId, state.userId!, state.permission);
+    } else if (state.target === PermissionTarget.ServiceAccount) {
       promise = setUserPermission(resource, resourceId, state.userId!, state.permission);
     } else if (state.target === PermissionTarget.Team) {
       promise = setTeamPermission(resource, resourceId, state.teamId!, state.permission);
@@ -79,6 +92,8 @@ export const Permissions = ({
       promise = setUserPermission(resource, resourceId, item.userId, EMPTY_PERMISSION);
     } else if (item.teamId) {
       promise = setTeamPermission(resource, resourceId, item.teamId, EMPTY_PERMISSION);
+    } else if (item.isServiceAccount && item.userId) {
+      promise = setUserPermission(resource, resourceId, item.userId, EMPTY_PERMISSION);
     } else if (item.builtInRole) {
       promise = setBuiltInRolePermission(resource, resourceId, item.builtInRole, EMPTY_PERMISSION);
     }
@@ -94,6 +109,8 @@ export const Permissions = ({
     }
     if (item.userId) {
       onAdd({ permission, userId: item.userId, target: PermissionTarget.User });
+    } else if (item.isServiceAccount) {
+      onAdd({ permission, userId: item.userId, target: PermissionTarget.User });
     } else if (item.teamId) {
       onAdd({ permission, teamId: item.teamId, target: PermissionTarget.Team });
     } else if (item.builtInRole) {
@@ -105,15 +122,23 @@ export const Permissions = ({
     () =>
       sortBy(
         items.filter((i) => i.teamId),
-        ['team']
+        ['team', 'isManaged']
       ),
     [items]
   );
   const users = useMemo(
     () =>
       sortBy(
-        items.filter((i) => i.userId),
-        ['userLogin']
+        items.filter((i) => i.userId && !i.isServiceAccount),
+        ['userLogin', 'isManaged']
+      ),
+    [items]
+  );
+  const serviceAccounts = useMemo(
+    () =>
+      sortBy(
+        items.filter((i) => i.userId && i.isServiceAccount),
+        ['userLogin', 'isManaged']
       ),
     [items]
   );
@@ -121,59 +146,97 @@ export const Permissions = ({
     () =>
       sortBy(
         items.filter((i) => i.builtInRole),
-        ['builtInRole']
+        ['builtInRole', 'isManaged']
       ),
     [items]
   );
 
+  const titleRole = t('access-control.permissions.role', 'Role');
+  const titleUser = t('access-control.permissions.user', 'User');
+  const titleServiceAccount = t('access-control.permissions.serviceaccount', 'Service Account');
+  const titleTeam = t('access-control.permissions.team', 'Team');
+
   return (
     <div>
-      <div className="page-action-bar">
-        <h3 className="page-sub-heading">{title}</h3>
-        <div className="page-action-bar__spacer" />
-        {canSetPermissions && (
-          <Button variant={'primary'} key="add-permission" onClick={() => setIsAdding(true)}>
+      {canSetPermissions && resource === 'folders' && (
+        <>
+          <Trans i18nKey="access-control.permissions.permissions-change-warning">
+            This will change permissions for this folder and all its descendants. In total, this will affect:
+          </Trans>
+          <DescendantCount
+            selectedItems={{
+              folder: { [resourceId]: true },
+              dashboard: {},
+              panel: {},
+              $all: false,
+            }}
+          />
+          <Space v={2} />
+        </>
+      )}
+      {items.length === 0 && (
+        <Box>
+          <Text>{emptyLabel}</Text>
+        </Box>
+      )}
+      <PermissionList
+        title={titleRole}
+        items={builtInRoles}
+        compareKey={'builtInRole'}
+        permissionLevels={desc.permissions}
+        onChange={onChange}
+        onRemove={onRemove}
+        canSet={canSetPermissions}
+      />
+      <PermissionList
+        title={titleUser}
+        items={users}
+        compareKey={'userLogin'}
+        permissionLevels={desc.permissions}
+        onChange={onChange}
+        onRemove={onRemove}
+        canSet={canSetPermissions}
+      />
+      <PermissionList
+        title={titleServiceAccount}
+        items={serviceAccounts}
+        compareKey={'userLogin'}
+        permissionLevels={desc.permissions}
+        onChange={onChange}
+        onRemove={onRemove}
+        canSet={canSetPermissions}
+      />
+      <PermissionList
+        title={titleTeam}
+        items={teams}
+        compareKey={'team'}
+        permissionLevels={desc.permissions}
+        onChange={onChange}
+        onRemove={onRemove}
+        canSet={canSetPermissions}
+      />
+      {canSetPermissions && (
+        <>
+          <Button
+            className={styles.addPermissionButton}
+            variant={'primary'}
+            key="add-permission"
+            onClick={() => setIsAdding(true)}
+            icon="plus"
+          >
             {buttonLabel}
           </Button>
-        )}
-      </div>
-
-      <div>
-        <SlideDown in={isAdding}>
-          <AddPermission
-            title={addPermissionTitle}
-            onAdd={onAdd}
-            permissions={desc.permissions}
-            assignments={desc.assignments}
-            canListUsers={canListUsers}
-            onCancel={() => setIsAdding(false)}
-          />
-        </SlideDown>
-        <PermissionList
-          title="Role"
-          items={builtInRoles}
-          permissionLevels={desc.permissions}
-          onChange={onChange}
-          onRemove={onRemove}
-          canSet={canSetPermissions}
-        />
-        <PermissionList
-          title="User"
-          items={users}
-          permissionLevels={desc.permissions}
-          onChange={onChange}
-          onRemove={onRemove}
-          canSet={canSetPermissions}
-        />
-        <PermissionList
-          title="Team"
-          items={teams}
-          permissionLevels={desc.permissions}
-          onChange={onChange}
-          onRemove={onRemove}
-          canSet={canSetPermissions}
-        />
-      </div>
+          <SlideDown in={isAdding}>
+            <AddPermission
+              title={addPermissionTitle}
+              onAdd={onAdd}
+              permissions={desc.permissions}
+              assignments={desc.assignments}
+              onCancel={() => setIsAdding(false)}
+            />
+          </SlideDown>
+        </>
+      )}
     </div>
   );
 };
@@ -207,3 +270,14 @@ const setPermission = (
   permission: string
 ): Promise<void> =>
   getBackendSrv().post(`/api/access-control/${resource}/${resourceId}/${type}/${typeId}`, { permission });
+
+const getStyles = (theme: GrafanaTheme2) => ({
+  breakdown: css({
+    ...theme.typography.bodySmall,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing(2),
+  }),
+  addPermissionButton: css({
+    marginBottom: theme.spacing(2),
+  }),
+});

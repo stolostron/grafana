@@ -4,15 +4,15 @@ import { RefreshEvent } from '@grafana/runtime';
 import { PanelChrome } from '@grafana/ui';
 import { applyPanelTimeOverrides } from 'app/features/dashboard/utils/panel';
 import { PanelRenderer } from 'app/features/panel/components/PanelRenderer';
-import { PanelOptions } from 'app/plugins/panel/table/models.gen';
+import { Options } from 'app/plugins/panel/table/panelcfg.gen';
 
-import PanelHeaderCorner from '../../dashgrid/PanelHeader/PanelHeaderCorner';
 import { getTimeSrv } from '../../services/TimeSrv';
 import { DashboardModel, PanelModel } from '../../state';
 
+import PanelHeaderCorner from './PanelHeaderCorner';
 import { usePanelLatestData } from './usePanelLatestData';
 
-interface Props {
+export interface Props {
   width: number;
   height: number;
   panel: PanelModel;
@@ -21,7 +21,7 @@ interface Props {
 
 export function PanelEditorTableView({ width, height, panel, dashboard }: Props) {
   const { data } = usePanelLatestData(panel, { withTransforms: true, withFieldConfig: false }, false);
-  const [options, setOptions] = useState<PanelOptions>({
+  const [options, setOptions] = useState<Options>({
     frameIndex: 0,
     showHeader: true,
     showTypeIcons: true,
@@ -30,10 +30,15 @@ export function PanelEditorTableView({ width, height, panel, dashboard }: Props)
   // Subscribe to panel event
   useEffect(() => {
     const timeSrv = getTimeSrv();
-    const timeData = applyPanelTimeOverrides(panel, timeSrv.timeRange());
 
     const sub = panel.events.subscribe(RefreshEvent, () => {
-      panel.runAllPanelQueries(dashboard.id, dashboard.getTimezone(), timeData, width);
+      const timeData = applyPanelTimeOverrides(panel, timeSrv.timeRange());
+      panel.runAllPanelQueries({
+        dashboardUID: dashboard.uid,
+        dashboardTimezone: dashboard.getTimezone(),
+        timeData,
+        width,
+      });
     });
     return () => {
       sub.unsubscribe();
@@ -44,11 +49,16 @@ export function PanelEditorTableView({ width, height, panel, dashboard }: Props)
     return null;
   }
 
+  const errorMessage = data?.errors
+    ? data.errors.length > 1
+      ? 'Multiple errors found. Click for more details'
+      : data.errors[0].message
+    : data?.error?.message;
   return (
     <PanelChrome width={width} height={height} padding="none">
       {(innerWidth, innerHeight) => (
         <>
-          <PanelHeaderCorner panel={panel} error={data?.error?.message} />
+          <PanelHeaderCorner panel={panel} error={errorMessage} />
           <PanelRenderer
             title="Raw data"
             pluginId="table"

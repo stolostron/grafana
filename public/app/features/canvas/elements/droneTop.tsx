@@ -1,12 +1,13 @@
 import { css } from '@emotion/css';
-import React, { FC } from 'react';
+import React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
+import { ScalarDimensionConfig } from '@grafana/schema';
 import { useStyles2 } from '@grafana/ui';
-import { DimensionContext, ScalarDimensionConfig } from 'app/features/dimensions';
+import { DimensionContext } from 'app/features/dimensions';
 import { ScalarDimensionEditor } from 'app/features/dimensions/editors';
 
-import { CanvasElementItem, CanvasElementProps } from '../element';
+import { CanvasElementItem, CanvasElementProps, defaultBgColor } from '../element';
 
 interface DroneTopData {
   bRightRotorRPM?: number;
@@ -24,10 +25,8 @@ interface DroneTopConfig {
   yawAngle?: ScalarDimensionConfig;
 }
 
-const DroneTopDisplay: FC<CanvasElementProps<DroneTopConfig, DroneTopData>> = (props) => {
+const DroneTopDisplay = ({ data }: CanvasElementProps<DroneTopConfig, DroneTopData>) => {
   const styles = useStyles2(getStyles);
-
-  const { data } = props;
 
   const fRightRotorAnimation = `spin ${data?.fRightRotorRPM ? 60 / Math.abs(data.fRightRotorRPM) : 0}s linear infinite`;
 
@@ -45,7 +44,7 @@ const DroneTopDisplay: FC<CanvasElementProps<DroneTopConfig, DroneTopData>> = (p
       xmlnsXlink="http://www.w3.org/1999/xlink"
       viewBox="-43 -43 640 640"
       xmlSpace="preserve"
-      style={{ transform: droneTopTransformStyle }}
+      style={{ transform: droneTopTransformStyle, fill: defaultBgColor }}
     >
       <path
         fillRule="evenodd"
@@ -81,7 +80,7 @@ const DroneTopDisplay: FC<CanvasElementProps<DroneTopConfig, DroneTopData>> = (p
   );
 };
 
-export const droneTopItem: CanvasElementItem<any, any> = {
+export const droneTopItem: CanvasElementItem = {
   id: 'droneTop',
   name: 'Drone Top',
   description: 'Drone top',
@@ -95,6 +94,11 @@ export const droneTopItem: CanvasElementItem<any, any> = {
 
   getNewOptions: (options) => ({
     ...options,
+    background: {
+      color: {
+        fixed: 'transparent',
+      },
+    },
   }),
 
   // Called when data changes
@@ -152,23 +156,23 @@ export const droneTopItem: CanvasElementItem<any, any> = {
 };
 
 const getStyles = (theme: GrafanaTheme2) => ({
-  propeller: css`
-    transform-origin: 50% 50%;
-    transform-box: fill-box;
-    display: block;
-    @keyframes spin {
-      from {
-        transform: rotate(0deg);
-      }
-      to {
-        transform: rotate(360deg);
-      }
-    }
-  `,
-  propellerCW: css`
-    animation-direction: normal;
-  `,
-  propellerCCW: css`
-    animation-direction: reverse;
-  `,
+  propeller: css({
+    transformOrigin: '50% 50%',
+    transformBox: 'fill-box',
+    display: 'block',
+    '@keyframes spin': {
+      from: {
+        transform: 'rotate(0deg)',
+      },
+      to: {
+        transform: 'rotate(360deg)',
+      },
+    },
+  }),
+  propellerCW: css({
+    animationDirection: 'normal',
+  }),
+  propellerCCW: css({
+    animationDirection: 'reverse',
+  }),
 });

@@ -9,8 +9,8 @@ import (
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/setting"
 )
@@ -50,7 +50,7 @@ func init() {
 }
 
 // NewAlertmanagerNotifier returns a new Alertmanager notifier
-func NewAlertmanagerNotifier(model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewAlertmanagerNotifier(cfg *setting.Cfg, model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
 	urlString := model.Settings.Get("url").MustString()
 	if urlString == "" {
 		return nil, alerting.ValidationError{Reason: "Could not find url property in settings"}
@@ -64,7 +64,7 @@ func NewAlertmanagerNotifier(model *models.AlertNotification, fn alerting.GetDec
 		}
 	}
 	basicAuthUser := model.Settings.Get("basicAuthUser").MustString()
-	basicAuthPassword := fn(context.Background(), model.SecureSettings, "basicAuthPassword", model.Settings.Get("basicAuthPassword").MustString(), setting.SecretKey)
+	basicAuthPassword := fn(context.Background(), model.SecureSettings, "basicAuthPassword", model.Settings.Get("basicAuthPassword").MustString(), cfg.SecretKey)
 
 	return &AlertmanagerNotifier{
 		NotifierBase:      NewNotifierBase(model, ns),
@@ -93,7 +93,7 @@ func (am *AlertmanagerNotifier) ShouldNotify(ctx context.Context, evalContext *a
 		return false
 	}
 
-	// Notify on Alerting -> OK to resolve before alertmanager timeout.
+	// Notify on Alerting -> OK to resolve before alertmanager timeout.models.AlertStateOK
 	if (evalContext.PrevAlertState == models.AlertStateAlerting) && (evalContext.Rule.State == models.AlertStateOK) {
 		return true
 	}
@@ -158,7 +158,7 @@ func (am *AlertmanagerNotifier) Notify(evalContext *alerting.EvalContext) error 
 	}
 
 	// Send one alert per matching series.
-	alerts := make([]interface{}, 0)
+	alerts := make([]any, 0)
 	for _, match := range evalContext.EvalMatches {
 		alert := am.createAlert(evalContext, match, ruleURL)
 		alerts = append(alerts, alert)
@@ -175,7 +175,7 @@ func (am *AlertmanagerNotifier) Notify(evalContext *alerting.EvalContext) error 
 	errCnt := 0
 
 	for _, url := range am.URL {
-		cmd := &models.SendWebhookSync{
+		cmd := &notifications.SendWebhookSync{
 			Url:        strings.TrimSuffix(url, "/") + "/api/v1/alerts",
 			User:       am.BasicAuthUser,
 			Password:   am.BasicAuthPassword,

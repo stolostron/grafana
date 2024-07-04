@@ -16,36 +16,39 @@ export function changeEditorMode(query: PromQuery, editorMode: QueryEditorMode, 
   onChange({ ...query, editorMode });
 }
 
-// @ts-ignore Will be used after builder is out of beta
-function getDefaultEditorMode(expr: string) {
+function getDefaultEditorMode(expr: string, defaultEditor: QueryEditorMode = QueryEditorMode.Builder): QueryEditorMode {
   // If we already have an expression default to code view
   if (expr != null && expr !== '') {
     return QueryEditorMode.Code;
   }
 
-  const value = store.get(queryEditorModeDefaultLocalStorageKey) as QueryEditorMode;
+  const value: QueryEditorMode = store.get(queryEditorModeDefaultLocalStorageKey);
   switch (value) {
     case QueryEditorMode.Builder:
     case QueryEditorMode.Code:
-    case QueryEditorMode.Explain:
       return value;
     default:
-      return QueryEditorMode.Builder;
+      return defaultEditor;
   }
 }
 
 /**
  * Returns query with defaults, and boolean true/false depending on change was required
  */
-export function getQueryWithDefaults(query: PromQuery, app: CoreApp | undefined): PromQuery {
+export function getQueryWithDefaults(
+  query: PromQuery & { expr?: string },
+  app: CoreApp | undefined,
+  defaultEditor?: QueryEditorMode
+): PromQuery {
   let result = query;
 
   if (!query.editorMode) {
-    // Default to Code mode until we are out of beta with the builder, then use getDefaultEditorMode.
-    result = { ...query, editorMode: QueryEditorMode.Code };
+    result = { ...query, editorMode: getDefaultEditorMode(query.expr, defaultEditor) };
   }
 
-  if (query.expr == null) {
+  // default query expr is now empty string, set in getDefaultQuery
+  // While expr is required in the types, it is not always defined at runtime, so we need to check for undefined and default to an empty string to prevent runtime errors
+  if (!query.expr) {
     result = { ...result, expr: '', legendFormat: LegendFormatMode.Auto };
   }
 
@@ -57,6 +60,12 @@ export function getQueryWithDefaults(query: PromQuery, app: CoreApp | undefined)
     if (app === CoreApp.Explore) {
       result.instant = true;
     }
+  }
+
+  // Unified Alerting does not support "both" for query type – fall back to "range".
+  const isBothInstantAndRange = query.instant && query.range;
+  if (app === CoreApp.UnifiedAlerting && isBothInstantAndRange) {
+    result = { ...result, instant: false, range: true };
   }
 
   return result;

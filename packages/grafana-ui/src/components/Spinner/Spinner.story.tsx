@@ -3,15 +3,12 @@ import React from 'react';
 
 import { Spinner } from '@grafana/ui';
 
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
 import { Props } from './Spinner';
 import mdx from './Spinner.mdx';
 
-export default {
+const meta: Meta = {
   title: 'Visualizations/Spinner',
   component: Spinner,
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
@@ -24,7 +21,7 @@ export default {
     backgroundColor: { control: { type: 'color' } },
     color: { control: { type: 'color' } },
   },
-} as Meta;
+};
 
 interface StoryProps extends Partial<Props> {
   backgroundColor: string;
@@ -52,6 +49,8 @@ export const Basic: Story<StoryProps> = (args) => {
 Basic.args = {
   backgroundColor: 'white',
   color: 'red',
-  size: 34,
+  size: 'xl',
   withStyle: false,
 };
+
+export default meta;

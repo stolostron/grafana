@@ -1,6 +1,6 @@
-import { mount } from 'enzyme';
+import { screen, render } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { act } from 'react-dom/test-utils';
 
 import { DashboardModel } from 'app/features/dashboard/state';
 import * as api from 'app/features/manage-dashboards/state/actions';
@@ -21,6 +21,7 @@ const prepareDashboardMock = (panel: any) => {
   const json = {
     title: 'name',
     panels: [panel],
+    tags: ['tag1', 'tag2'],
   };
 
   return {
@@ -35,8 +36,9 @@ const renderAndSubmitForm = async (
   submitSpy: jest.Mock,
   otherProps: Partial<SaveDashboardAsFormProps> = {}
 ) => {
-  const container = mount(
+  render(
     <SaveDashboardAsForm
+      isLoading={false}
       dashboard={dashboard as DashboardModel}
       onCancel={() => {}}
       onSuccess={() => {}}
@@ -48,11 +50,8 @@ const renderAndSubmitForm = async (
     />
   );
 
-  // @ts-ignore strict null error below
-  await act(async () => {
-    const button = container.find('button[aria-label="Save dashboard button"]');
-    button.simulate('submit');
-  });
+  const button = screen.getByRole('button', { name: 'Save dashboard button' });
+  await userEvent.click(button);
 };
 describe('SaveDashboardAsForm', () => {
   describe('default values', () => {
@@ -69,7 +68,22 @@ describe('SaveDashboardAsForm', () => {
       expect(savedDashboardModel.id).toBe(null);
       expect(savedDashboardModel.title).toBe('name');
       expect(savedDashboardModel.editable).toBe(true);
-      expect(savedDashboardModel.hideControls).toBe(false);
+      expect(savedDashboardModel.tags).toEqual(['tag1', 'tag2']);
+    });
+
+    it("appends 'Copy' to the name when the dashboard isnt new", async () => {
+      jest.spyOn(api, 'searchFolders').mockResolvedValue([]);
+      const spy = jest.fn();
+
+      await renderAndSubmitForm(prepareDashboardMock({}), spy, {
+        isNew: false,
+      });
+
+      expect(spy).toBeCalledTimes(1);
+      const savedDashboardModel = spy.mock.calls[0][0];
+      expect(savedDashboardModel.title).toBe('name Copy');
+      // when copying a dashboard, the tags should be empty
+      expect(savedDashboardModel.tags).toEqual([]);
     });
 
     it("appends 'Copy' to the name when the dashboard isnt new", async () => {

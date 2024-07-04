@@ -3,18 +3,37 @@ package api
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
 
-	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
-	"github.com/grafana/grafana/pkg/web"
+	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
+	"github.com/grafana/grafana/pkg/web"
+)
+
+const (
+	Prometheus = "prometheus"
+	Cortex     = "cortex"
+	Mimir      = "mimir"
+)
+
+const (
+	PrometheusDatasourceType = "prometheus"
+	LokiDatasourceType       = "loki"
+
+	mimirPrefix      = "/config/v1/rules"
+	prometheusPrefix = "/rules"
+	lokiPrefix       = "/api/prom/rules"
+
+	subtypeQuery = "subtype"
 )
 
 const (
@@ -45,29 +64,36 @@ var subtypeToPrefix = map[string]string{
 	Mimir:      mimirPrefix,
 }
 
+// The requester is primarily used for testing purposes, allowing us to inject a different implementation of withReq.
+type requester interface {
+	withReq(ctx *contextmodel.ReqContext, method string, u *url.URL, body io.Reader, extractor func(*response.NormalResponse) (any, error), headers map[string]string) response.Response
+}
+
 type LotexRuler struct {
 	log log.Logger
 	*AlertingProxy
+	requester requester
 }
 
 func NewLotexRuler(proxy *AlertingProxy, log log.Logger) *LotexRuler {
 	return &LotexRuler{
 		log:           log,
 		AlertingProxy: proxy,
+		requester:     proxy,
 	}
 }
 
-func (r *LotexRuler) RouteDeleteNamespaceRulesConfig(ctx *models.ReqContext) response.Response {
+func (r *LotexRuler) RouteDeleteNamespaceRulesConfig(ctx *contextmodel.ReqContext, namespace string) response.Response {
 	legacyRulerPrefix, err := r.validateAndGetPrefix(ctx)
 	if err != nil {
 		return ErrResp(500, err, "")
 	}
-	return r.withReq(
+	return r.requester.withReq(
 		ctx,
 		http.MethodDelete,
 		withPath(
 			*ctx.Req.URL,
-			fmt.Sprintf("%s/%s", legacyRulerPrefix, web.Params(ctx.Req)[":Namespace"]),
+			fmt.Sprintf("%s/%s", legacyRulerPrefix, url.PathEscape(namespace)),
 		),
 		nil,
 		messageExtractor,
@@ -75,12 +101,12 @@ func (r *LotexRuler) RouteDeleteNamespaceRulesConfig(ctx *models.ReqContext) res
 	)
 }
 
-func (r *LotexRuler) RouteDeleteRuleGroupConfig(ctx *models.ReqContext) response.Response {
+func (r *LotexRuler) RouteDeleteRuleGroupConfig(ctx *contextmodel.ReqContext, namespace string, group string) response.Response {
 	legacyRulerPrefix, err := r.validateAndGetPrefix(ctx)
 	if err != nil {
 		return ErrResp(500, err, "")
 	}
-	return r.withReq(
+	return r.requester.withReq(
 		ctx,
 		http.MethodDelete,
 		withPath(
@@ -88,8 +114,8 @@ func (r *LotexRuler) RouteDeleteRuleGroupConfig(ctx *models.ReqContext) response
 			fmt.Sprintf(
 				"%s/%s/%s",
 				legacyRulerPrefix,
-				web.Params(ctx.Req)[":Namespace"],
-				web.Params(ctx.Req)[":Groupname"],
+				url.PathEscape(namespace),
+				url.PathEscape(group),
 			),
 		),
 		nil,
@@ -98,12 +124,12 @@ func (r *LotexRuler) RouteDeleteRuleGroupConfig(ctx *models.ReqContext) response
 	)
 }
 
-func (r *LotexRuler) RouteGetNamespaceRulesConfig(ctx *models.ReqContext) response.Response {
+func (r *LotexRuler) RouteGetNamespaceRulesConfig(ctx *contextmodel.ReqContext, namespace string) response.Response {
 	legacyRulerPrefix, err := r.validateAndGetPrefix(ctx)
 	if err != nil {
 		return ErrResp(500, err, "")
 	}
-	return r.withReq(
+	return r.requester.withReq(
 		ctx,
 		http.MethodGet,
 		withPath(
@@ -111,7 +137,7 @@ func (r *LotexRuler) RouteGetNamespaceRulesConfig(ctx *models.ReqContext) respon
 			fmt.Sprintf(
 				"%s/%s",
 				legacyRulerPrefix,
-				web.Params(ctx.Req)[":Namespace"],
+				url.PathEscape(namespace),
 			),
 		),
 		nil,
@@ -120,12 +146,12 @@ func (r *LotexRuler) RouteGetNamespaceRulesConfig(ctx *models.ReqContext) respon
 	)
 }
 
-func (r *LotexRuler) RouteGetRulegGroupConfig(ctx *models.ReqContext) response.Response {
+func (r *LotexRuler) RouteGetRulegGroupConfig(ctx *contextmodel.ReqContext, namespace string, group string) response.Response {
 	legacyRulerPrefix, err := r.validateAndGetPrefix(ctx)
 	if err != nil {
 		return ErrResp(500, err, "")
 	}
-	return r.withReq(
+	return r.requester.withReq(
 		ctx,
 		http.MethodGet,
 		withPath(
@@ -133,8 +159,8 @@ func (r *LotexRuler) RouteGetRulegGroupConfig(ctx *models.ReqContext) response.R
 			fmt.Sprintf(
 				"%s/%s/%s",
 				legacyRulerPrefix,
-				web.Params(ctx.Req)[":Namespace"],
-				web.Params(ctx.Req)[":Groupname"],
+				url.PathEscape(namespace),
+				url.PathEscape(group),
 			),
 		),
 		nil,
@@ -143,13 +169,13 @@ func (r *LotexRuler) RouteGetRulegGroupConfig(ctx *models.ReqContext) response.R
 	)
 }
 
-func (r *LotexRuler) RouteGetRulesConfig(ctx *models.ReqContext) response.Response {
+func (r *LotexRuler) RouteGetRulesConfig(ctx *contextmodel.ReqContext) response.Response {
 	legacyRulerPrefix, err := r.validateAndGetPrefix(ctx)
 	if err != nil {
 		return ErrResp(500, err, "")
 	}
 
-	return r.withReq(
+	return r.requester.withReq(
 		ctx,
 		http.MethodGet,
 		withPath(
@@ -162,7 +188,7 @@ func (r *LotexRuler) RouteGetRulesConfig(ctx *models.ReqContext) response.Respon
 	)
 }
 
-func (r *LotexRuler) RoutePostNameRulesConfig(ctx *models.ReqContext, conf apimodels.PostableRuleGroupConfig) response.Response {
+func (r *LotexRuler) RoutePostNameRulesConfig(ctx *contextmodel.ReqContext, conf apimodels.PostableRuleGroupConfig, ns string) response.Response {
 	legacyRulerPrefix, err := r.validateAndGetPrefix(ctx)
 	if err != nil {
 		return ErrResp(500, err, "")
@@ -171,23 +197,23 @@ func (r *LotexRuler) RoutePostNameRulesConfig(ctx *models.ReqContext, conf apimo
 	if err != nil {
 		return ErrResp(500, err, "Failed marshal rule group")
 	}
-	ns := web.Params(ctx.Req)[":Namespace"]
 	u := withPath(*ctx.Req.URL, fmt.Sprintf("%s/%s", legacyRulerPrefix, ns))
-	return r.withReq(ctx, http.MethodPost, u, bytes.NewBuffer(yml), jsonExtractor(nil), nil)
+	return r.requester.withReq(ctx, http.MethodPost, u, bytes.NewBuffer(yml), jsonExtractor(nil), nil)
 }
 
-func (r *LotexRuler) validateAndGetPrefix(ctx *models.ReqContext) (string, error) {
-	recipient, err := strconv.ParseInt(web.Params(ctx.Req)[":Recipient"], 10, 64)
-	if err != nil {
-		return "", errInvalidRecipientFormat
+func (r *LotexRuler) validateAndGetPrefix(ctx *contextmodel.ReqContext) (string, error) {
+	datasourceUID := web.Params(ctx.Req)[":DatasourceUID"]
+	if datasourceUID == "" {
+		return "", fmt.Errorf("datasource UID is invalid")
 	}
 
-	ds, err := r.DataProxy.DataSourceCache.GetDatasource(ctx.Req.Context(), recipient, ctx.SignedInUser, ctx.SkipCache)
+	ds, err := r.DataProxy.DataSourceCache.GetDatasourceByUID(ctx.Req.Context(), datasourceUID, ctx.SignedInUser, ctx.SkipDSCache)
 	if err != nil {
 		return "", err
 	}
+
 	// Validate URL
-	if ds.Url == "" {
+	if ds.URL == "" {
 		return "", fmt.Errorf("URL for this data source is empty")
 	}
 
@@ -206,15 +232,20 @@ func (r *LotexRuler) validateAndGetPrefix(ctx *models.ReqContext) (string, error
 	subtype := ctx.Query(subtypeQuery)
 	subTypePrefix, ok := subtypeToPrefix[subtype]
 	if !ok {
-		r.log.Debug("unable to determine prometheus datasource subtype, using default prefix", "subtype", subtype)
+		r.log.Debug(
+			"Unable to determine prometheus datasource subtype, using default prefix",
+			"datasource", ds.UID, "datasourceType", ds.Type, "subtype", subtype, "prefix", prefix)
 		return prefix, nil
 	}
 
+	r.log.Debug("Determined prometheus datasource subtype",
+		"datasource", ds.UID, "datasourceType", ds.Type, "subtype", subtype)
 	return subTypePrefix, nil
 }
 
 func withPath(u url.URL, newPath string) *url.URL {
-	// TODO: handle path escaping
-	u.Path = newPath
+	u.Path, _ = url.PathUnescape(newPath)
+	u.RawPath = newPath
+
 	return &u
 }

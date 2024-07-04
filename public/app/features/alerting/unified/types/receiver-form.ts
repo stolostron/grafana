@@ -6,7 +6,7 @@ import { CloudNotifierType, NotifierType } from 'app/types';
 import { ControlledField } from '../hooks/useControlledFieldArray';
 
 export interface ChannelValues {
-  __id: string; // used to correllate form values to original DTOs
+  __id: string; // used to correlate form values to original DTOs
   type: string;
   settings: Record<string, any>;
   secureSettings: Record<string, any>;
@@ -25,6 +25,7 @@ export interface CloudChannelValues extends ChannelValues {
 
 export interface GrafanaChannelValues extends ChannelValues {
   type: NotifierType;
+  provenance?: string;
   disableResolveMessage: boolean;
 }
 

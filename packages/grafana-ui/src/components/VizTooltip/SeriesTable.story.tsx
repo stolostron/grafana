@@ -1,19 +1,19 @@
-import { Story, Meta } from '@storybook/react';
+import { StoryFn, Meta } from '@storybook/react';
 import React from 'react';
 
-import { SeriesTable, SeriesTableProps } from './SeriesTable';
+import { SeriesTable } from './SeriesTable';
 
-export default {
-  title: 'VizTooltip/SeriesTable',
+const meta: Meta<typeof SeriesTable> = {
+  title: 'Visualizations/VizTooltip/SeriesTable',
   component: SeriesTable,
   argTypes: {
     timestamp: {
       control: 'date',
     },
   },
-} as Meta;
+};
 
-const Template: Story<SeriesTableProps> = (args) => {
+const Template: StoryFn<typeof SeriesTable> = (args) => {
   const date = new Date(args.timestamp!).toLocaleString();
   return (
     <div>
@@ -60,3 +60,5 @@ multi.args = {
     },
   ],
 };
+
+export default meta;

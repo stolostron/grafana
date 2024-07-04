@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/setting"
 )
@@ -71,14 +71,14 @@ type ThreemaNotifier struct {
 }
 
 // NewThreemaNotifier is the constructor for the Threema notifier
-func NewThreemaNotifier(model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewThreemaNotifier(cfg *setting.Cfg, model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
 	if model.Settings == nil {
 		return nil, alerting.ValidationError{Reason: "No Settings Supplied"}
 	}
 
 	gatewayID := model.Settings.Get("gateway_id").MustString()
 	recipientID := model.Settings.Get("recipient_id").MustString()
-	apiSecret := fn(context.Background(), model.SecureSettings, "api_secret", model.Settings.Get("api_secret").MustString(), setting.SecretKey)
+	apiSecret := fn(context.Background(), model.SecureSettings, "api_secret", model.Settings.Get("api_secret").MustString(), cfg.SecretKey)
 
 	// Validation
 	if gatewayID == "" {
@@ -152,7 +152,7 @@ func (notifier *ThreemaNotifier) Notify(evalContext *alerting.EvalContext) error
 	headers := map[string]string{
 		"Content-Type": "application/x-www-form-urlencoded",
 	}
-	cmd := &models.SendWebhookSync{
+	cmd := &notifications.SendWebhookSync{
 		Url:        url,
 		Body:       body,
 		HttpMethod: "POST",

@@ -1,13 +1,13 @@
 package middleware
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/quota"
+	"github.com/grafana/grafana/pkg/services/auth"
+	"github.com/grafana/grafana/pkg/services/authn"
+	"github.com/grafana/grafana/pkg/services/quota/quotatest"
 	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/web"
 )
@@ -29,8 +29,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 403, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Global.User = 4
 		})
 
 		middlewareScenario(t, "and global session quota not reached", func(t *testing.T, sc *scenarioContext) {
@@ -40,8 +38,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 200, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Global.Session = 10
 		})
 
 		middlewareScenario(t, "and global session quota reached", func(t *testing.T, sc *scenarioContext) {
@@ -51,22 +47,12 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 403, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Global.Session = 1
 		})
 	})
 
 	t.Run("with user logged in", func(t *testing.T) {
-		const quotaUsed = 4
 		setUp := func(sc *scenarioContext) {
-			sc.withTokenSessionCookie("token")
-			sc.mockSQLStore.ExpectedSignedInUser = &models.SignedInUser{UserId: 12}
-			sc.userAuthTokenService.LookupTokenProvider = func(ctx context.Context, unhashedToken string) (*models.UserToken, error) {
-				return &models.UserToken{
-					UserId:        12,
-					UnhashedToken: "",
-				}, nil
-			}
+			sc.withIdentity(&authn.Identity{ID: "user:1", SessionToken: &auth.UserToken{UserId: 12}})
 		}
 
 		middlewareScenario(t, "global datasource quota reached", func(t *testing.T, sc *scenarioContext) {
@@ -78,8 +64,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 403, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Global.DataSource = quotaUsed
 		})
 
 		middlewareScenario(t, "user Org quota not reached", func(t *testing.T, sc *scenarioContext) {
@@ -92,8 +76,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 200, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.User.Org = quotaUsed + 1
 		})
 
 		middlewareScenario(t, "user Org quota reached", func(t *testing.T, sc *scenarioContext) {
@@ -105,8 +87,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 403, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.User.Org = quotaUsed
 		})
 
 		middlewareScenario(t, "org dashboard quota not reached", func(t *testing.T, sc *scenarioContext) {
@@ -118,8 +98,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 200, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Org.Dashboard = quotaUsed + 1
 		})
 
 		middlewareScenario(t, "org dashboard quota reached", func(t *testing.T, sc *scenarioContext) {
@@ -131,8 +109,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 403, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Org.Dashboard = quotaUsed
 		})
 
 		middlewareScenario(t, "org dashboard quota reached, but quotas disabled", func(t *testing.T, sc *scenarioContext) {
@@ -144,9 +120,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 200, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Org.Dashboard = quotaUsed
-			cfg.Quota.Enabled = false
 		})
 
 		middlewareScenario(t, "org alert quota reached and unified alerting is enabled", func(t *testing.T, sc *scenarioContext) {
@@ -161,7 +134,6 @@ func TestMiddlewareQuota(t *testing.T) {
 
 			cfg.UnifiedAlerting.Enabled = new(bool)
 			*cfg.UnifiedAlerting.Enabled = true
-			cfg.Quota.Org.AlertRule = quotaUsed
 		})
 
 		middlewareScenario(t, "org alert quota not reached and unified alerting is enabled", func(t *testing.T, sc *scenarioContext) {
@@ -176,7 +148,6 @@ func TestMiddlewareQuota(t *testing.T) {
 
 			cfg.UnifiedAlerting.Enabled = new(bool)
 			*cfg.UnifiedAlerting.Enabled = true
-			cfg.Quota.Org.AlertRule = quotaUsed + 1
 		})
 
 		middlewareScenario(t, "org alert quota reached but ngalert disabled", func(t *testing.T, sc *scenarioContext) {
@@ -189,8 +160,6 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 403, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Org.AlertRule = quotaUsed
 		})
 
 		middlewareScenario(t, "org alert quota not reached but ngalert disabled", func(t *testing.T, sc *scenarioContext) {
@@ -202,43 +171,17 @@ func TestMiddlewareQuota(t *testing.T) {
 			assert.Equal(t, 200, sc.resp.Code)
 		}, func(cfg *setting.Cfg) {
 			configure(cfg)
-
-			cfg.Quota.Org.AlertRule = quotaUsed + 1
 		})
 	})
 }
 
 func getQuotaHandler(reached bool, target string) web.Handler {
-	qs := &mockQuotaService{
-		reached: reached,
-	}
+	qs := quotatest.New(reached, nil)
 	return Quota(qs)(target)
 }
 
 func configure(cfg *setting.Cfg) {
 	cfg.AnonymousEnabled = false
-	cfg.Quota = setting.QuotaSettings{
-		Enabled: true,
-		Org: &setting.OrgQuota{
-			User:       5,
-			Dashboard:  5,
-			DataSource: 5,
-			ApiKey:     5,
-			AlertRule:  5,
-		},
-		User: &setting.UserQuota{
-			Org: 5,
-		},
-		Global: &setting.GlobalQuota{
-			Org:        5,
-			User:       5,
-			Dashboard:  5,
-			DataSource: 5,
-			ApiKey:     5,
-			Session:    5,
-			AlertRule:  5,
-		},
-	}
 }
 
 type mockQuotaService struct {

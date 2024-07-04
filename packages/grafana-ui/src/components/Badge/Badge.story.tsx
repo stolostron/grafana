@@ -1,17 +1,15 @@
-import { Story } from '@storybook/react';
+import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 
-import { Badge, BadgeProps } from '@grafana/ui';
+import { Badge } from '@grafana/ui';
 
-import { iconOptions } from '../../utils/storybook/knobs';
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { iconOptions } from '../../utils/storybook/icons';
 
 import mdx from './Badge.mdx';
 
-export default {
+const meta: Meta<typeof Badge> = {
   title: 'Data Display/Badge',
   component: Badge,
-  decorators: [withCenteredStory],
   parameters: {
     docs: { page: mdx },
   },
@@ -22,7 +20,7 @@ export default {
   },
 };
 
-const Template: Story<BadgeProps> = (args) => <Badge {...args} />;
+const Template: StoryFn<typeof Badge> = (args) => <Badge {...args} />;
 
 export const Basic = Template.bind({});
 
@@ -31,3 +29,5 @@ Basic.args = {
   color: 'blue',
   icon: 'rocket',
 };
+
+export default meta;

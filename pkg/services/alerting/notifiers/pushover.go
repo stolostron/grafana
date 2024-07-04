@@ -9,12 +9,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/grafana/grafana/pkg/setting"
-
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/services/alerting/models"
 	"github.com/grafana/grafana/pkg/services/notifications"
+	"github.com/grafana/grafana/pkg/setting"
 )
 
 const pushoverEndpoint = "https://api.pushover.net/1/messages.json"
@@ -194,9 +193,9 @@ func init() {
 }
 
 // NewPushoverNotifier is the constructor for the Pushover Notifier
-func NewPushoverNotifier(model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
-	userKey := fn(context.Background(), model.SecureSettings, "userKey", model.Settings.Get("userKey").MustString(), setting.SecretKey)
-	APIToken := fn(context.Background(), model.SecureSettings, "apiToken", model.Settings.Get("apiToken").MustString(), setting.SecretKey)
+func NewPushoverNotifier(cfg *setting.Cfg, model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+	userKey := fn(context.Background(), model.SecureSettings, "userKey", model.Settings.Get("userKey").MustString(), cfg.SecretKey)
+	APIToken := fn(context.Background(), model.SecureSettings, "apiToken", model.Settings.Get("apiToken").MustString(), cfg.SecretKey)
 	device := model.Settings.Get("device").MustString()
 	alertingPriority, err := strconv.Atoi(model.Settings.Get("priority").MustString("0")) // default Normal
 	if err != nil {
@@ -280,7 +279,7 @@ func (pn *PushoverNotifier) Notify(evalContext *alerting.EvalContext) error {
 		return err
 	}
 
-	cmd := &models.SendWebhookSync{
+	cmd := &notifications.SendWebhookSync{
 		Url:        pushoverEndpoint,
 		HttpMethod: "POST",
 		HttpHeader: headers,

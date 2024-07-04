@@ -7,7 +7,6 @@ import {
   DataQuery,
   DataQueryRequest,
   DataSourceApi,
-  getDefaultTimeRange,
   LoadingState,
   PanelData,
   ScopedVars,
@@ -19,10 +18,10 @@ import { getTimeSrv } from '../../dashboard/services/TimeSrv';
 import { runRequest } from '../../query/state/runRequest';
 import { getLastKey, getVariable } from '../state/selectors';
 import { KeyedVariableIdentifier } from '../state/types';
-import { QueryVariableModel, VariableRefresh } from '../types';
+import { QueryVariableModel } from '../types';
 import { getTemplatedRegex } from '../utils';
 
-import { toMetricFindValues, updateOptionsState, validateVariableSelection } from './operators';
+import { toMetricFindValuesOperator, updateOptionsState, validateVariableSelection } from './operators';
 import { QueryRunners } from './queryRunners';
 
 interface UpdateOptionsArgs {
@@ -105,7 +104,11 @@ export class VariableQueryRunner {
 
       this.updateOptionsResults.next({ identifier, state: LoadingState.Loading });
 
-      const variable = getVariable<QueryVariableModel>(identifier, getState());
+      const variable = getVariable(identifier, getState());
+      if (variable.type !== 'query') {
+        return;
+      }
+
       const timeSrv = getTimeSrv();
       const runnerArgs = { variable, datasource, searchFilter, timeSrv, runRequest };
       const runner = queryRunners.getRunnerForDatasource(datasource);
@@ -130,7 +133,7 @@ export class VariableQueryRunner {
 
             return of(data);
           }),
-          toMetricFindValues(),
+          toMetricFindValuesOperator(),
           updateOptionsState({ variable, dispatch, getTemplatedRegexFunc }),
           validateVariableSelection({ variable, dispatch, searchFilter }),
           takeUntil(
@@ -171,10 +174,7 @@ export class VariableQueryRunner {
     const searchFilterScope = { searchFilter: { text: searchFilter, value: searchFilter } };
     const searchFilterAsVars = searchFilter ? searchFilterScope : {};
     const scopedVars = { ...searchFilterAsVars, ...variableAsVars } as ScopedVars;
-    const range =
-      variable.refresh === VariableRefresh.onTimeRangeChanged
-        ? this.dependencies.getTimeSrv().timeRange()
-        : getDefaultTimeRange();
+    const range = this.dependencies.getTimeSrv().timeRange();
 
     const request: DataQueryRequest = {
       app: CoreApp.Dashboard,

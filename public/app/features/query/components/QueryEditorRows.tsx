@@ -5,6 +5,7 @@ import {
   CoreApp,
   DataQuery,
   DataSourceInstanceSettings,
+  DataSourceRef,
   EventBusExtended,
   HistoryItem,
   PanelData,
@@ -13,7 +14,7 @@ import { getDataSourceSrv, reportInteraction } from '@grafana/runtime';
 
 import { QueryEditorRow } from './QueryEditorRow';
 
-interface Props {
+export interface Props {
   // The query configuration
   queries: DataQuery[];
   dsSettings: DataSourceInstanceSettings;
@@ -30,6 +31,9 @@ interface Props {
   app?: CoreApp;
   history?: Array<HistoryItem<DataQuery>>;
   eventBus?: EventBusExtended;
+  onQueryCopied?: () => void;
+  onQueryRemoved?: () => void;
+  onQueryToggled?: (queryStatus?: boolean | undefined) => void;
 }
 
 export class QueryEditorRows extends PureComponent<Props> {
@@ -60,13 +64,18 @@ export class QueryEditorRows extends PureComponent<Props> {
           return item;
         }
 
+        const dataSourceRef: DataSourceRef = {
+          type: dataSource.type,
+          uid: dataSource.uid,
+        };
+
         if (item.datasource) {
           const previous = getDataSourceSrv().getInstanceSettings(item.datasource);
 
           if (previous?.type === dataSource.type) {
             return {
               ...item,
-              datasource: { uid: dataSource.uid },
+              datasource: dataSourceRef,
             };
           }
         }
@@ -74,7 +83,7 @@ export class QueryEditorRows extends PureComponent<Props> {
         return {
           refId: item.refId,
           hide: item.hide,
-          datasource: { uid: dataSource.uid },
+          datasource: dataSourceRef,
         };
       })
     );
@@ -123,14 +132,26 @@ export class QueryEditorRows extends PureComponent<Props> {
   };
 
   render() {
-    const { dsSettings, data, queries, app, history, eventBus } = this.props;
+    const {
+      dsSettings,
+      data,
+      queries,
+      app,
+      history,
+      eventBus,
+      onAddQuery,
+      onRunQueries,
+      onQueryCopied,
+      onQueryRemoved,
+      onQueryToggled,
+    } = this.props;
 
     return (
       <DragDropContext onDragStart={this.onDragStart} onDragEnd={this.onDragEnd}>
         <Droppable droppableId="transformations-list" direction="vertical">
           {(provided) => {
             return (
-              <div ref={provided.innerRef} {...provided.droppableProps}>
+              <div data-testid="query-editor-rows" ref={provided.innerRef} {...provided.droppableProps}>
                 {queries.map((query, index) => {
                   const dataSourceSettings = getDataSourceSettings(query, dsSettings);
                   const onChangeDataSourceSettings = dsSettings.meta.mixed
@@ -148,8 +169,11 @@ export class QueryEditorRows extends PureComponent<Props> {
                       onChangeDataSource={onChangeDataSourceSettings}
                       onChange={(query) => this.onChangeQuery(query, index)}
                       onRemoveQuery={this.onRemoveQuery}
-                      onAddQuery={this.props.onAddQuery}
-                      onRunQuery={this.props.onRunQueries}
+                      onAddQuery={onAddQuery}
+                      onRunQuery={onRunQueries}
+                      onQueryCopied={onQueryCopied}
+                      onQueryRemoved={onQueryRemoved}
+                      onQueryToggled={onQueryToggled}
                       queries={queries}
                       app={app}
                       history={history}

@@ -16,6 +16,9 @@ export interface LiveDataFilter {
   fields?: string[];
 }
 
+// StreamingFrameAction and StreamingFrameOptions are now in @grafana/data
+export { StreamingFrameAction, type StreamingFrameOptions } from '@grafana/data';
+
 /**
  * Indicate if the frame is appened or replace
  *
@@ -54,7 +57,7 @@ export interface LiveDataStreamOptions {
  */
 export interface LiveQueryDataOptions {
   request: DataQueryRequest;
-  body: any; // processed queries, same as sent to `/api/query/ds`
+  body: unknown; // processed queries, same as sent to `/api/query/ds`
 }
 
 /**
@@ -97,7 +100,7 @@ export interface GrafanaLiveSrv {
    *
    * @alpha -- experimental
    */
-  publish(address: LiveChannelAddress, data: any): Promise<any>;
+  publish(address: LiveChannelAddress, data: unknown): Promise<unknown>;
 }
 
 let singletonInstance: GrafanaLiveSrv;

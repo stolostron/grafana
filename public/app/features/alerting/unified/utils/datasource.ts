@@ -1,8 +1,17 @@
-import { DataSourceInstanceSettings, DataSourceJsonData } from '@grafana/data';
+import { DataSourceInstanceSettings, DataSourceJsonData, DataSourceSettings } from '@grafana/data';
+import { getDataSourceSrv } from '@grafana/runtime';
 import { contextSrv } from 'app/core/services/context_srv';
-import { AlertManagerDataSourceJsonData, AlertManagerImplementation } from 'app/plugins/datasource/alertmanager/types';
+import {
+  AlertManagerDataSourceJsonData,
+  AlertManagerImplementation,
+  AlertmanagerChoice,
+} from 'app/plugins/datasource/alertmanager/types';
 import { AccessControlAction } from 'app/types';
 import { RulesSource } from 'app/types/unified-alerting';
+
+import { alertmanagerApi } from '../api/alertmanagerApi';
+import { useAlertManagersByPermission } from '../hooks/useAlertManagerSources';
+import { isAlertManagerWithConfigAPI } from '../state/AlertmanagerContext';
 
 import { instancesPermissions, notificationsPermissions } from './access-control';
 import { getAllDataSources } from './config';
@@ -20,6 +29,8 @@ export interface AlertManagerDataSource {
   name: string;
   imgUrl: string;
   meta?: DataSourceInstanceSettings['meta'];
+  hasConfigurationAPI?: boolean;
+  handleGrafanaManagedAlerts?: boolean;
 }
 
 export const RulesDataSourceTypes: string[] = [DataSourceType.Loki, DataSourceType.Prometheus];
@@ -40,13 +51,30 @@ export function getRulesDataSource(rulesSourceName: string) {
 
 export function getAlertManagerDataSources() {
   return getAllDataSources()
-    .filter((ds) => ds.type === DataSourceType.Alertmanager)
+    .filter(isAlertmanagerDataSourceInstance)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function isAlertmanagerDataSourceInstance(
+  dataSource: DataSourceInstanceSettings
+): dataSource is DataSourceInstanceSettings<AlertManagerDataSourceJsonData> {
+  return dataSource.type === DataSourceType.Alertmanager;
+}
+
+export function isAlertmanagerDataSource(
+  dataSource: DataSourceSettings
+): dataSource is DataSourceSettings<AlertManagerDataSourceJsonData> {
+  return dataSource.type === DataSourceType.Alertmanager;
+}
+
+export function getExternalDsAlertManagers() {
+  return getAlertManagerDataSources().filter((ds) => ds.jsonData.handleGrafanaManagedAlerts);
 }
 
 const grafanaAlertManagerDataSource: AlertManagerDataSource = {
   name: GRAFANA_RULES_SOURCE_NAME,
   imgUrl: 'public/img/grafana_icon.svg',
+  hasConfigurationAPI: true,
 };
 
 // Used only as a fallback for Alert Group plugin
@@ -62,17 +90,53 @@ export function getAllAlertManagerDataSources(): AlertManagerDataSource[] {
   ];
 }
 
-export function getAlertManagerDataSourcesByPermission(
+/**
+ * This method gets all alert managers that the user has access, and then filter them first by being able to handle grafana managed alerts,
+ * and then depending on the current alerting configuration returns either only the internal alert managers, only the external alert managers, or both.
+ *
+ */
+export function useGetAlertManagerDataSourcesByPermissionAndConfig(
   permission: 'instance' | 'notification'
 ): AlertManagerDataSource[] {
-  const availableDataSources: AlertManagerDataSource[] = [];
+  const allAlertManagersByPermission = useAlertManagersByPermission(permission); // this hook memoizes the result of getAlertManagerDataSourcesByPermission
+
+  const externalDsAlertManagers: AlertManagerDataSource[] =
+    allAlertManagersByPermission.availableExternalDataSources.filter((ds) => ds.handleGrafanaManagedAlerts);
+  const internalDSAlertManagers = allAlertManagersByPermission.availableInternalDataSources;
+
+  //get current alerting configuration
+  const { currentData: amConfigStatus } = alertmanagerApi.useGetAlertmanagerChoiceStatusQuery(undefined);
+
+  const alertmanagerChoice = amConfigStatus?.alertmanagersChoice;
+
+  switch (alertmanagerChoice) {
+    case AlertmanagerChoice.Internal:
+      return internalDSAlertManagers;
+    case AlertmanagerChoice.External:
+      return externalDsAlertManagers;
+    default:
+      return [...internalDSAlertManagers, ...externalDsAlertManagers];
+  }
+}
+
+/**
+ * This method gets all alert managers that the user has access to and then split them into two groups:
+ * 1. Internal alert managers
+ * 2. External alert managers
+ */
+export function getAlertManagerDataSourcesByPermission(permission: 'instance' | 'notification'): {
+  availableInternalDataSources: AlertManagerDataSource[];
+  availableExternalDataSources: AlertManagerDataSource[];
+} {
+  const availableInternalDataSources: AlertManagerDataSource[] = [];
+  const availableExternalDataSources: AlertManagerDataSource[] = [];
   const permissions = {
     instance: instancesPermissions.read,
     notification: notificationsPermissions.read,
   };
 
   if (contextSrv.hasPermission(permissions[permission].grafana)) {
-    availableDataSources.push(grafanaAlertManagerDataSource);
+    availableInternalDataSources.push(grafanaAlertManagerDataSource);
   }
 
   if (contextSrv.hasPermission(permissions[permission].external)) {
@@ -81,11 +145,13 @@ export function getAlertManagerDataSourcesByPermission(
       displayName: ds.name,
       imgUrl: ds.meta.info.logos.small,
       meta: ds.meta,
+      hasConfigurationAPI: isAlertManagerWithConfigAPI(ds.jsonData),
+      handleGrafanaManagedAlerts: ds.jsonData.handleGrafanaManagedAlerts,
     }));
-    availableDataSources.push(...cloudSources);
+    availableExternalDataSources.push(...cloudSources);
   }
 
-  return availableDataSources;
+  return { availableInternalDataSources, availableExternalDataSources };
 }
 
 export function getLotexDataSourceByName(dataSourceName: string): DataSourceInstanceSettings {
@@ -123,6 +189,10 @@ export function getRulesSourceName(rulesSource: RulesSource): string {
   return isCloudRulesSource(rulesSource) ? rulesSource.name : rulesSource;
 }
 
+export function getRulesSourceUid(rulesSource: RulesSource): string {
+  return isCloudRulesSource(rulesSource) ? rulesSource.uid : GRAFANA_RULES_SOURCE_NAME;
+}
+
 export function isCloudRulesSource(rulesSource: RulesSource | string): rulesSource is DataSourceInstanceSettings {
   return rulesSource !== GRAFANA_RULES_SOURCE_NAME;
 }
@@ -130,8 +200,7 @@ export function isCloudRulesSource(rulesSource: RulesSource | string): rulesSour
 export function isVanillaPrometheusAlertManagerDataSource(name: string): boolean {
   return (
     name !== GRAFANA_RULES_SOURCE_NAME &&
-    (getDataSourceByName(name)?.jsonData as AlertManagerDataSourceJsonData)?.implementation ===
-      AlertManagerImplementation.prometheus
+    getAlertmanagerDataSourceByName(name)?.jsonData?.implementation === AlertManagerImplementation.prometheus
   );
 }
 
@@ -143,6 +212,12 @@ export function isGrafanaRulesSource(
 
 export function getDataSourceByName(name: string): DataSourceInstanceSettings<DataSourceJsonData> | undefined {
   return getAllDataSources().find((source) => source.name === name);
+}
+
+export function getAlertmanagerDataSourceByName(name: string) {
+  return getAllDataSources()
+    .filter(isAlertmanagerDataSourceInstance)
+    .find((source) => source.name === name);
 }
 
 export function getRulesSourceByName(name: string): RulesSource | undefined {
@@ -161,4 +236,30 @@ export function getDatasourceAPIId(dataSourceName: string) {
     throw new Error(`Datasource "${dataSourceName}" not found`);
   }
   return String(ds.id);
+}
+
+export function getDatasourceAPIUid(dataSourceName: string) {
+  if (dataSourceName === GRAFANA_RULES_SOURCE_NAME) {
+    return GRAFANA_RULES_SOURCE_NAME;
+  }
+  const ds = getDataSourceByName(dataSourceName);
+  if (!ds) {
+    throw new Error(`Datasource "${dataSourceName}" not found`);
+  }
+  return ds.uid;
+}
+
+export function getFirstCompatibleDataSource(): DataSourceInstanceSettings<DataSourceJsonData> | undefined {
+  return getDataSourceSrv().getList({ alerting: true })[0];
+}
+
+export function getDefaultOrFirstCompatibleDataSource(): DataSourceInstanceSettings<DataSourceJsonData> | undefined {
+  const defaultDataSource = getDataSourceSrv().getInstanceSettings('default');
+  const defaultIsCompatible = defaultDataSource?.meta.alerting ?? false;
+
+  return defaultIsCompatible ? defaultDataSource : getFirstCompatibleDataSource();
+}
+
+export function isDataSourceManagingAlerts(ds: DataSourceInstanceSettings<DataSourceJsonData>) {
+  return ds.jsonData.manageAlerts !== false; //if this prop is undefined it defaults to true
 }

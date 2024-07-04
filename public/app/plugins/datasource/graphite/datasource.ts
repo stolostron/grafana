@@ -1,32 +1,36 @@
 import { each, indexOf, isArray, isString, map as _map } from 'lodash';
-import { lastValueFrom, Observable, of, OperatorFunction, pipe, throwError } from 'rxjs';
+import { lastValueFrom, merge, Observable, of, OperatorFunction, pipe, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import {
+  AbstractLabelMatcher,
+  AbstractLabelOperator,
+  AbstractQuery,
   DataFrame,
   DataQueryRequest,
   DataQueryResponse,
   DataSourceApi,
   DataSourceWithQueryExportSupport,
   dateMath,
-  AbstractQuery,
-  AbstractLabelOperator,
-  AbstractLabelMatcher,
+  dateTime,
   MetricFindValue,
   QueryResultMetaStat,
   ScopedVars,
   TimeRange,
+  TimeZone,
   toDataFrame,
+  getSearchFilterScopedVar,
 } from '@grafana/data';
 import { getBackendSrv } from '@grafana/runtime';
 import { isVersionGtOrEq, SemVersion } from 'app/core/utils/version';
 import { getTemplateSrv, TemplateSrv } from 'app/features/templating/template_srv';
 import { getRollupNotice, getRuntimeConsolidationNotice } from 'app/plugins/datasource/graphite/meta';
 
-import { getSearchFilterScopedVar } from '../../../features/variables/utils';
-
-import gfunc, { FuncDefs, FuncInstance } from './gfunc';
+import { AnnotationEditor } from './components/AnnotationsEditor';
+import { convertToGraphiteQueryObject } from './components/helpers';
+import gfunc, { FuncDef, FuncDefs, FuncInstance } from './gfunc';
 import GraphiteQueryModel from './graphite_query';
+import { prepareAnnotation } from './migrations';
 // Types
 import {
   GraphiteLokiMapping,
@@ -34,6 +38,8 @@ import {
   GraphiteOptions,
   GraphiteQuery,
   GraphiteQueryImportConfiguration,
+  GraphiteQueryRequest,
+  GraphiteQueryType,
   GraphiteType,
   MetricTankRequestMeta,
 } from './types';
@@ -72,11 +78,15 @@ export class GraphiteDatasource
   cacheTimeout: any;
   withCredentials: boolean;
   funcDefs: FuncDefs | null = null;
-  funcDefsPromise: Promise<any> | null = null;
+  funcDefsPromise: Promise<FuncDefs> | null = null;
   _seriesRefLetters: string;
+  requestCounter = 100;
   private readonly metricMappings: GraphiteLokiMapping[];
 
-  constructor(instanceSettings: any, private readonly templateSrv: TemplateSrv = getTemplateSrv()) {
+  constructor(
+    instanceSettings: any,
+    private readonly templateSrv: TemplateSrv = getTemplateSrv()
+  ) {
     super(instanceSettings);
     this.basicAuth = instanceSettings.basicAuth;
     this.url = instanceSettings.url;
@@ -93,6 +103,10 @@ export class GraphiteDatasource
     this.funcDefs = null;
     this.funcDefsPromise = null;
     this._seriesRefLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    this.annotations = {
+      QueryEditor: AnnotationEditor,
+      prepareAnnotation,
+    };
   }
 
   getQueryOptionsInfo() {
@@ -178,11 +192,29 @@ export class GraphiteDatasource
   }
 
   query(options: DataQueryRequest<GraphiteQuery>): Observable<DataQueryResponse> {
+    if (options.targets.some((target: GraphiteQuery) => target.fromAnnotations)) {
+      const streams: Array<Observable<DataQueryResponse>> = [];
+
+      for (const target of options.targets) {
+        streams.push(
+          new Observable((subscriber) => {
+            this.annotationEvents(options.range, target)
+              .then((events) => subscriber.next({ data: [toDataFrame(events)] }))
+              .catch((ex) => subscriber.error(new Error(ex)))
+              .finally(() => subscriber.complete());
+          })
+        );
+      }
+
+      return merge(...streams);
+    }
+
+    // handle the queries here
     const graphOptions = {
       from: this.translateTime(options.range.from, false, options.timezone),
       until: this.translateTime(options.range.to, true, options.timezone),
       targets: options.targets,
-      format: (options as any).format,
+      format: (options as GraphiteQueryRequest).format,
       cacheTimeout: options.cacheTimeout || this.cacheTimeout,
       maxDataPoints: options.maxDataPoints,
     };
@@ -214,7 +246,10 @@ export class GraphiteDatasource
     return this.doGraphiteRequest(httpOptions).pipe(map(this.convertResponseToDataFrames));
   }
 
-  addTracingHeaders(httpOptions: { headers: any }, options: { dashboardId?: number; panelId?: number }) {
+  addTracingHeaders(
+    httpOptions: { headers: any },
+    options: { dashboardId?: number; panelId?: number; panelPluginId?: string }
+  ) {
     const proxyMode = !this.url.match(/^http/);
     if (proxyMode) {
       if (options.dashboardId) {
@@ -222,6 +257,9 @@ export class GraphiteDatasource
       }
       if (options.panelId) {
         httpOptions.headers['X-Panel-Id'] = options.panelId;
+      }
+      if (options.panelPluginId) {
+        httpOptions.headers['X-Panel-Plugin-Id'] = options.panelPluginId;
       }
     }
   }
@@ -326,35 +364,35 @@ export class GraphiteDatasource
     return expandedQueries;
   }
 
-  annotationQuery(options: any) {
-    // Graphite metric as annotation
-    if (options.annotation.target) {
-      const target = this.templateSrv.replace(options.annotation.target, {}, 'glob');
+  annotationEvents(range: any, target: any) {
+    if (target.target) {
+      // Graphite query as target as annotation
+      const targetAnnotation = this.templateSrv.replace(target.target, {}, 'glob');
       const graphiteQuery = {
-        range: options.range,
-        targets: [{ target: target }],
+        range: range,
+        targets: [{ target: targetAnnotation }],
         format: 'json',
         maxDataPoints: 100,
       } as unknown as DataQueryRequest<GraphiteQuery>;
 
       return lastValueFrom(
         this.query(graphiteQuery).pipe(
-          map((result: any) => {
+          map((result) => {
             const list = [];
 
             for (let i = 0; i < result.data.length; i++) {
               const target = result.data[i];
 
               for (let y = 0; y < target.length; y++) {
-                const time = target.fields[0].values.get(y);
-                const value = target.fields[1].values.get(y);
+                const time = target.fields[0].values[y];
+                const value = target.fields[1].values[y];
 
                 if (!value) {
                   continue;
                 }
 
                 list.push({
-                  annotation: options.annotation,
+                  annotation: target,
                   time,
                   title: target.name,
                 });
@@ -366,9 +404,9 @@ export class GraphiteDatasource
         )
       );
     } else {
-      // Graphite event as annotation
-      const tags = this.templateSrv.replace(options.annotation.tags);
-      return this.events({ range: options.range, tags: tags }).then((results: any) => {
+      // Graphite event/tag as annotation
+      const tags = this.templateSrv.replace(target.tags?.join(' '));
+      return this.events({ range: range, tags: tags }).then((results) => {
         const list = [];
         if (!isArray(results.data)) {
           console.error(`Unable to get annotations from ${results.url}.`);
@@ -383,7 +421,7 @@ export class GraphiteDatasource
           }
 
           list.push({
-            annotation: options.annotation,
+            annotation: target,
             time: e.when * 1000,
             title: e.what,
             tags: tags,
@@ -422,7 +460,7 @@ export class GraphiteDatasource
     return this.templateSrv.containsTemplate(target.target ?? '');
   }
 
-  translateTime(date: any, roundUp: any, timezone: any) {
+  translateTime(date: any, roundUp: any, timezone: TimeZone) {
     if (isString(date)) {
       if (date === 'now') {
         return 'now';
@@ -452,8 +490,15 @@ export class GraphiteDatasource
     return date.unix();
   }
 
-  metricFindQuery(query: string, optionalOptions?: any): Promise<MetricFindValue[]> {
+  metricFindQuery(findQuery: string | GraphiteQuery, optionalOptions?: any): Promise<MetricFindValue[]> {
     const options: any = optionalOptions || {};
+
+    const queryObject = convertToGraphiteQueryObject(findQuery);
+    if (queryObject.queryType === GraphiteQueryType.Value || queryObject.queryType === GraphiteQueryType.MetricName) {
+      return this.requestMetricRender(queryObject, options, queryObject.queryType);
+    }
+
+    let query = queryObject.target ?? '';
 
     // First attempt to check for tag-related functions (using empty wildcard for interpolation)
     let interpolatedQuery = this.templateSrv.replace(
@@ -499,6 +544,69 @@ export class GraphiteDatasource
     } else {
       return this.requestMetricFind(interpolatedQuery, options.requestId, range);
     }
+  }
+
+  /**
+   * Search for metrics matching giving pattern using /metrics/render endpoint.
+   * It will return all possible values or names and parse them based on queryType.
+   * For example:
+   *
+   * queryType: GraphiteQueryType.Value
+   * query: groupByNode(movingAverage(apps.country.IE.counters.requests.count, 10), 2, 'sum')
+   * result: 239.4, 233.4, 230.8, 230.4, 233.9, 238, 239.8, 236.8, 235.8
+   *
+   * queryType: GraphiteQueryType.MetricName
+   * query: highestAverage(carbon.agents.*.*, 5)
+   * result: carbon.agents.aa6338c54341-a.memUsage, carbon.agents.aa6338c54341-a.committedPoints, carbon.agents.aa6338c54341-a.updateOperations, carbon.agents.aa6338c54341-a.metricsReceived, carbon.agents.aa6338c54341-a.activeConnections
+   */
+  private async requestMetricRender(
+    queryObject: GraphiteQuery,
+    options: any,
+    queryType: GraphiteQueryType
+  ): Promise<MetricFindValue[]> {
+    const requestId: string = options.requestId ?? `Q${this.requestCounter++}`;
+    const range: TimeRange = options.range ?? {
+      from: dateTime().subtract(6, 'hour'),
+      to: dateTime(),
+      raw: {
+        from: 'now - 6h',
+        to: 'now',
+      },
+    };
+    const queryReq: DataQueryRequest<GraphiteQuery> = {
+      app: 'graphite-variable-editor',
+      interval: '1s',
+      intervalMs: 10000,
+      startTime: Date.now(),
+      targets: [{ ...queryObject }],
+      timezone: 'browser',
+      scopedVars: {},
+      requestId,
+      range,
+    };
+    const data: DataQueryResponse = await lastValueFrom(this.query(queryReq));
+
+    let result: MetricFindValue[];
+
+    if (queryType === GraphiteQueryType.Value) {
+      result = data.data[0].fields[1].values
+        .filter((f?: number) => !!f)
+        .map((v: number) => ({
+          text: v.toString(),
+          value: v,
+          expandable: false,
+        }));
+    } else if (queryType === GraphiteQueryType.MetricName) {
+      result = data.data.map((series) => ({
+        text: series.name,
+        value: series.name,
+        expandable: false,
+      }));
+    } else {
+      result = [];
+    }
+
+    return Promise.resolve(result);
   }
 
   /**
@@ -725,7 +833,7 @@ export class GraphiteDatasource
     );
   }
 
-  createFuncInstance(funcDef: any, options?: any): FuncInstance {
+  createFuncInstance(funcDef: string | FuncDef, options?: any): FuncInstance {
     return gfunc.createFuncInstance(funcDef, options, this.funcDefs);
   }
 
@@ -768,7 +876,7 @@ export class GraphiteDatasource
           this.funcDefs = gfunc.parseFuncDefs(fixedData);
           return this.funcDefs;
         }),
-        catchError((error: any) => {
+        catchError((error) => {
           console.error('Fetching graphite functions error', error);
           this.funcDefs = gfunc.getFuncDefs(this.graphiteVersion);
           return of(this.funcDefs);
@@ -778,15 +886,24 @@ export class GraphiteDatasource
   }
 
   testDatasource() {
-    const query = {
+    const query: DataQueryRequest<GraphiteQuery> = {
+      app: 'graphite',
+      interval: '10ms',
+      intervalMs: 10,
+      requestId: 'reqId',
+      scopedVars: {},
+      startTime: 0,
+      timezone: 'browser',
       panelId: 3,
       rangeRaw: { from: 'now-1h', to: 'now' },
       range: {
+        from: dateTime('now-1h'),
+        to: dateTime('now'),
         raw: { from: 'now-1h', to: 'now' },
       },
-      targets: [{ target: 'constantLine(100)' }],
+      targets: [{ refId: 'A', target: 'constantLine(100)' }],
       maxDataPoints: 300,
-    } as unknown as DataQueryRequest<GraphiteQuery>;
+    };
 
     return lastValueFrom(this.query(query)).then(() => ({ status: 'success', message: 'Data source is working' }));
   }
@@ -813,7 +930,7 @@ export class GraphiteDatasource
     return getBackendSrv()
       .fetch(options)
       .pipe(
-        catchError((err: any) => {
+        catchError((err) => {
           return throwError(reduceError(err));
         })
       );
@@ -830,7 +947,7 @@ export class GraphiteDatasource
 
     options['format'] = 'json';
 
-    function fixIntervalFormat(match: any) {
+    function fixIntervalFormat(match: string) {
       return match.replace('m', 'min').replace('M', 'mon');
     }
 
@@ -896,7 +1013,7 @@ function supportsFunctionIndex(version: string): boolean {
 
 function mapToTags(): OperatorFunction<any, Array<{ text: string }>> {
   return pipe(
-    map((results: any) => {
+    map((results) => {
       if (results.data) {
         return _map(results.data, (value) => {
           return { text: value };

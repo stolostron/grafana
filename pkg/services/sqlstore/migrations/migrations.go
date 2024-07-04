@@ -1,10 +1,13 @@
 package migrations
 
 import (
-	"os"
-
+	dashboardFolderMigrations "github.com/grafana/grafana/pkg/services/dashboards/database/migrations"
 	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/accesscontrol"
+	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/anonservice"
+	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/oauthserver"
+	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/signingkeys"
+	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/ssosettings"
 	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/ualert"
 	. "github.com/grafana/grafana/pkg/services/sqlstore/migrator"
 )
@@ -18,14 +21,15 @@ import (
 //    specifically added
 
 type OSSMigrations struct {
+	features featuremgmt.FeatureToggles
 }
 
-func ProvideOSSMigrations() *OSSMigrations {
-	return &OSSMigrations{}
+func ProvideOSSMigrations(features featuremgmt.FeatureToggles) *OSSMigrations {
+	return &OSSMigrations{features}
 }
 
-func (*OSSMigrations) AddMigration(mg *Migrator) {
-	addMigrationLogMigrations(mg)
+func (oss *OSSMigrations) AddMigration(mg *Migrator) {
+	mg.AddCreateMigration()
 	addUserMigrations(mg)
 	addTempUserMigrations(mg)
 	addStarMigrations(mg)
@@ -44,7 +48,7 @@ func (*OSSMigrations) AddMigration(mg *Migrator) {
 	addTestDataMigrations(mg)
 	addDashboardVersionMigration(mg)
 	addTeamMigrations(mg)
-	addDashboardAclMigrations(mg) // Do NOT add more migrations to this function.
+	addDashboardACLMigrations(mg) // Do NOT add more migrations to this function.
 	addTagMigration(mg)
 	addLoginAttemptMigrations(mg)
 	addUserAuthMigrations(mg)
@@ -58,62 +62,70 @@ func (*OSSMigrations) AddMigration(mg *Migrator) {
 		os.Exit(1)
 	}
 	ualert.AddTablesMigrations(mg)
-	ualert.AddDashAlertMigration(mg)
 	addLibraryElementsMigrations(mg)
-	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagLiveConfig) {
-			addLiveChannelMigrations(mg)
-		}
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagDashboardPreviews) {
-			addDashboardThumbsMigrations(mg)
-		}
-	}
 
-	ualert.RerunDashAlertMigration(mg)
+	ualert.FixEarlyMigration(mg)
 	addSecretsMigration(mg)
 	addKVStoreMigrations(mg)
 	ualert.AddDashboardUIDPanelIDMigration(mg)
 	accesscontrol.AddMigration(mg)
 	addQueryHistoryMigrations(mg)
 
-	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagAccesscontrol) {
-			accesscontrol.AddTeamMembershipMigrations(mg)
-			accesscontrol.AddDashboardPermissionsMigrator(mg)
-			accesscontrol.AddAlertingPermissionsMigrator(mg)
-		}
-	}
+	accesscontrol.AddDisabledMigrator(mg)
+	accesscontrol.AddTeamMembershipMigrations(mg)
+	accesscontrol.AddDashboardPermissionsMigrator(mg)
+	accesscontrol.AddAlertingPermissionsMigrator(mg)
+
 	addQueryHistoryStarMigrations(mg)
 
-	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagDashboardComments) || mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagAnnotationComments) {
-			addCommentGroupMigrations(mg)
-			addCommentMigrations(mg)
-		}
+	addCorrelationsMigrations(mg)
+
+	addEntityEventsTableMigration(mg)
+
+	addPublicDashboardMigration(mg)
+	addDbFileStorageMigration(mg)
+
+	accesscontrol.AddManagedPermissionsMigration(mg, accesscontrol.ManagedPermissionsMigrationID)
+	accesscontrol.AddManagedFolderAlertActionsMigration(mg)
+	accesscontrol.AddActionNameMigrator(mg)
+	addPlaylistUIDMigration(mg)
+
+	ualert.UpdateRuleGroupIndexMigration(mg)
+	accesscontrol.AddManagedFolderAlertActionsRepeatMigration(mg)
+	accesscontrol.AddAdminOnlyMigration(mg)
+	accesscontrol.AddSeedAssignmentMigrations(mg)
+	accesscontrol.AddManagedFolderAlertActionsRepeatFixedMigration(mg)
+	accesscontrol.AddManagedFolderLibraryPanelActionsMigration(mg)
+
+	AddExternalAlertmanagerToDatasourceMigration(mg)
+
+	addFolderMigrations(mg)
+	if oss.features != nil && oss.features.IsEnabledGlobally(featuremgmt.FlagExternalServiceAuth) {
+		oauthserver.AddMigration(mg)
 	}
 
-	if mg.Cfg != nil && mg.Cfg.IsFeatureToggleEnabled != nil {
-		if mg.Cfg.IsFeatureToggleEnabled(featuremgmt.FlagAccesscontrol) {
-			accesscontrol.AddManagedFolderAlertActionsMigration(mg)
-			accesscontrol.AddAdminOnlyMigration(mg)
-		}
-	}
-}
+	anonservice.AddMigration(mg)
+	signingkeys.AddMigration(mg)
 
-func addMigrationLogMigrations(mg *Migrator) {
-	migrationLogV1 := Table{
-		Name: "migration_log",
-		Columns: []*Column{
-			{Name: "id", Type: DB_BigInt, IsPrimaryKey: true, IsAutoIncrement: true},
-			{Name: "migration_id", Type: DB_NVarchar, Length: 255},
-			{Name: "sql", Type: DB_Text},
-			{Name: "success", Type: DB_Bool},
-			{Name: "error", Type: DB_Text},
-			{Name: "timestamp", Type: DB_DateTime},
-		},
+	ualert.MigrationServiceMigration(mg)
+	ualert.CreatedFoldersMigration(mg)
+
+	dashboardFolderMigrations.AddDashboardFolderMigrations(mg)
+
+	ssosettings.AddMigration(mg)
+
+	ualert.CreateOrgMigratedKVStoreEntries(mg)
+
+	// https://github.com/grafana/identity-access-team/issues/546: tracks removal of the feature toggle from the annotation permission migration
+	if oss.features != nil && oss.features.IsEnabledGlobally(featuremgmt.FlagAnnotationPermissionUpdate) {
+		accesscontrol.AddManagedDashboardAnnotationActionsMigration(mg)
 	}
 
-	mg.AddMigration("create migration_log table", NewAddTableMigration(migrationLogV1))
+	addKVStoreMySQLValueTypeLongTextMigration(mg)
+
+	ualert.AddRuleNotificationSettingsColumns(mg)
+
+	accesscontrol.AddAlertingScopeRemovalMigration(mg)
 }
 
 func addStarMigrations(mg *Migrator) {

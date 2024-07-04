@@ -14,7 +14,7 @@ import {
 import { AxisPlacement } from '@grafana/schema';
 
 import { FacetedData, PlotConfig, PlotTooltipInterpolator } from '../types';
-import { getStackingBands, pluginLog, StackingGroup } from '../utils';
+import { DEFAULT_PLOT_CONFIG, getStackingBands, pluginLog, StackingGroup } from '../utils';
 
 import { AxisProps, UPlotAxisBuilder } from './UPlotAxisBuilder';
 import { ScaleProps, UPlotScaleBuilder } from './UPlotScaleBuilder';
@@ -39,7 +39,7 @@ type PrepData = (frames: DataFrame[]) => AlignedData | FacetedData;
 type PreDataStacked = (frames: DataFrame[], stackingGroups: StackingGroup[]) => AlignedData | FacetedData;
 
 export class UPlotConfigBuilder {
-  private series: UPlotSeriesBuilder[] = [];
+  series: UPlotSeriesBuilder[] = [];
   private axes: Record<string, UPlotAxisBuilder> = {};
   private scales: UPlotScaleBuilder[] = [];
   private bands: Band[] = [];
@@ -58,6 +58,8 @@ export class UPlotConfigBuilder {
   private tooltipInterpolator: PlotTooltipInterpolator | undefined = undefined;
   private padding?: Padding = undefined;
 
+  private cachedConfig?: PlotConfig;
+
   prepData: PrepData | undefined = undefined;
 
   constructor(timeZone: TimeZone = DefaultTimeZone) {
@@ -74,7 +76,7 @@ export class UPlotConfigBuilder {
       this.hooks[type] = [];
     }
 
-    this.hooks[type]!.push(hook as any);
+    this.hooks[type].push(hook);
   }
 
   addThresholds(options: UPlotThresholdOptions) {
@@ -87,8 +89,14 @@ export class UPlotConfigBuilder {
   addAxis(props: AxisProps) {
     props.placement = props.placement ?? AxisPlacement.Auto;
     props.grid = props.grid ?? {};
-    if (this.axes[props.scaleKey]) {
-      this.axes[props.scaleKey].merge(props);
+    let scaleKey = props.scaleKey;
+
+    if (scaleKey === 'x') {
+      scaleKey += props.timeZone ?? '';
+    }
+
+    if (this.axes[scaleKey]) {
+      this.axes[scaleKey].merge(props);
       return;
     }
 
@@ -106,7 +114,7 @@ export class UPlotConfigBuilder {
       props.size = 0;
     }
 
-    this.axes[props.scaleKey] = new UPlotAxisBuilder(props);
+    this.axes[scaleKey] = new UPlotAxisBuilder(props);
   }
 
   getAxisPlacement(scaleKey: string): AxisPlacement {
@@ -184,7 +192,12 @@ export class UPlotConfigBuilder {
   }
 
   getConfig() {
+    if (this.cachedConfig) {
+      return this.cachedConfig;
+    }
+
     const config: PlotConfig = {
+      ...DEFAULT_PLOT_CONFIG,
       mode: this.mode,
       series: [
         this.mode === 2
@@ -213,7 +226,7 @@ export class UPlotConfigBuilder {
         // interpolate for gradients/thresholds
         if (typeof s !== 'string') {
           let field = this.frames![0].fields[seriesIdx];
-          s = field.display!(field.values.get(u.cursor.idxs![seriesIdx]!)).color!;
+          s = field.display!(field.values[u.cursor.idxs![seriesIdx]!]).color!;
         }
 
         return s + alphaHex;
@@ -234,17 +247,21 @@ export class UPlotConfigBuilder {
     config.tzDate = this.tzDate;
     config.padding = this.padding;
 
-    if (this.stackingGroups.length) {
-      this.stackingGroups.forEach((group) => {
-        getStackingBands(group).forEach((band) => {
-          this.addBand(band);
-        });
-      });
+    if (Array.isArray(this.padding)) {
+      config.padding = this.padding;
     }
+
+    this.stackingGroups.forEach((group) => {
+      getStackingBands(group).forEach((band) => {
+        this.addBand(band);
+      });
+    });
 
     if (this.bands.length) {
       config.bands = this.bands;
     }
+
+    this.cachedConfig = config;
 
     return config;
   }
@@ -285,16 +302,19 @@ export type Renderers = Array<{
 }>;
 
 /** @alpha */
-type UPlotConfigPrepOpts<T extends Record<string, any> = {}> = {
+type UPlotConfigPrepOpts<T extends Record<string, unknown> = {}> = {
   frame: DataFrame;
   theme: GrafanaTheme2;
-  timeZone: TimeZone;
+  timeZones: TimeZone[];
   getTimeRange: () => TimeRange;
   eventBus: EventBus;
   allFrames: DataFrame[];
   renderers?: Renderers;
   tweakScale?: (opts: ScaleProps, forField: Field) => ScaleProps;
   tweakAxis?: (opts: AxisProps, forField: Field) => AxisProps;
+  // Identifies the shared key for uPlot cursor sync
+  eventsScope?: string;
+  hoverProximity?: number;
 } & T;
 
 /** @alpha */

@@ -32,9 +32,15 @@ export function hexToRgb(color: string) {
   color = color.slice(1);
 
   const re = new RegExp(`.{1,${color.length >= 6 ? 2 : 1}}`, 'g');
-  let colors = color.match(re);
+  let result = color.match(re);
 
-  if (colors && colors[0].length === 1) {
+  if (!result) {
+    return '';
+  }
+
+  let colors = Array.from(result);
+
+  if (colors[0].length === 1) {
     colors = colors.map((n) => n + n);
   }
 
@@ -79,6 +85,17 @@ export function asHexString(color: string): string {
   }
   const tColor = tinycolor(color);
   return tColor.getAlpha() === 1 ? tColor.toHexString() : tColor.toHex8String();
+}
+
+/**
+ * Converts a color to rgb string
+ */
+export function asRgbString(color: string) {
+  if (color.startsWith('rgb')) {
+    return color;
+  }
+
+  return tinycolor(color).toRgbString();
 }
 
 /**
@@ -166,7 +183,7 @@ export function decomposeColor(color: string | DecomposeColor): DecomposeColor {
  */
 export function recomposeColor(color: DecomposeColor) {
   const { type, colorSpace } = color;
-  let values: any = color.values;
+  let values = color.values;
 
   if (type.indexOf('rgb') !== -1) {
     // Only convert the first 3 values to int (i.e. not alpha)

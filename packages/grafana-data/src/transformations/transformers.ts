@@ -6,10 +6,15 @@ import { filterFieldsTransformer, filterFramesTransformer } from './transformers
 import { filterFieldsByNameTransformer } from './transformers/filterByName';
 import { filterFramesByRefIdTransformer } from './transformers/filterByRefId';
 import { filterByValueTransformer } from './transformers/filterByValue';
+import { formatStringTransformer } from './transformers/formatString';
+import { formatTimeTransformer } from './transformers/formatTime';
 import { groupByTransformer } from './transformers/groupBy';
+import { groupToNestedTable } from './transformers/groupToNestedTable';
 import { groupingToMatrixTransformer } from './transformers/groupingToMatrix';
 import { histogramTransformer } from './transformers/histogram';
+import { joinByFieldTransformer } from './transformers/joinByField';
 import { labelsToFieldsTransformer } from './transformers/labelsToFields';
+import { limitTransformer } from './transformers/limit';
 import { mergeTransformer } from './transformers/merge';
 import { noopTransformer } from './transformers/noop';
 import { orderFieldsTransformer } from './transformers/order';
@@ -17,7 +22,6 @@ import { organizeFieldsTransformer } from './transformers/organize';
 import { reduceTransformer } from './transformers/reduce';
 import { renameFieldsTransformer } from './transformers/rename';
 import { renameByRegexTransformer } from './transformers/renameByRegex';
-import { seriesToColumnsTransformer } from './transformers/seriesToColumns';
 import { seriesToRowsTransformer } from './transformers/seriesToRows';
 import { sortByTransformer } from './transformers/sortBy';
 
@@ -28,12 +32,16 @@ export const standardTransformers = {
   filterFramesTransformer,
   filterFramesByRefIdTransformer,
   filterByValueTransformer,
+  formatStringTransformer,
+  formatTimeTransformer,
   orderFieldsTransformer,
   organizeFieldsTransformer,
   reduceTransformer,
   concatenateTransformer,
   calculateFieldTransformer,
-  seriesToColumnsTransformer,
+  joinByFieldTransformer,
+  /** @deprecated */
+  seriesToColumnsTransformer: joinByFieldTransformer,
   seriesToRowsTransformer,
   renameFieldsTransformer,
   labelsToFieldsTransformer,
@@ -45,4 +53,6 @@ export const standardTransformers = {
   histogramTransformer,
   convertFieldTypeTransformer,
   groupingToMatrixTransformer,
+  limitTransformer,
+  groupToNestedTable,
 };
