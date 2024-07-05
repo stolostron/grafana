@@ -39,10 +39,12 @@ RUN go run build.go build
 # s390x builds for example
 RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-server \
        $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-cli \
+       $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana \
        /usr/bin/
 
 # Final container
-FROM registry.ci.openshift.org/ocp/4.8:base
+FROM registry.ci.openshift.org/ocp/4.16:base
+# FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 LABEL io.k8s.display-name="Grafana" \
       io.k8s.description="Grafana is an open-source, general purpose dashboard and graph composer" \
@@ -65,8 +67,8 @@ WORKDIR $GF_PATHS_HOME
 
 COPY conf ./conf
 
-RUN yum update -y && \
-    yum clean all && \
+RUN microdnf update -y && \
+    microdnf clean all && \
     mkdir -p "$GF_PATHS_HOME/.aws" && \
     # addgroup -S -g $GF_GID grafana && \
     # adduser -S -u $GF_UID -G grafana grafana && \
@@ -85,7 +87,8 @@ RUN yum update -y && \
     chmod -R 777 "$GF_PATHS_DATA" "$GF_PATHS_HOME/.aws" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING"
 
 # Note: the openshift build requires a name to reference the build container in the '--from' option instead of using the index '0' as is done upstream
-COPY --from=builder /usr/bin/grafana-server /usr/bin/grafana-cli ./bin/
+#COPY --from=builder /usr/bin/grafana-server /usr/bin/grafana-cli ./bin/
+COPY --from=builder /usr/bin/grafana* ./bin/
 COPY public ./public
 COPY tools ./tools
 
