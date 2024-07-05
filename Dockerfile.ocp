@@ -1,22 +1,44 @@
+FROM registry.ci.openshift.org/stolostron/builder:nodejs20-linux as frontend
+
+WORKDIR /tmp/grafana
+
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn .yarn
+COPY packages packages
+COPY plugins-bundled plugins-bundled
+COPY public public
+
+RUN curl -sL https://dl.yarnpkg.com/rpm/yarn.repo -o /etc/yum.repos.d/yarn.repo
+RUN dnf -y install yarn
+
+RUN yarn install --immutable
+
+COPY tsconfig.json .eslintrc .editorconfig .browserslistrc .prettierrc.js babel.config.json .linguirc ./
+COPY public public
+COPY scripts scripts
+COPY emails emails
+
+ENV NODE_ENV production
+RUN yarn build
+
 # Golang build container
 FROM registry.ci.openshift.org/stolostron/builder:go1.21-linux AS builder
 
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 ENV GOFLAGS="-mod=mod"
 
-# COPY .git/ ./.git/
-# COPY go.mod go.sum embed.go Makefile build.go package.json ./
-# COPY cue.mod cue.mod
-# COPY packages/grafana-schema packages/grafana-schema/
-# COPY public/app/plugins public/app/plugins/
-# COPY pkg pkg/
-# COPY scripts scripts/
-# COPY .bingo .bingo
-# COPY kinds kinds
-# COPY local local
-
 COPY go.* ./
 COPY .bingo .bingo
+
+# Include vendored dependencies
+COPY pkg/util/xorm/go.* pkg/util/xorm/
+
+# RUN go mod download
+# RUN if [[ "$BINGO" = "true" ]]; then \
+#       go install github.com/bwplotka/bingo@latest && \
+#       bingo get -v; \
+#     fi
+
 COPY embed.go Makefile build.go package.json ./
 COPY cue.mod cue.mod
 COPY kinds kinds
@@ -30,6 +52,7 @@ COPY conf conf
 COPY .github .github
 COPY LICENSE ./
 
+
 RUN make gen-go
 
 RUN go mod verify
@@ -37,14 +60,10 @@ RUN go run build.go build
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
-RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-server \
-       $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana-cli \
-       $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana \
-       /usr/bin/
+RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
-FROM registry.ci.openshift.org/ocp/4.16:base
-# FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM registry.access.redhat.com/ubi9/ubi:latest
 
 LABEL io.k8s.display-name="Grafana" \
       io.k8s.description="Grafana is an open-source, general purpose dashboard and graph composer" \
@@ -67,12 +86,7 @@ WORKDIR $GF_PATHS_HOME
 
 COPY conf ./conf
 
-RUN dnf update -y && \
-    dnf clean all && \
-    mkdir -p "$GF_PATHS_HOME/.aws" && \
-    # addgroup -S -g $GF_GID grafana && \
-    # adduser -S -u $GF_UID -G grafana grafana && \
-    # Note: the openshift base image does not include the addgroup and adduser commands so we have to use useradd/groupadd
+RUN mkdir -p "$GF_PATHS_HOME/.aws" && \
     groupadd --system -g $GF_GID grafana && \
     useradd --system -u $GF_UID -g grafana grafana && \
     mkdir -p "$GF_PATHS_PROVISIONING/datasources" \
@@ -86,10 +100,8 @@ RUN dnf update -y && \
     chown -R grafana:grafana "$GF_PATHS_DATA" "$GF_PATHS_HOME/.aws" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING" && \
     chmod -R 777 "$GF_PATHS_DATA" "$GF_PATHS_HOME/.aws" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING"
 
-# Note: the openshift build requires a name to reference the build container in the '--from' option instead of using the index '0' as is done upstream
-#COPY --from=builder /usr/bin/grafana-server /usr/bin/grafana-cli ./bin/
 COPY --from=builder /usr/bin/grafana* ./bin/
-COPY public ./public
+COPY --from=frontend /tmp/grafana/public ./public
 COPY tools ./tools
 
 EXPOSE 3000
