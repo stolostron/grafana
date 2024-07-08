@@ -6,7 +6,7 @@ coverage/
 awsconfig
 /.awcache
 /dist
-/public/build
+#/public/build
 /emails/dist
 /reports
 /e2e/tmp
@@ -28,13 +28,13 @@ __debug_bin*
 
 # Enterprise emails
 /emails/templates/enterprise_*
-/public/emails/enterprise_*
+#/public/emails/enterprise_*
 
 # Enterprise reporting fonts
-/public/fonts/dejavu
+#/public/fonts/dejavu
 
 # Swagger intermediate file
-/public/api-spec.json
+#/public/api-spec.json
 
 # Enterprise devenv
 /devenv/docker/blocks/grafana-enterprise
@@ -54,7 +54,7 @@ docs/GITCOMMIT
 docs/changed-files
 
 # locally required config files
-public/css/*.min.css
+#public/css/*.min.css
 
 # Editor junk
 *.sublime-workspace
@@ -109,7 +109,7 @@ profile.cov
 /pkg/server/wireexts_enterprise.go
 /pkg/cmd/grafana-cli/runner/wireexts_enterprise.go
 !/pkg/extensions/main.go
-/public/app/extensions
+#/public/app/extensions
 debug.test
 /examples/*/dist
 /packaging/**/*.rpm
@@ -188,16 +188,19 @@ compilation-stats.json
 # auto generated frontend docs
 /docs/sources/packages_api
 
-# wire generated files
-**/wire_gen.go
+# auto generated Go files
+*_gen.go
+!pkg/server/wire_gen.go
+!pkg/cmd/grafana-cli/runner/wire_gen.go
+!pkg/services/featuremgmt/toggles_gen.go
 
 # Auto-generated internationalization files
-public/locales/_build/
-public/locales/*/*.js
-public/locales/*/grafana_old.json
+#public/locales/_build/
+#public/locales/*/*.js
+#public/locales/*/grafana_old.json
 
 # Auto-generated swagger intermediate file
-public/api-spec.json
+#public/api-spec.json
 
 deployment_tools_config.json
 
@@ -208,10 +211,10 @@ deployment_tools_config.json
 .pr-body.txt
 
 # Core plugin builds
-public/app/plugins/**/dist/
+#public/app/plugins/**/dist/
 
 # Ignore transpiled JavaScript resulting from the generate-transformations.ts script.
-/public/app/features/transformers/docs/*.js
+#/public/app/features/transformers/docs/*.js
 /scripts/docs/generate-transformations.js
 
 # Go coverage files created with go test -cover -coverprogile=something.out ...
