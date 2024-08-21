@@ -1,0 +1,160 @@
+From c068c2b2f6f1fd4ce7557e2f736efc73eb952cda Mon Sep 17 00:00:00 2001
+From: Jacob Baungard Hansen <jacobbaungard@redhat.com>
+Date: Thu, 25 Jul 2024 13:02:04 +0200
+Subject: [PATCH] Forward headers from auth proxy to datasource
+
+Signed-off-by: Jacob Baungard Hansen <jacobbaungard@redhat.com>
+---
+ pkg/services/datasources/models.go            |  12 ++
+ .../forward_headers_middleware.go             | 103 ++++++++++++++++++
+ .../pluginsintegration/pluginsintegration.go  |   1 +
+ 3 files changed, 116 insertions(+)
+ create mode 100644 pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
+
+diff --git a/pkg/services/datasources/models.go b/pkg/services/datasources/models.go
+index 0af097a9d0..d0c742bab2 100644
+--- a/pkg/services/datasources/models.go
++++ b/pkg/services/datasources/models.go
+@@ -138,6 +138,18 @@ func (ds DataSource) AllowedCookies() []string {
+ 	return []string{}
+ }
+ 
++// AllowedCookies parses the jsondata.keepCookies and returns a list of
++// allowed cookies, otherwise an empty list.
++func (ds DataSource) ForwardHeaders() []string {
++	if ds.JsonData != nil {
++		if forwardHeaders := ds.JsonData.Get("forwardHeaders"); forwardHeaders != nil {
++			return forwardHeaders.MustStringArray()
++		}
++	}
++
++	return []string{}
++}
++
+ // Specific error type for grpc secrets management so that we can show more detailed plugin errors to users
+ type ErrDatasourceSecretsPluginUserFriendly struct {
+ 	Err string
+diff --git a/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go b/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
+new file mode 100644
+index 0000000000..6799e0800c
+--- /dev/null
++++ b/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
+@@ -0,0 +1,103 @@
++package clientmiddleware
++
++import (
++	"context"
++	"net/http"
++
++	"github.com/grafana/grafana-plugin-sdk-go/backend"
++
++	"github.com/grafana/grafana/pkg/components/simplejson"
++	"github.com/grafana/grafana/pkg/infra/log"
++	"github.com/grafana/grafana/pkg/plugins"
++	"github.com/grafana/grafana/pkg/services/contexthandler"
++	"github.com/grafana/grafana/pkg/services/datasources"
++)
++
++// NewForwardHeadersMiddleware creates a new plugins.ClientMiddleware
++// will forward any ensure configured headers are forwarded
++func NewForwardHeadersMiddleware() plugins.ClientMiddleware {
++	return plugins.ClientMiddlewareFunc(func(next plugins.Client) plugins.Client {
++		return &ForwardHeadersMiddleware{
++			baseMiddleware: baseMiddleware{
++				next: next,
++			},
++			log: log.New("Forward Headers Middleware"),
++		}
++	})
++}
++
++type ForwardHeadersMiddleware struct {
++	baseMiddleware
++	log log.Logger
++}
++
++func (m *ForwardHeadersMiddleware) forwardHeaders(ctx context.Context, pCtx backend.PluginContext, h backend.ForwardHTTPHeaders) {
++	reqCtx := contexthandler.FromContext(ctx)
++	// if no HTTP request context skip middleware
++	if h == nil || reqCtx == nil || reqCtx.Req == nil || reqCtx.SignedInUser == nil {
++		return
++	}
++
++	if pCtx.DataSourceInstanceSettings != nil {
++		settings := pCtx.DataSourceInstanceSettings
++		jsonDataBytes, err := simplejson.NewJson(settings.JSONData)
++		if err != nil {
++			return
++		}
++
++		ds := &datasources.DataSource{
++			ID:       settings.ID,
++			OrgID:    pCtx.OrgID,
++			JsonData: jsonDataBytes,
++			Updated:  settings.Updated,
++		}
++
++		headersToFoward := ds.ForwardHeaders()
++		if len(headersToFoward) == 0 {
++			m.log.Warn("No headers to forward")
++			return
++		}
++
++		var req *http.Request
++		if reqCtx != nil {
++			req = reqCtx.Req
++		}
++		for _, k := range headersToFoward {
++			if _, ok := req.Header[k]; ok {
++				m.log.Debug("Fowarding header: ", "header", k)
++				h.SetHTTPHeader(k, req.Header.Get(k))
++			}
++		}
++	}
++
++}
++
++func (m *ForwardHeadersMiddleware) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
++	if req == nil {
++		return m.next.QueryData(ctx, req)
++	}
++
++	m.forwardHeaders(ctx, req.PluginContext, req)
++
++	return m.next.QueryData(ctx, req)
++}
++
++func (m *ForwardHeadersMiddleware) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
++	if req == nil {
++		return m.next.CallResource(ctx, req, sender)
++	}
++
++	m.forwardHeaders(ctx, req.PluginContext, req)
++
++	return m.next.CallResource(ctx, req, sender)
++}
++
++func (m *ForwardHeadersMiddleware) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
++	if req == nil {
++		return m.next.CheckHealth(ctx, req)
++	}
++
++	m.forwardHeaders(ctx, req.PluginContext, req)
++
++	return m.next.CheckHealth(ctx, req)
++}
+diff --git a/pkg/services/pluginsintegration/pluginsintegration.go b/pkg/services/pluginsintegration/pluginsintegration.go
+index 6963438dd8..d350e0a345 100644
+--- a/pkg/services/pluginsintegration/pluginsintegration.go
++++ b/pkg/services/pluginsintegration/pluginsintegration.go
+@@ -178,6 +178,7 @@ func CreateMiddlewares(cfg *setting.Cfg, oAuthTokenService oauthtoken.OAuthToken
+ 	middlewares = append(middlewares,
+ 		clientmiddleware.NewTracingHeaderMiddleware(),
+ 		clientmiddleware.NewClearAuthHeadersMiddleware(),
++		clientmiddleware.NewForwardHeadersMiddleware(),
+ 		clientmiddleware.NewOAuthTokenMiddleware(oAuthTokenService),
+ 		clientmiddleware.NewCookiesMiddleware(skipCookiesNames),
+ 		clientmiddleware.NewResourceResponseMiddleware(),
+-- 
+2.45.2
+

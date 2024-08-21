@@ -23,8 +23,12 @@ COPY .bingo .bingo
 COPY conf conf
 COPY go.* ./
 
+# Apply custom patches
+COPY stolostron-patches stolostron-patches
+RUN git apply ./stolostron-patches/*
+
 RUN go mod verify
-RUN make build-go 
+RUN make build-go
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example

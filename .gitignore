@@ -135,6 +135,7 @@ pkg/services/quota/quotaimpl/storage/storage.json
 
 /scripts/build/release_publisher/release_publisher
 *.patch
+!stolostron-patches/*.patch
 !.yarn/patches/*.patch
 
 # Ignoring frontend packages specifics

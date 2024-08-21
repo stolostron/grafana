@@ -1,5 +1,5 @@
 # Golang build container
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.22 AS builder 
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.22 AS builder
 
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 
@@ -23,8 +23,12 @@ COPY .bingo .bingo
 COPY conf conf
 COPY go.* ./
 
+# Apply custom patches
+COPY stolostron-patches stolostron-patches
+RUN git apply ./stolostron-patches/*
+
 RUN go work vendor
-RUN go run build.go -build-tags=strictfipsruntime build 
+RUN go run build.go -build-tags=strictfipsruntime build
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
