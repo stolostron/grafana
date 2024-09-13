@@ -83,7 +83,7 @@
   "executable": "gpx_cloudmonitoring",
   "info": {
     "description": "Data source for Google's monitoring service (formerly named Stackdriver)",
-    "version": "11.1.0",
+    "version": "11.1.5",
     "logos": {
       "small": "img/cloud_monitoring_logo.svg",
       "large": "img/cloud_monitoring_logo.svg"
