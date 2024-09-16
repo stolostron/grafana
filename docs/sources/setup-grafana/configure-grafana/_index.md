@@ -1552,7 +1552,7 @@ Sets a global limit on number of correlations that can be created. Default is -1
 
 ## [unified_alerting]
 
-For more information about the Grafana alerts, refer to [About Grafana Alerting]({{< relref "../../alerting" >}}).
+For more information about the Grafana alerts, refer to [Grafana Alerting]({{< relref "../../alerting" >}}).
 
 ### enabled
 
@@ -1579,6 +1579,10 @@ The interval string is a possibly signed sequence of decimal numbers, followed b
 ### ha_redis_address
 
 The Redis server address that should be connected to.
+
+{{< admonition type="note" >}}
+For more information on Redis, refer to [Enable alerting high availability using Redis](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/alerting/set-up/configure-high-availability/#enable-alerting-high-availability-using-redis).
+{{< /admonition >}}
 
 ### ha_redis_username
 
@@ -1982,7 +1986,7 @@ Depending on the value of `sampler_type`, the sampler configuration parameter ca
 
 When `sampler_type` is `remote`, this specifies the URL of the sampling server. This can be used by all tracing providers.
 
-Use a sampling server that supports the Jaeger remote sampling API, such as jaeger-agent, jaeger-collector, opentelemetry-collector-contrib, or [Grafana Agent](/oss/agent/).
+Use a sampling server that supports the Jaeger remote sampling API, such as jaeger-agent, jaeger-collector, opentelemetry-collector-contrib, or [Grafana Alloy](https://grafana.com/oss/alloy-opentelemetry-collector/).
 
 <hr>
 

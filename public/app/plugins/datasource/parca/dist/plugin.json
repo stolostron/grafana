@@ -23,7 +23,7 @@
         "url": "https://github.com/parca-dev/parca"
       }
     ],
-    "version": "11.1.0"
+    "version": "11.1.5"
   },
   "dependencies": {
     "grafanaDependency": ">=10.3.0-0"

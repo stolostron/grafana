@@ -1,11 +1,12 @@
 import { css, cx } from '@emotion/css';
 import React from 'react';
 import { useLocation } from 'react-router-dom';
+import { useMedia } from 'react-use';
 
 import { GrafanaTheme2, PageLayoutType } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 import { SceneComponentProps } from '@grafana/scenes';
-import { CustomScrollbar, useStyles2 } from '@grafana/ui';
+import { CustomScrollbar, useStyles2, useTheme2 } from '@grafana/ui';
 import { Page } from 'app/core/components/Page/Page';
 import { getNavModel } from 'app/core/selectors/navModel';
 import DashboardEmpty from 'app/features/dashboard/dashgrid/DashboardEmpty';
@@ -15,7 +16,7 @@ import { DashboardScene } from './DashboardScene';
 import { NavToolbarActions } from './NavToolbarActions';
 
 export function DashboardSceneRenderer({ model }: SceneComponentProps<DashboardScene>) {
-  const { controls, overlay, editview, editPanel, isEmpty, scopes, meta } = model.useState();
+  const { controls, overlay, editview, editPanel, isEmpty, scopes } = model.useState();
   const { isExpanded: isScopesExpanded } = scopes?.useState() ?? {};
   const styles = useStyles2(getStyles);
   const location = useLocation();
@@ -23,7 +24,7 @@ export function DashboardSceneRenderer({ model }: SceneComponentProps<DashboardS
   const pageNav = model.getPageNav(location, navIndex);
   const bodyToRender = model.getBodyToRender();
   const navModel = getNavModel(navIndex, 'dashboards/browse');
-  const isHomePage = !meta.url && !meta.slug && !meta.isNew && !meta.isSnapshot;
+  const hasControls = controls?.hasControls();
 
   if (editview) {
     return (
@@ -37,7 +38,7 @@ export function DashboardSceneRenderer({ model }: SceneComponentProps<DashboardS
   const emptyState = <DashboardEmpty dashboard={model} canCreate={!!model.state.meta.canEdit} />;
 
   const withPanels = (
-    <div className={cx(styles.body)}>
+    <div className={cx(styles.body, !hasControls && styles.bodyWithoutControls)}>
       <bodyToRender.Component model={bodyToRender} />
     </div>
   );
@@ -49,32 +50,31 @@ export function DashboardSceneRenderer({ model }: SceneComponentProps<DashboardS
         <div
           className={cx(
             styles.pageContainer,
-            controls && !scopes && styles.pageContainerWithControls,
+            hasControls && !scopes && styles.pageContainerWithControls,
             scopes && styles.pageContainerWithScopes,
             scopes && isScopesExpanded && styles.pageContainerWithScopesExpanded
           )}
         >
           {scopes && <scopes.Component model={scopes} />}
           <NavToolbarActions dashboard={model} />
-          {!isHomePage && controls && (
+          {controls && hasControls && (
             <div
               className={cx(styles.controlsWrapper, scopes && !isScopesExpanded && styles.controlsWrapperWithScopes)}
             >
               <controls.Component model={controls} />
             </div>
           )}
-          <CustomScrollbar
+          <PanelsContainer
             // This id is used by the image renderer to scroll through the dashboard
-            divId="page-scrollbar"
-            autoHeightMin={'100%'}
-            className={styles.scrollbarContainer}
+            id="page-scrollbar"
+            className={styles.panelsContainer}
             testId={selectors.pages.Dashboard.DashNav.scrollContainer}
           >
-            <div className={cx(styles.canvasContent, isHomePage && styles.homePagePadding)}>
+            <div className={cx(styles.canvasContent)}>
               <>{isEmpty && emptyState}</>
               {withPanels}
             </div>
-          </CustomScrollbar>
+          </PanelsContainer>
         </div>
       )}
       {overlay && <overlay.Component model={overlay} />}
@@ -91,6 +91,10 @@ function getStyles(theme: GrafanaTheme2) {
       gridTemplateColumns: `1fr`,
       gridTemplateRows: '1fr',
       height: '100%',
+      [theme.breakpoints.down('sm')]: {
+        display: 'flex',
+        flexDirection: 'column',
+      },
     }),
     pageContainerWithControls: css({
       gridTemplateAreas: `
@@ -110,7 +114,7 @@ function getStyles(theme: GrafanaTheme2) {
         "scopes controls"
         "scopes panels"`,
     }),
-    scrollbarContainer: css({
+    panelsContainer: css({
       gridArea: 'panels',
     }),
     controlsWrapper: css({
@@ -119,12 +123,12 @@ function getStyles(theme: GrafanaTheme2) {
       flexGrow: 0,
       gridArea: 'controls',
       padding: theme.spacing(2),
+      ':empty': {
+        display: 'none',
+      },
     }),
     controlsWrapperWithScopes: css({
       padding: theme.spacing(2, 2, 2, 0),
-    }),
-    homePagePadding: css({
-      padding: theme.spacing(2, 2),
     }),
     canvasContent: css({
       label: 'canvas-content',
@@ -139,7 +143,42 @@ function getStyles(theme: GrafanaTheme2) {
       flexGrow: 1,
       display: 'flex',
       gap: '8px',
-      marginBottom: theme.spacing(2),
+      paddingBottom: theme.spacing(2),
+      boxSizing: 'border-box',
+    }),
+    bodyWithoutControls: css({
+      paddingTop: theme.spacing(2),
     }),
   };
 }
+
+interface PanelsContainerProps {
+  id: string;
+  children: React.ReactNode;
+  className?: string;
+  testId?: string;
+}
+/**
+ * Removes the scrollbar on mobile and uses a custom scrollbar on desktop
+ */
+const PanelsContainer = ({ id, children, className, testId }: PanelsContainerProps) => {
+  const theme = useTheme2();
+  const isMobile = useMedia(`(max-width: ${theme.breakpoints.values.sm}px)`);
+  const styles = useStyles2(() => ({
+    nonScrollable: css({
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+    }),
+  }));
+
+  return isMobile ? (
+    <div id={id} className={cx(className, styles.nonScrollable)} data-testid={testId}>
+      {children}
+    </div>
+  ) : (
+    <CustomScrollbar divId={id} autoHeightMin={'100%'} className={className} testId={testId}>
+      {children}
+    </CustomScrollbar>
+  );
+};
