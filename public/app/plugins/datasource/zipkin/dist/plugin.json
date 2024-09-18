@@ -27,7 +27,7 @@
         "url": "https://zipkin.io"
       }
     ],
-    "version": "11.1.5"
+    "version": "11.1.0"
   },
   "dependencies": {
     "grafanaDependency": ">=10.3.0-0"

@@ -2,7 +2,7 @@ import { reportMetaAnalytics, MetaAnalyticsEventName, DashboardViewEventPayload 
 
 import { DashboardModel } from './DashboardModel';
 
-export function emitDashboardViewEvent(dashboard: Pick<DashboardModel, 'id' | 'title' | 'uid' | 'meta'>) {
+export function emitDashboardViewEvent(dashboard: DashboardModel) {
   const eventData: DashboardViewEventPayload = {
     /** @deprecated */
     dashboardId: dashboard.id,

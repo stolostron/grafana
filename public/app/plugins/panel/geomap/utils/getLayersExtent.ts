@@ -1,7 +1,6 @@
 import { createEmpty, extend, Extent } from 'ol/extent';
 import LayerGroup from 'ol/layer/Group';
 import VectorLayer from 'ol/layer/Vector';
-import VectorImage from 'ol/layer/VectorImage';
 
 import { MapLayerState } from '../types';
 
@@ -12,12 +11,12 @@ export function getLayersExtent(
   layer: string | undefined
 ): Extent {
   return layers
-    .filter((l) => l.layer instanceof VectorLayer || l.layer instanceof LayerGroup || l.layer instanceof VectorImage)
+    .filter((l) => l.layer instanceof VectorLayer || l.layer instanceof LayerGroup)
     .flatMap((ll) => {
       const l = ll.layer;
       if (l instanceof LayerGroup) {
         return getLayerGroupExtent(l);
-      } else if (l instanceof VectorLayer || l instanceof VectorImage) {
+      } else if (l instanceof VectorLayer) {
         if (allLayers) {
           // Return everything from all layers
           return [l.getSource().getExtent()] ?? [];

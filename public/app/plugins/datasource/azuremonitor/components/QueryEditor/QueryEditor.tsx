@@ -64,9 +64,7 @@ const QueryEditor = ({
     options: datasource.getVariables().map((v) => ({ label: v, value: v })),
   };
 
-  // Allow authproxy as it may not be clear if an authproxy user is authenticated by Azure
-  const isAzureAuthenticated =
-    config.bootData.user.authenticatedBy === 'oauth_azuread' || config.bootData.user.authenticatedBy === 'authproxy';
+  const isAzureAuthenticated = config.bootData.user.authenticatedBy === 'oauth_azuread';
   if (datasource.currentUserAuth) {
     if (
       app === CoreApp.UnifiedAlerting &&

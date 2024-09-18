@@ -42,17 +42,19 @@ To assign roles, admins need to complete the following steps.
 
 ## Manage access using folder permissions
 
-You can extend the access provided by a role to alert rules and rule-specific silences by assigning permissions to individual folders.
+You can further customize access for alert rules by assigning permissions to individual folders.
 
-This allows different users, teams, or service accounts to have customized access to modify or silence alert rules in specific folders.
+This prevents every user from having access to modify all alert rules and gives them access to the folders with the alert rules they're working on.
 
-Refer to the following table for details on the additional access provided by folder permissions:
+Details on the adding folder permissions as well as roles and the access that provides for Grafana Alerting is below.
 
-| Folder permission | Additional Access                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------- |
-| View              | No additional access: all permissions already contained in Viewer role.                                 |
-| Edit              | Write access to alert rules and their rule-specific silences _only_ in the given folder and subfolders. |
-| Admin             | Same additional access as Edit.                                                                         |
+| Role   | Folder permission | Access                                                                                                                               |
+| ------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Admin  | -                 | Write access to alert rules in all folders.                                                                                          |
+| Editor | -                 | Write access to alert rules in all folders.                                                                                          |
+| Viewer | Admin             | Read access to alert rules in all folders. Write access to alert rules **only** in the folders where the Admin permission is added.  |
+| Viewer | Editor            | Read access to alert rules in all folders. Write access to alert rules **only** in the folders where the Editor permission is added. |
+| Viewer | Viewer            | Read access to alert rules in all folders.                                                                                           |
 
 {{< admonition type="note" >}}
 You can't use folders to customize access to notification resources.

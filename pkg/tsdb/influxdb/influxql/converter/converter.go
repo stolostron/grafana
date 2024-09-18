@@ -34,26 +34,6 @@ l1Fields:
 			if rsp.Error != nil {
 				return rsp
 			}
-		case "error":
-			v, err := iter.ReadString()
-			if err != nil {
-				rsp.Error = err
-			} else {
-				rsp.Error = fmt.Errorf(v)
-			}
-			return rsp
-		case "code":
-			// we only care of the message
-			_, err := iter.Read()
-			if err != nil {
-				return rspErr(err)
-			}
-		case "message":
-			v, err := iter.Read()
-			if err != nil {
-				return rspErr(err)
-			}
-			return rspErr(fmt.Errorf("%s", v))
 		case "":
 			if err != nil {
 				return rspErr(err)
@@ -61,15 +41,11 @@ l1Fields:
 			break l1Fields
 		default:
 			v, err := iter.Read()
-			fmt.Printf("[ROOT] unsupported key: %s / %v\n\n", l1Field, v)
 			if err != nil {
-				if rsp != nil {
-					rsp.Error = err
-					return rsp
-				} else {
-					return rspErr(err)
-				}
+				rsp.Error = err
+				return rsp
 			}
+			fmt.Printf("[ROOT] unsupported key: %s / %v\n\n", l1Field, v)
 		}
 	}
 

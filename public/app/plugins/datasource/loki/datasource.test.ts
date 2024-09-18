@@ -270,48 +270,6 @@ describe('LokiDatasource', () => {
         'rate({bar="baz", job="foo", k1=~"v.*", k2=~"v\\\\\'.*"} |= "bar" [5m])'
       );
     });
-
-    it('should interpolate before adding adhoc filters', async () => {
-      const originalQuery = 'rate({bar="baz", job="foo"} |= "bar" [$__auto])';
-      const interpolatedQuery = 'rate({bar="baz", job="foo"} |= "bar" [5m])';
-      const templateSrv = {
-        replace: jest.fn().mockImplementation((input: string) => interpolatedQuery),
-        getVariables: () => [],
-      };
-      const query: LokiQuery = { expr: originalQuery, refId: 'A' };
-      const ds = createLokiDatasource(templateSrv);
-      const adhocFilters: AdHocFilter[] = [
-        {
-          key: 'k1',
-          operator: '=',
-          value: 'v1',
-          condition: '',
-        },
-        {
-          key: 'k2',
-          operator: '!=',
-          value: 'v2',
-          condition: '',
-        },
-      ];
-      jest.spyOn(ds, 'addAdHocFilters');
-
-      ds.applyTemplateVariables(query, {}, adhocFilters);
-
-      expect(templateSrv.replace).toHaveBeenCalledWith(originalQuery, expect.any(Object), expect.any(Function));
-      expect(ds.addAdHocFilters).toHaveBeenCalledWith(interpolatedQuery, adhocFilters);
-
-      expect(ds.applyTemplateVariables(query, {}, adhocFilters).expr).toBe(
-        'rate({bar="baz", job="foo", k1="v1", k2!="v2"} |= "bar" [5m])'
-      );
-
-      assertAdHocFilters(
-        originalQuery,
-        'rate({bar="baz", job="foo", k1="v1", k2!="v2"} |= "bar" [$__auto])',
-        ds,
-        adhocFilters
-      );
-    });
   });
 
   describe('when interpolating variables', () => {
@@ -1291,36 +1249,6 @@ describe('LokiDatasource', () => {
       });
       it('should not escape special characters in ad hoc filter', () => {
         assertAdHocFilters('{job="grafana"}', '{job="grafana", instance=~".*"}', ds, defaultAdHocFilters);
-      });
-    });
-
-    describe('bug', () => {
-      beforeEach(() => {
-        ds = createLokiDatasource();
-      });
-      const defaultAdHocFilters: AdHocFilter[] = [
-        {
-          key: 'service_name',
-          operator: '=',
-          value: 'grafana/hosted-grafana-gateway',
-          condition: '',
-        },
-      ];
-      it('should not add indexed fields twice as index filter and line filter, backtick', () => {
-        assertAdHocFilters(
-          '{service_name=`grafana/hosted-grafana-gateway`} | logfmt',
-          '{service_name="grafana/hosted-grafana-gateway"} | logfmt',
-          ds,
-          defaultAdHocFilters
-        );
-      });
-      it('should not add indexed fields twice as index filter and line filter, quotes', () => {
-        assertAdHocFilters(
-          '{service_name="grafana/hosted-grafana-gateway"} | logfmt',
-          '{service_name="grafana/hosted-grafana-gateway"} | logfmt',
-          ds,
-          defaultAdHocFilters
-        );
       });
     });
   });

@@ -68,8 +68,7 @@ const fetchFilterKeys = async (
   }
 
   const otherFilters = allFilters.filter((f) => f.key !== currentKey);
-  const response = await ds.getTagKeys({ filters: otherFilters });
-  const metrics = Array.isArray(response) ? response : response.data;
+  const metrics = await ds.getTagKeys({ filters: otherFilters });
   return metrics.map((m) => ({ label: m.text, value: m.text }));
 };
 

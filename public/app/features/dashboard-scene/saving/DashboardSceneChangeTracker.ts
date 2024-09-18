@@ -188,6 +188,5 @@ export class DashboardSceneChangeTracker {
   public terminate() {
     this.stopTrackingChanges();
     this._changesWorker?.terminate();
-    this._changesWorker = undefined;
   }
 }

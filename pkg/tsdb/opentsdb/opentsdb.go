@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -120,9 +121,6 @@ func (s *Service) createRequest(ctx context.Context, logger log.Logger, dsInfo *
 		return nil, err
 	}
 	u.Path = path.Join(u.Path, "api/query")
-	queryParams := u.Query()
-	queryParams.Set("arrays", "true")
-	u.RawQuery = queryParams.Encode()
 
 	postData, err := json.Marshal(data)
 	if err != nil {
@@ -167,25 +165,23 @@ func (s *Service) parseResponse(logger log.Logger, res *http.Response, myRefID s
 
 	frames := data.Frames{}
 	for _, val := range responseData {
-		labels := data.Labels{}
-		for label, value := range val.Tags {
-			labels[label] = value
-		}
+		timeVector := make([]time.Time, 0, len(val.DataPoints))
+		values := make([]float64, 0, len(val.DataPoints))
+		name := val.Metric
+		tags := val.Tags
 
-		frame := data.NewFrameOfFieldTypes(val.Metric, len(val.DataPoints), data.FieldTypeTime, data.FieldTypeFloat64)
-		frame.Meta = &data.FrameMeta{Type: data.FrameTypeTimeSeriesMulti, TypeVersion: data.FrameTypeVersion{0, 1}}
-		frame.RefID = myRefID
-		timeField := frame.Fields[0]
-		timeField.Name = data.TimeSeriesTimeFieldName
-		dataField := frame.Fields[1]
-		dataField.Name = "value"
-		dataField.Labels = labels
-
-		points := val.DataPoints
-		for i, point := range points {
-			frame.SetRow(i, time.Unix(int64(point[0]), 0).UTC(), point[1])
+		for timeString, value := range val.DataPoints {
+			timestamp, err := strconv.ParseInt(timeString, 10, 64)
+			if err != nil {
+				logger.Info("Failed to unmarshal opentsdb timestamp", "timestamp", timeString)
+				return nil, err
+			}
+			timeVector = append(timeVector, time.Unix(timestamp, 0).UTC())
+			values = append(values, value)
 		}
-		frames = append(frames, frame)
+		frames = append(frames, data.NewFrame(name,
+			data.NewField("time", nil, timeVector),
+			data.NewField("value", tags, values)))
 	}
 	result := resp.Responses[myRefID]
 	result.Frames = frames

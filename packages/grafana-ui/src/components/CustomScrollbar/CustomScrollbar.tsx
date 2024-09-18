@@ -60,7 +60,11 @@ export const CustomScrollbar = ({
     }
   }, [ref, scrollRefCallback]);
 
-  useScrollTop(ref.current, scrollTop);
+  useEffect(() => {
+    if (ref.current && scrollTop != null) {
+      ref.current.scrollTop(scrollTop);
+    }
+  }, [scrollTop]);
 
   /**
    * Special logic for doing a update a few milliseconds after mount to check for
@@ -212,21 +216,3 @@ const getStyles = (theme: GrafanaTheme2) => {
     }),
   };
 };
-
-/**
- * Calling scrollTop on a scrollbar ref in a useEffect can race with internal state in react-custom-scrollbars-2, causing scrollTop to get called on a stale reference, which prevents the element from scrolling as desired.
- * Adding the reference to the useEffect dependency array not notify react that the reference has changed (and is an eslint violation), so we create a custom hook so updates to the reference trigger another render, fixing the race condition bug.
- *
- * @param scrollBar
- * @param scrollTop
- */
-function useScrollTop(
-  scrollBar: (Scrollbars & { view: HTMLDivElement; update: () => void }) | null,
-  scrollTop?: number
-) {
-  useEffect(() => {
-    if (scrollBar && scrollTop != null) {
-      scrollBar.scrollTop(scrollTop);
-    }
-  }, [scrollTop, scrollBar]);
-}

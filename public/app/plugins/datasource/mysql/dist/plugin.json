@@ -15,7 +15,7 @@
       "small": "img/mysql_logo.svg",
       "large": "img/mysql_logo.svg"
     },
-    "version": "11.1.5"
+    "version": "11.1.0"
   },
   "dependencies": {
     "grafanaDependency": ">=10.4.0"

@@ -1032,7 +1032,7 @@ export class LokiDatasource
    * @todo this.templateSrv.getAdhocFilters() is deprecated
    */
   addAdHocFilters(queryExpr: string, adhocFilters?: AdHocVariableFilter[]) {
-    if (!adhocFilters?.length) {
+    if (!adhocFilters) {
       return queryExpr;
     }
 
@@ -1078,6 +1078,8 @@ export class LokiDatasource
     // alerting/ML queries and we want to have consistent interpolation for all queries
     const { __auto, __interval, __interval_ms, __range, __range_s, __range_ms, ...rest } = scopedVars || {};
 
+    const exprWithAdHoc = this.addAdHocFilters(target.expr, adhocFilters);
+
     const variables = {
       ...rest,
 
@@ -1089,16 +1091,10 @@ export class LokiDatasource
         value: '$__interval_ms',
       },
     };
-
-    const exprWithAdHoc = this.addAdHocFilters(
-      this.templateSrv.replace(target.expr, variables, this.interpolateQueryExpr),
-      adhocFilters
-    );
-
     return {
       ...target,
       legendFormat: this.templateSrv.replace(target.legendFormat, rest),
-      expr: exprWithAdHoc,
+      expr: this.templateSrv.replace(exprWithAdHoc, variables, this.interpolateQueryExpr),
     };
   }
 

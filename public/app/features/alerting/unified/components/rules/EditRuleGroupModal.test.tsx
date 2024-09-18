@@ -1,5 +1,6 @@
+import { render } from '@testing-library/react';
 import React from 'react';
-import { render, screen, userEvent } from 'test/test-utils';
+import { Provider } from 'react-redux';
 import { byLabelText, byTestId, byText, byTitle } from 'testing-library-selector';
 
 import { CombinedRuleNamespace } from 'app/types/unified-alerting';
@@ -12,6 +13,8 @@ import {
   mockPromRecordingRule,
   mockRulerAlertingRule,
   mockRulerRecordingRule,
+  mockRulerRuleGroup,
+  mockStore,
 } from '../../mocks';
 import { GRAFANA_RULES_SOURCE_NAME } from '../../utils/datasource';
 
@@ -28,8 +31,29 @@ const ui = {
   tableRows: byTestId('row'),
   noRulesText: byText('This group does not contain alert rules.'),
 };
+mockRulerRuleGroup({
+  name: 'group1',
+  rules: [
+    mockRulerRecordingRule({
+      record: 'instance:node_num_cpu:sum',
+      expr: 'count without (cpu) (count without (mode) (node_cpu_seconds_total{job="integrations/node_exporter"}))',
+      labels: { type: 'cpu' },
+    }),
+    mockRulerAlertingRule({ alert: 'nonRecordingRule' }),
+  ],
+});
 
-const noop = () => jest.fn();
+jest.mock('app/types', () => ({
+  ...jest.requireActual('app/types'),
+  useDispatch: () => jest.fn(),
+}));
+
+function getProvidersWrapper() {
+  return function Wrapper({ children }: React.PropsWithChildren<{}>) {
+    const store = mockStore(() => null);
+    return <Provider store={store}>{children}</Provider>;
+  };
+}
 
 describe('EditGroupModal', () => {
   it('Should disable all inputs but interval when intervalEditOnly is set', async () => {
@@ -41,7 +65,9 @@ describe('EditGroupModal', () => {
 
     const group = namespace.groups[0];
 
-    render(<EditCloudGroupModal namespace={namespace} group={group} intervalEditOnly onClose={noop} />);
+    render(<EditCloudGroupModal namespace={namespace} group={group} intervalEditOnly onClose={() => jest.fn()} />, {
+      wrapper: getProvidersWrapper(),
+    });
 
     expect(await ui.input.namespace.find()).toHaveAttribute('readonly');
     expect(ui.input.group.get()).toHaveAttribute('readonly');
@@ -81,7 +107,9 @@ describe('EditGroupModal component on cloud alert rules', () => {
 
     const group = promNs.groups[0];
 
-    render(<EditCloudGroupModal namespace={promNs} group={group} onClose={noop} />);
+    render(<EditCloudGroupModal namespace={promNs} group={group} onClose={() => jest.fn()} />, {
+      wrapper: getProvidersWrapper(),
+    });
 
     expect(await ui.input.namespace.find()).toHaveValue('prometheus-ns');
     expect(ui.input.namespace.get()).not.toHaveAttribute('readonly');
@@ -100,7 +128,9 @@ describe('EditGroupModal component on cloud alert rules', () => {
 
     const group = promNs.groups[0];
 
-    render(<EditCloudGroupModal namespace={promNs} group={group} onClose={noop} />);
+    render(<EditCloudGroupModal namespace={promNs} group={group} onClose={jest.fn()} />, {
+      wrapper: getProvidersWrapper(),
+    });
     expect(ui.table.query()).not.toBeInTheDocument();
     expect(await ui.noRulesText.find()).toBeInTheDocument();
   });
@@ -133,11 +163,10 @@ describe('EditGroupModal component on grafana-managed alert rules', () => {
 
   const grafanaGroup1 = grafanaNamespace.groups[0];
 
-  const renderWithGrafanaGroup = () =>
-    render(<EditCloudGroupModal namespace={grafanaNamespace} group={grafanaGroup1} onClose={noop} />);
-
   it('Should show alert table', async () => {
-    renderWithGrafanaGroup();
+    render(<EditCloudGroupModal namespace={grafanaNamespace} group={grafanaGroup1} onClose={jest.fn()} />, {
+      wrapper: getProvidersWrapper(),
+    });
 
     expect(await ui.input.namespace.find()).toHaveValue('namespace1');
     expect(ui.input.group.get()).toHaveValue('grafanaGroup1');
@@ -149,22 +178,18 @@ describe('EditGroupModal component on grafana-managed alert rules', () => {
   });
 
   it('Should have folder input in readonly mode', async () => {
-    renderWithGrafanaGroup();
+    render(<EditCloudGroupModal namespace={grafanaNamespace} group={grafanaGroup1} onClose={jest.fn()} />, {
+      wrapper: getProvidersWrapper(),
+    });
 
     expect(await ui.input.namespace.find()).toHaveAttribute('readonly');
   });
 
   it('Should not display folder link if no folderUrl provided', async () => {
-    renderWithGrafanaGroup();
+    render(<EditCloudGroupModal namespace={grafanaNamespace} group={grafanaGroup1} onClose={jest.fn()} />, {
+      wrapper: getProvidersWrapper(),
+    });
     expect(await ui.input.namespace.find()).toHaveValue('namespace1');
     expect(ui.folderLink.query()).not.toBeInTheDocument();
-  });
-
-  it('does not allow slashes in the group name', async () => {
-    const user = userEvent.setup();
-    renderWithGrafanaGroup();
-    await user.type(await ui.input.group.find(), 'group/with/slashes');
-    await user.click(ui.input.interval.get());
-    expect(await screen.findByText(/cannot contain \"\/\"/i)).toBeInTheDocument();
   });
 });

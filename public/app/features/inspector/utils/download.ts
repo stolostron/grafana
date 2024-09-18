@@ -57,9 +57,8 @@ export function downloadDataFrameAsCsv(
   transformId: DataTransformerID = DataTransformerID.noop
 ) {
   const dataFrameCsv = toCSV([dataFrame], csvConfig);
-  const bomChar = csvConfig?.useExcelHeader ? String.fromCharCode(0xfeff) : '';
 
-  const blob = new Blob([bomChar, dataFrameCsv], {
+  const blob = new Blob([String.fromCharCode(0xfeff), dataFrameCsv], {
     type: 'text/csv;charset=utf-8',
   });
 

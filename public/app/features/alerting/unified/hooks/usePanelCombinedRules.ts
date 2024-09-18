@@ -3,7 +3,7 @@ import { CombinedRule } from 'app/types/unified-alerting';
 import { useCombinedRules } from './useCombinedRuleNamespaces';
 
 interface Options {
-  dashboardUID: string | null;
+  dashboardUID: string;
   panelId: number;
 
   poll?: boolean;

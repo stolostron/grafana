@@ -32,8 +32,6 @@ type Select []QueryPart
 type Response struct {
 	Results []Result
 	Error   string
-	Code    string
-	Message string
 }
 
 type Result struct {

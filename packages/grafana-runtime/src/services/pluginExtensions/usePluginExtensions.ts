@@ -41,14 +41,12 @@ export function usePluginLinks(options: GetPluginExtensionsOptions): {
 
 export function usePluginComponents<Props = {}>(
   options: GetPluginExtensionsOptions
-): { components: Array<React.ComponentType<Props>>; isLoading: boolean } {
+): { components: Array<PluginExtensionComponent<Props>>; isLoading: boolean } {
   const { extensions, isLoading } = usePluginExtensions(options);
 
   return useMemo(
     () => ({
-      components: extensions
-        .filter(isPluginExtensionComponent)
-        .map(({ component }) => component as React.ComponentType<Props>),
+      components: extensions.filter(isPluginExtensionComponent) as Array<PluginExtensionComponent<Props>>,
       isLoading,
     }),
     [extensions, isLoading]

@@ -40,7 +40,7 @@ export class InfluxVariableSupport extends CustomVariableSupport<InfluxDatasourc
           query: interpolated,
           maxDataPoints: request.targets[0].maxDataPoints ?? 1000,
         },
-        { range: request.range }
+        request.range
       )
     );
     return metricFindStream.pipe(map((results) => ({ data: results })));

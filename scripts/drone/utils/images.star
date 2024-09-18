@@ -9,7 +9,6 @@ load(
 )
 
 images = {
-    "docker": "docker:27-cli",
     "git": "alpine/git:2.40.1",
     "go": "golang:{}-alpine".format(golang_version),
     "node": "node:{}-alpine".format(nodejs_version),
@@ -35,5 +34,4 @@ images = {
     "cypress": "cypress/included:13.10.0",
     "dockerize": "jwilder/dockerize:0.6.1",
     "shellcheck": "koalaman/shellcheck:stable",
-    "rocky": "rockylinux:9",
 }

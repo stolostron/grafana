@@ -114,23 +114,7 @@ func (st DBstore) GetAlertRulesGroupByRuleUID(ctx context.Context, query *ngmode
 		if err != nil {
 			return err
 		}
-		// MySQL by default compares strings without case-sensitivity, make sure we keep the case-sensitive comparison.
-		var groupKey ngmodels.AlertRuleGroupKey
-		// find the rule, which group we fetch
-		for _, rule := range rules {
-			if rule.UID == query.UID {
-				groupKey = rule.GetGroupKey()
-				break
-			}
-		}
-		result = make([]*ngmodels.AlertRule, 0, len(rules))
-		// MySQL (and potentially other databases) can use case-insensitive comparison.
-		// This code makes sure we return groups that only exactly match the filter.
-		for _, rule := range rules {
-			if rule.GetGroupKey() == groupKey {
-				result = append(result, rule)
-			}
-		}
+		result = rules
 		return nil
 	})
 	return result, err
@@ -388,14 +372,9 @@ func (st DBstore) ListAlertRules(ctx context.Context, query *ngmodels.ListAlertR
 			q = q.Where(fmt.Sprintf("uid IN (%s)", strings.Join(in, ",")), args...)
 		}
 
-		var groupsMap map[string]struct{}
 		if len(query.RuleGroups) > 0 {
-			groupsMap = make(map[string]struct{})
 			args, in := getINSubQueryArgs(query.RuleGroups)
 			q = q.Where(fmt.Sprintf("rule_group IN (%s)", strings.Join(in, ",")), args...)
-			for _, group := range query.RuleGroups {
-				groupsMap[group] = struct{}{}
-			}
 		}
 
 		if query.ReceiverName != "" {
@@ -429,13 +408,6 @@ func (st DBstore) ListAlertRules(ctx context.Context, query *ngmodels.ListAlertR
 				if !slices.ContainsFunc(rule.NotificationSettings, func(settings ngmodels.NotificationSettings) bool {
 					return settings.Receiver == query.ReceiverName
 				}) {
-					continue
-				}
-			}
-			// MySQL (and potentially other databases) can use case-insensitive comparison.
-			// This code makes sure we return groups that only exactly match the filter.
-			if groupsMap != nil {
-				if _, ok := groupsMap[rule.RuleGroup]; !ok {
 					continue
 				}
 			}
@@ -554,13 +526,8 @@ func (st DBstore) GetAlertRulesForScheduling(ctx context.Context, query *ngmodel
 			alertRulesSql.NotIn("org_id", disabledOrgs)
 		}
 
-		var groupsMap map[string]struct{}
 		if len(query.RuleGroups) > 0 {
 			alertRulesSql.In("rule_group", query.RuleGroups)
-			groupsMap = make(map[string]struct{}, len(query.RuleGroups))
-			for _, group := range query.RuleGroups {
-				groupsMap[group] = struct{}{}
-			}
 		}
 
 		rule := new(ngmodels.AlertRule)
@@ -580,13 +547,6 @@ func (st DBstore) GetAlertRulesForScheduling(ctx context.Context, query *ngmodel
 			if err != nil {
 				st.Logger.Error("Invalid rule found in DB store, ignoring it", "func", "GetAlertRulesForScheduling", "error", err)
 				continue
-			}
-			// MySQL (and potentially other databases) uses case-insensitive comparison.
-			// This code makes sure we return groups that only exactly match the filter
-			if groupsMap != nil {
-				if _, ok := groupsMap[rule.RuleGroup]; !ok { // compare groups using case-sensitive logic.
-					continue
-				}
 			}
 			if st.FeatureToggles.IsEnabled(ctx, featuremgmt.FlagAlertingQueryOptimization) {
 				if optimizations, err := OptimizeAlertQueries(rule.Data); err != nil {

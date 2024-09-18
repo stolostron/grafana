@@ -17,13 +17,7 @@ export function useSoloPanel(dashboard: DashboardScene, panelId: string): [VizPa
 
     const cleanUp = dashboard.activate();
 
-    let panel: VizPanel | null = null;
-    try {
-      panel = findVizPanelByKey(dashboard, panelId);
-    } catch (e) {
-      // do nothing, just the panel is not found or not a VizPanel
-    }
-
+    const panel = findVizPanelByKey(dashboard, panelId);
     if (panel) {
       activateParents(panel);
       setPanel(panel);
@@ -35,8 +29,6 @@ export function useSoloPanel(dashboard: DashboardScene, panelId: string): [VizPa
           setError('Panel not found');
         }
       });
-    } else {
-      setError('Panel not found');
     }
 
     return cleanUp;

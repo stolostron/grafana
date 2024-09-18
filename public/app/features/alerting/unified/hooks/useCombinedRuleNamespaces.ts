@@ -468,7 +468,7 @@ function hashQuery(query: string) {
   This hook returns combined Grafana rules. Optionally, it can filter rules by dashboard UID and panel ID.
 */
 export function useCombinedRules(
-  dashboardUID?: string | null,
+  dashboardUID?: string,
   panelId?: number,
   poll?: boolean
 ): {
@@ -483,12 +483,10 @@ export function useCombinedRules(
   } = alertRuleApi.endpoints.prometheusRuleNamespaces.useQuery(
     {
       ruleSourceName: GRAFANA_RULES_SOURCE_NAME,
-      dashboardUid: dashboardUID ?? undefined,
+      dashboardUid: dashboardUID,
       panelId,
     },
     {
-      // "null" means the dashboard isn't saved yet, as opposed to "undefined" which means we don't want to filter by dashboard UID
-      skip: dashboardUID === null,
       pollingInterval: poll ? RULE_LIST_POLL_INTERVAL_MS : undefined,
     }
   );
@@ -500,11 +498,10 @@ export function useCombinedRules(
   } = alertRuleApi.endpoints.rulerRules.useQuery(
     {
       rulerConfig: grafanaRulerConfig,
-      filter: { dashboardUID: dashboardUID ?? undefined, panelId },
+      filter: { dashboardUID, panelId },
     },
     {
       pollingInterval: poll ? RULE_LIST_POLL_INTERVAL_MS : undefined,
-      skip: dashboardUID === null,
     }
   );
 

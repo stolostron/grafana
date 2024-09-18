@@ -16,14 +16,7 @@ export const ImageCell = (props: TableCellProps) => {
 
   return (
     <div {...cellProps} className={tableStyles.cellContainer}>
-      {!hasLinks && (
-        <img
-          style={{ height: tableStyles.cellHeight - DATALINKS_HEIGHT_OFFSET, width: 'auto' }}
-          src={displayValue.text}
-          className={tableStyles.imageCell}
-          alt=""
-        />
-      )}
+      {!hasLinks && <img src={displayValue.text} className={tableStyles.imageCell} alt="" />}
       {hasLinks && (
         <DataLinksContextMenu
           style={{ height: tableStyles.cellHeight - DATALINKS_HEIGHT_OFFSET, width: 'auto' }}

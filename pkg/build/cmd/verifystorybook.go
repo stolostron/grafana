@@ -6,8 +6,9 @@ import (
 	"log"
 	"path/filepath"
 
-	"github.com/grafana/grafana/pkg/build/fsutil"
 	"github.com/urfave/cli/v2"
+
+	"github.com/grafana/grafana/pkg/infra/fs"
 )
 
 // VerifyStorybook Action implements the sub-command "verify-storybook".
@@ -18,7 +19,7 @@ func VerifyStorybook(c *cli.Context) error {
 		"packages/grafana-ui/dist/storybook/index.html",
 		"packages/grafana-ui/dist/storybook/iframe.html"}
 	for _, p := range paths {
-		exists, err := fsutil.Exists(filepath.Join(grafanaDir, p))
+		exists, err := fs.Exists(filepath.Join(grafanaDir, p))
 		if err != nil {
 			return cli.Exit(fmt.Sprintf("failed to verify Storybook build: %s", err), 1)
 		}
