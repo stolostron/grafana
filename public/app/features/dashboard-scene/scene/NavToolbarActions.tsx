@@ -1,7 +1,8 @@
 import { css } from '@emotion/css';
-import React, { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import * as React from 'react';
 
-import { GrafanaTheme2 } from '@grafana/data';
+import { GrafanaTheme2, store } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 import { config, locationService } from '@grafana/runtime';
 import {
@@ -25,6 +26,7 @@ import { getDashboardSrv } from 'app/features/dashboard/services/DashboardSrv';
 import { playlistSrv } from 'app/features/playlist/PlaylistSrv';
 
 import { PanelEditor, buildPanelEditScene } from '../panel-edit/PanelEditor';
+import ExportButton from '../sharing/ExportButton/ExportButton';
 import ShareButton from '../sharing/ShareButton/ShareButton';
 import { ShareModal } from '../sharing/ShareModal';
 import { DashboardInteractions } from '../utils/interactions';
@@ -133,7 +135,7 @@ export function ToolbarActions({ dashboard }: Props) {
 
   toolbarActions.push({
     group: 'icon-actions',
-    condition: meta.isSnapshot && !isEditing,
+    condition: meta.isSnapshot && !meta.dashboardNotFound && !isEditing,
     render: () => (
       <GoToSnapshotOriginButton
         key="go-to-snapshot-origin"
@@ -313,7 +315,7 @@ export function ToolbarActions({ dashboard }: Props) {
         fill="outline"
         onClick={() => {
           DashboardInteractions.toolbarShareClick();
-          dashboard.showModal(new ShareModal({ dashboardRef: dashboard.getRef() }));
+          dashboard.showModal(new ShareModal({}));
         }}
         data-testid={selectors.components.NavToolbar.shareDashboard}
       >
@@ -364,7 +366,13 @@ export function ToolbarActions({ dashboard }: Props) {
   });
 
   toolbarActions.push({
-    group: 'new-share-dashboard-button',
+    group: 'new-share-dashboard-buttons',
+    condition: config.featureToggles.newDashboardSharingComponent && showShareButton,
+    render: () => <ExportButton key="new-export-dashboard-button" dashboard={dashboard} />,
+  });
+
+  toolbarActions.push({
+    group: 'new-share-dashboard-buttons',
     condition: config.featureToggles.newDashboardSharingComponent && showShareButton,
     render: () => <ShareButton key="new-share-dashboard-button" dashboard={dashboard} />,
   });
@@ -489,7 +497,6 @@ export function ToolbarActions({ dashboard }: Props) {
         return (
           <Button
             onClick={() => {
-              DashboardInteractions.toolbarSaveClick();
               dashboard.openSaveDrawer({});
             }}
             className={styles.buttonWithExtraMargin}
@@ -509,7 +516,6 @@ export function ToolbarActions({ dashboard }: Props) {
         return (
           <Button
             onClick={() => {
-              DashboardInteractions.toolbarSaveClick();
               dashboard.openSaveDrawer({ saveAsCopy: true });
             }}
             className={styles.buttonWithExtraMargin}
@@ -530,7 +536,6 @@ export function ToolbarActions({ dashboard }: Props) {
             label="Save"
             icon="save"
             onClick={() => {
-              DashboardInteractions.toolbarSaveClick();
               dashboard.openSaveDrawer({});
             }}
           />
@@ -538,7 +543,6 @@ export function ToolbarActions({ dashboard }: Props) {
             label="Save as copy"
             icon="copy"
             onClick={() => {
-              DashboardInteractions.toolbarSaveAsClick();
               dashboard.openSaveDrawer({ saveAsCopy: true });
             }}
           />
@@ -549,7 +553,6 @@ export function ToolbarActions({ dashboard }: Props) {
         <ButtonGroup className={styles.buttonWithExtraMargin} key="save">
           <Button
             onClick={() => {
-              DashboardInteractions.toolbarSaveClick();
               dashboard.openSaveDrawer({});
             }}
             tooltip="Save changes"
@@ -560,7 +563,12 @@ export function ToolbarActions({ dashboard }: Props) {
             Save dashboard
           </Button>
           <Dropdown overlay={menu}>
-            <Button icon="angle-down" variant={isDirty ? 'primary' : 'secondary'} size="sm" />
+            <Button
+              aria-label="More save options"
+              icon="angle-down"
+              variant={isDirty ? 'primary' : 'secondary'}
+              size="sm"
+            />
           </Dropdown>
         </ButtonGroup>
       );

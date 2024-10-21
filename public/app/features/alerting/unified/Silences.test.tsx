@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, userEvent, waitFor, within } from 'test/test-utils';
 import { byLabelText, byPlaceholderText, byRole, byTestId, byText } from 'testing-library-selector';
 
@@ -7,11 +6,11 @@ import { selectors } from '@grafana/e2e-selectors';
 import { config, locationService } from '@grafana/runtime';
 import { mockAlertRuleApi, setupMswServer } from 'app/features/alerting/unified/mockApi';
 import { waitForServerRequest } from 'app/features/alerting/unified/mocks/server/events';
-import { MOCK_GRAFANA_ALERT_RULE_TITLE } from 'app/features/alerting/unified/mocks/server/handlers/alertRules';
 import {
   MOCK_DATASOURCE_NAME_BROKEN_ALERTMANAGER,
   MOCK_DATASOURCE_UID_BROKEN_ALERTMANAGER,
 } from 'app/features/alerting/unified/mocks/server/handlers/datasources';
+import { MOCK_GRAFANA_ALERT_RULE_TITLE } from 'app/features/alerting/unified/mocks/server/handlers/grafanaRuler';
 import { silenceCreateHandler } from 'app/features/alerting/unified/mocks/server/handlers/silences';
 import { MatcherOperator, SilenceState } from 'app/plugins/datasource/alertmanager/types';
 import { AccessControlAction } from 'app/types';
@@ -25,7 +24,7 @@ import {
   mockDataSource,
   mockSilences,
 } from './mocks';
-import { grafanaRulerRule } from './mocks/alertRuleApi';
+import { grafanaRulerRule } from './mocks/grafanaRulerApi';
 import { setupDataSources } from './testSetup/datasources';
 import { DataSourceType, GRAFANA_RULES_SOURCE_NAME } from './utils/datasource';
 
@@ -304,6 +303,14 @@ describe('Silence create/edit', () => {
     },
     TEST_TIMEOUT
   );
+
+  it('works when previewing alerts with spaces in label name', async () => {
+    renderSilences(`${baseUrlPath}?alertmanager=${GRAFANA_RULES_SOURCE_NAME}`);
+
+    await enterSilenceLabel(0, 'label with spaces', MatcherOperator.equal, 'value with spaces');
+
+    expect((await screen.findAllByTestId('row'))[0]).toBeInTheDocument();
+  });
 
   it('shows an error when existing silence cannot be found', async () => {
     renderSilences('/alerting/silence/foo-bar/edit');

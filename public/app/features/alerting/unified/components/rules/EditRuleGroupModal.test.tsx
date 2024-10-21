@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, userEvent } from 'test/test-utils';
 import { byLabelText, byTestId, byText, byTitle } from 'testing-library-selector';
 

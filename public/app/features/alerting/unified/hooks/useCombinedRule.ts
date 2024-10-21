@@ -80,7 +80,7 @@ export function useCloudCombinedRulesMatching(
     groupName: filter?.groupName,
   });
 
-  const [fetchRulerRuleGroup] = alertRuleApi.endpoints.rulerRuleGroup.useLazyQuery();
+  const [fetchRulerRuleGroup] = alertRuleApi.endpoints.getRuleGroupForNamespace.useLazyQuery();
 
   const { loading, error, value } = useAsync(async () => {
     if (!dsSettings) {
@@ -143,7 +143,8 @@ function useCombinedRulesLoader(
 
   return {
     loading,
-    error: promRuleRequest.error ?? isRulerNotSupportedResponse(rulerRuleRequest) ? undefined : rulerRuleRequest.error,
+    error:
+      (promRuleRequest.error ?? isRulerNotSupportedResponse(rulerRuleRequest)) ? undefined : rulerRuleRequest.error,
     dispatched: promRuleRequest.dispatched && rulerRuleRequest.dispatched,
   };
 }
@@ -171,10 +172,15 @@ interface RequestState<T> {
   error?: unknown;
 }
 
+interface Props {
+  ruleIdentifier: RuleIdentifier;
+  limitAlerts?: number;
+}
+
 // Many places still use the old way of fetching code so synchronizing cache expiration is difficult
 // Hence, this hook fetches a fresh version of a rule most of the time
 // Due to enabled filtering for Prometheus and Ruler rules it shouldn't be a problem
-export function useCombinedRule({ ruleIdentifier }: { ruleIdentifier: RuleIdentifier }): RequestState<CombinedRule> {
+export function useCombinedRule({ ruleIdentifier, limitAlerts }: Props): RequestState<CombinedRule> {
   const { ruleSourceName } = ruleIdentifier;
   const ruleSource = getRulesSourceFromIdentifier(ruleIdentifier);
 
@@ -195,6 +201,7 @@ export function useCombinedRule({ ruleIdentifier }: { ruleIdentifier: RuleIdenti
       namespace: ruleLocation?.namespace,
       groupName: ruleLocation?.group,
       ruleName: ruleLocation?.ruleName,
+      limitAlerts,
     },
     {
       skip: !ruleLocation || isLoadingRuleLocation,
@@ -204,13 +211,8 @@ export function useCombinedRule({ ruleIdentifier }: { ruleIdentifier: RuleIdenti
 
   const [
     fetchRulerRuleGroup,
-    {
-      currentData: rulerRuleGroup,
-      isLoading: isLoadingRulerGroup,
-      error: rulerRuleGroupError,
-      isUninitialized: rulerRuleGroupUninitialized,
-    },
-  ] = alertRuleApi.endpoints.rulerRuleGroup.useLazyQuery();
+    { currentData: rulerRuleGroup, isLoading: isLoadingRulerGroup, error: rulerRuleGroupError },
+  ] = alertRuleApi.endpoints.getRuleGroupForNamespace.useLazyQuery();
 
   useEffect(() => {
     if (!dsFeatures?.rulerConfig || !ruleLocation) {
@@ -251,7 +253,7 @@ export function useCombinedRule({ ruleIdentifier }: { ruleIdentifier: RuleIdenti
   }, [ruleIdentifier, ruleSourceName, promRuleNs, rulerRuleGroup, ruleSource]);
 
   return {
-    loading: isLoadingDsFeatures || isLoadingPromRules || isLoadingRulerGroup || rulerRuleGroupUninitialized,
+    loading: isLoadingDsFeatures || isLoadingPromRules || isLoadingRulerGroup,
     error: ruleLocationError ?? promRuleNsError ?? rulerRuleGroupError,
     result: rule,
   };
@@ -345,7 +347,7 @@ export function useRuleWithLocation({
       isUninitialized: isUninitializedRulerGroup,
       error: rulerRuleGroupError,
     },
-  ] = alertRuleApi.endpoints.rulerRuleGroup.useLazyQuery();
+  ] = alertRuleApi.endpoints.getRuleGroupForNamespace.useLazyQuery();
 
   useEffect(() => {
     if (!dsFeatures?.rulerConfig || !ruleLocation) {

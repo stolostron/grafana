@@ -58,7 +58,9 @@ export const alertmanagerApi = alertingApi.injectEndpoints({
         // TODO Add support for active, silenced, inhibited, unprocessed filters
         const filterMatchers = filter?.matchers
           ?.filter((matcher) => matcher.name && matcher.value)
-          .map((matcher) => `${matcher.name}${matcherToOperator(matcher)}${wrapWithQuotes(matcher.value)}`);
+          .map(
+            (matcher) => `${wrapWithQuotes(matcher.name)}${matcherToOperator(matcher)}${wrapWithQuotes(matcher.value)}`
+          );
 
         const { silenced, inhibited, unprocessed, active } = filter || {};
 
@@ -242,11 +244,11 @@ export const alertmanagerApi = alertingApi.injectEndpoints({
       void,
       { selectedAlertmanager: string; config: AlertManagerCortexConfig }
     >({
-      query: ({ selectedAlertmanager, config, ...rest }) => ({
+      query: ({ selectedAlertmanager, config }) => ({
         url: `/api/alertmanager/${getDatasourceAPIUid(selectedAlertmanager)}/config/api/v1/alerts`,
         method: 'POST',
         data: config,
-        ...rest,
+        showSuccessAlert: false,
       }),
       invalidatesTags: ['AlertmanagerConfiguration'],
     }),
@@ -276,11 +278,14 @@ export const alertmanagerApi = alertingApi.injectEndpoints({
       },
     }),
     // Grafana Managed Alertmanager only
+    // TODO: Remove as part of migration to k8s API for receivers
     getContactPointsList: build.query<GrafanaManagedContactPoint[], void>({
       query: () => ({ url: '/api/v1/notifications/receivers' }),
+      providesTags: ['AlertmanagerConfiguration'],
     }),
     getMuteTimingList: build.query<MuteTimeInterval[], void>({
       query: () => ({ url: '/api/v1/notifications/time-intervals' }),
+      providesTags: ['AlertmanagerConfiguration'],
     }),
   }),
 });
