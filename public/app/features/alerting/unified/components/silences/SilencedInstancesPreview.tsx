@@ -1,5 +1,5 @@
 import { css } from '@emotion/css';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useDebounce, useDeepCompareEffect } from 'react-use';
 
 import { dateTime, GrafanaTheme2 } from '@grafana/data';
@@ -66,7 +66,7 @@ export const SilencedInstancesPreview = ({ amSourceName, matchers: inputMatchers
   if (isError) {
     return (
       <Alert title="Preview not available" severity="error">
-        Error occured when generating preview of affected alerts. Are your matchers valid?
+        Error occurred when generating preview of affected alerts. Are your matchers valid?
       </Alert>
     );
   }

@@ -1,6 +1,4 @@
-import { render } from '@testing-library/react';
-import React from 'react';
-import { TestProvider } from 'test/helpers/TestProvider';
+import { render } from 'test/test-utils';
 import { byTestId, byText } from 'testing-library-selector';
 
 import { DataSourceApi } from '@grafana/data';
@@ -9,7 +7,6 @@ import { setDataSourceSrv, setPluginExtensionsHook } from '@grafana/runtime';
 import * as ruleActionButtons from 'app/features/alerting/unified/components/rules/RuleActionsButtons';
 import { DashboardModel, PanelModel } from 'app/features/dashboard/state';
 import { getDatasourceSrv } from 'app/features/plugins/datasource_srv';
-import { configureStore } from 'app/store/configureStore';
 import { AccessControlAction } from 'app/types';
 import { AlertQuery, PromRulesResponse } from 'app/types/unified-alerting-dto';
 
@@ -26,6 +23,7 @@ import {
   mockRulerAlertingRule,
   mockRulerRuleGroup,
 } from './mocks';
+import { captureRequests } from './mocks/server/events';
 import { RuleFormValues } from './types/rule-form';
 import * as config from './utils/config';
 import { Annotation } from './utils/constants';
@@ -60,16 +58,8 @@ const mocks = {
   rulerBuilderMock: jest.mocked(apiRuler.rulerUrlBuilder),
 };
 
-const renderAlertTabContent = (
-  dashboard: DashboardModel,
-  panel: PanelModel,
-  initialStore?: ReturnType<typeof configureStore>
-) => {
-  render(
-    <TestProvider store={initialStore}>
-      <PanelAlertTabContent dashboard={dashboard} panel={panel} />
-    </TestProvider>
-  );
+const renderAlertTabContent = (dashboard: DashboardModel, panel: PanelModel) => {
+  render(<PanelAlertTabContent dashboard={dashboard} panel={panel} />);
 };
 
 const promResponse: PromRulesResponse = {
@@ -284,6 +274,8 @@ describe('PanelAlertTabContent', () => {
   });
 
   it('should not make requests for unsaved dashboard', async () => {
+    const capture = captureRequests();
+
     const unsavedDashboard = {
       ...dashboard,
       uid: null,
@@ -300,6 +292,8 @@ describe('PanelAlertTabContent', () => {
     );
 
     expect(await ui.notSavedYet.find()).toBeInTheDocument();
+    const requests = await capture;
+    expect(requests.length).toBe(0);
   });
 
   it('Will take into account datasource minInterval', async () => {

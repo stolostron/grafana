@@ -1,13 +1,14 @@
 import { css, cx } from '@emotion/css';
-import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useMedia } from 'react-use';
 
 import { GrafanaTheme2, PageLayoutType } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
+import { config } from '@grafana/runtime';
 import { SceneComponentProps } from '@grafana/scenes';
 import { CustomScrollbar, useStyles2, useTheme2 } from '@grafana/ui';
 import { Page } from 'app/core/components/Page/Page';
+import { EntityNotFound } from 'app/core/components/PageNotFound/EntityNotFound';
 import { getNavModel } from 'app/core/selectors/navModel';
 import DashboardEmpty from 'app/features/dashboard/dashgrid/DashboardEmpty';
 import { useSelector } from 'app/types';
@@ -35,13 +36,25 @@ export function DashboardSceneRenderer({ model }: SceneComponentProps<DashboardS
     );
   }
 
-  const emptyState = <DashboardEmpty dashboard={model} canCreate={!!model.state.meta.canEdit} />;
+  const emptyState = (
+    <DashboardEmpty dashboard={model} canCreate={!!model.state.meta.canEdit} key="dashboard-empty-state" />
+  );
 
   const withPanels = (
-    <div className={cx(styles.body, !hasControls && styles.bodyWithoutControls)}>
+    <div className={cx(styles.body, !hasControls && styles.bodyWithoutControls)} key="dashboard-panels">
       <bodyToRender.Component model={bodyToRender} />
     </div>
   );
+
+  const notFound = meta.dashboardNotFound && <EntityNotFound entity="Dashboard" key="dashboard-not-found" />;
+
+  let body = [withPanels];
+
+  if (notFound) {
+    body = [notFound];
+  } else if (isEmpty) {
+    body = [emptyState, withPanels];
+  }
 
   return (
     <Page navModel={navModel} pageNav={pageNav} layout={PageLayoutType.Custom}>
@@ -55,9 +68,9 @@ export function DashboardSceneRenderer({ model }: SceneComponentProps<DashboardS
             scopes && isScopesExpanded && styles.pageContainerWithScopesExpanded
           )}
         >
-          {scopes && <scopes.Component model={scopes} />}
+          {scopes && !meta.dashboardNotFound && <scopes.Component model={scopes} />}
           <NavToolbarActions dashboard={model} />
-          {controls && hasControls && (
+          {controls && (
             <div
               className={cx(styles.controlsWrapper, scopes && !isScopesExpanded && styles.controlsWrapperWithScopes)}
             >
@@ -70,10 +83,7 @@ export function DashboardSceneRenderer({ model }: SceneComponentProps<DashboardS
             className={styles.panelsContainer}
             testId={selectors.pages.Dashboard.DashNav.scrollContainer}
           >
-            <div className={cx(styles.canvasContent)}>
-              <>{isEmpty && emptyState}</>
-              {withPanels}
-            </div>
+            <div className={cx(styles.canvasContent)}>{body}</div>
           </PanelsContainer>
         </div>
       )}
@@ -84,18 +94,24 @@ export function DashboardSceneRenderer({ model }: SceneComponentProps<DashboardS
 
 function getStyles(theme: GrafanaTheme2) {
   return {
-    pageContainer: css({
-      display: 'grid',
-      gridTemplateAreas: `
-        "panels"`,
-      gridTemplateColumns: `1fr`,
-      gridTemplateRows: '1fr',
-      height: '100%',
-      [theme.breakpoints.down('sm')]: {
-        display: 'flex',
-        flexDirection: 'column',
+    pageContainer: css(
+      {
+        display: 'grid',
+        gridTemplateAreas: `
+  "panels"`,
+        gridTemplateColumns: `1fr`,
+        gridTemplateRows: '1fr',
+        height: '100%',
+        [theme.breakpoints.down('sm')]: {
+          display: 'flex',
+          flexDirection: 'column',
+        },
       },
-    }),
+      config.featureToggles.bodyScrolling && {
+        position: 'absolute',
+        width: '100%',
+      }
+    ),
     pageContainerWithControls: css({
       gridTemplateAreas: `
         "controls"

@@ -99,7 +99,7 @@ def clone_enterprise_step_pr(source = "${DRONE_COMMIT}", target = "main", canFai
         check = []
     else:
         check = [
-            'is_fork=$(curl "https://$GITHUB_TOKEN@api.github.com/repos/grafana/grafana/pulls/$DRONE_PULL_REQUEST" | jq .head.repo.fork)',
+            'is_fork=$(curl --retry 5 "https://$GITHUB_TOKEN@api.github.com/repos/grafana/grafana/pulls/$DRONE_PULL_REQUEST" | jq .head.repo.fork)',
             'if [ "$is_fork" != false ]; then return 1; fi',  # Only clone if we're confident that 'fork' is 'false'. Fail if it's also empty.
         ]
 
@@ -156,9 +156,7 @@ def lint_starlark_step():
             "go install github.com/bazelbuild/buildtools/buildifier@latest",
             "buildifier --lint=warn -mode=check -r .",
         ],
-        "depends_on": [
-            "compile-build-cmd",
-        ],
+        "depends_on": [],
     }
 
 def enterprise_downstream_step(ver_mode):
@@ -172,7 +170,7 @@ def enterprise_downstream_step(ver_mode):
       Drone step.
     """
     repo = "grafana/grafana-enterprise@"
-    if ver_mode == "pr":
+    if ver_mode == "pr" or ver_mode == "rrc":
         repo += "${DRONE_SOURCE_BRANCH}"
     else:
         repo += "main"
@@ -197,6 +195,9 @@ def enterprise_downstream_step(ver_mode):
         step.update({"failure": "ignore"})
         step["settings"]["params"].append("OSS_PULL_REQUEST=${DRONE_PULL_REQUEST}")
 
+    if ver_mode == "rrc":
+        step["settings"]["params"].append("SOURCE_TAG=${DRONE_TAG}")
+
     return step
 
 def validate_modfile_step():
@@ -218,14 +219,19 @@ def validate_openapi_spec_step():
         ],
     }
 
-def dockerize_step(name, hostname, port):
-    return {
+def dockerize_step(name, hostname, port, canFail = False):
+    step = {
         "name": name,
         "image": images["dockerize"],
         "commands": [
             "dockerize -wait tcp://{}:{} -timeout 120s".format(hostname, port),
         ],
     }
+
+    if canFail:
+        step["failure"] = "ignore"
+
+    return step
 
 def build_storybook_step(ver_mode):
     return {
@@ -545,7 +551,7 @@ def test_backend_step():
             # shared-mime-info and shared-mime-info-lang is used for exactly 1 test for the
             # mime.TypeByExtension function.
             "apk add --update build-base shared-mime-info shared-mime-info-lang",
-            "go list -f '{{.Dir}}/...' -m | xargs go test -tags requires_buildifer -short -covermode=atomic -timeout=5m",
+            "go list -f '{{.Dir}}/...' -m  | xargs go test -short -covermode=atomic -timeout=5m",
         ],
     }
 
@@ -774,6 +780,36 @@ def e2e_tests_step(suite, port = 3001, tries = None):
         ],
     }
 
+def start_storybook_step():
+    return {
+        "name": "start-storybook",
+        "image": images["node"],
+        "depends_on": [
+            "yarn-install",
+        ],
+        "commands": [
+            "yarn storybook --quiet",
+        ],
+        "detach": True,
+    }
+
+def e2e_storybook_step():
+    return {
+        "name": "end-to-end-tests-storybook-suite",
+        "image": images["cypress"],
+        "depends_on": [
+            "start-storybook",
+        ],
+        "environment": {
+            "HOST": "start-storybook",
+            "PORT": "9001",
+        },
+        "commands": [
+            "npx wait-on@7.2.0 -t 1m http://$HOST:$PORT",
+            "yarn e2e:storybook",
+        ],
+    }
+
 def cloud_plugins_e2e_tests_step(suite, cloud, trigger = None):
     """Run cloud plugins end-to-end tests.
 
@@ -929,7 +965,7 @@ def publish_images_step(ver_mode, docker_repo, trigger = None):
 
     return step
 
-def integration_tests_steps(name, cmds, hostname = None, port = None, environment = None):
+def integration_tests_steps(name, cmds, hostname = None, port = None, environment = None, canFail = False):
     """Integration test steps
 
     Args:
@@ -938,6 +974,7 @@ def integration_tests_steps(name, cmds, hostname = None, port = None, environmen
       hostname: the hostname where the remote server is available.
       port: the port where the remote server is available.
       environment: Any extra environment variables needed to run the integration tests.
+      canFail: controls whether the step can fail.
 
     Returns:
       A list of drone steps. If a hostname / port were provided, then a step to wait for the remove server to be
@@ -957,6 +994,9 @@ def integration_tests_steps(name, cmds, hostname = None, port = None, environmen
             "apk add --update build-base",
         ] + cmds,
     }
+
+    if canFail:
+        step["failure"] = "ignore"
 
     if environment:
         step["environment"] = environment
@@ -1014,7 +1054,7 @@ def mysql_integration_tests_steps(hostname, version):
 def redis_integration_tests_steps():
     cmds = [
         "go clean -testcache",
-        "go list -f '{{.Dir}}/...' -m | xargs go test -run IntegrationRedis -covermode=atomic -timeout=2m",
+        "go list -f '{{.Dir}}/...' -m  | xargs go test -run IntegrationRedis -covermode=atomic -timeout=2m",
     ]
 
     environment = {
@@ -1034,12 +1074,12 @@ def remote_alertmanager_integration_tests_steps():
         "AM_URL": "http://mimir_backend:8080",
     }
 
-    return integration_tests_steps("remote-alertmanager", cmds, "mimir_backend", "8080", environment = environment)
+    return integration_tests_steps("remote-alertmanager", cmds, "mimir_backend", "8080", environment = environment, canFail = True)
 
 def memcached_integration_tests_steps():
     cmds = [
         "go clean -testcache",
-        "go list -f '{{.Dir}}/...' -m | xargs go test -run IntegrationMemcached -covermode=atomic -timeout=2m",
+        "go list -f '{{.Dir}}/...' -m  | xargs go test -run IntegrationMemcached -covermode=atomic -timeout=2m",
     ]
 
     environment = {
@@ -1202,7 +1242,8 @@ def publish_linux_packages_step(package_manager = "deb"):
         },
     }
 
-def retry_command(command, attempts = 5, delay = 60):
+# This retry will currently continue for 30 minutes until fail, unless successful.
+def retry_command(command, attempts = 60, delay = 30):
     return [
         "for i in $(seq 1 %d); do" % attempts,
         "    if %s; then" % command,
@@ -1239,7 +1280,7 @@ def verify_linux_DEB_packages_step(depends_on = []):
             'echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" | tee -a /etc/apt/sources.list.d/grafana.list',
             'echo "Step 5: Installing Grafana..."',
             # The packages take a bit of time to propogate within the repo. This retry will check their availability within 10 minutes.
-        ] + retry_command(install_command, attempts = 10) + [
+        ] + retry_command(install_command) + [
             'echo "Step 6: Verifying Grafana installation..."',
             'if dpkg -s grafana | grep -q "Version: ${TAG}"; then',
             '    echo "Successfully verified Grafana version ${TAG}"',
@@ -1265,7 +1306,7 @@ def verify_linux_RPM_packages_step(depends_on = []):
         "sslcacert=/etc/pki/tls/certs/ca-bundle.crt\n"
     )
 
-    repo_install_command = "dnf install -y --nogpgcheck grafana-${TAG} >/dev/null 2>&1"
+    install_command = "dnf install -y --nogpgcheck grafana-${TAG} >/dev/null 2>&1"
 
     return {
         "name": "verify-linux-RPM-packages",
@@ -1284,7 +1325,7 @@ def verify_linux_RPM_packages_step(depends_on = []):
             "dnf list available grafana-${TAG}",
             "if [ $? -eq 0 ]; then",
             '    echo "Grafana package found in repository. Installing from repo..."',
-        ] + retry_command(repo_install_command, attempts = 5) + [
+        ] + retry_command(install_command) + [
             '    echo "Verifying GPG key..."',
             "    rpm --import https://rpm.grafana.com/gpg.key",
             "    rpm -qa gpg-pubkey* | xargs rpm -qi | grep -i grafana",

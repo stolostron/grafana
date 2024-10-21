@@ -1,7 +1,9 @@
 // Libraries
-import React, { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { PageLayoutType } from '@grafana/data';
+import { UrlSyncContextProvider } from '@grafana/scenes';
+import { Alert, Box } from '@grafana/ui';
 import { Page } from 'app/core/components/Page/Page';
 import PageLoader from 'app/core/components/PageLoader/PageLoader';
 import { GrafanaRouteComponentProps } from 'app/core/navigation/types';
@@ -67,9 +69,15 @@ export function DashboardScenePage({ match, route, queryParams, history }: Props
 
   if (!dashboard) {
     return (
-      <Page layout={PageLayoutType.Canvas} data-testid={'dashboard-scene-page'}>
-        {isLoading && <PageLoader />}
-        {loadError && <h2>{loadError}</h2>}
+      <Page navId="dashboards/browse" layout={PageLayoutType.Canvas} data-testid={'dashboard-scene-page'}>
+        <Box paddingY={4} display="flex" direction="column" alignItems="center">
+          {isLoading && <PageLoader />}
+          {loadError && (
+            <Alert title="Dashboard failed to load" severity="error" data-testid="dashboard-not-found">
+              {loadError}
+            </Alert>
+          )}
+        </Box>
       </Page>
     );
   }
@@ -85,10 +93,10 @@ export function DashboardScenePage({ match, route, queryParams, history }: Props
   }
 
   return (
-    <>
+    <UrlSyncContextProvider scene={dashboard}>
       <dashboard.Component model={dashboard} key={dashboard.state.key} />
       <DashboardPrompt dashboard={dashboard} />
-    </>
+    </UrlSyncContextProvider>
   );
 }
 

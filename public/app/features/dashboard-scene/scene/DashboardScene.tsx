@@ -1,9 +1,17 @@
 import * as H from 'history';
 
-import { AppEvents, CoreApp, DataQueryRequest, NavIndex, NavModelItem, locationUtil } from '@grafana/data';
+import {
+  AppEvents,
+  CoreApp,
+  DataQueryRequest,
+  NavIndex,
+  NavModelItem,
+  locationUtil,
+  DataSourceGetTagKeysOptions,
+  DataSourceGetTagValuesOptions,
+} from '@grafana/data';
 import { config, locationService } from '@grafana/runtime';
 import {
-  getUrlSyncManager,
   SceneFlexLayout,
   sceneGraph,
   SceneGridLayout,
@@ -55,6 +63,7 @@ import {
   getDefaultRow,
   getDefaultVizPanel,
   getPanelIdForVizPanel,
+  getQueryRunnerFor,
   getVizPanelKeyForPanelId,
   isPanelClone,
 } from '../utils/utils';
@@ -70,7 +79,7 @@ import { ScopesScene } from './Scopes/ScopesScene';
 import { ViewPanelScene } from './ViewPanelScene';
 import { setupKeyboardShortcuts } from './keyboardShortcuts';
 
-export const PERSISTED_PROPS = ['title', 'description', 'tags', 'editable', 'graphTooltip', 'links', 'meta'];
+export const PERSISTED_PROPS = ['title', 'description', 'tags', 'editable', 'graphTooltip', 'links', 'meta', 'preload'];
 
 export interface DashboardSceneState extends SceneObjectState {
   /** The title */
@@ -83,6 +92,8 @@ export interface DashboardSceneState extends SceneObjectState {
   links: DashboardLink[];
   /** Is editable */
   editable?: boolean;
+  /** Allows disabling grid lazy loading */
+  preload?: boolean;
   /** A uid when saved */
   uid?: string;
   /** @deprecated */
@@ -202,27 +213,15 @@ export class DashboardScene extends SceneObjectBase<DashboardSceneState> {
       window.__grafanaSceneContext = prevSceneContext;
       clearKeyBindings();
       this._changeTracker.terminate();
-      this.stopUrlSync();
       oldDashboardWrapper.destroy();
       dashboardWatcher.leave();
     };
-  }
-
-  public startUrlSync() {
-    if (!this.state.meta.isEmbedded) {
-      getUrlSyncManager().initSync(this);
-    }
-  }
-
-  public stopUrlSync() {
-    getUrlSyncManager().cleanUp(this);
   }
 
   public onEnterEditMode = (fromExplore = false) => {
     this._fromExplore = fromExplore;
     // Save this state
     this._initialState = sceneUtils.cloneSceneObjectState(this.state);
-
     this._initialUrlState = locationService.getLocation();
 
     // Switch to edit mode
@@ -293,10 +292,7 @@ export class DashboardScene extends SceneObjectBase<DashboardSceneState> {
   private exitEditModeConfirmed(restoreInitialState = true) {
     // No need to listen to changes anymore
     this._changeTracker.stopTrackingChanges();
-    // Stop url sync before updating url
-    this.stopUrlSync();
 
-    // Now we can update urls
     // We are updating url and removing editview and editPanel.
     // The initial url may be including edit view, edit panel or inspect query params if the user pasted the url,
     // hence we need to cleanup those query params to get back to the dashboard view. Otherwise url sync can trigger overlays.
@@ -320,8 +316,14 @@ export class DashboardScene extends SceneObjectBase<DashboardSceneState> {
       // Do not restore
       this.setState({ isEditing: false });
     }
-    // and start url sync again
-    this.startUrlSync();
+
+    // if we are in edit panel, we need to onDiscard()
+    // so the useEffect cleanup comes later and
+    // doesn't try to commit the changes
+    if (this.state.editPanel) {
+      this.state.editPanel.onDiscard();
+    }
+
     // Disable grid dragging
     this.propagateEditModeChange();
   }
@@ -389,6 +391,10 @@ export class DashboardScene extends SceneObjectBase<DashboardSceneState> {
 
   public getPageNav(location: H.Location, navIndex: NavIndex) {
     const { meta, viewPanelScene, editPanel } = this.state;
+
+    if (meta.dashboardNotFound) {
+      return { text: 'Not found' };
+    }
 
     let pageNav: NavModelItem = {
       text: this.state.title,
@@ -572,10 +578,18 @@ export class DashboardScene extends SceneObjectBase<DashboardSceneState> {
     } else {
       if (gridItem instanceof DashboardGridItem) {
         panelState = sceneUtils.cloneSceneObjectState(gridItem.state.body.state);
-        panelData = sceneGraph.getData(gridItem.state.body).clone();
+
+        let queryRunner = getQueryRunnerFor(gridItem.state.body);
+        const queries = queryRunner?.state.queries.map((q) => ({ ...q }));
+        queryRunner = queryRunner?.clone({ queries });
+        panelData = sceneGraph.getData(gridItem.state.body).clone({ $data: queryRunner });
       } else {
         panelState = sceneUtils.cloneSceneObjectState(vizPanel.state);
-        panelData = sceneGraph.getData(vizPanel).clone();
+
+        let queryRunner = getQueryRunnerFor(vizPanel);
+        const queries = queryRunner?.state.queries.map((q) => ({ ...q }));
+        queryRunner = queryRunner?.clone({ queries });
+        panelData = sceneGraph.getData(vizPanel).clone({ $data: queryRunner });
       }
 
       // when we duplicate a panel we don't want to clone the alert state
@@ -584,8 +598,8 @@ export class DashboardScene extends SceneObjectBase<DashboardSceneState> {
       newGridItem = new DashboardGridItem({
         x: gridItem.state.x,
         y: gridItem.state.y,
-        height: NEW_PANEL_HEIGHT,
-        width: NEW_PANEL_WIDTH,
+        height: gridItem.state.height,
+        width: gridItem.state.width,
         body: new VizPanel({ ...panelState, $data: panelData, key: getVizPanelKeyForPanelId(newPanelId) }),
       });
     }
@@ -845,6 +859,12 @@ export class DashboardScene extends SceneObjectBase<DashboardSceneState> {
     };
   }
 
+  public enrichFiltersRequest(): Partial<DataSourceGetTagKeysOptions | DataSourceGetTagValuesOptions> {
+    return {
+      scopes: this.state.scopes?.getSelectedScopes(),
+    };
+  }
+
   canEditDashboard() {
     const { meta } = this.state;
 
@@ -865,6 +885,40 @@ export class DashboardScene extends SceneObjectBase<DashboardSceneState> {
     // Need to mark it non dirty to navigate away without unsaved changes warning
     this.setState({ isDirty: false });
     locationService.replace('/');
+  }
+
+  public collapseAllRows() {
+    if (!(this.state.body instanceof SceneGridLayout)) {
+      throw new Error('Dashboard scene layout is not SceneGridLayout');
+    }
+
+    const sceneGridLayout = this.state.body;
+
+    sceneGridLayout.state.children.forEach((child) => {
+      if (!(child instanceof SceneGridRow)) {
+        return;
+      }
+      if (!child.state.isCollapsed) {
+        sceneGridLayout.toggleRow(child);
+      }
+    });
+  }
+
+  public expandAllRows() {
+    if (!(this.state.body instanceof SceneGridLayout)) {
+      throw new Error('Dashboard scene layout is not SceneGridLayout');
+    }
+
+    const sceneGridLayout = this.state.body;
+
+    sceneGridLayout.state.children.forEach((child) => {
+      if (!(child instanceof SceneGridRow)) {
+        return;
+      }
+      if (child.state.isCollapsed) {
+        sceneGridLayout.toggleRow(child);
+      }
+    });
   }
 }
 

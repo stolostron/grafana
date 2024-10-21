@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
+import * as React from 'react';
 
 import { PanelData } from '@grafana/data';
 import { OptionFilter, renderSearchHits } from 'app/features/dashboard/components/PanelEditor/OptionsPaneOptions';
@@ -45,7 +46,7 @@ export const PanelOptions = React.memo<Props>(({ vizManager, searchQuery, listMo
       instanceState: _pluginInstanceState,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panel, options, fieldConfig, _pluginInstanceState]);
+  }, [data, panel, options, fieldConfig, _pluginInstanceState]);
 
   const libraryPanelOptions = useMemo(() => {
     if (parent instanceof LibraryVizPanel) {

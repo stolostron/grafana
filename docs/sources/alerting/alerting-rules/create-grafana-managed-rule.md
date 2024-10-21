@@ -253,7 +253,7 @@ You can configure the alert instance state when its evaluation returns no data:
 | No Data configuration | Description                                                                                                                                                                                                                               |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | No Data               | The default option. Sets alert instance state to `No data`. <br/> The alert rule also creates a new alert instance `DatasourceNoData` with the name and UID of the alert rule, and UID of the datasource that returned no data as labels. |
-| Alerting              | Sets alert instance state to `Alerting`. It transitions from `Pending` to `Alerting` after the [pending period](ref:pending-period) has finished.                                                                                         |
+| Alerting              | Sets the alert instance state to `Pending` and then transitions to `Alerting` once the [pending period](ref:pending-period) ends. If you sent the pending period to 0, the alert instance state is immediately set to `Alerting`.         |
 | Normal                | Sets alert instance state to `Normal`.                                                                                                                                                                                                    |
 | Keep Last State       | Maintains the alert instance in its last state. Useful for mitigating temporary issues, refer to [Keep last state](ref:keep-last-state).                                                                                                  |
 
@@ -265,6 +265,8 @@ You can also configure the alert instance state when its evaluation returns an e
 | Alerting            | Sets alert instance state to `Alerting`. It transitions from `Pending` to `Alerting` after the [pending period](ref:pending-period) has finished.                                                                                      |
 | Normal              | Sets alert instance state to `Normal`.                                                                                                                                                                                                 |
 | Keep Last State     | Maintains the alert instance in its last state. Useful for mitigating temporary issues, refer to [Keep last state](ref:keep-last-state).                                                                                               |
+
+When you configure the No data or Error behavior to `Alerting` or `Normal`, Grafana will attempt to keep a stable set of fields under notification `Values`. If your query returns no data or an error, Grafana re-uses the latest known set of fields in `Values`, but will use `-1` in place of the measured value.
 
 ## Create alerts from panels
 

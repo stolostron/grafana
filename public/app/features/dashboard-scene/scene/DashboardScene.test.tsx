@@ -1,4 +1,4 @@
-import { CoreApp, LoadingState, getDefaultTimeRange } from '@grafana/data';
+import { CoreApp, LoadingState, getDefaultTimeRange, store } from '@grafana/data';
 import { locationService } from '@grafana/runtime';
 import {
   sceneGraph,
@@ -15,7 +15,6 @@ import {
 import { Dashboard, DashboardCursorSync, LibraryPanel } from '@grafana/schema';
 import appEvents from 'app/core/app_events';
 import { LS_PANEL_COPY_KEY } from 'app/core/constants';
-import store from 'app/core/store';
 import { getDashboardSrv } from 'app/features/dashboard/services/DashboardSrv';
 import { VariablesChanged } from 'app/features/variables/types';
 
@@ -200,6 +199,20 @@ describe('DashboardScene', () => {
         scene.exitEditMode({ skipConfirm: true });
         const resoredLayout = sceneGraph.findObject(scene, (p) => p instanceof SceneGridLayout) as SceneGridLayout;
         expect(resoredLayout.state.children.map((c) => c.state.key)).toEqual(originalPanelOrder);
+      });
+
+      it('Should exit edit mode and discard panel changes if leaving the dashboard while in panel edit', () => {
+        const panel = findVizPanelByKey(scene, 'panel-1');
+        const editPanel = buildPanelEditScene(panel!);
+        scene.setState({
+          editPanel,
+        });
+
+        expect(scene.state.editPanel!['_discardChanges']).toBe(false);
+
+        scene.exitEditMode({ skipConfirm: true });
+
+        expect(scene.state.editPanel!['_discardChanges']).toBe(true);
       });
 
       it.each`
@@ -755,6 +768,20 @@ describe('DashboardScene', () => {
         expect(gridItem.state.body!.state.key).toBe('panel-7');
       });
 
+      it('Should maintain size of duplicated panel', () => {
+        const gItem = (scene.state.body as SceneGridLayout).state.children[0] as DashboardGridItem;
+        gItem.setState({ height: 1 });
+        const vizPanel = gItem.state.body;
+        scene.duplicatePanel(vizPanel as VizPanel);
+
+        const body = scene.state.body as SceneGridLayout;
+        const newGridItem = body.state.children[5] as DashboardGridItem;
+
+        expect(body.state.children.length).toBe(6);
+        expect(newGridItem.state.body!.state.key).toBe('panel-7');
+        expect(newGridItem.state.height).toBe(1);
+      });
+
       it('Should duplicate a library panel', () => {
         const libraryPanel = ((scene.state.body as SceneGridLayout).state.children[4] as DashboardGridItem).state.body;
         const vizPanel = (libraryPanel as LibraryVizPanel).state.panel;
@@ -768,6 +795,22 @@ describe('DashboardScene', () => {
         expect(body.state.children.length).toBe(6);
         expect(libVizPanel.state.panelKey).toBe('panel-7');
         expect(libVizPanel.state.panel?.state.key).toBe('panel-7');
+      });
+
+      it('Should deep clone data provider when duplicating a panel', () => {
+        const vizPanel = ((scene.state.body as SceneGridLayout).state.children[0] as DashboardGridItem).state.body;
+        scene.duplicatePanel(vizPanel as VizPanel);
+
+        const panelQueries = (
+          ((scene.state.body as SceneGridLayout).state.children[0] as DashboardGridItem).state.body.state.$data?.state
+            .$data as SceneQueryRunner
+        ).state.queries;
+        const duplicatedPanelQueries = (
+          ((scene.state.body as SceneGridLayout).state.children[5] as DashboardGridItem).state.body.state.$data?.state
+            .$data as SceneQueryRunner
+        ).state.queries;
+
+        expect(panelQueries[0]).not.toBe(duplicatedPanelQueries[0]);
       });
 
       it('Should duplicate a repeated panel', () => {
@@ -1215,7 +1258,10 @@ function buildTestScene(overrides?: Partial<DashboardSceneState>) {
             }),
             $data: new SceneDataTransformer({
               transformations: [],
-              $data: new SceneQueryRunner({ key: 'data-query-runner', queries: [{ refId: 'A' }] }),
+              $data: new SceneQueryRunner({
+                key: 'data-query-runner',
+                queries: [{ refId: 'A', target: 'aliasByMetric(carbon.**)' }],
+              }),
             }),
           }),
         }),
