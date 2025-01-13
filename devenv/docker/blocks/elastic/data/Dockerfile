@@ -1,3 +1,3 @@
-FROM node:16-alpine
+FROM node:22-alpine
 
 COPY data.js /home/node/data.js
