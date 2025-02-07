@@ -25,14 +25,18 @@ COPY go.* ./
 
 # Apply custom patches
 COPY stolostron-patches stolostron-patches
+RUN pwd
+RUN ls -la
 RUN git apply ./stolostron-patches/*
 
 RUN go work vendor
-RUN go run build.go -build-tags=strictfipsruntime build -v --prefix /go/bin/
+RUN go run build.go -build-tags=strictfipsruntime build
+
+RUN tree $GOPATH/src/github.com/grafana/grafana
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
-RUN cp /go/bin/linux-*/grafana* /usr/bin/
+RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
 FROM registry.access.redhat.com/ubi9/ubi:latest
