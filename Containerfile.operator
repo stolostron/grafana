@@ -35,7 +35,7 @@ RUN go run build.go -build-tags=strictfipsruntime build
 RUN cp ./bin/linux-$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
-FROM registry.access.redhat.com/ubi9/ubi:latest
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 ARG VCS_REF
 ARG VCS_URL
