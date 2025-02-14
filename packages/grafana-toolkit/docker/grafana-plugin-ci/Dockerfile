@@ -1,4 +1,4 @@
-FROM circleci/node:12-browsers
+FROM circleci/node:16-browsers
 USER root
 COPY scripts scripts
 WORKDIR scripts
