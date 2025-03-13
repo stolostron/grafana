@@ -81,7 +81,7 @@ COPY apps/alerting/notifications apps/alerting/notifications
 COPY pkg/codegen pkg/codegen
 COPY pkg/plugins/codegen pkg/plugins/codegen
 
-RUN go mod download
+RUN to mod download
 RUN if [[ "$BINGO" = "true" ]]; then \
       go install github.com/bwplotka/bingo@latest && \
       bingo get -v; \
