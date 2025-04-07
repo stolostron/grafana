@@ -160,7 +160,7 @@ require (
 	github.com/go-openapi/spec v0.20.11 // indirect
 	github.com/go-openapi/swag v0.22.4 // indirect
 	github.com/go-openapi/validate v0.22.3 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.0 // @grafana/backend-platform
+	github.com/golang-jwt/jwt/v4 v4.5.2 // @grafana/backend-platform
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang/glog v1.1.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -469,7 +469,7 @@ require (
 
 require (
 	github.com/go-errors/errors v1.4.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/grafana/grafana-openapi-client-go v0.0.0-20231213163343-bd475d63fb79 // @grafana/backend-platform
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
