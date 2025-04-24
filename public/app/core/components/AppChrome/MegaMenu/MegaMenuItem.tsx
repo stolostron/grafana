@@ -1,10 +1,11 @@
 import { css, cx } from '@emotion/css';
-import React, { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import * as React from 'react';
+import { useLocation } from 'react-router-dom-v5-compat';
 import { useLocalStorage } from 'react-use';
 
-import { GrafanaTheme2, NavModelItem, toIconName } from '@grafana/data';
-import { useStyles2, Text, IconButton, Icon, Stack } from '@grafana/ui';
+import { FeatureState, GrafanaTheme2, NavModelItem, toIconName } from '@grafana/data';
+import { useStyles2, Text, IconButton, Icon, Stack, FeatureBadge } from '@grafana/ui';
 import { useGrafana } from 'app/core/context/GrafanaContext';
 
 import { Indent } from '../../Indent/Indent';
@@ -18,11 +19,13 @@ interface Props {
   activeItem?: NavModelItem;
   onClick?: () => void;
   level?: number;
+  onPin: (item: NavModelItem) => void;
+  isPinned: (id?: string) => boolean;
 }
 
 const MAX_DEPTH = 2;
 
-export function MegaMenuItem({ link, activeItem, level = 0, onClick }: Props) {
+export function MegaMenuItem({ link, activeItem, level = 0, onClick, onPin, isPinned }: Props) {
   const { chrome } = useGrafana();
   const state = chrome.useState();
   const menuIsDocked = state.megaMenuDocked;
@@ -71,6 +74,10 @@ export function MegaMenuItem({ link, activeItem, level = 0, onClick }: Props) {
     );
   }
 
+  function getIconName(isExpanded: boolean) {
+    return isExpanded ? 'angle-up' : 'angle-down';
+  }
+
   return (
     <li ref={item} className={styles.listItem}>
       <div
@@ -80,18 +87,6 @@ export function MegaMenuItem({ link, activeItem, level = 0, onClick }: Props) {
       >
         {level !== 0 && <Indent level={level === MAX_DEPTH ? level - 1 : level} spacing={3} />}
         {level === MAX_DEPTH && <div className={styles.itemConnector} />}
-        <div className={styles.collapseButtonWrapper}>
-          {showExpandButton && (
-            <IconButton
-              aria-label={`${sectionExpanded ? 'Collapse' : 'Expand'} section ${link.text}`}
-              className={styles.collapseButton}
-              onClick={() => setSectionExpanded(!sectionExpanded)}
-              name={sectionExpanded ? 'angle-down' : 'angle-right'}
-              size="md"
-              variant="secondary"
-            />
-          )}
-        </div>
         <div className={styles.collapsibleSectionWrapper}>
           <MegaMenuItemText
             isActive={isActive}
@@ -101,6 +96,8 @@ export function MegaMenuItem({ link, activeItem, level = 0, onClick }: Props) {
             }}
             target={link.target}
             url={link.url}
+            onPin={() => onPin(link)}
+            isPinned={isPinned(link.url)}
           >
             <div
               className={cx(styles.labelWrapper, {
@@ -110,8 +107,21 @@ export function MegaMenuItem({ link, activeItem, level = 0, onClick }: Props) {
             >
               {level === 0 && iconElement && <FeatureHighlightWrapper>{iconElement}</FeatureHighlightWrapper>}
               <Text truncate>{link.text}</Text>
+              {link.isNew && <FeatureBadge featureState={FeatureState.new} />}
             </div>
           </MegaMenuItemText>
+        </div>
+        <div className={styles.collapseButtonWrapper}>
+          {showExpandButton && (
+            <IconButton
+              aria-label={`${sectionExpanded ? 'Collapse' : 'Expand'} section ${link.text}`}
+              className={styles.collapseButton}
+              onClick={() => setSectionExpanded(!sectionExpanded)}
+              name={getIconName(Boolean(sectionExpanded))}
+              size="md"
+              variant="secondary"
+            />
+          )}
         </div>
       </div>
       {showExpandButton && sectionExpanded && (
@@ -126,6 +136,8 @@ export function MegaMenuItem({ link, activeItem, level = 0, onClick }: Props) {
                   activeItem={activeItem}
                   onClick={onClick}
                   level={level + 1}
+                  onPin={onPin}
+                  isPinned={isPinned}
                 />
               ))
           ) : (
