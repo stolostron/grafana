@@ -28,7 +28,6 @@ COPY apps apps
 COPY stolostron-patches stolostron-patches
 RUN git apply ./stolostron-patches/*
 
-RUN go work vendor
 RUN go run build.go -build-tags=strictfipsruntime build
 
 # Need to copy the generated binaries to a non-platform specific location to handle
