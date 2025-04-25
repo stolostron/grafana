@@ -9,6 +9,10 @@ ARG GO_BUILD_TAGS="oss"
 ARG WIRE_TAGS="oss"
 ARG BINGO="true"
 
+# This appears to be needed in Grafana 11.6.1 to build on Konflux
+# to avoid vendor issues. Should attempt to remove it in the future
+ENV GOFLAGS="-mod=readonly"
+
 COPY go.mod go.sum embed.go Makefile build.go package.json ./
 COPY kinds kinds
 COPY kindsv2 kindsv2
