@@ -1,0 +1,3 @@
+"use strict";(self.webpackChunkgrafana=self.webpackChunkgrafana||[]).push([[617],{62339:(C,l,a)=>{a.r(l),a.d(l,{default:()=>r});var s=a(74848),t=a(81876),u=a(88755),o=a(91064);function r({dashboardUid:E}){const{loading:f,result:e}=(0,o.kU)(E),_=e?e.flatMap(n=>n.groups).flatMap(n=>n.rules):[];return(0,s.jsx)(s.Fragment,{children:f?(0,s.jsx)(t._,{text:"Loading alert rules"}):(0,s.jsx)(u.sF,{rules:_,showNextEvaluationColumn:!1,showGroupColumn:!1})})}}}]);
+
+//# sourceMappingURL=alert-rules-drawer-content.80b6a5d93dff3b5f142f.js.map

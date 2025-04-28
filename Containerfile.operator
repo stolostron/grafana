@@ -9,25 +9,29 @@ ARG GO_BUILD_TAGS="oss"
 ARG WIRE_TAGS="oss"
 ARG BINGO="true"
 
+# This appears to be needed in Grafana 11.6.1 to build on Konflux
+# to avoid vendor issues. Should attempt to remove it in the future
+ENV GOFLAGS="-mod=readonly"
+
 COPY go.mod go.sum embed.go Makefile build.go package.json ./
 COPY kinds kinds
+COPY kindsv2 kindsv2
 COPY local local
 COPY packages/grafana-schema packages/grafana-schema/
 COPY public/app/plugins public/app/plugins/
 COPY public/api-merged.json public/api-merged.json
-COPY plugins-bundled plugins-bundled
 COPY pkg pkg/
 COPY scripts scripts/
 COPY cue.mod cue.mod/
 COPY .bingo .bingo
 COPY conf conf
 COPY go.* ./
+COPY apps apps
 
 # Apply custom patches
 COPY stolostron-patches stolostron-patches
 RUN git apply ./stolostron-patches/*
 
-RUN go work vendor
 RUN go run build.go -build-tags=strictfipsruntime build
 
 # Need to copy the generated binaries to a non-platform specific location to handle

@@ -1,0 +1,3 @@
+"use strict";(self.webpackChunkgrafana=self.webpackChunkgrafana||[]).push([[558],{10119:(T,e,t)=>{t.r(e),t.d(e,{default:()=>P});var a=t(74848),_=t(54148),i=t(89857),s=t(84558),o=t(13005),E=t(37104),m=t(32174),u=t(18835);const d=()=>{const[M]=(0,s.l)(),{selectedAlertmanager:l}=(0,o.VI)(),n=M.get("muteName"),{isLoading:D,data:r,isError:O}=(0,i.zm)({alertmanager:l,name:n});return n?(0,a.jsx)(u.A,{editMode:!0,loading:D,showError:O,muteTiming:r,provisioned:r?.provisioned}):(0,a.jsx)(_.C5,{replace:!0,to:"/alerting/routes"})};function g(){return(0,a.jsx)(m.y,{navId:"am-routes",pageNav:{id:"alert-policy-edit",text:"Edit mute timing"},accessType:"notification",children:(0,a.jsx)(d,{})})}const P=(0,E.S)(g)}}]);
+
+//# sourceMappingURL=EditMuteTiming.7f4ef48ef3ecf82aa801.js.map
