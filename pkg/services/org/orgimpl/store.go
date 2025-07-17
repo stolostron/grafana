@@ -569,7 +569,7 @@ func (ss *sqlStore) SearchOrgUsers(ctx context.Context, query *org.SearchOrgUser
 		}
 
 		whereConditions = append(whereConditions, "u.is_service_account = ?")
-		whereParams = append(whereParams, ss.dialect.BooleanStr(false))
+		whereParams = append(whereParams, ss.dialect.BooleanValue(false))
 
 		if query.User == nil {
 			ss.log.Warn("Query user not set for filtering.")
@@ -611,6 +611,7 @@ func (ss *sqlStore) SearchOrgUsers(ctx context.Context, query *org.SearchOrgUser
 			"u.created",
 			"u.updated",
 			"u.is_disabled",
+			"u.is_provisioned",
 		)
 
 		if len(query.SortOpts) > 0 {
@@ -683,6 +684,15 @@ func (ss *sqlStore) RemoveOrgUser(ctx context.Context, cmd *org.RemoveOrgUserCom
 			return user.ErrUserNotFound
 		}
 
+		// check if user belongs to org
+		var orgUser org.OrgUser
+		if exists, err := sess.Where("org_id=? AND user_id=?", cmd.OrgID, cmd.UserID).Get(&orgUser); err != nil {
+			return err
+		} else if !exists {
+			ss.log.Debug("User not in org, nothing to do", "user_id", cmd.UserID, "org_id", cmd.OrgID)
+			return nil
+		}
+
 		deletes := []string{
 			"DELETE FROM org_user WHERE org_id=? and user_id=?",
 			"DELETE FROM dashboard_acl WHERE org_id=? and user_id = ?",
@@ -729,7 +739,7 @@ func (ss *sqlStore) RemoveOrgUser(ctx context.Context, cmd *org.RemoveOrgUserCom
 					return err
 				}
 			}
-		} else if cmd.ShouldDeleteOrphanedUser {
+		} else if cmd.ShouldDeleteOrphanedUser && !usr.IsAdmin {
 			// no other orgs, delete the full user
 			if err := ss.deleteUserInTransaction(sess, &user.DeleteUserCommand{UserID: usr.ID}); err != nil {
 				return err

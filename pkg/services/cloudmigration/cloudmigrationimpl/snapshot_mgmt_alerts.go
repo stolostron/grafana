@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	ngalertapi "github.com/grafana/grafana/pkg/services/ngalert/api"
+	ngalertapi "github.com/grafana/grafana/pkg/services/ngalert/api/compat"
 	"github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
 	"github.com/grafana/grafana/pkg/services/ngalert/provisioning"
 	"github.com/grafana/grafana/pkg/services/user"
@@ -135,7 +135,6 @@ type alertRule struct {
 	Title                string                                     `json:"title"`
 	ExecErrState         string                                     `json:"execErrState"`
 	Data                 []definitions.AlertQuery                   `json:"data"`
-	ID                   int64                                      `json:"id"`
 	For                  model.Duration                             `json:"for"`
 	OrgID                int64                                      `json:"orgID"`
 	IsPaused             bool                                       `json:"isPaused"`
@@ -158,7 +157,6 @@ func (s *Service) getAlertRules(ctx context.Context, signedInUser *user.SignedIn
 		}
 
 		provisionedAlertRules = append(provisionedAlertRules, alertRule{
-			ID:                   rule.ID,
 			UID:                  rule.UID,
 			OrgID:                rule.OrgID,
 			FolderUID:            rule.NamespaceUID,
@@ -208,7 +206,6 @@ func (s *Service) getAlertRuleGroups(ctx context.Context, signedInUser *user.Sig
 			}
 
 			provisionedAlertRules = append(provisionedAlertRules, alertRule{
-				ID:                   rule.ID,
 				UID:                  rule.UID,
 				OrgID:                rule.OrgID,
 				FolderUID:            rule.NamespaceUID,

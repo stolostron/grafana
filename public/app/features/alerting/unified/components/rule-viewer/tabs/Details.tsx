@@ -1,9 +1,12 @@
 import { css } from '@emotion/css';
 import { formatDistanceToNowStrict } from 'date-fns';
+import { isUndefined } from 'lodash';
 
 import { GrafanaTheme2, dateTimeFormat, dateTimeFormatTimeAgo } from '@grafana/data';
-import { Icon, Stack, Text, TextLink, useStyles2 } from '@grafana/ui';
+import { config } from '@grafana/runtime';
+import { Icon, Link, Stack, Text, TextLink, useStyles2 } from '@grafana/ui';
 import { Trans, t } from 'app/core/internationalization';
+import { useDatasource } from 'app/features/datasources/hooks';
 import { CombinedRule } from 'app/types/unified-alerting';
 
 import { usePendingPeriod } from '../../../hooks/rules/usePendingPeriod';
@@ -41,6 +44,7 @@ export const Details = ({ rule }: DetailsProps) => {
   const styles = useStyles2(getStyles);
 
   const pendingPeriod = usePendingPeriod(rule);
+  const keepFiringFor = rulerRuleType.grafana.alertingRule(rule.rulerRule) ? rule.rulerRule.keep_firing_for : undefined;
 
   let determinedRuleType: RuleType = RuleType.Unknown;
   if (rulerRuleType.grafana.alertingRule(rule.rulerRule)) {
@@ -53,6 +57,17 @@ export const Details = ({ rule }: DetailsProps) => {
     determinedRuleType = RuleType.CloudRecordingRule;
   }
 
+  const targetDatasourceUid = rulerRuleType.grafana.recordingRule(rule.rulerRule)
+    ? rule.rulerRule.grafana_alert.record?.target_datasource_uid
+    : null;
+
+  const datasource = useDatasource(targetDatasourceUid);
+
+  const showTargetDatasource =
+    config.featureToggles.grafanaManagedRecordingRulesDatasources &&
+    targetDatasourceUid &&
+    targetDatasourceUid !== 'grafana';
+
   const evaluationDuration = rule.promRule?.evaluationTime;
   const evaluationTimestamp = rule.promRule?.lastEvaluation;
 
@@ -61,7 +76,13 @@ export const Details = ({ rule }: DetailsProps) => {
   const hasEvaluationDuration = Number.isFinite(evaluationDuration);
 
   const updated = rulerRuleType.grafana.rule(rule.rulerRule) ? rule.rulerRule.grafana_alert.updated : undefined;
-  const isPaused = rulerRuleType.grafana.alertingRule(rule.rulerRule) && isPausedRule(rule.rulerRule);
+  const isPaused = rulerRuleType.grafana.rule(rule.rulerRule) && isPausedRule(rule.rulerRule);
+
+  const missingSeriesEvalsToResolve =
+    rulerRuleType.grafana.rule(rule.rulerRule) &&
+    !isUndefined(rule.rulerRule.grafana_alert.missing_series_evals_to_resolve)
+      ? String(rule.rulerRule.grafana_alert.missing_series_evals_to_resolve)
+      : undefined;
 
   const pausedIcon = (
     <Stack>
@@ -101,6 +122,20 @@ export const Details = ({ rule }: DetailsProps) => {
             )}
           </>
         )}
+        {showTargetDatasource && (
+          <DetailText
+            id="target-datasource-uid"
+            label={t('alerting.alert.target-datasource-uid', 'Target data source')}
+            value={
+              <Link href={`/connections/datasources/edit/${datasource?.uid}`}>
+                <Stack direction="row" gap={1}>
+                  <img style={{ width: '16px' }} src={datasource?.meta.info.logos.small} alt="datasource logo" />
+                  {datasource?.name}
+                </Stack>
+              </Link>
+            }
+          />
+        )}
       </DetailGroup>
 
       <DetailGroup title={t('alerting.alert.evaluation', 'Evaluation')}>
@@ -124,7 +159,18 @@ export const Details = ({ rule }: DetailsProps) => {
               <DetailText
                 id="last-evaluation-duration"
                 label={t('alerting.alert.last-evaluation-duration', 'Last evaluation duration')}
-                value={isPaused ? pausedIcon : `${evaluationDuration} ms`}
+                value={`${evaluationDuration} ms`}
+              />
+            )}
+            {missingSeriesEvalsToResolve && (
+              <DetailText
+                id="missing-series-resolve"
+                label={t('alerting.alert.missing-series-resolve', 'Missing series evaluations to resolve')}
+                value={missingSeriesEvalsToResolve}
+                tooltipValue={t(
+                  'alerting.alert.description-missing-series-evaluations',
+                  'How many consecutive evaluation intervals with no data for a dimension must pass before the alert state is considered stale and automatically resolved. If no value is provided, the value will default to 2.'
+                )}
               />
             )}
           </>
@@ -135,6 +181,13 @@ export const Details = ({ rule }: DetailsProps) => {
             id="pending-period"
             label={t('alerting.alert.pending-period', 'Pending period')}
             value={pendingPeriod}
+          />
+        )}
+        {keepFiringFor && (
+          <DetailText
+            id="keep-firing-for"
+            label={t('alerting.alert.keep-firing-for', 'Keep firing for')}
+            value={keepFiringFor}
           />
         )}
       </DetailGroup>

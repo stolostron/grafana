@@ -59,13 +59,31 @@ Select a group to expand it and view the list of alert rules within that group.
 
 For details on how rule states and alert instance states are displayed, refer to [View alert state](ref:view-alert-state).
 
-## View and compare alert rules versions.
+## View, compare and restore alert rules versions.
 
-To view previous alert rules for an alert, complete the following steps.
+You can view, compare, and restore previous alert rule versions.
+
+{{< admonition type="note" >}}
+In Grafana OSS and Enterprise, the number of alert rule versions is limited. Free users are allowed a maximum of 10 alert rule versions, while paid users have a maximum of 100 stored alert rule versions.
+{{< /admonition >}}
+
+To view or restore previous versions for an alert rule, complete the following steps.
 
 1. Navigate to **Alerts & IRM -> Alerting -> Alert rules**.
 1. Select an alert rule and click **View**.
 1. Click the **Versions** tab.  
    The page displays a list of the previous rule versions.
 
-On the Alert rule's Versions page you can view and compare the previous rule versions.
+On the Alert rule's Versions page you can view, compare and restore the previous rule versions.
+{{< figure src="/media/docs/alerting/screenshot-grafana-alerting-version-history-v3.png" max-width="750px" alt="View alert rule history to compare and restore previous alert rules." >}}
+
+## Permanently delete or restore deleted alert rules
+
+Only users with an Admin role can restore deleted Grafana-managed alert rules. After an alert rule is restored, it is restored with a new, different UID from the one it had before.
+
+1. Go to **Alerts & IRM > Alerting > Recently deleted**.
+1. Click the **Restore** button to restore the alert rule or click **Delete permanently** to delete the alert rule.
+
+{{< admonition type="note" >}}
+Deleted alert rules are stored for 30 days. Grafana Enterprise and OSS users can adjust the length of time for which the rules are stored can be adjusted in the Grafana configuration file's `[unified_alerting].deleted_rule_retention` field. For an example of how to modify the Grafana configuration file, refer to the [documentation example here](/docs/grafana/latest/alerting/set-up/configure-alert-state-history/#configuring-grafana).  
+{{< /admonition >}}

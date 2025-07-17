@@ -54,6 +54,10 @@ By default, the configuration file is located at `/opt/homebrew/etc/grafana/graf
 For a Grafana instance installed using Homebrew, edit the `grafana.ini` file directly.
 Otherwise, add a configuration file named `custom.ini` to the `conf` directory to override the settings defined in `conf/defaults.ini`.
 
+### Grafana Cloud
+
+There is no local configuration file for Grafana Cloud stacks, but many of these settings are still configurable. To edit configurable settings, open a support ticket.
+
 ## Remove comments in the .ini files
 
 Grafana uses semicolons (`;`) to comment out lines in the INI file.
@@ -491,11 +495,13 @@ Leave empty when using `database` and Grafana uses the primary database.
 
 ##### `redis`
 
-Example connection string: `addr=127.0.0.1:6379,pool_size=100,db=0,ssl=false`
+Example connection string: `addr=127.0.0.1:6379,pool_size=100,db=0,username=grafana,password=grafanaRocks,ssl=false`
 
 - `addr` is the host `:` port of the Redis server.
 - `pool_size` (optional) is the number of underlying connections that can be made to Redis.
 - `db` (optional) is the number identifier of the Redis database you want to use.
+- `username` (optional) is the connection identifier to authenticate the current connection.
+- `password` (optional) is the connection secret to authenticate the current connection.
 - `ssl` (optional) is if SSL should be used to connect to Redis server. The value may be `true`, `false`, or `insecure`. Setting the value to `insecure` skips verification of the certificate chain and hostname when making the connection.
 
 ##### `memcache`
@@ -852,6 +858,23 @@ Path to the default home dashboard. If this value is empty, then Grafana uses St
 {{< admonition type="note" >}}
 On Linux, Grafana uses `/usr/share/grafana/public/dashboards/home.json` as the default home dashboard location.
 {{< /admonition >}}
+
+### `[dashboard_cleanup]`
+
+Settings related to cleaning up associated dashboards information if the dashboard was deleted through /apis.
+
+#### `interval`
+
+How often to run the job to cleanup associated resources. The default interval is `30s`. The minimum allowed value is `10s` to ensure the system isn't overloaded.
+
+The interval string must include a unit suffix (ms, s, m, h), e.g. 30s or 1m.
+
+#### `batch_size`
+
+Number of deleted dashboards to process in each batch during the cleanup process.
+Default: `10`, Minimum: `5`, Maximum: `200`.
+
+Increasing this value allows processing more dashboards in each cleanup cycle but may impact system performance.
 
 <hr />
 
@@ -2019,7 +2042,7 @@ Setting `0` means the short links are cleaned up approximately every 10 minutes.
 A negative value such as `-1` disables expiry.
 
 {{< admonition type="caution" >}}
-Short links without an expiration increase the size of the database and can't be deleted.
+Short links without an expiration increase the size of the database and can't be deleted. Grafana recommends setting a duration based on your specific use case
 {{< /admonition >}}
 
 <hr>
@@ -2225,6 +2248,11 @@ The propagation specifies the text map propagation format.
 The values `jaeger` and `w3c` are supported.
 Add a comma (`,`) between values to specify multiple formats (for example, `"jaeger,w3c"`).
 The default value is `w3c`.
+
+#### `insecure`
+
+Toggles the insecure communication setting, defaults to `true`.
+When set to `false`, the OTLP client will use TLS credentials with the default system cert pool for communication.
 
 <hr>
 
@@ -2529,7 +2557,8 @@ Address string of selected the high availability (HA) Live engine. For Redis, it
 ```ini
 [live]
 ha_engine = redis
-ha_engine_address = 127.0.0.1:6379
+ha_engine_address: redis-headless.grafana.svc.cluster.local:6379
+ha_engine_password: $__file{/your/redis/password/secret/mount}
 ```
 
 <hr>
@@ -2681,34 +2710,6 @@ Some feature toggles for stable features are on by default. Use this setting to 
 
 <hr>
 
-### `[feature_management]`
-
-The options in this section configure the experimental Feature Toggle Admin Page feature, which is enabled using the `featureToggleAdminPage` feature toggle. Grafana Labs offers support on a best-effort basis, and breaking changes might occur prior to the feature being made generally available.
-
-For more information, refer to [Configure feature toggles](feature-toggles/).
-
-#### `allow_editing`
-
-Lets you switch the feature toggle state in the feature management page. The default is `false`.
-
-#### `update_webhook`
-
-Set the URL of the controller that manages the feature toggle updates. If not set, feature toggles in the feature management page are read-only.
-
-{{< admonition type="note" >}}
-The API for feature toggle updates has not been defined yet.
-{{< /admonition >}}
-
-#### `hidden_toggles`
-
-Hide additional specific feature toggles from the feature management page. By default, feature toggles in the `unknown`, `experimental`, and `private preview` stages are hidden from the UI. Use this option to hide toggles in the `public preview`, `general availability`, and `deprecated` stages.
-
-#### `read_only_toggles`
-
-Use to disable updates for additional specific feature toggles in the feature management page. By default, feature toggles can only be updated if they are in the `general availability` and `deprecated`stages. Use this option to disable updates for toggles in those stages.
-
-<hr>
-
 ### `[date_formats]`
 
 This section controls system-wide defaults for date formats used in time ranges, graphs, and date input boxes.
@@ -2752,6 +2753,10 @@ Set the default start of the week, valid values are: `saturday`, `sunday`, `mond
 #### `enabled`
 
 Set this to `false` to disable expressions and hide them in the Grafana UI. Default is `true`.
+
+#### `sql_expression_cell_limit`
+
+Set the maximum number of cells that can be passed to a SQL expression. Default is `100000`.
 
 ### `[geomap]`
 

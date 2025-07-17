@@ -82,6 +82,36 @@ import (
 //       403: ForbiddenError
 //       404: NotFound
 
+// swagger:route POST /convert/prometheus/config/v1/rules convert_prometheus RouteConvertPrometheusPostRuleGroups
+//
+// Converts the submitted rule groups into Grafana-Managed Rules.
+//
+//     Consumes:
+//     - application/json
+//     - application/yaml
+//
+//     Produces:
+//     - application/json
+//
+//     Responses:
+//       202: ConvertPrometheusResponse
+//       403: ForbiddenError
+
+// swagger:route POST /convert/api/prom/rules convert_prometheus RouteConvertPrometheusCortexPostRuleGroups
+//
+// Converts the submitted rule groups into Grafana-Managed Rules.
+//
+//     Consumes:
+//     - application/json
+//     - application/yaml
+//
+//     Produces:
+//     - application/json
+//
+//     Responses:
+//       202: ConvertPrometheusResponse
+//       403: ForbiddenError
+
 // Route for mimirtool
 // swagger:route POST /convert/prometheus/config/v1/rules/{NamespaceTitle} convert_prometheus RouteConvertPrometheusPostRuleGroup
 //
@@ -192,20 +222,23 @@ type PrometheusNamespace struct {
 
 // swagger:model
 type PrometheusRuleGroup struct {
-	Name     string           `yaml:"name"`
-	Interval model.Duration   `yaml:"interval"`
-	Rules    []PrometheusRule `yaml:"rules"`
+	Name        string            `yaml:"name" json:"name"`
+	Interval    model.Duration    `yaml:"interval" json:"interval"`
+	QueryOffset *model.Duration   `yaml:"query_offset,omitempty" json:"query_offset,omitempty"`
+	Limit       int               `yaml:"limit,omitempty" json:"limit,omitempty"`
+	Rules       []PrometheusRule  `yaml:"rules" json:"rules"`
+	Labels      map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
 // swagger:model
 type PrometheusRule struct {
-	Alert         string            `yaml:"alert,omitempty"`
-	Expr          string            `yaml:"expr"`
-	For           *model.Duration   `yaml:"for,omitempty"`
-	KeepFiringFor *model.Duration   `yaml:"keep_firing_for,omitempty"`
-	Labels        map[string]string `yaml:"labels,omitempty"`
-	Annotations   map[string]string `yaml:"annotations,omitempty"`
-	Record        string            `yaml:"record,omitempty"`
+	Alert         string            `yaml:"alert,omitempty" json:"alert,omitempty"`
+	Expr          string            `yaml:"expr" json:"expr"`
+	For           *model.Duration   `yaml:"for,omitempty" json:"for,omitempty"`
+	KeepFiringFor *model.Duration   `yaml:"keep_firing_for,omitempty" json:"keep_firing_for,omitempty"`
+	Labels        map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Annotations   map[string]string `yaml:"annotations,omitempty" json:"annotations,omitempty"`
+	Record        string            `yaml:"record,omitempty" json:"record,omitempty"`
 }
 
 // swagger:parameters RouteConvertPrometheusDeleteRuleGroup RouteConvertPrometheusCortexDeleteRuleGroup RouteConvertPrometheusGetRuleGroup RouteConvertPrometheusCortexGetRuleGroup

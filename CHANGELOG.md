@@ -1,3 +1,31 @@
+<!-- 12.0.1 START -->
+
+# 12.0.1 (2025-05-22)
+
+### Features and enhancements
+
+- **Chore:** Bump Go version to 1.24.3 [#105101](https://github.com/grafana/grafana/pull/105101), [@macabu](https://github.com/macabu)
+- **Dependencies:** Bump github.com/openfga/openfga from v1.8.6 to v1.8.12 [#105368](https://github.com/grafana/grafana/pull/105368), [@macabu](https://github.com/macabu)
+- **Dependencies:** Unpin and bump github.com/getkin/kin-openapi from v0.126.0 to v0.132.0 [#105249](https://github.com/grafana/grafana/pull/105249), [@macabu](https://github.com/macabu)
+- **K8s:** Dashboards: Add fine grained access control checks to /apis [#104419](https://github.com/grafana/grafana/pull/104419), [@stephaniehingtgen](https://github.com/stephaniehingtgen)
+
+### Bug fixes
+
+- **Dashboard:** Fix Panel Explore link subpath duplication (#104952) [#105056](https://github.com/grafana/grafana/pull/105056), [@axelavargas](https://github.com/axelavargas)
+- **Dashboard:** Fixes issue with row repeats and first row [#104469](https://github.com/grafana/grafana/pull/104469), [@torkelo](https://github.com/torkelo)
+- **Graphite:** Ensure template variables are interpolated correctly [#105389](https://github.com/grafana/grafana/pull/105389), [@aangelisc](https://github.com/aangelisc)
+- **Graphite:** Fix Graphite series interpolation [#104516](https://github.com/grafana/grafana/pull/104516), [@aangelisc](https://github.com/aangelisc)
+- **InfluxDB:** Fix nested variable interpolation [#104176](https://github.com/grafana/grafana/pull/104176), [@aangelisc](https://github.com/aangelisc)
+- **MetricsDrilldown:** Restore link to Metrics Drilldown from Explore [#104073](https://github.com/grafana/grafana/pull/104073), [@NWRichmond](https://github.com/NWRichmond)
+- **NestedFolderPicker:** Fix scroll jumps back to top [#105769](https://github.com/grafana/grafana/pull/105769), [@samsch](https://github.com/samsch)
+- **Preferences:** Disable the save button whilst saving preferences [#105612](https://github.com/grafana/grafana/pull/105612), [@ashharrison90](https://github.com/ashharrison90)
+- **Prometheus:** Fix semver import path [#104945](https://github.com/grafana/grafana/pull/104945), [@jackw](https://github.com/jackw)
+- **Themes:** Prevent duplicated API call in drawer [#105611](https://github.com/grafana/grafana/pull/105611), [@ashharrison90](https://github.com/ashharrison90)
+- **XYChart:** Coerce threshold steps to numbers [#104492](https://github.com/grafana/grafana/pull/104492), [@leeoniya](https://github.com/leeoniya)
+- **Security:** Fix CVE-2025-3454
+- **Security:** Fix CVE-2025-2703
+
+<!-- 12.0.1 END -->
 <!-- 11.6.0 START -->
 
 # 11.6.0 (2025-03-25)
@@ -159,6 +187,86 @@
 - **Slider:** Fix text input box being too wide [#100138](https://github.com/grafana/grafana/pull/100138), [@joshhunt](https://github.com/joshhunt)
 
 <!-- 11.6.0 END -->
+<!-- 11.5.3 START -->
+
+# 11.5.3 (2025-03-25)
+
+### Features and enhancements
+
+- **Chore:** Bump Go to 1.23.7 [#101581](https://github.com/grafana/grafana/pull/101581), [@macabu](https://github.com/macabu)
+- **Chore:** Bump Go to 1.23.7 (Enterprise)
+
+### Bug fixes
+
+- **Alerting:** Fix token-based Slack image upload to work with channel names [#101078](https://github.com/grafana/grafana/pull/101078), [@JacobsonMT](https://github.com/JacobsonMT)
+- **Auth:** Fix AzureAD config UI's ClientAuthentication dropdown [#100869](https://github.com/grafana/grafana/pull/100869), [@mgyongyosi](https://github.com/mgyongyosi)
+- **Dashboard:** Fix the unintentional time range and variables updates on saving [#101671](https://github.com/grafana/grafana/pull/101671), [@harisrozajac](https://github.com/harisrozajac)
+- **Dashboards:** Fix missing `v/e/i` keybindings to return back to dashboard [#102365](https://github.com/grafana/grafana/pull/102365), [@mdvictor](https://github.com/mdvictor)
+- **InfluxDB:** Improve handling of template variables contained in regular expressions (InfluxQL) [#100977](https://github.com/grafana/grafana/pull/100977), [@aangelisc](https://github.com/aangelisc)
+- **Org redirection:** Fix linking between orgs [#102089](https://github.com/grafana/grafana/pull/102089), [@ashharrison90](https://github.com/ashharrison90)
+
+<!-- 11.5.3 END -->
+<!-- 11.4.3 START -->
+
+# 11.4.3 (2025-03-25)
+
+### Features and enhancements
+
+- **Chore:** Bump Go to 1.23.7 [#101582](https://github.com/grafana/grafana/pull/101582), [@macabu](https://github.com/macabu)
+- **Alerting:** Fix token-based Slack image upload to work with channel names [#101072](https://github.com/grafana/grafana/pull/101072), [@JacobsonMT](https://github.com/JacobsonMT)
+- **InfluxDB:** Improve handling of template variables contained in regular expressions (InfluxQL) [#100987](https://github.com/grafana/grafana/pull/100987), [@aangelisc](https://github.com/aangelisc)
+- **Service Accounts:** Do not show error pop-ups for Service Account and Renderer UI flows [#101790](https://github.com/grafana/grafana/pull/101790), [@IevaVasiljeva](https://github.com/IevaVasiljeva)
+
+<!-- 11.4.3 END -->
+<!-- 11.3.5 START -->
+
+# 11.3.5 (2025-03-25)
+
+### Features and enhancements
+
+- **Chore:** Bump Go to 1.23.7 [#101583](https://github.com/grafana/grafana/pull/101583), [@macabu](https://github.com/macabu)
+- **Alerting:** Fix token-based Slack image upload to work with channel names [#101488](https://github.com/grafana/grafana/pull/101488), [@moustafab](https://github.com/moustafab)
+- **Service Accounts:** Do not show error pop-ups for Service Account and Renderer UI flows [#101791](https://github.com/grafana/grafana/pull/101791), [@IevaVasiljeva](https://github.com/IevaVasiljeva)
+
+<!-- 11.3.5 END -->
+<!-- 11.2.8 START -->
+
+# 11.2.8 (2025-03-25)
+
+### Features and enhancements
+
+- **Chore:** Bump Go version to 1.23.7 [#101294](https://github.com/grafana/grafana/pull/101294), [@macabu](https://github.com/macabu)
+- **Chore:** Bump Go version to 1.23.7 (Enterprise)
+
+### Bug fixes
+
+- **Alerting:** Update slack image upload to use new API [#101487](https://github.com/grafana/grafana/pull/101487), [@moustafab](https://github.com/moustafab)
+- **CloudMigrations:** Fix OrderBy clause in GetSnapshotList sql handler [#102351](https://github.com/grafana/grafana/pull/102351), [@mmandrus](https://github.com/mmandrus)
+- **Service Accounts:** Do not show error pop-ups for Service Account and Renderer UI flows [#101795](https://github.com/grafana/grafana/pull/101795), [@IevaVasiljeva](https://github.com/IevaVasiljeva)
+
+<!-- 11.2.8 END -->
+<!-- 11.1.13 START -->
+
+# 11.1.13 (2025-03-25)
+
+### Features and enhancements
+
+- **Chore:** Bump Go version to 1.23.7 [#101562](https://github.com/grafana/grafana/pull/101562), [@macabu](https://github.com/macabu)
+- **Alerting:** Update slack image upload to use new API [#101485](https://github.com/grafana/grafana/pull/101485), [@moustafab](https://github.com/moustafab)
+- **Service Accounts:** Do not show error pop-ups for Service Account and Renderer UI flows [#101796](https://github.com/grafana/grafana/pull/101796), [@IevaVasiljeva](https://github.com/IevaVasiljeva)
+
+<!-- 11.1.13 END -->
+<!-- 10.4.17 START -->
+
+# 10.4.17 (2025-03-25)
+
+### Features and enhancements
+
+- **Chore:** Bump Go version to 1.23.7 [#101565](https://github.com/grafana/grafana/pull/101565), [@macabu](https://github.com/macabu)
+- **Alerting:** Update slack image upload to use new API [#101483](https://github.com/grafana/grafana/pull/101483), [@moustafab](https://github.com/moustafab)
+- **Service Accounts:** Do not show error pop-ups for Service Account and Renderer UI flows [#101804](https://github.com/grafana/grafana/pull/101804), [@IevaVasiljeva](https://github.com/IevaVasiljeva)
+
+<!-- 10.4.17 END -->
 <!-- 11.5.2 START -->
 
 # 11.5.2 (2025-02-18)

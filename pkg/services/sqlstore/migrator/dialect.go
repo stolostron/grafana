@@ -27,11 +27,20 @@ type Dialect interface {
 	ShowCreateNull() bool
 	SQLType(col *Column) string
 	SupportEngine() bool
+	// Deprecated. This doesn't work correctly for all databases.
 	LikeStr() string
+	// LikeOperator returns SQL snippet and query parameter for case-insensitive LIKE operation, with optional wildcards (%) before/after the pattern.
+	LikeOperator(column string, wildcardBefore bool, pattern string, wildcardAfter bool) (string, string)
 	Default(col *Column) string
+	// BooleanValue can be used as an argument in SELECT or INSERT statements. For constructing
+	// raw SQL queries, please use BooleanStr instead.
+	BooleanValue(bool) any
+	// BooleanStr should only be used to construct SQL statements (strings). For arguments to queries, use BooleanValue instead.
 	BooleanStr(bool) string
 	DateTimeFunc(string) string
 	BatchSize() int
+	UnionDistinct() string // this is the default UNION type
+	UnionAll() string
 
 	OrderBy(order string) string
 
@@ -68,7 +77,6 @@ type Dialect interface {
 
 	CleanDB(engine *xorm.Engine) error
 	TruncateDBTables(engine *xorm.Engine) error
-	NoOpSQL() string
 	// CreateDatabaseFromSnapshot is called when migration log table is not found.
 	// Dialect can recreate all tables from existing snapshot. After successful (nil error) return,
 	// migrator will list migrations from the log, and apply all missing migrations.
@@ -146,6 +154,17 @@ func (b *BaseDialect) AndStr() string {
 
 func (b *BaseDialect) LikeStr() string {
 	return "LIKE"
+}
+
+func (b *BaseDialect) LikeOperator(column string, wildcardBefore bool, pattern string, wildcardAfter bool) (string, string) {
+	param := pattern
+	if wildcardBefore {
+		param = "%" + param
+	}
+	if wildcardAfter {
+		param = param + "%"
+	}
+	return fmt.Sprintf("%s LIKE ?", column), param
 }
 
 func (b *BaseDialect) OrStr() string {
@@ -347,10 +366,6 @@ func (b *BaseDialect) CreateDatabaseFromSnapshot(ctx context.Context, engine *xo
 	return nil
 }
 
-func (b *BaseDialect) NoOpSQL() string {
-	return "SELECT 0;"
-}
-
 func (b *BaseDialect) TruncateDBTables(engine *xorm.Engine) error {
 	return nil
 }
@@ -466,4 +481,12 @@ func (b *BaseDialect) Update(ctx context.Context, tx *session.SessionTx, tableNa
 
 func (b *BaseDialect) Concat(strs ...string) string {
 	return fmt.Sprintf("CONCAT(%s)", strings.Join(strs, ", "))
+}
+
+func (b *BaseDialect) UnionDistinct() string {
+	return "UNION"
+}
+
+func (b *BaseDialect) UnionAll() string {
+	return "UNION ALL"
 }
