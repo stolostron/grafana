@@ -17,7 +17,7 @@ COPY cue.mod cue.mod/
 COPY .bingo .bingo
 
 RUN go mod verify
-RUN GOFLAGS="" go run build.go build
+RUN go run build.go -build-tags=strictfipsruntime build
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
