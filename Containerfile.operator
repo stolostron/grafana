@@ -9,7 +9,6 @@ ARG GO_BUILD_TAGS="oss"
 ARG WIRE_TAGS="oss"
 ARG BINGO="true"
 
-
 # This appears to be needed to build on Konflux to avoid vendor issues.
 ENV GOFLAGS="-mod=readonly"
 
@@ -31,7 +30,7 @@ COPY go.* ./
 COPY stolostron-patches stolostron-patches
 RUN git apply ./stolostron-patches/*
 
-RUN go run build.go -build-tags=strictfipsruntime build
+RUN go -mod=vendor run build.go -build-tags=strictfipsruntime build
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
