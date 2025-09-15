@@ -38,7 +38,7 @@ COPY public/api-spec.json public/api-spec.json
 RUN go mod verify
 RUN make build-go
 
-FROM ubuntu:20.04
+FROM ubuntu:24.04
 
 LABEL maintainer="Grafana team <hello@grafana.com>"
 EXPOSE 3000
