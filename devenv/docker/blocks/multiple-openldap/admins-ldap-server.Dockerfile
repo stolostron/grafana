@@ -1,6 +1,6 @@
 # Fork of https://github.com/dinkel/docker-openldap
 
-FROM debian:jessie
+FROM debian:trixie
 
 LABEL maintainer="Grafana team <hello@grafana.com>"
 
