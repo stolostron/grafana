@@ -85,9 +85,9 @@ func TestOpenTsdbExecutor(t *testing.T) {
 		[
 			{
 				"metric": "test",
-				"dps": [
-					[1405544146, 50.0]
-				],
+				"dps": {
+					"1405544146": 50.0
+				},
 				"tags" : {
 					"env": "prod",
 					"app": "grafana"

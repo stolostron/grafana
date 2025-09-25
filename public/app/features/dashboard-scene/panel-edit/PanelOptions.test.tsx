@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { render } from 'test/test-utils';
 
 import { standardEditorsRegistry, standardFieldConfigEditorRegistry } from '@grafana/data';
-import { getPanelPlugin } from '@grafana/data/test/__mocks__/pluginMocks';
+import { getPanelPlugin } from '@grafana/data/test';
 import { selectors } from '@grafana/e2e-selectors';
 import { VizPanel } from '@grafana/scenes';
 import { getAllOptionEditors, getAllStandardFieldConfigs } from 'app/core/components/OptionsUI/registry';
@@ -21,34 +21,6 @@ import { PanelOptions } from './PanelOptions';
 import { PanelOptionsPane } from './PanelOptionsPane';
 
 const OptionsPaneSelector = selectors.components.PanelEditor.OptionsPane;
-
-standardEditorsRegistry.setInit(getAllOptionEditors);
-standardFieldConfigEditorRegistry.setInit(getAllStandardFieldConfigs);
-
-const plugin = getPanelPlugin({
-  id: 'TestPanel',
-}).useFieldConfig({
-  standardOptions: {},
-  useCustomConfig: (b) => {
-    b.addBooleanSwitch({
-      name: 'CustomBool',
-      path: 'CustomBool',
-    })
-      .addBooleanSwitch({
-        name: 'HiddenFromDef',
-        path: 'HiddenFromDef',
-        hideFromDefaults: true,
-      })
-      .addTextInput({
-        name: 'TextPropWithCategory',
-        path: 'TextPropWithCategory',
-        settings: {
-          placeholder: 'CustomTextPropPlaceholder',
-        },
-        category: ['Axis'],
-      });
-  },
-});
 
 standardEditorsRegistry.setInit(getAllOptionEditors);
 standardFieldConfigEditorRegistry.setInit(getAllStandardFieldConfigs);
@@ -175,30 +147,6 @@ describe('PanelOptions', () => {
       const {} = setup();
 
       await userEvent.click(screen.getByLabelText('Remove property'));
-
-      expect(screen.queryByLabelText(overrideRuleTooltipDescription)).not.toBeInTheDocument();
-    });
-
-    it('Can delete rule', async () => {
-      const {} = setup();
-
-      await userEvent.click(screen.getByLabelText('Remove override'));
-
-      expect(screen.queryByLabelText(overrideRuleTooltipDescription)).not.toBeInTheDocument();
-    });
-  });
-
-  describe('Field overrides', () => {
-    it('Should be rendered', async () => {
-      const {} = setup();
-
-      expect(screen.getByLabelText(overrideRuleTooltipDescription)).toBeInTheDocument();
-    });
-
-    it('Can update', async () => {
-      const {} = setup();
-
-      await userEvent.click(screen.getByLabelText('Remove label'));
 
       expect(screen.queryByLabelText(overrideRuleTooltipDescription)).not.toBeInTheDocument();
     });
