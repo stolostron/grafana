@@ -438,7 +438,9 @@
     "@grafana/plugin-e2e/@grafana/e2e-selectors": "workspace:*",
     "@grafana/scenes/@grafana/e2e-selectors": "workspace:*",
     "@grafana/scenes-react/@grafana/e2e-selectors": "workspace:*",
-    "swagger-ui-react/dompurify": "3.2.4"
+    "swagger-ui-react/dompurify": "3.2.4",
+    "axios": "1.12.2",
+    "sha.js": "2.4.12"
   },
   "workspaces": {
     "packages": [
