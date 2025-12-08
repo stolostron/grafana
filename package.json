@@ -440,7 +440,9 @@
     "@grafana/scenes-react/@grafana/e2e-selectors": "workspace:*",
     "swagger-ui-react/dompurify": "3.2.4",
     "axios": "1.12.2",
-    "sha.js": "2.4.12"
+    "sha.js": "2.4.12",
+    "mailparser": "3.9.0",
+    "smtp-server": "3.16.1"
   },
   "workspaces": {
     "packages": [
