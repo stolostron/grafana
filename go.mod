@@ -1,6 +1,6 @@
 module github.com/grafana/grafana
 
-go 1.25.3
+go 1.25.5
 
 require (
 	buf.build/gen/go/parca-dev/parca/connectrpc/go v1.17.0-20240902100956-02fd72488966.1 // @grafana/observability-traces-and-profiling
@@ -567,8 +567,6 @@ require (
 	github.com/onsi/gomega v1.36.1 // indirect
 	github.com/open-feature/go-sdk-contrib/providers/ofrep v0.1.5 // indirect
 )
-
-require github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 
 // Use fork of crewjam/saml with fixes for some issues until changes get merged into upstream
 replace github.com/crewjam/saml => github.com/grafana/saml v0.4.15-0.20240917091248-ae3bbdad8a56
