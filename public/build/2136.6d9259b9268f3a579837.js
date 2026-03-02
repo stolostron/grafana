@@ -1,0 +1,2 @@
+(self.webpackChunkgrafana=self.webpackChunkgrafana||[]).push([[2136],{"./.yarn/cache/brace-npm-0.11.1-a66ecae2b2-4eca4d27fb.zip/node_modules/brace/snippets/json.js":()=>{ace.define("ace/snippets/json",["require","exports","module"],(function(e,a,s){"use strict";a.snippetText=void 0,a.scope="json"}))}}]);
+//# sourceMappingURL=2136.6d9259b9268f3a579837.js.map

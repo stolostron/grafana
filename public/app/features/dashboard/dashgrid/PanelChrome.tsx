@@ -1,6 +1,7 @@
 import classNames from 'classnames';
 import React, { PureComponent } from 'react';
 import { Subscription } from 'rxjs';
+
 import {
   AbsoluteTimeRange,
   AnnotationChangeEvent,
@@ -18,7 +19,6 @@ import {
   toDataFrameDTO,
   toUtc,
 } from '@grafana/data';
-import { ErrorBoundary, PanelContext, PanelContextProvider, SeriesVisibilityChangeMode } from '@grafana/ui';
 import { selectors } from '@grafana/e2e-selectors';
 import { locationService, RefreshEvent } from '@grafana/runtime';
 import { VizLegendOptions } from '@grafana/schema';

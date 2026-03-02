@@ -5,7 +5,6 @@ import { selectors } from '@grafana/e2e-selectors';
 import { Tooltip } from '@grafana/ui';
 
 import { VariableOption } from '../../types';
-import { css, cx } from '@emotion/css';
 
 export interface Props extends React.HTMLProps<HTMLUListElement> {
   multi: boolean;
