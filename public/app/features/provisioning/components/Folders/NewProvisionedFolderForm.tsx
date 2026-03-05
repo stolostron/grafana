@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom-v5-compat';
 
 import { AppEvents } from '@grafana/data';
 import { Trans, t } from '@grafana/i18n';
-import { getAppEvents } from '@grafana/runtime';
+import { getAppEvents, reportInteraction } from '@grafana/runtime';
 import { Alert, Button, Field, Input, Stack } from '@grafana/ui';
 import { Folder } from 'app/api/clients/folder/v1beta1';
 import { RepositoryView, useCreateRepositoryFilesWithPathMutation } from 'app/api/clients/provisioning/v0alpha1';
@@ -22,7 +22,7 @@ import { ResourceEditFormSharedFields } from '../Shared/ResourceEditFormSharedFi
 interface FormProps extends Props {
   initialValues: BaseProvisionedFormData;
   repository?: RepositoryView;
-  workflowOptions: Array<{ label: string; value: string }>;
+  canPushToConfiguredBranch: boolean;
   folder?: Folder;
 }
 interface Props {
@@ -30,7 +30,7 @@ interface Props {
   onDismiss?: () => void;
 }
 
-function FormContent({ initialValues, repository, workflowOptions, folder, onDismiss }: FormProps) {
+function FormContent({ initialValues, repository, canPushToConfiguredBranch, folder, onDismiss }: FormProps) {
   const { prURL } = usePullRequestParam();
   const navigate = useNavigate();
   const [create, request] = useCreateRepositoryFilesWithPathMutation();
@@ -89,10 +89,11 @@ function FormContent({ initialValues, repository, workflowOptions, folder, onDis
     workflow,
     repository,
     resourceType: 'folder',
+    selectedBranch: methods.getValues().ref,
     handlers: {
       onDismiss,
       onBranchSuccess,
-      onWriteSuccess: (_, resource) => onWriteSuccess(resource),
+      onWriteSuccess,
       onError,
     },
   });
@@ -114,6 +115,12 @@ function FormContent({ initialValues, repository, workflowOptions, folder, onDis
     if (workflow === 'write') {
       ref = undefined;
     }
+
+    reportInteraction('grafana_provisioning_folder_create_submitted', {
+      workflow,
+      repositoryName: repoName,
+      repositoryType: repository?.type ?? 'unknown',
+    });
 
     create({
       ref,
@@ -163,8 +170,7 @@ function FormContent({ initialValues, repository, workflowOptions, folder, onDis
           <ResourceEditFormSharedFields
             resourceType="folder"
             isNew
-            workflow={workflow}
-            workflowOptions={workflowOptions}
+            canPushToConfiguredBranch={canPushToConfiguredBranch}
             repository={repository}
             hidePath
           />
@@ -203,10 +209,12 @@ function FormContent({ initialValues, repository, workflowOptions, folder, onDis
 }
 
 export function NewProvisionedFolderForm({ parentFolder, onDismiss }: Props) {
-  const { workflowOptions, repository, folder, initialValues, isReadOnlyRepo } = useProvisionedFolderFormData({
-    folderUid: parentFolder?.uid,
-    title: '', // Empty title for new folders
-  });
+  const { canPushToConfiguredBranch, repository, folder, initialValues, isReadOnlyRepo } = useProvisionedFolderFormData(
+    {
+      folderUid: parentFolder?.uid,
+      title: '', // Empty title for new folders
+    }
+  );
 
   if (isReadOnlyRepo || !initialValues) {
     return (
@@ -227,7 +235,7 @@ export function NewProvisionedFolderForm({ parentFolder, onDismiss }: Props) {
       onDismiss={onDismiss}
       initialValues={initialValues}
       repository={repository}
-      workflowOptions={workflowOptions}
+      canPushToConfiguredBranch={canPushToConfiguredBranch}
       folder={folder}
     />
   );

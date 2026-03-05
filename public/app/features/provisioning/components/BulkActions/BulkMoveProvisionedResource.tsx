@@ -1,22 +1,25 @@
 import { skipToken } from '@reduxjs/toolkit/query';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 
 import { AppEvents } from '@grafana/data';
 import { Trans, t } from '@grafana/i18n';
-import { getAppEvents } from '@grafana/runtime';
+import { getAppEvents, reportInteraction } from '@grafana/runtime';
 import { Box, Button, Field, Stack } from '@grafana/ui';
 import { useGetFolderQuery } from 'app/api/clients/folder/v1beta1';
 import { RepositoryView, Job } from 'app/api/clients/provisioning/v0alpha1';
 import { AnnoKeySourcePath } from 'app/features/apiserver/types';
 import { DescendantCount } from 'app/features/browse-dashboards/components/BrowseActions/DescendantCount';
-import { collectSelectedItems } from 'app/features/browse-dashboards/components/utils';
+import { collectSelectedItems } from 'app/features/browse-dashboards/utils/dashboards';
 import { JobStatus } from 'app/features/provisioning/Job/JobStatus';
-import { getDefaultWorkflow, getWorkflowOptions } from 'app/features/provisioning/components/defaults';
+import { getCanPushToConfiguredBranch, getDefaultWorkflow } from 'app/features/provisioning/components/defaults';
 import { useGetResourceRepositoryView } from 'app/features/provisioning/hooks/useGetResourceRepositoryView';
 import { GENERAL_FOLDER_UID } from 'app/features/search/constants';
 
+import { ProvisioningAlert } from '../../Shared/ProvisioningAlert';
+import { StepStatusInfo } from '../../Wizard/types';
 import { useSelectionRepoValidation } from '../../hooks/useSelectionRepoValidation';
+import { StatusInfo } from '../../types';
 import { MoveActionAvailableTargetWarning } from '../Shared/MoveActionAvailableTargetWarning';
 import { ProvisioningAwareFolderPicker } from '../Shared/ProvisioningAwareFolderPicker';
 import { RepoInvalidStateBanner } from '../Shared/RepoInvalidStateBanner';
@@ -29,13 +32,14 @@ import { BulkActionFormData, BulkActionProvisionResourceProps, getTargetFolderPa
 interface FormProps extends BulkActionProvisionResourceProps {
   initialValues: BulkActionFormData;
   repository: RepositoryView;
-  workflowOptions: Array<{ label: string; value: string }>;
+  canPushToConfiguredBranch: boolean;
   folderPath?: string;
 }
 
-function FormContent({ initialValues, selectedItems, repository, workflowOptions, onDismiss }: FormProps) {
+function FormContent({ initialValues, selectedItems, repository, canPushToConfiguredBranch, onDismiss }: FormProps) {
   // States
   const [job, setJob] = useState<Job>();
+  const [jobError, setJobError] = useState<string | StatusInfo>();
   const [targetFolderUID, setTargetFolderUID] = useState<string | undefined>(undefined);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
@@ -44,12 +48,10 @@ function FormContent({ initialValues, selectedItems, repository, workflowOptions
   const methods = useForm<BulkActionFormData>({ defaultValues: initialValues });
   const {
     handleSubmit,
-    watch,
     setError,
     clearErrors,
     formState: { errors },
   } = methods;
-  const workflow = watch('workflow');
 
   // Get target folder data
   const { data: targetFolder } = useGetFolderQuery(targetFolderUID ? { name: targetFolderUID } : skipToken);
@@ -83,6 +85,13 @@ function FormContent({ initialValues, selectedItems, repository, workflowOptions
       return;
     }
 
+    reportInteraction('grafana_provisioning_bulk_move_submitted', {
+      workflow: data.workflow,
+      repositoryName: repository.name ?? 'unknown',
+      repositoryType: repository.type ?? 'unknown',
+      resourceCount: resources.length,
+    });
+
     // Create the move job spec
     const jobSpec: MoveJobSpec = {
       action: 'move',
@@ -109,20 +118,30 @@ function FormContent({ initialValues, selectedItems, repository, workflowOptions
     }
   };
 
+  const onStatusChange = useCallback((statusInfo: StepStatusInfo) => {
+    if (statusInfo.status === 'error' && statusInfo.error) {
+      setJobError(statusInfo.error);
+    }
+  }, []);
+
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(handleSubmitForm)}>
         <Stack direction="column" gap={2}>
-          <MoveActionAvailableTargetWarning />
-          <Box paddingBottom={2}>
-            <Trans i18nKey="browse-dashboards.bulk-move-resources-form.move-total">In total, this will affect:</Trans>
-            <DescendantCount selectedItems={{ ...selectedItems, panel: {}, $all: false }} />
-          </Box>
-
           {hasSubmitted && job ? (
-            <JobStatus watch={job} jobType="move" />
+            <>
+              <ProvisioningAlert error={jobError} />
+              <JobStatus watch={job} jobType="move" onStatusChange={onStatusChange} />
+            </>
           ) : (
             <>
+              <MoveActionAvailableTargetWarning />
+              <Box paddingBottom={2}>
+                <Trans i18nKey="browse-dashboards.bulk-move-resources-form.move-total">
+                  In total, this will affect:
+                </Trans>
+                <DescendantCount selectedItems={{ ...selectedItems, panel: {}, $all: false }} />
+              </Box>
               {/* Target folder selection */}
               <Field
                 noMargin
@@ -137,13 +156,13 @@ function FormContent({ initialValues, selectedItems, repository, workflowOptions
                     clearErrors('targetFolderUID');
                   }}
                   repositoryName={repository.name}
+                  excludeUIDs={[...Object.keys(selectedItems?.folder).map((uid) => uid)]}
                 />
               </Field>
               <ResourceEditFormSharedFields
                 resourceType="folder"
                 isNew={false}
-                workflow={workflow}
-                workflowOptions={workflowOptions}
+                canPushToConfiguredBranch={canPushToConfiguredBranch}
                 repository={repository}
                 hidePath
               />
@@ -177,14 +196,15 @@ export function BulkMoveProvisionedResource({ folderUid, selectedItems, onDismis
     folderName: isRootPage ? selectedItemsRepoUID : folderUid,
   });
 
-  const workflowOptions = getWorkflowOptions(repository);
+  const canPushToConfiguredBranch = getCanPushToConfiguredBranch(repository);
   const folderPath = folder?.metadata?.annotations?.[AnnoKeySourcePath] || '';
   const timestamp = generateTimestamp();
+  const defaultWorkflow = getDefaultWorkflow(repository);
 
   const initialValues = {
     comment: '',
-    ref: `bulk-move/${timestamp}`,
-    workflow: getDefaultWorkflow(repository),
+    ref: defaultWorkflow === 'branch' ? `bulk-move/${timestamp}` : (repository?.branch ?? ''),
+    workflow: defaultWorkflow,
   };
 
   if (!repository || isReadOnlyRepo) {
@@ -197,7 +217,7 @@ export function BulkMoveProvisionedResource({ folderUid, selectedItems, onDismis
       onDismiss={onDismiss}
       initialValues={initialValues}
       repository={repository}
-      workflowOptions={workflowOptions}
+      canPushToConfiguredBranch={canPushToConfiguredBranch}
       folderPath={isRootPage ? '/' : folderPath}
     />
   );

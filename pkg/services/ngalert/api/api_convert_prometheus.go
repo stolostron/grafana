@@ -15,7 +15,9 @@ import (
 	amconfig "github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	prommodel "github.com/prometheus/common/model"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
+
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/grafana/grafana/pkg/api/response"
 	"github.com/grafana/grafana/pkg/apimachinery/errutil"
@@ -30,6 +32,7 @@ import (
 	"github.com/grafana/grafana/pkg/services/ngalert/models"
 	"github.com/grafana/grafana/pkg/services/ngalert/prom"
 	"github.com/grafana/grafana/pkg/services/ngalert/provisioning"
+	"github.com/grafana/grafana/pkg/services/sqlstore/migrations/ualert"
 	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/util"
 )
@@ -62,7 +65,10 @@ const (
 
 	// configIdentifierHeader is the header that specifies the identifier for imported Alertmanager config.
 	configIdentifierHeader  = "X-Grafana-Alerting-Config-Identifier"
-	defaultConfigIdentifier = "default"
+	defaultConfigIdentifier = "imported"
+
+	// versionMessageHeader is the header that specifies an optional message for rule versions.
+	versionMessageHeader = "X-Grafana-Alerting-Version-Message"
 )
 
 var (
@@ -248,7 +254,12 @@ func (srv *ConvertPrometheusSrv) RouteConvertPrometheusDeleteRuleGroup(c *contex
 	logger.Info("Deleting Prometheus-imported rule group", "folder_uid", folder.UID, "folder_title", namespaceTitle, "group", group)
 
 	provenance := getProvenance(c)
-	err = srv.alertRuleService.DeleteRuleGroup(c.Req.Context(), c.SignedInUser, folder.UID, group, provenance)
+	filterOpts := &provisioning.FilterOptions{
+		NamespaceUIDs:               []string{folder.UID},
+		RuleGroups:                  []string{group},
+		HasPrometheusRuleDefinition: util.Pointer(true),
+	}
+	err = srv.alertRuleService.DeleteRuleGroups(c.Req.Context(), c.SignedInUser, provenance, filterOpts)
 	if errors.Is(err, models.ErrAlertRuleGroupNotFound) {
 		return response.Empty(http.StatusNotFound)
 	}
@@ -368,6 +379,9 @@ func (srv *ConvertPrometheusSrv) RouteConvertPrometheusPostRuleGroups(c *context
 
 	datasourceUID := strings.TrimSpace(c.Req.Header.Get(datasourceUIDHeader))
 	if datasourceUID == "" {
+		datasourceUID = srv.cfg.PrometheusConversion.DefaultDatasourceUID
+	}
+	if datasourceUID == "" {
 		return response.Err(errDatasourceUIDHeaderMissing)
 	}
 	ds, err := srv.datasourceCache.GetDatasourceByUID(c.Req.Context(), datasourceUID, c.SignedInUser, c.SkipDSCache)
@@ -407,6 +421,11 @@ func (srv *ConvertPrometheusSrv) RouteConvertPrometheusPostRuleGroups(c *context
 		return errorToResponse(err)
 	}
 
+	versionMessage, err := parseVersionMessageHeader(c)
+	if err != nil {
+		logger.Error("Failed to parse version message header", "error", err)
+		return errorToResponse(err)
+	}
 	// 2. Convert Prometheus Rules to GMA
 	grafanaGroups := make([]*models.AlertRuleGroup, 0, len(promNamespaces))
 	for ns, rgs := range promNamespaces {
@@ -444,12 +463,13 @@ func (srv *ConvertPrometheusSrv) RouteConvertPrometheusPostRuleGroups(c *context
 				logger.Error("Failed to convert Prometheus rules to Grafana rules", "error", err)
 				return errorToResponse(err)
 			}
+
 			grafanaGroups = append(grafanaGroups, grafanaGroup)
 		}
 	}
 
 	// 3. Update the GMA Rules in the DB
-	err = srv.alertRuleService.ReplaceRuleGroups(c.Req.Context(), c.SignedInUser, grafanaGroups, provenance)
+	err = srv.alertRuleService.ReplaceRuleGroups(c.Req.Context(), c.SignedInUser, grafanaGroups, provenance, versionMessage)
 	if err != nil {
 		logger.Error("Failed to replace rule groups", "error", err)
 		return errorToResponse(err)
@@ -507,7 +527,7 @@ func (srv *ConvertPrometheusSrv) convertToGrafanaRuleGroup(
 	pauseRecordingRules bool,
 	pauseAlertRules bool,
 	keepOriginalRuleDefinition bool,
-	notificationSettings []models.NotificationSettings,
+	notificationSettings *models.NotificationSettings,
 	extraLabels map[string]string,
 	logger log.Logger,
 ) (*models.AlertRuleGroup, error) {
@@ -568,13 +588,18 @@ func (srv *ConvertPrometheusSrv) convertToGrafanaRuleGroup(
 }
 
 func (srv *ConvertPrometheusSrv) RouteConvertPrometheusPostAlertmanagerConfig(c *contextmodel.ReqContext, amCfg apimodels.AlertmanagerUserConfig) response.Response {
+	//nolint:staticcheck // not yet migrated to OpenFeature
 	if !srv.featureToggles.IsEnabledGlobally(featuremgmt.FlagAlertingImportAlertmanagerAPI) {
 		return response.Error(http.StatusNotImplemented, "Not Implemented", nil)
 	}
 
 	logger := srv.logger.FromContext(c.Req.Context())
 
-	identifier := parseConfigIdentifierHeader(c)
+	identifier, err := parseConfigIdentifierHeader(c)
+	if err != nil {
+		logger.Error("Failed to parse config identifier header", "error", err)
+		return errorToResponse(err)
+	}
 
 	mergeMatchers, err := parseMergeMatchersHeader(c)
 	if err != nil {
@@ -605,6 +630,7 @@ func (srv *ConvertPrometheusSrv) RouteConvertPrometheusPostAlertmanagerConfig(c 
 }
 
 func (srv *ConvertPrometheusSrv) RouteConvertPrometheusGetAlertmanagerConfig(c *contextmodel.ReqContext) response.Response {
+	//nolint:staticcheck // not yet migrated to OpenFeature
 	if !srv.featureToggles.IsEnabledGlobally(featuremgmt.FlagAlertingImportAlertmanagerAPI) {
 		return response.Error(http.StatusNotImplemented, "Not Implemented", nil)
 	}
@@ -612,7 +638,11 @@ func (srv *ConvertPrometheusSrv) RouteConvertPrometheusGetAlertmanagerConfig(c *
 	logger := srv.logger.FromContext(c.Req.Context())
 	ctx := c.Req.Context()
 
-	identifier := parseConfigIdentifierHeader(c)
+	identifier, err := parseConfigIdentifierHeader(c)
+	if err != nil {
+		logger.Error("Failed to parse config identifier header", "error", err)
+		return errorToResponse(err)
+	}
 
 	cfg, err := srv.am.GetAlertmanagerConfiguration(ctx, c.GetOrgID(), false, false)
 	if err != nil {
@@ -650,15 +680,20 @@ func (srv *ConvertPrometheusSrv) RouteConvertPrometheusGetAlertmanagerConfig(c *
 }
 
 func (srv *ConvertPrometheusSrv) RouteConvertPrometheusDeleteAlertmanagerConfig(c *contextmodel.ReqContext) response.Response {
+	//nolint:staticcheck // not yet migrated to OpenFeature
 	if !srv.featureToggles.IsEnabledGlobally(featuremgmt.FlagAlertingImportAlertmanagerAPI) {
 		return response.Error(http.StatusNotImplemented, "Not Implemented", nil)
 	}
 
 	logger := srv.logger.FromContext(c.Req.Context())
 
-	identifier := parseConfigIdentifierHeader(c)
+	identifier, err := parseConfigIdentifierHeader(c)
+	if err != nil {
+		logger.Error("Failed to parse config identifier header", "error", err)
+		return errorToResponse(err)
+	}
 
-	err := srv.am.DeleteExtraConfiguration(c.Req.Context(), c.GetOrgID(), identifier)
+	err = srv.am.DeleteExtraConfiguration(c.Req.Context(), c.GetOrgID(), identifier)
 	if err != nil {
 		logger.Error("Failed to delete alertmanager configuration", "error", err, "identifier", identifier)
 		return errorToResponse(fmt.Errorf("failed to delete alertmanager configuration: %w", err))
@@ -771,8 +806,8 @@ func getProvenance(ctx *contextmodel.ReqContext) models.Provenance {
 	return models.ProvenanceConvertedPrometheus
 }
 
-func parseNotificationSettingsHeader(ctx *contextmodel.ReqContext) ([]models.NotificationSettings, error) {
-	var notificationSettings []models.NotificationSettings
+func parseNotificationSettingsHeader(ctx *contextmodel.ReqContext) (*models.NotificationSettings, error) {
+	var notificationSettings *models.NotificationSettings
 	notificationSettingsJSON := ctx.Req.Header.Get(notificationSettingsHeader)
 
 	if notificationSettingsJSON != "" {
@@ -826,7 +861,7 @@ func parseMergeMatchersHeader(c *contextmodel.ReqContext) (amconfig.Matchers, er
 	matchersStr := strings.TrimSpace(c.Req.Header.Get(mergeMatchersHeader))
 
 	if matchersStr == "" {
-		return amconfig.Matchers{}, errInvalidHeaderValue(mergeMatchersHeader, errors.New("value cannot be empty"))
+		return nil, nil
 	}
 
 	kvPairs, err := parseKeyValuePairs(matchersStr, mergeMatchersHeader)
@@ -853,6 +888,16 @@ func parseExtraLabelsHeader(c *contextmodel.ReqContext) (map[string]string, erro
 	return parseKeyValuePairs(labelsStr, extraLabelsHeader)
 }
 
+// parseVersionMessageHeader obtains and validates the message header value.
+func parseVersionMessageHeader(c *contextmodel.ReqContext) (string, error) {
+	str := strings.TrimSpace(c.Req.Header.Get(versionMessageHeader))
+	// Limit message to the same as the dashboards message.
+	if len(str) > 500 {
+		return "", errInvalidHeaderValue(versionMessageHeader, errors.New("must be less than 500 characters"))
+	}
+	return str, nil
+}
+
 func formatMergeMatchers(matchers amconfig.Matchers) string {
 	var pairs []string
 	for _, matcher := range matchers {
@@ -863,12 +908,19 @@ func formatMergeMatchers(matchers amconfig.Matchers) string {
 	return strings.Join(pairs, ",")
 }
 
-func parseConfigIdentifierHeader(c *contextmodel.ReqContext) string {
+func parseConfigIdentifierHeader(c *contextmodel.ReqContext) (string, error) {
 	identifier := strings.TrimSpace(c.Req.Header.Get(configIdentifierHeader))
 	if identifier == "" {
-		return defaultConfigIdentifier
+		return defaultConfigIdentifier, nil
 	}
-	return identifier
+	if errs := k8svalidation.IsDNS1123Subdomain(identifier); len(errs) > 0 {
+		return "", errInvalidHeaderValue(configIdentifierHeader, errors.New(strings.Join(errs, ",")))
+	}
+	if len(identifier) > ualert.UIDMaxLength {
+		return "", errInvalidHeaderValue(configIdentifierHeader,
+			fmt.Errorf("must be less than %d characters", ualert.UIDMaxLength))
+	}
+	return identifier, nil
 }
 
 // convertPrometheusResponse returns a JSON or YAML response based on the Accept header.

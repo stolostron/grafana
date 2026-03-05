@@ -10,10 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/grafana/pkg/services/ngalert/lokiclient"
+	"github.com/grafana/alerting/notify/historian/lokiclient"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+
+	alertingInstrument "github.com/grafana/alerting/http/instrument"
+	"github.com/grafana/alerting/http/instrument/instrumenttest"
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/db"
@@ -23,7 +26,6 @@ import (
 	"github.com/grafana/grafana/pkg/services/annotations/testutil"
 	"github.com/grafana/grafana/pkg/services/dashboards"
 	"github.com/grafana/grafana/pkg/services/featuremgmt"
-	"github.com/grafana/grafana/pkg/services/ngalert/client"
 	"github.com/grafana/grafana/pkg/services/ngalert/eval"
 	"github.com/grafana/grafana/pkg/services/ngalert/metrics"
 	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
@@ -101,7 +103,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -128,7 +129,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -158,7 +158,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.ErrorIs(t, err, ErrLokiStoreNotFound)
@@ -178,7 +177,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -204,7 +202,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -228,7 +225,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -254,7 +250,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -284,7 +279,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -313,7 +307,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -347,7 +340,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 					Dashboards: map[string]int64{
 						dashboard1.UID: dashboard1.ID,
 					},
-					CanAccessDashAnnotations: true,
 				},
 			)
 			require.NoError(t, err)
@@ -383,7 +375,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 				Dashboards: map[string]int64{
 					dashboard1.UID: dashboard1.ID,
 				},
-				CanAccessDashAnnotations: true,
 			})
 			require.Len(t, items, numTransitions)
 
@@ -428,7 +419,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 				Dashboards: map[string]int64{
 					dashboard1.UID: dashboard1.ID,
 				},
-				CanAccessDashAnnotations: true,
 			})
 			require.Len(t, items, numTransitions)
 
@@ -456,9 +446,6 @@ func TestIntegrationAlertStateHistoryStore(t *testing.T) {
 			}
 
 			items := store.annotationsFromStream(stream, annotation_ac.AccessResources{
-				Dashboards: map[string]int64{
-					dashboard1.UID: dashboard1.ID,
-				},
 				CanAccessOrgAnnotations: true,
 			})
 			require.Len(t, items, numTransitions)
@@ -484,7 +471,6 @@ func TestHasAccess(t *testing.T) {
 
 	t.Run("should return false when scope is dashboard and dashboard UID is not in resources", func(t *testing.T) {
 		require.False(t, hasAccess(entry, annotation_ac.AccessResources{
-			CanAccessDashAnnotations: true,
 			Dashboards: map[string]int64{
 				"other-dashboard-uid": 1,
 			},
@@ -499,7 +485,6 @@ func TestHasAccess(t *testing.T) {
 
 	t.Run("should return true when scope is dashboard and dashboard UID is in resources", func(t *testing.T) {
 		require.True(t, hasAccess(entry, annotation_ac.AccessResources{
-			CanAccessDashAnnotations: true,
 			Dashboards: map[string]int64{
 				"dashboard-uid": 1,
 			},
@@ -685,7 +670,7 @@ func createAlertRule(t *testing.T, sql *sqlstore.SQLStore, title string, generat
 	rule.PanelID = nil
 
 	ruleStore := store.SetupStoreForTesting(t, sql)
-	ids, err := ruleStore.InsertAlertRules(context.Background(), nil, []ngmodels.AlertRule{rule})
+	ids, err := ruleStore.InsertAlertRules(context.Background(), nil, []ngmodels.InsertRule{{AlertRule: rule}})
 	require.NoError(t, err)
 	result, err := ruleStore.GetAlertRuleByUID(context.Background(), &ngmodels.GetAlertRuleByUIDQuery{OrgID: rule.OrgID, UID: ids[0].UID})
 	require.NoError(t, err)
@@ -717,7 +702,7 @@ func createAlertRuleFromDashboard(t *testing.T, sql *sqlstore.SQLStore, title st
 		rule.PanelID = panelID
 	}
 	ruleStore := store.SetupStoreForTesting(t, sql)
-	ids, err := ruleStore.InsertAlertRules(context.Background(), nil, []ngmodels.AlertRule{rule})
+	ids, err := ruleStore.InsertAlertRules(context.Background(), nil, []ngmodels.InsertRule{{AlertRule: rule}})
 	require.NoError(t, err)
 	result, err := ruleStore.GetAlertRuleByUID(context.Background(), &ngmodels.GetAlertRuleByUIDQuery{OrgID: rule.OrgID, UID: ids[0].UID})
 	require.NoError(t, err)
@@ -810,7 +795,7 @@ func compareAnnotationItem(t *testing.T, expected, actual *annotations.ItemDTO) 
 }
 
 type FakeLokiClient struct {
-	client        client.Requester
+	client        alertingInstrument.Requester
 	cfg           lokiclient.LokiConfig
 	metrics       *metrics.Historian
 	log           log.Logger
@@ -819,15 +804,15 @@ type FakeLokiClient struct {
 
 func NewFakeLokiClient() *FakeLokiClient {
 	url, _ := url.Parse("http://some.url")
-	req := lokiclient.NewFakeRequester()
+	req := instrumenttest.NewFakeRequester()
 	metrics := metrics.NewHistorianMetrics(prometheus.NewRegistry(), "annotations_test")
 
 	return &FakeLokiClient{
-		client: client.NewTimedClient(req, metrics.WriteDuration),
+		client: alertingInstrument.NewTimedClient(req, metrics.WriteDuration),
 		cfg: lokiclient.LokiConfig{
 			WritePathURL:   url,
 			ReadPathURL:    url,
-			Encoder:        lokiclient.JsonEncoder{},
+			Encoder:        lokiclient.JSONEncoder{},
 			MaxQueryLength: 721 * time.Hour,
 			MaxQuerySize:   65536,
 		},

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
@@ -832,9 +832,6 @@ func TestSocialAzureAD_UserInfo(t *testing.T) {
 	jwksDump, err := json.Marshal(jwks)
 	require.NoError(t, err)
 
-	err = cache.Set(context.Background(), azureCacheKeyPrefix+"client-id-example", jwksDump, 0)
-	require.NoError(t, err)
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewAzureADProvider(tt.fields.providerCfg,
@@ -850,6 +847,11 @@ func TestSocialAzureAD_UserInfo(t *testing.T) {
 			} else {
 				s.Endpoint.AuthURL = authURL
 			}
+
+			urls := s.getAzureJWKSURLs()
+			cacheKey := s.getJWKSCacheKeyForURL(urls[0])
+			err = cache.Set(context.Background(), cacheKey, jwksDump, 0)
+			require.NoError(t, err)
 
 			cl := jwt.Claims{
 				Audience:  jwt.Audience{"client-id-example"},
@@ -880,10 +882,10 @@ func TestSocialAzureAD_UserInfo(t *testing.T) {
 						tt.claims.ClaimNames.Groups: {Endpoint: server.URL},
 					}
 				}
-				raw, err = jwt.Signed(sig).Claims(cl).Claims(tt.claims).CompactSerialize()
+				raw, err = jwt.Signed(sig).Claims(cl).Claims(tt.claims).Serialize()
 				require.NoError(t, err)
 			} else {
-				raw, err = jwt.Signed(sig).Claims(cl).CompactSerialize()
+				raw, err = jwt.Signed(sig).Claims(cl).Serialize()
 				require.NoError(t, err)
 			}
 
@@ -1010,9 +1012,6 @@ func TestSocialAzureAD_SkipOrgRole(t *testing.T) {
 	jwksDump, err := json.Marshal(jwks)
 	require.NoError(t, err)
 
-	err = cache.Set(context.Background(), azureCacheKeyPrefix+"client-id-example", jwksDump, 0)
-	require.NoError(t, err)
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewAzureADProvider(tt.fields.providerCfg,
@@ -1024,6 +1023,11 @@ func TestSocialAzureAD_SkipOrgRole(t *testing.T) {
 				cache)
 
 			s.Endpoint.AuthURL = authURL
+
+			urls := s.getAzureJWKSURLs()
+			cacheKey := s.getJWKSCacheKeyForURL(urls[0])
+			err = cache.Set(context.Background(), cacheKey, jwksDump, 0)
+			require.NoError(t, err)
 
 			cl := jwt.Claims{
 				Subject:   "subject",
@@ -1054,10 +1058,10 @@ func TestSocialAzureAD_SkipOrgRole(t *testing.T) {
 						tt.claims.ClaimNames.Groups: {Endpoint: server.URL},
 					}
 				}
-				raw, err = jwt.Signed(sig).Claims(cl).Claims(tt.claims).CompactSerialize()
+				raw, err = jwt.Signed(sig).Claims(cl).Claims(tt.claims).Serialize()
 				require.NoError(t, err)
 			} else {
-				raw, err = jwt.Signed(sig).Claims(cl).CompactSerialize()
+				raw, err = jwt.Signed(sig).Claims(cl).Serialize()
 				require.NoError(t, err)
 			}
 

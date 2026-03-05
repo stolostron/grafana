@@ -36,6 +36,11 @@ var (
 		msgAlertmanagerMultipleExtraConfigsUnsupported,
 		errutil.WithPublic(msgAlertmanagerMultipleExtraConfigsUnsupported),
 	)
+
+	ErrIdentifierAlreadyExists = errutil.BadRequest("alerting.notifications.alertmanager.identifierAlreadyExists").MustTemplate("identifier [{{ .Public.Identifier }}] already used by existing managed routes",
+		errutil.WithPublic(
+			"Identifier [{{ .Public.Identifier }}] is already used by existing managed routes. Use another identifier or delete the existing route.",
+		))
 )
 
 type UnknownReceiverError struct {
@@ -133,7 +138,7 @@ func (moa *MultiOrgAlertmanager) GetAlertmanagerConfiguration(ctx context.Contex
 		// Otherwise, broken settings (e.g. a receiver that doesn't exist) will cause the config returned here to be
 		// different than the config currently in-use.
 		// TODO: Preferably, we'd be getting the config directly from the in-memory AM so adding the autogen config would not be necessary.
-		err := AddAutogenConfig(ctx, moa.logger, moa.configStore, org, &cfg.AlertmanagerConfig, true)
+		err := AddAutogenConfig(ctx, moa.logger, moa.configStore, org, &cfg.AlertmanagerConfig, LogInvalidReceivers, moa.featureManager)
 		if err != nil {
 			return definitions.GettableUserConfig{}, err
 		}
@@ -324,7 +329,16 @@ func (moa *MultiOrgAlertmanager) SaveAndApplyAlertmanagerConfiguration(ctx conte
 	}
 	cleanPermissionsErr := err
 
-	if err := moa.Crypto.ProcessSecureSettings(ctx, org, config.AlertmanagerConfig.Receivers); err != nil {
+	if previousConfig != nil {
+		// If there is a previous configuration, we need to copy its extra configs to the new one.
+		extraConfigs, err := extractExtraConfigs(previousConfig.AlertmanagerConfiguration)
+		if err != nil {
+			return fmt.Errorf("failed to extract extra configs from previous configuration: %w", err)
+		}
+		config.ExtraConfigs = extraConfigs
+	}
+
+	if err := moa.Crypto.ProcessSecureSettings(ctx, org, config.AlertmanagerConfig.Receivers, nil); err != nil {
 		return fmt.Errorf("failed to post process Alertmanager configuration: %w", err)
 	}
 
@@ -393,6 +407,14 @@ func (moa *MultiOrgAlertmanager) modifyAndApplyExtraConfiguration(
 		return fmt.Errorf("failed to apply extra configuration: %w", err)
 	}
 
+	if len(cfg.ManagedRoutes) > 0 {
+		for _, c := range cfg.ExtraConfigs {
+			if _, ok := cfg.ManagedRoutes[c.Identifier]; ok {
+				return ErrIdentifierAlreadyExists.Build(errutil.TemplateData{Public: map[string]interface{}{"Identifier": c.Identifier}})
+			}
+		}
+	}
+
 	am, err := moa.AlertmanagerFor(org)
 	if err != nil {
 		// It's okay if the alertmanager isn't ready yet, we're changing its config anyway.
@@ -452,26 +474,22 @@ func assignReceiverConfigsUIDs(c []*definitions.PostableApiReceiver) error {
 	seenUIDs := make(map[string]struct{})
 	// encrypt secure settings for storing them in DB
 	for _, r := range c {
-		switch r.Type() {
-		case definitions.GrafanaReceiverType:
-			for _, gr := range r.GrafanaManagedReceivers {
-				if gr.UID == "" {
-					retries := 5
-					for i := 0; i < retries; i++ {
-						gen := util.GenerateShortUID()
-						_, ok := seenUIDs[gen]
-						if !ok {
-							gr.UID = gen
-							break
-						}
-					}
-					if gr.UID == "" {
-						return fmt.Errorf("all %d attempts to generate UID for receiver have failed; please retry", retries)
+		for _, gr := range r.GrafanaManagedReceivers {
+			if gr.UID == "" {
+				retries := 5
+				for i := 0; i < retries; i++ {
+					gen := util.GenerateShortUID()
+					_, ok := seenUIDs[gen]
+					if !ok {
+						gr.UID = gen
+						break
 					}
 				}
-				seenUIDs[gr.UID] = struct{}{}
+				if gr.UID == "" {
+					return fmt.Errorf("all %d attempts to generate UID for receiver have failed; please retry", retries)
+				}
 			}
-		default:
+			seenUIDs[gr.UID] = struct{}{}
 		}
 	}
 	return nil
@@ -480,6 +498,7 @@ func assignReceiverConfigsUIDs(c []*definitions.PostableApiReceiver) error {
 type provisioningStore interface {
 	GetProvenance(ctx context.Context, o models.Provisionable, org int64) (models.Provenance, error)
 	GetProvenances(ctx context.Context, org int64, resourceType string) (map[string]models.Provenance, error)
+	GetProvenancesByUIDs(ctx context.Context, org int64, resourceType string, uids []string) (map[string]models.Provenance, error)
 	SetProvenance(ctx context.Context, o models.Provisionable, org int64, p models.Provenance) error
 	DeleteProvenance(ctx context.Context, o models.Provisionable, org int64) error
 }
@@ -575,4 +594,19 @@ func extractReceiverNames(rawConfig string) (sets.Set[string], error) {
 	}
 
 	return receiverNames, nil
+}
+
+// extractExtraConfigs extracts encrypted (does not decrypt) extra configurations from the raw Alertmanager config.
+func extractExtraConfigs(rawConfig string) ([]definitions.ExtraConfiguration, error) {
+	// Slimmed down version of the Alertmanager configuration to extract extra configs.
+	type extraConfigUserConfig struct {
+		ExtraConfigs []definitions.ExtraConfiguration `yaml:"extra_config,omitempty" json:"extra_config,omitempty"`
+	}
+
+	cfg := &extraConfigUserConfig{}
+	if err := json.Unmarshal([]byte(rawConfig), cfg); err != nil {
+		return nil, fmt.Errorf("unable to parse Alertmanager configuration: %w", err)
+	}
+
+	return cfg.ExtraConfigs, nil
 }

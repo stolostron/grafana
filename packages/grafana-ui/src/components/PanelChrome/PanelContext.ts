@@ -56,6 +56,15 @@ export interface PanelContext {
   onAddAdHocFilter?: (item: AdHocFilterItem) => void;
 
   /**
+   * Returns filters based on existing grouping or an empty array
+   */
+  getFiltersBasedOnGrouping?: (items: AdHocFilterItem[]) => AdHocFilterItem[];
+  /**
+   *
+   * Used to apply multiple filters at once
+   */
+  onAddAdHocFilters?: (items: AdHocFilterItem[]) => void;
+  /**
    * Enables modifying thresholds directly from the panel
    *
    * @alpha -- experimental
@@ -96,6 +105,7 @@ export interface PanelContext {
   /**
    * Optional supplier for internal data links. If not provided a link pointing to Explore will be generated.
    * @internal
+   * @deprecated Please use DataLinksContext instead. This property will be removed in next major.
    */
   dataLinkPostProcessor?: DataLinkPostProcessor;
 }

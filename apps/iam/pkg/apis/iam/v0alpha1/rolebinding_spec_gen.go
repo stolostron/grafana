@@ -30,15 +30,15 @@ func NewRoleBindingspecRoleRef() *RoleBindingspecRoleRef {
 
 // +k8s:openapi-gen=true
 type RoleBindingSpec struct {
-	Subjects []RoleBindingspecSubject `json:"subjects"`
-	RoleRef  RoleBindingspecRoleRef   `json:"roleRef"`
+	Subject  RoleBindingspecSubject   `json:"subject"`
+	RoleRefs []RoleBindingspecRoleRef `json:"roleRefs"`
 }
 
 // NewRoleBindingSpec creates a new RoleBindingSpec object.
 func NewRoleBindingSpec() *RoleBindingSpec {
 	return &RoleBindingSpec{
-		Subjects: []RoleBindingspecSubject{},
-		RoleRef:  *NewRoleBindingspecRoleRef(),
+		Subject:  *NewRoleBindingspecSubject(),
+		RoleRefs: []RoleBindingspecRoleRef{},
 	}
 }
 
@@ -60,3 +60,13 @@ const (
 	RoleBindingSpecRoleRefKindCoreRole   RoleBindingSpecRoleRefKind = "CoreRole"
 	RoleBindingSpecRoleRefKindGlobalRole RoleBindingSpecRoleRefKind = "GlobalRole"
 )
+
+func (RoleBindingspecSubject) OpenAPIModelName() string {
+	return "com.github.grafana.grafana.apps.iam.pkg.apis.iam.v0alpha1.RoleBindingspecSubject"
+}
+func (RoleBindingspecRoleRef) OpenAPIModelName() string {
+	return "com.github.grafana.grafana.apps.iam.pkg.apis.iam.v0alpha1.RoleBindingspecRoleRef"
+}
+func (RoleBindingSpec) OpenAPIModelName() string {
+	return "com.github.grafana.grafana.apps.iam.pkg.apis.iam.v0alpha1.RoleBindingSpec"
+}

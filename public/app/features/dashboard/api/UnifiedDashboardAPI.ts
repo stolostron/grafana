@@ -1,17 +1,23 @@
 import { Dashboard } from '@grafana/schema';
-import { Spec as DashboardV2Spec } from '@grafana/schema/dist/esm/schema/dashboard/v2';
+import { Spec as DashboardV2Spec } from '@grafana/schema/apis/dashboard.grafana.app/v2';
 import { isResource } from 'app/features/apiserver/guards';
 import { Resource, ResourceList } from 'app/features/apiserver/types';
 import { DashboardDataDTO, DashboardDTO } from 'app/types/dashboard';
 
 import { SaveDashboardCommand } from '../components/SaveDashboard/types';
 
-import { DashboardAPI, DashboardVersionError, DashboardWithAccessInfo, ListDeletedDashboardsOptions } from './types';
 import {
+  DashboardAPI,
+  DashboardVersionError,
+  DashboardWithAccessInfo,
+  ListDashboardHistoryOptions,
+  ListDeletedDashboardsOptions,
+} from './types';
+import {
+  failedFromVersion,
   isDashboardV2Spec,
   isV1DashboardCommand,
   isV2DashboardCommand,
-  failedFromVersion,
   isV2StoredVersion,
 } from './utils';
 import { K8sDashboardAPI } from './v1';
@@ -56,6 +62,37 @@ export class UnifiedDashboardAPI
     return await this.v1Client.deleteDashboard(uid, showSuccessAlert);
   }
 
+  async listDashboardHistory(uid: string, options?: ListDashboardHistoryOptions) {
+    const v1Response = await this.v1Client.listDashboardHistory(uid, options);
+    const filteredV1Items = v1Response.items.filter((item) => !failedFromVersion(item, ['v2']));
+
+    if (filteredV1Items.length === v1Response.items.length) {
+      return v1Response;
+    }
+
+    const v2Response = await this.v2Client.listDashboardHistory(uid, options);
+    const filteredV2Items = v2Response.items.filter((item) => !failedFromVersion(item, ['v0', 'v1']));
+
+    return {
+      ...v2Response,
+      // Make sure we display only valid resources
+      items: [...filteredV1Items, ...filteredV2Items].filter(isResource),
+    };
+  }
+
+  async getDashboardHistoryVersions(uid: string, versions: number[]) {
+    try {
+      return await this.v1Client.getDashboardHistoryVersions(uid, versions);
+    } catch (error) {
+      return await this.v2Client.getDashboardHistoryVersions(uid, versions);
+    }
+  }
+
+  async restoreDashboardVersion(uid: string, version: number) {
+    // Delegate to v1 client - it handles the restore internally
+    return await this.v1Client.restoreDashboardVersion(uid, version);
+  }
+
   /**
    * List deleted dashboards handling mixed v1/v2 versions or pure v2 dashboards.
    *
@@ -69,18 +106,19 @@ export class UnifiedDashboardAPI
     options: ListDeletedDashboardsOptions
   ): Promise<ResourceList<Dashboard | DashboardV2Spec>> {
     const v1Response = await this.v1Client.listDeletedDashboards(options);
-    const filteredV1Items = v1Response.items.filter((item) => !failedFromVersion(item, 'v2'));
+    const filteredV1Items = v1Response.items.filter((item) => !failedFromVersion(item, ['v2']));
 
     if (filteredV1Items.length === v1Response.items.length) {
       return v1Response;
     }
 
     const v2Response = await this.v2Client.listDeletedDashboards(options);
-    const filteredV2Items = v2Response.items.filter((item) => !failedFromVersion(item, 'v1'));
+    const filteredV2Items = v2Response.items.filter((item) => !failedFromVersion(item, ['v0', 'v1']));
 
     return {
       ...v2Response,
-      items: [...filteredV1Items, ...filteredV2Items],
+      // Make sure we display only valid resources
+      items: [...filteredV1Items, ...filteredV2Items].filter(isResource),
     };
   }
 

@@ -17,7 +17,7 @@ import {
 import { GRID_COLUMN_COUNT } from 'app/core/constants';
 import { OptionsPaneCategoryDescriptor } from 'app/features/dashboard/components/PanelEditor/OptionsPaneCategoryDescriptor';
 
-import { DashboardStateChangedEvent } from '../../edit-pane/shared';
+import { DashboardStateChangedEvent, RepeatsUpdatedEvent } from '../../edit-pane/shared';
 import { getCloneKey, getLocalVariableValueSet } from '../../utils/clone';
 import { getMultiVariableValues } from '../../utils/utils';
 import { scrollCanvasElementIntoView, scrollIntoView } from '../layouts-shared/scrollCanvasElementIntoView';
@@ -209,11 +209,17 @@ export class DashboardGridItem
     if (prevHeight !== this.state.height) {
       const layout = sceneGraph.getLayout(this);
       if (layout instanceof SceneGridLayout) {
+        // When the height changes, we need to adjust the y positions of the following children or we will potentially create a broken layout with grid items out of sync with their parent row.
+        const moveDownAmount = (this.state.height ?? 0) - (prevHeight ?? 0);
+        if (moveDownAmount > 0) {
+          layout.adjustYPositions(this.state.y!, moveDownAmount);
+        }
         layout.forceRender();
       }
     }
 
     this._prevRepeatValues = values;
+    this.publishEvent(new RepeatsUpdatedEvent(this), true);
   }
 
   public handleVariableName() {
@@ -228,6 +234,10 @@ export class DashboardGridItem
 
   public setRepeatByVariable(variableName: string | undefined) {
     const stateUpdate: Partial<DashboardGridItemState> = { variableName };
+
+    if (!variableName) {
+      stateUpdate.repeatedPanels = undefined;
+    }
 
     if (variableName && !this.state.repeatDirection) {
       stateUpdate.repeatDirection = 'h';
