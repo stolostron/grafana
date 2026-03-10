@@ -18,7 +18,7 @@ index 329d936dedb..05c8caf4fd9 100644
 @@ -147,6 +147,18 @@ func (ds DataSource) AllowedCookies() []string {
  	return []string{}
  }
- 
+
 +// AllowedCookies parses the jsondata.keepCookies and returns a list of
 +// allowed cookies, otherwise an empty list.
 +func (ds DataSource) ForwardHeaders() []string {
@@ -33,7 +33,7 @@ index 329d936dedb..05c8caf4fd9 100644
 +
  // ----------------------
  // COMMANDS
- 
+
 diff --git a/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go b/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
 new file mode 100644
 index 00000000000..d567fc2d588
@@ -147,11 +147,11 @@ index 73d39b06321..1aa821ebea0 100644
 @@ -198,6 +198,7 @@ func CreateMiddlewares(cfg *setting.Cfg, oAuthTokenService oauthtoken.OAuthToken
  	middlewares = append(middlewares,
  		clientmiddleware.NewTracingHeaderMiddleware(),
- 		clientmiddleware.NewClearAuthHeadersMiddleware(),
+ 		clientmiddleware.NewClearAuthHeadersMiddleware(&cfg.JWTAuth, &cfg.AuthProxy),
 +		clientmiddleware.NewForwardHeadersMiddleware(),
  		clientmiddleware.NewOAuthTokenMiddleware(oAuthTokenService),
  		clientmiddleware.NewCookiesMiddleware(skipCookiesNames),
- 		clientmiddleware.NewCachingMiddlewareWithFeatureManager(cachingService, features),
--- 
+ 		clientmiddleware.NewCachingMiddleware(cachingServiceClient),
+--
 2.51.0
 

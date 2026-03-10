@@ -24,8 +24,8 @@ COPY apps apps
 COPY .citools .citools
 
 # Apply custom patches
-# COPY stolostron-patches stolostron-patches
-# RUN git apply ./stolostron-patches/*
+COPY stolostron-patches stolostron-patches
+RUN git apply ./stolostron-patches/*
 
 RUN go mod verify
 RUN make build-go
