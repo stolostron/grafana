@@ -734,7 +734,6 @@ export function TableNG(props: TableNGProps) {
     [
       theme,
       onCellFilterAdded,
-      rows,
       rowHeight,
       maxRowHeight,
       applyToRowBgFn,
