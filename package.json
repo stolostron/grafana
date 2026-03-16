@@ -3,7 +3,7 @@
   "license": "AGPL-3.0-only",
   "private": true,
   "name": "grafana",
-  "version": "12.2.0",
+  "version": "12.2.6",
   "repository": "github:grafana/grafana",
   "scripts": {
     "predev": "./scripts/check-frontend-dev.sh",
@@ -247,7 +247,7 @@
     "ts-jest": "29.4.0",
     "ts-node": "10.9.2",
     "typescript": "5.9.2",
-    "webpack": "5.101.0",
+    "webpack": "^5.105.1",
     "webpack-assets-manifest": "^5.1.0",
     "webpack-cli": "6.0.1",
     "webpack-livereload-plugin": "3.0.2",
@@ -280,7 +280,7 @@
     "@grafana/google-sdk": "0.3.4",
     "@grafana/i18n": "workspace:*",
     "@grafana/lezer-logql": "0.2.8",
-    "@grafana/llm": "0.22.1",
+    "@grafana/llm": "1.0.1",
     "@grafana/monaco-logql": "^0.0.8",
     "@grafana/o11y-ds-frontend": "workspace:*",
     "@grafana/plugin-ui": "^0.10.10",
@@ -446,7 +446,10 @@
     "@mapbox/jsonlint-lines-primitives": "github:mapbox/jsonlint#commit=e31b7289baedf3e1000d7ae7edd42268212c9954",
     "get-document": "github:webmodules/get-document#commit=a04ccb499d6e0433a368c3bb150b4899b698461f",
     "gitconfiglocal": "2.1.0",
-    "tmp@npm:^0.0.33": "~0.2.1"
+    "tmp@npm:^0.0.33": "~0.2.1",
+    "js-yaml@npm:4.1.0": "^4.1.0",
+    "js-yaml@npm:=4.1.0": "^4.1.0",
+    "nodemailer": "7.0.7"
   },
   "workspaces": {
     "packages": [
