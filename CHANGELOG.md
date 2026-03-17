@@ -1,3 +1,91 @@
+<!-- 12.2.5 START -->
+
+# 12.2.5 (2026-02-12)
+
+### Features and enhancements
+
+- **Alerting:** Add limits for the size of expanded notification templates [#117710](https://github.com/grafana/grafana/pull/117710), [@yuri-tceretian](https://github.com/yuri-tceretian)
+- **Correlations:** Remove support for org_id=0 [#116958](https://github.com/grafana/grafana/pull/116958), [@gelicia](https://github.com/gelicia)
+- **Go:** Update to 1.25.7 [#117472](https://github.com/grafana/grafana/pull/117472), [@macabu](https://github.com/macabu)
+- **Security(Public dashboards annotations):** use dashboard timerange if time selection disabled [#117861](https://github.com/grafana/grafana/pull/117861), [@github-actions[bot]](https://github.com/github-actions[bot])
+- **Security(TraceView):** Sanitize html [#117867](https://github.com/grafana/grafana/pull/117867), [@github-actions[bot]](https://github.com/github-actions[bot])
+
+<!-- 12.2.5 END -->
+<!-- 12.2.4 START -->
+
+# 12.2.4 (2026-01-27)
+
+### Features and enhancements
+
+- **API:** Add missing scope check on dashboards [#116889](https://github.com/grafana/grafana/pull/116889), [@Proximyst](https://github.com/Proximyst)
+- **Avatar:** Require sign-in, remove queue, respect timeout [#116895](https://github.com/grafana/grafana/pull/116895), [@macabu](https://github.com/macabu)
+- **Docs:** Clarify section title for repeating rows and tabs [#115345](https://github.com/grafana/grafana/pull/115345), [@imatwawana](https://github.com/imatwawana)
+- **ElasticSearch:** Update annotation time-range properties [#115565](https://github.com/grafana/grafana/pull/115565), [@aangelisc](https://github.com/aangelisc)
+- **Explore:** Reset legend when a new query is run [#116589](https://github.com/grafana/grafana/pull/116589), [@ifrost](https://github.com/ifrost)
+- **Go:** Update to 1.25.6 [#116399](https://github.com/grafana/grafana/pull/116399), [@macabu](https://github.com/macabu)
+
+### Bug fixes
+
+- **Alerting:** Fix a race condition panic in ResetStateByRuleUID [#115694](https://github.com/grafana/grafana/pull/115694), [@alexander-akhmetov](https://github.com/alexander-akhmetov)
+
+<!-- 12.2.4 END -->
+<!-- 12.2.3 START -->
+
+# 12.2.3 (2025-12-16)
+
+### Features and enhancements
+
+- **Alerting:** Update alerting dependency [#114256](https://github.com/grafana/grafana/pull/114256), [@moustafab](https://github.com/moustafab)
+- **Azure:** Improved column handling in logs query builder [#114840](https://github.com/grafana/grafana/pull/114840), [@aangelisc](https://github.com/aangelisc)
+- **Azure:** Include aggregate columns in logs builder [#114834](https://github.com/grafana/grafana/pull/114834), [@aangelisc](https://github.com/aangelisc)
+- **Dependencies:** Bump Go to v1.25.5 [#114753](https://github.com/grafana/grafana/pull/114753), [@macabu](https://github.com/macabu)
+- **Plugins:** Add PluginContext to plugins when scenes is disabled [#115063](https://github.com/grafana/grafana/pull/115063), [@hugohaggmark](https://github.com/hugohaggmark)
+- **QueryEditorRows:** Clear hideSeriesFrom override on query edit [#114629](https://github.com/grafana/grafana/pull/114629), [@Sergej-Vlasov](https://github.com/Sergej-Vlasov)
+
+### Bug fixes
+
+- **Alerting:** Fix contact points issue [#115412](https://github.com/grafana/grafana/pull/115412), [@yuri-tceretian](https://github.com/yuri-tceretian)
+- **Azure:** Fix `dcount` aggregation [#114906](https://github.com/grafana/grafana/pull/114906), [@aangelisc](https://github.com/aangelisc)
+- **Azure:** Fix `percentile` syntax [#114706](https://github.com/grafana/grafana/pull/114706), [@aangelisc](https://github.com/aangelisc)
+- **Postgresql:** Fix variable interpolation logic when the variable has multiple values [#114875](https://github.com/grafana/grafana/pull/114875), [@itsmylife](https://github.com/itsmylife)
+
+<!-- 12.2.3 END -->
+<!-- 12.2.2 START -->
+
+# 12.2.2 (2025-11-19)
+
+### Features and enhancements
+
+- **Access control:** Reduce memory usage when fetching user's permissions [#113414](https://github.com/grafana/grafana/pull/113414), [@hairyhenderson](https://github.com/hairyhenderson)
+- **Table:** Pill and JSON Cells should allow formatting [#113130](https://github.com/grafana/grafana/pull/113130), [@fastfrwrd](https://github.com/fastfrwrd)
+
+### Bug fixes
+
+- **AnalyticsSummaries:** Fix dashboard rollup not resetting "last X days" metrics to zero (Enterprise)
+- **AnalyticsSummaries:** Fix dashboard rollup totals resetting incorrectly (Enterprise)
+- **Security:** fix for CVE-2025-41115 in SCIM (System for Cross-domain Identity Management) (Enterprise)
+
+<!-- 12.2.2 END -->
+<!-- 12.2.1 START -->
+
+# 12.2.1 (2025-10-21)
+
+### Features and enhancements
+
+- **Go:** Update to 1.25.2 + golangci-lint v2.5.0 + golang.org/x/net v0.45.0 [#112156](https://github.com/grafana/grafana/pull/112156), [@macabu](https://github.com/macabu)
+- **Go:** Update to 1.25.3 [#112361](https://github.com/grafana/grafana/pull/112361), [@macabu](https://github.com/macabu)
+
+### Bug fixes
+
+- **Auth:** Fix render user OAuth passthrough [#112092](https://github.com/grafana/grafana/pull/112092), [@mgyongyosi](https://github.com/mgyongyosi)
+- **Dashboards:** Fix missing Ctrl+O keyboard shortcut for crosshair toggle [#111402](https://github.com/grafana/grafana/pull/111402), [@ivanortegaalba](https://github.com/ivanortegaalba)
+- **Fix:** Fix redirection after login when Grafana is served from subpath [#111069](https://github.com/grafana/grafana/pull/111069), [@mgyongyosi](https://github.com/mgyongyosi)
+- **FlameGraph:** Ensure total is only counted once for recursive function calls [#111606](https://github.com/grafana/grafana/pull/111606), [@simonswine](https://github.com/simonswine)
+- **LDAP Authentication:** Fix URL to propagate username context as parameter [#111849](https://github.com/grafana/grafana/pull/111849), [@bradleypettit](https://github.com/bradleypettit)
+- **Plugins:** Dependencies do not inherit parent URL for preinstall [#111769](https://github.com/grafana/grafana/pull/111769), [@wbrowne](https://github.com/wbrowne)
+- **Table:** Backport the Safari 26 fixes to 12.2.1 [#111906](https://github.com/grafana/grafana/pull/111906), [@fastfrwrd](https://github.com/fastfrwrd)
+
+<!-- 12.2.1 END -->
 <!-- 12.1.1 START -->
 
 # 12.1.1 (2025-08-13)
