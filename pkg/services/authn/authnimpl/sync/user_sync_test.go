@@ -203,8 +203,7 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 		quotaService    quota.Service
 	}
 	type args struct {
-		ctx context.Context
-		id  *authn.Identity
+		id *authn.Identity
 	}
 	tests := []struct {
 		name    string
@@ -221,7 +220,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					Login: "test",
 					Name:  "test",
@@ -255,7 +253,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					Login: "test",
 					Name:  "test",
@@ -295,7 +292,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					Login: "test",
 					Name:  "test",
@@ -335,7 +331,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthID:          "2032",
 					AuthenticatedBy: "oauth",
@@ -379,7 +374,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					Login:           "test",
 					Name:            "test",
@@ -405,7 +399,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					Login:           "test_create",
 					Name:            "test_create",
@@ -454,7 +447,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					Login:          "test_mod",
 					Name:           "test_mod",
@@ -499,7 +491,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					Login:          "test",
 					Name:           "test",
@@ -546,7 +537,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthID:          "1",
 					AuthenticatedBy: login.SAMLAuthModule,
@@ -564,7 +554,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthID:          "1",
 					AuthenticatedBy: login.SAMLAuthModule,
@@ -582,7 +571,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthID:          "1",
 					AuthenticatedBy: login.SAMLAuthModule,
@@ -600,7 +588,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthID:          "1",
 					AuthenticatedBy: login.SAMLAuthModule,
@@ -655,7 +642,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthID:          "id_from_saml_assertion",
 					AuthenticatedBy: "saml",
@@ -717,7 +703,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthID:          "id_from_saml_assertion",
 					AuthenticatedBy: "saml",
@@ -776,7 +761,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthID:          "id_from_saml_assertion",
 					AuthenticatedBy: "saml",
@@ -862,7 +846,6 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 				quotaService:    &quotatest.FakeQuotaService{},
 			},
 			args: args{
-				ctx: context.Background(),
 				id: &authn.Identity{
 					AuthenticatedBy: "saml",
 					// No AuthID or ExternalUID for this non-SCIM path, will lookup by email/login
@@ -900,8 +883,12 @@ func TestUserSync_SyncUserHook(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := ProvideUserSync(tt.fields.userService, userProtection, tt.fields.authInfoService, tt.fields.quotaService, tracing.InitializeTracerForTest(), featuremgmt.WithFeatures(), setting.NewCfg(), nil)
-			err := s.SyncUserHook(tt.args.ctx, tt.args.id, nil)
+			cfg := setting.NewCfg()
+			cfg.Raw.Section("auth.scim").Key("user_sync_enabled").SetValue("true")
+			cfg.Raw.Section("auth.scim").Key("reject_non_provisioned_users").SetValue("true")
+
+			s := ProvideUserSync(tt.fields.userService, userProtection, tt.fields.authInfoService, tt.fields.quotaService, tracing.InitializeTracerForTest(), featuremgmt.WithFeatures(), cfg, nil)
+			err := s.SyncUserHook(context.Background(), tt.args.id, nil)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -1112,7 +1099,7 @@ func TestUserSync_EnableDisabledUserHook(t *testing.T) {
 				return nil
 			}
 
-			s := UserSync{userService: userSvc, tracer: tracing.InitializeTracerForTest()}
+			s := UserSync{userService: NewLegacyUserProxy(userSvc), tracer: tracing.InitializeTracerForTest()}
 			err := s.EnableUserHook(context.Background(), tt.identity, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tt.enableUser, called)
@@ -1132,7 +1119,7 @@ func initUserSyncService() *UserSync {
 	}
 	quotaSvc := &quotatest.FakeQuotaService{}
 	return &UserSync{
-		userService:     userSvc,
+		userService:     NewLegacyUserProxy(userSvc),
 		authInfoService: authInfoSvc,
 		quotaService:    quotaSvc,
 		tracer:          tracing.InitializeTracerForTest(),
@@ -1185,12 +1172,12 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = false
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedUser: &user.User{
 						ID:            1,
 						IsProvisioned: false,
 					},
-				}
+				})
 				userSyncService.authInfoService = &authinfotest.FakeService{
 					ExpectedUserAuth: &login.UserAuth{
 						UserId:     1,
@@ -1230,9 +1217,9 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = true
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedError: errors.New("random error"),
-				}
+				})
 				return userSyncService
 			},
 			identity: &authn.Identity{
@@ -1251,7 +1238,7 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = true
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{}
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{})
 				return userSyncService
 			},
 			identity: &authn.Identity{
@@ -1270,12 +1257,12 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = true
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedUser: &user.User{
 						ID:            1,
 						IsProvisioned: true,
 					},
-				}
+				})
 				userSyncService.authInfoService = &authinfotest.FakeService{
 					ExpectedUserAuth: &login.UserAuth{
 						UserId:     1,
@@ -1301,12 +1288,12 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = true
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedUser: &user.User{
 						ID:            1,
 						IsProvisioned: true,
 					},
-				}
+				})
 				userSyncService.authInfoService = &authinfotest.FakeService{
 					ExpectedUserAuth: &login.UserAuth{
 						UserId:      1,
@@ -1333,12 +1320,12 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = true
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedUser: &user.User{
 						ID:            1,
 						IsProvisioned: true,
 					},
-				}
+				})
 				userSyncService.authInfoService = &authinfotest.FakeService{
 					ExpectedUserAuth: &login.UserAuth{
 						UserId:      1,
@@ -1365,12 +1352,12 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = true
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedUser: &user.User{
 						ID:            1,
 						IsProvisioned: false,
 					},
-				}
+				})
 				userSyncService.authInfoService = &authinfotest.FakeService{
 					ExpectedUserAuth: &login.UserAuth{
 						UserId:      1,
@@ -1397,12 +1384,12 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = false
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedUser: &user.User{
 						ID:            1,
 						IsProvisioned: false,
 					},
-				}
+				})
 				userSyncService.authInfoService = &authinfotest.FakeService{
 					ExpectedUserAuth: &login.UserAuth{
 						UserId:      1,
@@ -1428,7 +1415,8 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 			userSyncServiceSetup: func() *UserSync {
 				userSyncService := initUserSyncService()
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{ExpectedUser: &user.User{ID: 1, IsProvisioned: true}}
+				userSyncService.rejectNonProvisionedUsers = true
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{ExpectedUser: &user.User{ID: 1, IsProvisioned: true}})
 				userSyncService.authInfoService = &authinfotest.FakeService{ExpectedUserAuth: &login.UserAuth{UserId: 1, AuthModule: login.SAMLAuthModule, ExternalUID: ""}}
 				return userSyncService
 			},
@@ -1447,7 +1435,8 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 			userSyncServiceSetup: func() *UserSync {
 				userSyncService := initUserSyncService()
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{ExpectedUser: &user.User{ID: 1, IsProvisioned: true}}
+				userSyncService.rejectNonProvisionedUsers = true
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{ExpectedUser: &user.User{ID: 1, IsProvisioned: true}})
 				userSyncService.authInfoService = &authinfotest.FakeService{ExpectedUserAuth: &login.UserAuth{UserId: 1, AuthModule: login.SAMLAuthModule, ExternalUID: ""}}
 				return userSyncService
 			},
@@ -1466,7 +1455,8 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 			userSyncServiceSetup: func() *UserSync {
 				userSyncService := initUserSyncService()
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{ExpectedUser: &user.User{ID: 1, IsProvisioned: true}}
+				userSyncService.rejectNonProvisionedUsers = true
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{ExpectedUser: &user.User{ID: 1, IsProvisioned: true}})
 				userSyncService.authInfoService = &authinfotest.FakeService{ExpectedUserAuth: &login.UserAuth{UserId: 1, AuthModule: login.SAMLAuthModule, ExternalUID: "db-uid"}}
 				return userSyncService
 			},
@@ -1486,12 +1476,12 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = false
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedUser: &user.User{
 						ID:            1,
 						IsProvisioned: true,
 					},
-				}
+				})
 				userSyncService.authInfoService = &authinfotest.FakeService{
 					ExpectedUserAuth: &login.UserAuth{
 						UserId:      1,
@@ -1515,12 +1505,12 @@ func TestUserSync_ValidateUserProvisioningHook(t *testing.T) {
 				userSyncService := initUserSyncService()
 				userSyncService.rejectNonProvisionedUsers = true
 				userSyncService.isUserProvisioningEnabled = true
-				userSyncService.userService = &usertest.FakeUserService{
+				userSyncService.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 					ExpectedUser: &user.User{
 						ID:            1,
 						IsProvisioned: true,
 					},
-				}
+				})
 				userSyncService.authInfoService = &authinfotest.FakeService{
 					ExpectedUserAuth: &login.UserAuth{
 						UserId:      1,
@@ -1898,14 +1888,14 @@ func TestUserSync_GetUsageStats(t *testing.T) {
 
 func TestUserSync_SCIMLoginUsageStatSet(t *testing.T) {
 	userSync := initUserSyncService()
-	userSync.rejectNonProvisionedUsers = false
+	userSync.rejectNonProvisionedUsers = true
 	userSync.isUserProvisioningEnabled = true
-	userSync.userService = &usertest.FakeUserService{
+	userSync.userService = NewLegacyUserProxy(&usertest.FakeUserService{
 		ExpectedUser: &user.User{
 			ID:            1,
 			IsProvisioned: true,
 		},
-	}
+	})
 	userSync.authInfoService = &authinfotest.FakeService{
 		ExpectedUserAuth: &login.UserAuth{
 			UserId:      1,
@@ -1935,4 +1925,101 @@ func TestUserSync_SCIMLoginUsageStatSet(t *testing.T) {
 	finalStats := userSync.GetUsageStats(context.Background())
 	finalCount := finalStats["stats.features.scim.has_successful_login.count"].(int)
 	require.Equal(t, int(1), finalCount)
+}
+
+func TestUserSync_SyncUserHook_SCIMAuthModuleMismatch(t *testing.T) {
+	userSrv := usertest.NewMockService(t)
+	authInfoSrv := authinfotest.NewMockAuthInfoService(t)
+
+	userSrv.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, user.ErrUserNotFound).Once()
+
+	userSrv.On("Create", mock.Anything, mock.Anything).Return(nil, user.ErrUserAlreadyExists).Once()
+
+	userSrv.On("GetByEmail", mock.Anything, mock.Anything).Return(&user.User{
+		ID:            1,
+		Email:         "test@test.com",
+		IsProvisioned: true,
+	}, nil).Once()
+
+	authInfoSrv.On("GetAuthInfo", mock.Anything, mock.MatchedBy(func(q *login.GetAuthInfoQuery) bool {
+		return q.AuthModule == "oauth_azuread"
+	})).Return(nil, user.ErrUserNotFound).Once()
+
+	s := ProvideUserSync(
+		userSrv,
+		authinfoimpl.ProvideOSSUserProtectionService(),
+		authInfoSrv,
+		&quotatest.FakeQuotaService{},
+		tracing.NewNoopTracerService(),
+		featuremgmt.WithFeatures(),
+		setting.NewCfg(),
+		nil,
+	)
+
+	email := "test@test.com"
+
+	err := s.SyncUserHook(context.Background(), &authn.Identity{
+		AuthenticatedBy: "oauth_azuread",
+		ClientParams: authn.ClientParams{
+			SyncUser:    true,
+			AllowSignUp: true,
+			LookUpParams: login.UserLookupParams{
+				Email: &email,
+			},
+		},
+	}, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errSCIMAuthModuleMismatch)
+	assert.Contains(t, err.Error(), "SCIM")
+	assert.Contains(t, err.Error(), "oauth_azuread")
+}
+
+func TestUserSync_SyncUserHook_SCIMUserAllowsGCOMLogin(t *testing.T) {
+	userSrv := usertest.NewMockService(t)
+	authInfoSrv := authinfotest.NewMockAuthInfoService(t)
+
+	authInfoSrv.On("GetAuthInfo", mock.Anything, mock.MatchedBy(func(q *login.GetAuthInfoQuery) bool {
+		return q.AuthModule == login.GrafanaComAuthModule && q.AuthId == "gcom-user-123"
+	})).Return(nil, user.ErrUserNotFound).Once()
+
+	userSrv.On("GetByEmail", mock.Anything, mock.Anything).Return(nil, user.ErrUserNotFound).Once()
+	userSrv.On("Create", mock.Anything, mock.Anything).Return(nil, user.ErrUserAlreadyExists).Once()
+
+	authInfoSrv.On("GetAuthInfo", mock.Anything, mock.MatchedBy(func(q *login.GetAuthInfoQuery) bool {
+		return q.AuthModule == login.GrafanaComAuthModule && q.AuthId == "gcom-user-123"
+	})).Return(nil, user.ErrUserNotFound).Once()
+
+	userSrv.On("GetByEmail", mock.Anything, mock.Anything).Return(&user.User{
+		ID:            1,
+		Email:         "test@test.com",
+		IsProvisioned: true,
+	}, nil).Once()
+
+	s := ProvideUserSync(
+		userSrv,
+		authinfoimpl.ProvideOSSUserProtectionService(),
+		authInfoSrv,
+		&quotatest.FakeQuotaService{},
+		tracing.NewNoopTracerService(),
+		featuremgmt.WithFeatures(),
+		setting.NewCfg(),
+		nil,
+	)
+
+	email := "test@test.com"
+
+	err := s.SyncUserHook(context.Background(), &authn.Identity{
+		AuthenticatedBy: login.GrafanaComAuthModule,
+		AuthID:          "gcom-user-123",
+		ClientParams: authn.ClientParams{
+			SyncUser:    true,
+			AllowSignUp: true,
+			LookUpParams: login.UserLookupParams{
+				Email: &email,
+			},
+		},
+	}, nil)
+
+	require.NoError(t, err)
 }

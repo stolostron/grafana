@@ -8,10 +8,43 @@ import { OptionsPaneItemDescriptor } from 'app/features/dashboard/components/Pan
 
 import { DashboardScene } from '../scene/DashboardScene';
 import { useLayoutCategory } from '../scene/layouts-shared/DashboardLayoutSelector';
-import { EditSchemaV2Button } from '../scene/new-toolbar/actions/EditSchemaV2Button';
 import { EditableDashboardElement, EditableDashboardElementInfo } from '../scene/types/EditableDashboardElement';
 
-import { dashboardEditActions, undoRedoWasClicked } from './shared';
+import { dashboardEditActions } from './shared';
+
+function useEditPaneOptions(
+  this: DashboardEditableElement,
+  dashboard: DashboardScene
+): OptionsPaneCategoryDescriptor[] {
+  // When layout changes we need to update options list
+  const { body } = dashboard.useState();
+  const dashboardTitleInputId = useId();
+  const dashboardDescriptionInputId = useId();
+
+  const dashboardOptions = useMemo(() => {
+    const editPaneHeaderOptions = new OptionsPaneCategoryDescriptor({ title: '', id: 'dashboard-options' })
+      .addItem(
+        new OptionsPaneItemDescriptor({
+          title: t('dashboard.options.title-option', 'Title'),
+          id: dashboardTitleInputId,
+          render: () => <DashboardTitleInput id={dashboardTitleInputId} dashboard={dashboard} />,
+        })
+      )
+      .addItem(
+        new OptionsPaneItemDescriptor({
+          title: t('dashboard.options.description', 'Description'),
+          id: dashboardDescriptionInputId,
+          render: () => <DashboardDescriptionInput id={dashboardDescriptionInputId} dashboard={dashboard} />,
+        })
+      );
+
+    return editPaneHeaderOptions;
+  }, [dashboard, dashboardDescriptionInputId, dashboardTitleInputId]);
+
+  const layoutCategory = useLayoutCategory(body);
+
+  return [dashboardOptions, ...layoutCategory];
+}
 
 export class DashboardEditableElement implements EditableDashboardElement {
   public readonly isEditableDashboardElement = true;
@@ -26,59 +59,28 @@ export class DashboardEditableElement implements EditableDashboardElement {
     };
   }
 
-  public getOutlineChildren(): SceneObject[] {
+  public getOutlineChildren(isEditing: boolean): SceneObject[] {
     const { $variables, body } = this.dashboard.state;
-    return [$variables!, ...body.getOutlineChildren()];
+    if (!isEditing || !$variables) {
+      return body.getOutlineChildren();
+    }
+    return [$variables, ...body.getOutlineChildren()];
   }
 
-  public useEditPaneOptions(): OptionsPaneCategoryDescriptor[] {
-    const dashboard = this.dashboard;
-
-    // When layout changes we need to update options list
-    const { body } = dashboard.useState();
-    const dashboardTitleInputId = useId();
-    const dashboardDescriptionInputId = useId();
-
-    const dashboardOptions = useMemo(() => {
-      const editPaneHeaderOptions = new OptionsPaneCategoryDescriptor({ title: '', id: 'dashboard-options' })
-        .addItem(
-          new OptionsPaneItemDescriptor({
-            title: t('dashboard.options.title-option', 'Title'),
-            id: dashboardTitleInputId,
-            render: () => <DashboardTitleInput id={dashboardTitleInputId} dashboard={dashboard} />,
-          })
-        )
-        .addItem(
-          new OptionsPaneItemDescriptor({
-            title: t('dashboard.options.description', 'Description'),
-            id: dashboardDescriptionInputId,
-            render: () => <DashboardDescriptionInput id={dashboardDescriptionInputId} dashboard={dashboard} />,
-          })
-        );
-
-      return editPaneHeaderOptions;
-    }, [dashboard, dashboardDescriptionInputId, dashboardTitleInputId]);
-
-    const layoutCategory = useLayoutCategory(body);
-
-    return [dashboardOptions, ...layoutCategory];
-  }
+  public useEditPaneOptions = useEditPaneOptions.bind(this, this.dashboard);
 
   public renderActions(): ReactNode {
     return (
-      <>
-        <EditSchemaV2Button dashboard={this.dashboard} />
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => this.dashboard.onOpenSettings()}
-          tooltip={t('dashboard.toolbar.dashboard-settings.tooltip', 'Dashboard settings')}
-          icon="sliders-v-alt"
-          iconPlacement="right"
-        >
-          <Trans i18nKey="dashboard.actions.open-settings">Settings</Trans>
-        </Button>
-      </>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => this.dashboard.onOpenSettings()}
+        tooltip={t('dashboard.toolbar.dashboard-settings.tooltip', 'Dashboard settings')}
+        icon="sliders-v-alt"
+        iconPlacement="right"
+      >
+        <Trans i18nKey="dashboard.actions.open-settings">Settings</Trans>
+      </Button>
     );
   }
 }
@@ -101,7 +103,7 @@ export function DashboardTitleInput({ dashboard, id }: { dashboard: DashboardSce
       }}
       onBlur={(e) => {
         const titleUnchanged = valueBeforeEdit.current === e.currentTarget.value;
-        const shouldSkip = titleUnchanged || undoRedoWasClicked(e);
+        const shouldSkip = titleUnchanged;
         if (shouldSkip) {
           return;
         }
@@ -132,7 +134,7 @@ export function DashboardDescriptionInput({ dashboard, id }: { dashboard: Dashbo
       }}
       onBlur={(e) => {
         const descriptionUnchanged = valueBeforeEdit.current === e.currentTarget.value;
-        const shouldSkip = descriptionUnchanged || undoRedoWasClicked(e);
+        const shouldSkip = descriptionUnchanged;
         if (shouldSkip) {
           return;
         }

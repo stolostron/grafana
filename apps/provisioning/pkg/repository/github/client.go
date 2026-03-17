@@ -13,6 +13,7 @@ import (
 // API errors that we need to convey after parsing real GH errors (or faking them).
 var (
 	ErrResourceNotFound = errors.New("the resource does not exist")
+	ErrUnauthorized     = errors.New("unauthorized")
 	//lint:ignore ST1005 this is not punctuation
 	ErrServiceUnavailable = apierrors.NewServiceUnavailable("github is unavailable")
 	ErrTooManyItems       = errors.New("maximum number of items exceeded")
@@ -20,6 +21,9 @@ var (
 
 //go:generate mockery --name Client --structname MockClient --inpackage --filename mock_client.go --with-expecter
 type Client interface {
+	// Repositories
+	GetRepository(ctx context.Context, owner, repository string) (Repository, error)
+
 	// Commits
 	Commits(ctx context.Context, owner, repository, path, branch string) ([]Commit, error)
 
@@ -33,6 +37,12 @@ type Client interface {
 	// Pull requests
 	ListPullRequestFiles(ctx context.Context, owner, repository string, number int) ([]CommitFile, error)
 	CreatePullRequestComment(ctx context.Context, owner, repository string, number int, body string) error
+}
+
+type Repository struct {
+	ID            int64
+	Name          string
+	DefaultBranch string
 }
 
 type CommitAuthor struct {

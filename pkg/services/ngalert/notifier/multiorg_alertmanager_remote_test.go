@@ -60,7 +60,7 @@ func TestMultiorgAlertmanager_RemoteSecondaryMode(t *testing.T) {
 	}
 	secretsService := secretsManager.SetupTestService(t, fakes.NewFakeSecretsStore())
 	override := remote.NewRemoteSecondaryFactory(remoteAMCfg,
-		notifier.NewFileStore(remoteAMCfg.OrgID, kvStore),
+		kvStore,
 		configStore,
 		10*time.Second,
 		notifier.NewCrypto(secretsService, configStore, log.NewNopLogger()),
@@ -68,6 +68,7 @@ func TestMultiorgAlertmanager_RemoteSecondaryMode(t *testing.T) {
 		m.GetRemoteAlertmanagerMetrics(),
 		tracing.InitializeTracerForTest(),
 		false,
+		featuremgmt.WithFeatures(),
 	)
 
 	cfg := &setting.Cfg{

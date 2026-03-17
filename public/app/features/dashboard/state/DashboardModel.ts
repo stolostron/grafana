@@ -18,7 +18,7 @@ import {
   UrlQueryValue,
 } from '@grafana/data';
 import { PromQuery } from '@grafana/prometheus';
-import { RefreshEvent, TimeRangeUpdatedEvent, config } from '@grafana/runtime';
+import { RefreshEvent, TimeRangeUpdatedEvent } from '@grafana/runtime';
 import { Dashboard, DashboardLink, VariableModel } from '@grafana/schema';
 import { DEFAULT_ANNOTATION_COLOR } from '@grafana/ui';
 import { GRID_CELL_HEIGHT, GRID_CELL_VMARGIN, GRID_COLUMN_COUNT, REPEAT_DIR_VERTICAL } from 'app/core/constants';
@@ -35,7 +35,7 @@ import {
   templateVariableValueUpdated,
 } from 'app/types/events';
 
-import { appEvents } from '../../../core/core';
+import { appEvents } from '../../../core/app_events';
 import { dispatch } from '../../../store/store';
 import {
   VariablesChanged,
@@ -67,9 +67,7 @@ export interface ScopeMeta {
 }
 
 export class DashboardModel implements TimeModel {
-  /** @deprecated use UID */
-  id: any;
-  // TODO: use propert type and fix all the places where uid is set to null
+  // TODO: use proper type and fix all the places where uid is set to null
   uid: any;
   title: string;
   description: any;
@@ -81,6 +79,7 @@ export class DashboardModel implements TimeModel {
   graphTooltip: DashboardCursorSync;
   time: any;
   liveNow?: boolean;
+  preload?: boolean;
   private originalTime: any;
   timepicker: any;
   templating: { list: any[] };
@@ -138,11 +137,12 @@ export class DashboardModel implements TimeModel {
     options?: {
       // By default this uses variables from redux state
       getVariablesFromState?: GetVariables;
+      // Target schema version for migration (defaults to latest)
+      targetSchemaVersion?: number;
     }
   ) {
     this.getVariablesFromState = options?.getVariablesFromState ?? getVariablesByKey;
     this.events = new EventBusSrv();
-    this.id = data.id || null;
     // UID is not there for newly created dashboards
     this.uid = data.uid || meta?.uid || null;
     this.revision = data.revision ?? undefined;
@@ -152,6 +152,7 @@ export class DashboardModel implements TimeModel {
     this.timezone = data.timezone ?? '';
     this.weekStart = data.weekStart ?? '';
     this.editable = data.editable !== false;
+    this.preload = data.preload;
     this.graphTooltip = data.graphTooltip || 0;
     this.time = data.time ?? { from: 'now-6h', to: 'now' };
     this.timepicker = data.timepicker ?? {};
@@ -177,8 +178,7 @@ export class DashboardModel implements TimeModel {
     this.formatDate = this.formatDate.bind(this);
 
     this.initMeta(meta);
-    this.updateSchema(data);
-
+    this.updateSchema(data, options?.targetSchemaVersion);
     this.addBuiltInAnnotationQuery();
     this.sortPanelsByGridPos();
     this.panelsAffectedByVariableChange = null;
@@ -522,6 +522,14 @@ export class DashboardModel implements TimeModel {
       }
     }
 
+    // Also check panels in legacy rows (pre-v16 dashboard format)
+    // This ensures unique IDs are assigned before the row upgrade migration runs
+    for (const panel of this.rawPanelIterator()) {
+      if (panel.id > max) {
+        max = panel.id;
+      }
+    }
+
     return max + 1;
   }
 
@@ -532,6 +540,26 @@ export class DashboardModel implements TimeModel {
       const rowPanels = panel.panels ?? [];
       for (const rowPanel of rowPanels) {
         yield rowPanel;
+      }
+    }
+  }
+
+  /**
+   * Iterates over panels from the original raw dashboard data, including legacy rows.
+   * This is needed to find panel IDs before row upgrade migration runs.
+   */
+  private *rawPanelIterator() {
+    // @ts-expect-error - rows is a legacy property not included in the modern Dashboard schema
+    const rows = this.originalDashboard?.rows;
+
+    if (Array.isArray(rows)) {
+      for (const row of rows) {
+        const rowPanels = row?.panels;
+        if (Array.isArray(rowPanels)) {
+          for (const panel of rowPanels) {
+            yield panel;
+          }
+        }
       }
     }
   }
@@ -1120,9 +1148,9 @@ export class DashboardModel implements TimeModel {
     return this.timezone ? this.timezone : contextSrv?.user?.timezone;
   }
 
-  private updateSchema(old: any) {
+  private updateSchema(old: any, targetVersion?: number) {
     const migrator = new DashboardMigrator(this);
-    migrator.updateSchema(old);
+    migrator.updateSchema(old, targetVersion);
   }
 
   hasTimeChanged() {
@@ -1226,10 +1254,7 @@ export class DashboardModel implements TimeModel {
       canEdit = !!this.meta.annotationsPermissions?.dashboard.canEdit;
     }
 
-    if (config.featureToggles.annotationPermissionUpdate) {
-      return canEdit;
-    }
-    return this.canEditDashboard() && canEdit;
+    return canEdit;
   }
 
   canDeleteAnnotations(dashboardUID?: string) {
@@ -1242,10 +1267,7 @@ export class DashboardModel implements TimeModel {
       canDelete = !!this.meta.annotationsPermissions?.dashboard.canDelete;
     }
 
-    if (config.featureToggles.annotationPermissionUpdate) {
-      return canDelete;
-    }
-    return canDelete && this.canEditDashboard();
+    return canDelete;
   }
 
   canAddAnnotations() {
@@ -1255,12 +1277,7 @@ export class DashboardModel implements TimeModel {
       return false;
     }
 
-    // If RBAC is enabled there are additional conditions to check.
-    if (config.featureToggles.annotationPermissionUpdate) {
-      return Boolean(this.meta.annotationsPermissions?.dashboard.canAdd);
-    }
-
-    return Boolean(this.meta.annotationsPermissions?.dashboard.canAdd) && this.canEditDashboard();
+    return Boolean(this.meta.annotationsPermissions?.dashboard.canAdd);
   }
 
   canEditDashboard() {

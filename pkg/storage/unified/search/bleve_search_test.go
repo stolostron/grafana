@@ -4,19 +4,20 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/grafana/pkg/apimachinery/identity"
-	"github.com/grafana/grafana/pkg/infra/tracing"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/store/kind/dashboard"
 	"github.com/grafana/grafana/pkg/services/user"
 	"github.com/grafana/grafana/pkg/storage/unified/resource"
 	"github.com/grafana/grafana/pkg/storage/unified/resourcepb"
 	"github.com/grafana/grafana/pkg/storage/unified/search"
+	"github.com/grafana/grafana/pkg/storage/unified/search/builders"
 )
 
 const threshold = 9999
@@ -44,7 +45,7 @@ func indexDocumentsWithTitles(t *testing.T, index resource.ResourceIndex, key re
 }
 
 func checkSearchQuery(t *testing.T, index resource.ResourceIndex, query *resourcepb.ResourceSearchRequest, orderedExpectedNames []string) {
-	res, err := index.Search(context.Background(), nil, query, nil)
+	res, err := index.Search(context.Background(), nil, query, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(len(orderedExpectedNames)), res.TotalHits)
 	for ix, name := range orderedExpectedNames {
@@ -60,7 +61,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	}
 
 	t.Run("when query is empty, sort documents by title instead of search score", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "bbb",
 			"name2": "aaa",
@@ -70,7 +71,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	})
 
 	t.Run("will boost phrase match query over match query results", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "I want to say a hello",
 			"name2": "we want hello",
@@ -80,7 +81,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	})
 
 	t.Run("will prioritize matches", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "Asserts Dashboards",
 			"name2": "New dashboard 10",
@@ -90,7 +91,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	})
 
 	t.Run("all terms must match", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "Dashboard",
 			"name2": "New dashboard 10",
@@ -100,7 +101,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	})
 
 	t.Run("will boost exact match query over match phrase query results", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "we want hello pls",
 			"name2": "we want hello",
@@ -110,7 +111,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	})
 
 	t.Run("title with numbers will match document", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "A123456",
 		})
@@ -124,7 +125,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	})
 
 	t.Run("title will match escaped characters", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "what\"s up",
 			"name2": "what\"s that",
@@ -135,7 +136,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	})
 
 	t.Run("title search will match document", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "I want to say a wonderfully Hello to the WORLD! Hello-world",
 		})
@@ -158,7 +159,7 @@ func TestCanSearchByTitle(t *testing.T) {
 	})
 
 	t.Run("title search will NOT match documents", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "I want to say a wonderfully Hello to the WORLD! Hello-world",
 			"name2": "A0456",
@@ -167,14 +168,14 @@ func TestCanSearchByTitle(t *testing.T) {
 
 		// word that doesn't exist
 		checkSearchQuery(t, index, newTestQuery("cats"), nil)
-		// string shorter than 3 chars (ngam min)
+		// string shorter than 3 chars (ngram min)
 		checkSearchQuery(t, index, newTestQuery("ma"), nil)
 		// substring that doesn't exist
 		checkSearchQuery(t, index, newTestQuery("A01"), nil)
 	})
 
 	t.Run("title search with character will match one document", func(t *testing.T) {
-		index := newTestDashboardsIndex(t, threshold, 2, 2, noop)
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
 		indexDocumentsWithTitles(t, index, key, map[string]string{
 			"name1": "foo",
 		})
@@ -191,6 +192,34 @@ func TestCanSearchByTitle(t *testing.T) {
 			// can search for a title with a term character suffix
 			checkSearchQuery(t, index, newQueryByTitle(fmt.Sprintf(`foo%d%s`, i, v)), []string{name})
 		}
+	})
+
+	t.Run("title search will ignore terms < 3 characters", func(t *testing.T) {
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
+		indexDocumentsWithTitles(t, index, key, map[string]string{
+			"name1": "new dashboard",
+			"name2": "new dash",
+			"name3": "new",
+		})
+
+		// matches everything
+		checkSearchQuery(t, index, newTestQuery("new"), []string{"name3", "name2", "name1"})
+		// ignore terms shorter than 3 chars
+		checkSearchQuery(t, index, newTestQuery("new d"), []string{"name3", "name2", "name1"})
+		// include terms shorter that are exactly 3 chars
+		checkSearchQuery(t, index, newTestQuery("new das"), []string{"name2", "name1"})
+	})
+
+	t.Run("title search will%smatch term in the middle/end", func(t *testing.T) {
+		index := newTestDashboardsIndex(t, threshold, 2, noop)
+		indexDocumentsWithTitles(t, index, key, map[string]string{
+			"name1": "new dashboard",
+			"name2": "new dash",
+			"name3": "somedash",
+		})
+
+		checkSearchQuery(t, index, newTestQuery("ash"), []string{"name2", "name3", "name1"})
+		checkSearchQuery(t, index, newTestQuery("ome"), []string{"name3"})
 	})
 }
 
@@ -222,7 +251,7 @@ func newQueryByTitle(query string) *resourcepb.ResourceSearchRequest {
 	}
 }
 
-func newTestDashboardsIndex(t testing.TB, threshold int64, size int64, batchSize int64, writer resource.BuildFn) resource.ResourceIndex {
+func newTestDashboardsIndex(t testing.TB, threshold int64, size int64, writer resource.BuildFn) resource.ResourceIndex {
 	key := &resourcepb.ResourceKey{
 		Namespace: "default",
 		Group:     "dashboard.grafana.app",
@@ -231,17 +260,15 @@ func newTestDashboardsIndex(t testing.TB, threshold int64, size int64, batchSize
 	backend, err := search.NewBleveBackend(search.BleveOptions{
 		Root:          t.TempDir(),
 		FileThreshold: threshold, // use in-memory for tests
-		BatchSize:     int(batchSize),
-	}, tracing.NewNoopTracerService(), featuremgmt.WithFeatures(), nil)
+	}, nil)
 	require.NoError(t, err)
 
-	t.Cleanup(backend.CloseAllIndexes)
+	t.Cleanup(backend.Stop)
 
-	rv := int64(10)
 	ctx := identity.WithRequester(context.Background(), &user.SignedInUser{Namespace: "ns"})
 
-	info, err := search.DashboardBuilder(func(ctx context.Context, namespace string, blob resource.BlobSupport) (resource.DocumentBuilder, error) {
-		return &search.DashboardDocumentBuilder{
+	info, err := builders.DashboardBuilder(func(ctx context.Context, namespace string, blob resource.BlobSupport) (resource.DocumentBuilder, error) {
+		return &builders.DashboardDocumentBuilder{
 			Namespace:        namespace,
 			Blob:             blob,
 			Stats:            make(map[string]map[string]int64), // empty stats
@@ -254,7 +281,7 @@ func newTestDashboardsIndex(t testing.TB, threshold int64, size int64, batchSize
 		Namespace: key.Namespace,
 		Group:     key.Group,
 		Resource:  key.Resource,
-	}, size, rv, info.Fields, "test", writer, nil, false, false)
+	}, size, info.Fields, "test", writer, nil, false, time.Time{})
 	require.NoError(t, err)
 
 	return index
@@ -300,5 +327,102 @@ func debugIndexedTerms(index bleve.Index, field string) {
 		if term != nil {
 			fmt.Println(term.Term)
 		}
+	}
+}
+
+func TestIndexAndSearchSelectableFields(t *testing.T) {
+	key := &resourcepb.ResourceKey{
+		Namespace: "default",
+		Group:     "test.grafana.app",
+		Resource:  "Item",
+	}
+	backend, err := search.NewBleveBackend(search.BleveOptions{
+		Root:          t.TempDir(),
+		FileThreshold: threshold, // use in-memory for tests
+		SelectableFieldsForKinds: map[string][]string{
+			strings.ToLower(key.Group + "/" + key.Resource): {"spec.some.field", "spec.some.other.field"},
+		},
+	}, nil)
+	require.NoError(t, err)
+	t.Cleanup(backend.Stop)
+
+	ctx := identity.WithRequester(context.Background(), &user.SignedInUser{Namespace: "ns"})
+
+	index, err := backend.BuildIndex(ctx, resource.NamespacedResource{
+		Namespace: key.Namespace,
+		Group:     key.Group,
+		Resource:  key.Resource,
+	}, 10, nil, "test", noop, nil, false, time.Time{})
+	require.NoError(t, err)
+
+	err = index.BulkIndex(&resource.BulkIndexRequest{
+		Items: []*resource.BulkIndexItem{
+			{
+				Action: resource.ActionIndex,
+				Doc: &resource.IndexableDocument{
+					Key:   &resourcepb.ResourceKey{Namespace: key.Namespace, Group: key.Group, Resource: key.Resource, Name: "doc1"},
+					Title: "Document 1",
+					Fields: map[string]interface{}{
+						"field1": 1,
+						"field2": "value1",
+					},
+					SelectableFields: map[string]string{
+						"spec.some.field":       "doc1_field_value",
+						"spec.some.other.field": "other_field_value",
+						"unknown.field":         "another_value",
+					},
+				},
+			},
+			{
+				Action: resource.ActionIndex,
+				Doc: &resource.IndexableDocument{
+					Key:   &resourcepb.ResourceKey{Namespace: key.Namespace, Group: key.Group, Resource: key.Resource, Name: "doc2"},
+					Title: "Document 2",
+					Tags:  []string{"tag2", "tag3"},
+					Fields: map[string]interface{}{
+						"field1": 2,
+						"field2": "value2",
+					},
+					SelectableFields: map[string]string{
+						"spec.some.field":       "doc2_field_value",
+						"spec.some.other.field": "other_field_value",
+						"unknown.field":         "another_value",
+					},
+				},
+			},
+			{
+				Action: resource.ActionIndex,
+				Doc: &resource.IndexableDocument{
+					Key:   &resourcepb.ResourceKey{Namespace: key.Namespace, Group: key.Group, Resource: key.Resource, Name: "doc3"},
+					Title: "Document with field values with token terminating characters",
+					SelectableFields: map[string]string{
+						"spec.some.field":       "doc3-field#value!",
+						"spec.some.other.field": "some other.field>value",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	checkSearchQuery(t, index, selectableFieldQuery(key, resource.SEARCH_SELECTABLE_FIELDS_PREFIX+"spec.some.field", "doc1_field_value"), []string{"doc1"})
+	checkSearchQuery(t, index, selectableFieldQuery(key, resource.SEARCH_SELECTABLE_FIELDS_PREFIX+"spec.some.field", "doc2_field_value"), []string{"doc2"})
+	checkSearchQuery(t, index, selectableFieldQuery(key, resource.SEARCH_SELECTABLE_FIELDS_PREFIX+"spec.some.other.field", "other_field_value"), []string{"doc1", "doc2"})
+
+	// tests for doc3 with token-terminating characters
+	checkSearchQuery(t, index, selectableFieldQuery(key, resource.SEARCH_SELECTABLE_FIELDS_PREFIX+"spec.some.field", "doc3-field#value!"), []string{"doc3"})
+	checkSearchQuery(t, index, selectableFieldQuery(key, resource.SEARCH_SELECTABLE_FIELDS_PREFIX+"spec.some.other.field", "some other.field>value"), []string{"doc3"})
+
+	// Only known selectable fields are indexed.
+	checkSearchQuery(t, index, selectableFieldQuery(key, resource.SEARCH_SELECTABLE_FIELDS_PREFIX+"unknown.field", "another_value"), nil)
+}
+
+func selectableFieldQuery(key *resourcepb.ResourceKey, field, value string) *resourcepb.ResourceSearchRequest {
+	return &resourcepb.ResourceSearchRequest{
+		Options: &resourcepb.ListOptions{
+			Key:    key,
+			Fields: []*resourcepb.Requirement{{Key: field, Operator: "=", Values: []string{value}}},
+		},
+		Limit: 100000,
 	}
 }

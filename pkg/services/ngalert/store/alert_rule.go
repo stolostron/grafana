@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"golang.org/x/exp/maps"
 
 	"github.com/grafana/grafana/pkg/util/xorm"
@@ -29,11 +30,13 @@ import (
 	"github.com/grafana/grafana/pkg/util"
 )
 
-// AlertRuleMaxTitleLength is the maximum length of the alert rule title
-const AlertRuleMaxTitleLength = 190
+const (
+	// AlertRuleMaxTitleLength is the maximum length of the alert rule title
+	AlertRuleMaxTitleLength = 190
 
-// AlertRuleMaxRuleGroupNameLength is the maximum length of the alert rule group name
-const AlertRuleMaxRuleGroupNameLength = 190
+	// AlertRuleMaxRuleGroupNameLength is the maximum length of the alert rule group name
+	AlertRuleMaxRuleGroupNameLength = 190
+)
 
 var (
 	ErrOptimisticLock = errors.New("version conflict while updating a record in the database with optimistic locking")
@@ -74,6 +77,7 @@ func (st DBstore) DeleteAlertRulesByUID(ctx context.Context, orgID int64, user *
 		logger.Debug("Deleted alert rule state", "count", rows)
 
 		var versions []alertRuleVersion
+		//nolint:staticcheck // not yet migrated to OpenFeature
 		if st.FeatureToggles.IsEnabledGlobally(featuremgmt.FlagAlertRuleRestore) && st.Cfg.DeletedRuleRetention > 0 && !permanently { // save deleted version only if retention is greater than 0
 			versions, err = st.getLatestVersionOfRulesByUID(ctx, orgID, ruleUID)
 			if err != nil {
@@ -191,8 +195,8 @@ func (st DBstore) GetAlertRuleByUID(ctx context.Context, query *ngmodels.GetAler
 	return result, err
 }
 
-func (st DBstore) GetAlertRuleVersions(ctx context.Context, orgID int64, guid string) ([]*ngmodels.AlertRule, error) {
-	alertRules := make([]*ngmodels.AlertRule, 0)
+func (st DBstore) GetAlertRuleVersions(ctx context.Context, orgID int64, guid string) ([]*ngmodels.AlertRuleVersion, error) {
+	alertRules := make([]*ngmodels.AlertRuleVersion, 0)
 	err := st.SQLStore.WithDbSession(ctx, func(sess *db.Session) error {
 		rows, err := sess.Table(new(alertRuleVersion)).Where("rule_org_id = ? AND rule_guid = ?", orgID, guid).Asc("id").Rows(new(alertRuleVersion))
 		if err != nil {
@@ -212,7 +216,7 @@ func (st DBstore) GetAlertRuleVersions(ctx context.Context, orgID int64, guid st
 			if previousVersion != nil && previousVersion.EqualSpec(*rule) {
 				continue
 			}
-			converted, err := alertRuleToModelsAlertRule(alertRuleVersionToAlertRule(*rule), st.Logger)
+			converted, err := alertRuleVersionToModelsAlertRuleVersion(*rule, st.Logger)
 			if err != nil {
 				st.Logger.Error("Invalid rule found in DB store, cannot convert, ignoring it", "func", "GetAlertRuleVersions", "error", err, "version_id", rule.ID)
 				continue
@@ -225,7 +229,7 @@ func (st DBstore) GetAlertRuleVersions(ctx context.Context, orgID int64, guid st
 	if err != nil {
 		return nil, err
 	}
-	slices.SortFunc(alertRules, func(a, b *ngmodels.AlertRule) int {
+	slices.SortFunc(alertRules, func(a, b *ngmodels.AlertRuleVersion) int {
 		if a.ID > b.ID {
 			return -1
 		}
@@ -235,6 +239,27 @@ func (st DBstore) GetAlertRuleVersions(ctx context.Context, orgID int64, guid st
 		return 0
 	})
 	return alertRules, nil
+}
+
+// GetAlertRuleVersionFolders retrieves a list of unique folder UIDs that the given rule guid has belonged to.
+// Returned slice is ordered with more recent folders first.
+func (st DBstore) GetAlertRuleVersionFolders(ctx context.Context, orgID int64, guid string) ([]string, error) {
+	folders := make([]string, 0)
+	err := st.SQLStore.WithDbSession(ctx, func(sess *db.Session) error {
+		if err := sess.Table(new(alertRuleVersion)).
+			Select("rule_namespace_uid").
+			Where("rule_org_id = ? AND rule_guid = ?", orgID, guid).
+			GroupBy("rule_namespace_uid").
+			OrderBy("MAX(version) DESC").
+			Find(&folders); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return folders, nil
 }
 
 // ListDeletedRules retrieves a list of deleted alert rules for the specified organization ID from the database.
@@ -256,6 +281,7 @@ func (st DBstore) ListDeletedRules(ctx context.Context, orgID int64) ([]*ngmodel
 				st.Logger.Error("Invalid rule version found in DB store, ignoring it", "func", "GetAlertRuleVersions", "error", err)
 				continue
 			}
+			// Note: Message is not returned as a message cannot be set when deleting rules.
 			converted, err := alertRuleToModelsAlertRule(alertRuleVersionToAlertRule(*rule), st.Logger)
 			if err != nil {
 				st.Logger.Error("Invalid rule found in DB store, cannot convert, ignoring it", "func", "GetAlertRuleVersions", "error", err, "version_id", rule.ID)
@@ -334,7 +360,7 @@ func (st DBstore) GetAlertRulesGroupByRuleUID(ctx context.Context, query *ngmode
 
 // InsertAlertRules is a handler for creating/updating alert rules.
 // Returns the UID and ID of rules that were created in the same order as the input rules.
-func (st DBstore) InsertAlertRules(ctx context.Context, user *ngmodels.UserUID, rules []ngmodels.AlertRule) ([]ngmodels.AlertRuleKeyWithId, error) {
+func (st DBstore) InsertAlertRules(ctx context.Context, user *ngmodels.UserUID, rules []ngmodels.InsertRule) ([]ngmodels.AlertRuleKeyWithId, error) {
 	ids := make([]ngmodels.AlertRuleKeyWithId, 0, len(rules))
 	keys := make([]ngmodels.AlertRuleKey, 0, len(rules))
 	return ids, st.SQLStore.WithTransactionalDbSession(ctx, func(sess *db.Session) error {
@@ -350,14 +376,14 @@ func (st DBstore) InsertAlertRules(ctx context.Context, user *ngmodels.UserUID, 
 				r.UID = uid
 			}
 			r.Version = 1
-			if err := st.validateAlertRule(r); err != nil {
+			if err := st.validateAlertRule(r.AlertRule); err != nil {
 				return err
 			}
 			if err := (&r).PreSave(TimeNow, user); err != nil {
 				return err
 			}
 
-			converted, err := alertRuleFromModelsAlertRule(r)
+			converted, err := alertRuleFromModelsAlertRule(r.AlertRule)
 			if err != nil {
 				return fmt.Errorf("failed to convert alert rule %q to storage model: %w", r.Title, err)
 			}
@@ -367,7 +393,9 @@ func (st DBstore) InsertAlertRules(ctx context.Context, user *ngmodels.UserUID, 
 			converted.GUID = uuid.NewString()
 
 			newRules = append(newRules, converted)
-			ruleVersions = append(ruleVersions, alertRuleToAlertRuleVersion(converted))
+			v := alertRuleToAlertRuleVersion(converted)
+			v.Message = r.Message
+			ruleVersions = append(ruleVersions, v)
 		}
 		if len(newRules) > 0 {
 			// we have to insert the rules one by one as otherwise we are
@@ -442,6 +470,7 @@ func (st DBstore) UpdateAlertRules(ctx context.Context, user *ngmodels.UserUID, 
 			v := alertRuleToAlertRuleVersion(converted)
 			v.Version++
 			v.ParentVersion = r.Existing.Version
+			v.Message = r.Message
 
 			// check if there is diff between existing and new, and if no, skip saving version.
 			existingConverted, err := alertRuleFromModelsAlertRule(*r.Existing)
@@ -584,80 +613,17 @@ func (st DBstore) CountInFolders(ctx context.Context, orgID int64, folderUIDs []
 	return count, err
 }
 
-func (st DBstore) ListAlertRulesByGroup(ctx context.Context, query *ngmodels.ListAlertRulesByGroupQuery) (result ngmodels.RulesGroup, nextToken string, err error) {
+func (st DBstore) ListAlertRulesByGroup(ctx context.Context, query *ngmodels.ListAlertRulesExtendedQuery) (result ngmodels.RulesGroup, nextToken string, err error) {
 	err = st.SQLStore.WithDbSession(ctx, func(sess *db.Session) error {
-		q := sess.Table("alert_rule")
-
-		if query.OrgID >= 0 {
-			q = q.Where("org_id = ?", query.OrgID)
+		q, groupsSet, err := st.buildListAlertRulesQuery(sess, query)
+		if err != nil {
+			return err
 		}
-
-		if query.DashboardUID != "" {
-			q = q.Where("dashboard_uid = ?", query.DashboardUID)
-			if query.PanelID != 0 {
-				q = q.Where("panel_id = ?", query.PanelID)
-			}
-		}
-
-		if len(query.NamespaceUIDs) > 0 {
-			args, in := getINSubQueryArgs(query.NamespaceUIDs)
-			q = q.Where(fmt.Sprintf("namespace_uid IN (%s)", strings.Join(in, ",")), args...)
-		}
-
-		if len(query.RuleUIDs) > 0 {
-			args, in := getINSubQueryArgs(query.RuleUIDs)
-			q = q.Where(fmt.Sprintf("uid IN (%s)", strings.Join(in, ",")), args...)
-		}
-
-		var groupsMap map[string]struct{}
-		if len(query.RuleGroups) > 0 {
-			groupsMap = make(map[string]struct{})
-			args, in := getINSubQueryArgs(query.RuleGroups)
-			q = q.Where(fmt.Sprintf("rule_group IN (%s)", strings.Join(in, ",")), args...)
-			for _, group := range query.RuleGroups {
-				groupsMap[group] = struct{}{}
-			}
-		}
-
-		if query.ReceiverName != "" {
-			q, err = st.filterByContentInNotificationSettings(query.ReceiverName, q)
-			if err != nil {
-				return err
-			}
-		}
-
-		if query.TimeIntervalName != "" {
-			q, err = st.filterByContentInNotificationSettings(query.TimeIntervalName, q)
-			if err != nil {
-				return err
-			}
-		}
-
-		if query.HasPrometheusRuleDefinition != nil {
-			q, err = st.filterWithPrometheusRuleDefinition(*query.HasPrometheusRuleDefinition, q)
-			if err != nil {
-				return err
-			}
-		}
-
-		switch query.RuleType {
-		case ngmodels.RuleTypeFilterAlerting:
-			q = q.Where("record = ''")
-		case ngmodels.RuleTypeFilterRecording:
-			q = q.Where("record != ''")
-		case ngmodels.RuleTypeFilterAll:
-			// no additional filter
-		default:
-			return fmt.Errorf("unknown rule type filter %q", query.RuleType)
-		}
-
-		// Order by group first, then by rule index within group
-		q = q.Asc("namespace_uid", "rule_group", "rule_group_idx", "id")
 
 		var cursor ngmodels.GroupCursor
-		if query.GroupContinueToken != "" {
+		if query.ContinueToken != "" {
 			// only set the cursor if it's valid, otherwise we'll start from the beginning
-			if cur, err := ngmodels.DecodeGroupCursor(query.GroupContinueToken); err == nil {
+			if cur, err := ngmodels.DecodeGroupCursor(query.ContinueToken); err == nil {
 				cursor = cur
 			}
 		}
@@ -678,8 +644,26 @@ func (st DBstore) ListAlertRulesByGroup(ctx context.Context, query *ngmodels.Lis
 			_ = rows.Close()
 		}()
 
+		opts := AlertRuleConvertOptions{}
+		if query.Compact {
+			opts.ExcludeAlertQueries = true
+			opts.ExcludeContactPointRouting = true
+			opts.ExcludeMetadata = true
+
+			if query.ReceiverName != "" || query.TimeIntervalName != "" {
+				// Need ContactPointRouting for these filters
+				opts.ExcludeContactPointRouting = false
+			}
+
+			if query.HasPrometheusRuleDefinition != nil {
+				// Need Metadata for this filter
+				opts.ExcludeMetadata = false
+			}
+		}
+
 		// Process rules and implement per-group pagination
 		var groupsFetched int64
+		var rulesFetched int64
 		for rows.Next() {
 			rule := new(alertRule)
 			err = rows.Scan(rule)
@@ -688,7 +672,8 @@ func (st DBstore) ListAlertRulesByGroup(ctx context.Context, query *ngmodels.Lis
 				continue
 			}
 
-			converted, err := alertRuleToModelsAlertRule(*rule, st.Logger)
+			converted, err := convertAlertRuleToModel(*rule, st.Logger, opts)
+
 			if err != nil {
 				st.Logger.Error("Invalid rule found in DB store, cannot convert, ignoring it", "func", "ListAlertRulesByGroup", "error", err)
 				continue
@@ -701,8 +686,13 @@ func (st DBstore) ListAlertRulesByGroup(ctx context.Context, query *ngmodels.Lis
 			}
 			if key != cursor {
 				// Check if we've reached the group limit
-				if query.GroupLimit > 0 && groupsFetched == query.GroupLimit {
+				if query.Limit > 0 && groupsFetched == query.Limit {
 					// Generate next token for the next group
+					nextToken = ngmodels.EncodeGroupCursor(cursor)
+					break
+				}
+				// Check if we've reached the rule limit
+				if query.RuleLimit > 0 && rulesFetched >= query.RuleLimit {
 					nextToken = ngmodels.EncodeGroupCursor(cursor)
 					break
 				}
@@ -713,11 +703,12 @@ func (st DBstore) ListAlertRulesByGroup(ctx context.Context, query *ngmodels.Lis
 			}
 
 			// Apply post-query filters
-			if !shouldIncludeRule(&converted, query, groupsMap) {
+			if !shouldIncludeRule(&converted, query, groupsSet) {
 				continue
 			}
 
 			alertRules = append(alertRules, &converted)
+			rulesFetched++
 		}
 
 		result = alertRules
@@ -727,24 +718,29 @@ func (st DBstore) ListAlertRulesByGroup(ctx context.Context, query *ngmodels.Lis
 }
 
 func buildGroupCursorCondition(sess *xorm.Session, c ngmodels.GroupCursor) *xorm.Session {
-	return sess.Where("(namespace_uid > ?)", c.NamespaceUID).
-		Or("(namespace_uid = ? AND rule_group > ?)", c.NamespaceUID, c.RuleGroup)
+	return sess.And(
+		"((namespace_uid > ?) OR (namespace_uid = ? AND rule_group > ?))",
+		c.NamespaceUID, c.NamespaceUID, c.RuleGroup,
+	)
 }
 
-func shouldIncludeRule(rule *ngmodels.AlertRule, query *ngmodels.ListAlertRulesByGroupQuery, groupsMap map[string]struct{}) bool {
+func shouldIncludeRule(rule *ngmodels.AlertRule, query *ngmodels.ListAlertRulesExtendedQuery, groupsMap map[string]struct{}) bool {
+	settings := rule.ContactPointRouting()
 	if query.ReceiverName != "" {
-		if !slices.ContainsFunc(rule.NotificationSettings, func(settings ngmodels.NotificationSettings) bool {
-			return settings.Receiver == query.ReceiverName
-		}) {
+		if settings == nil {
+			return false
+		}
+		if settings.Receiver != query.ReceiverName {
 			return false
 		}
 	}
 
 	if query.TimeIntervalName != "" {
-		if !slices.ContainsFunc(rule.NotificationSettings, func(settings ngmodels.NotificationSettings) bool {
-			return slices.Contains(settings.MuteTimeIntervals, query.TimeIntervalName) ||
-				slices.Contains(settings.ActiveTimeIntervals, query.TimeIntervalName)
-		}) {
+		if settings == nil {
+			return false
+		}
+		if !slices.Contains(settings.MuteTimeIntervals, query.TimeIntervalName) &&
+			!slices.Contains(settings.ActiveTimeIntervals, query.TimeIntervalName) {
 			return false
 		}
 	}
@@ -782,73 +778,10 @@ func (st DBstore) ListAlertRules(ctx context.Context, query *ngmodels.ListAlertR
 // ListAlertRulesPaginated is a handler for retrieving alert rules of specific organization paginated.
 func (st DBstore) ListAlertRulesPaginated(ctx context.Context, query *ngmodels.ListAlertRulesExtendedQuery) (result ngmodels.RulesGroup, nextToken string, err error) {
 	err = st.SQLStore.WithDbSession(ctx, func(sess *db.Session) error {
-		q := sess.Table("alert_rule")
-
-		if query.OrgID >= 0 {
-			q = q.Where("org_id = ?", query.OrgID)
+		q, groupsSet, err := st.buildListAlertRulesQuery(sess, query)
+		if err != nil {
+			return err
 		}
-
-		if query.DashboardUID != "" {
-			q = q.Where("dashboard_uid = ?", query.DashboardUID)
-			if query.PanelID != 0 {
-				q = q.Where("panel_id = ?", query.PanelID)
-			}
-		}
-
-		if len(query.NamespaceUIDs) > 0 {
-			args, in := getINSubQueryArgs(query.NamespaceUIDs)
-			q = q.Where(fmt.Sprintf("namespace_uid IN (%s)", strings.Join(in, ",")), args...)
-		}
-
-		if len(query.RuleUIDs) > 0 {
-			args, in := getINSubQueryArgs(query.RuleUIDs)
-			q = q.Where(fmt.Sprintf("uid IN (%s)", strings.Join(in, ",")), args...)
-		}
-
-		var groupsMap map[string]struct{}
-		if len(query.RuleGroups) > 0 {
-			groupsMap = make(map[string]struct{})
-			args, in := getINSubQueryArgs(query.RuleGroups)
-			q = q.Where(fmt.Sprintf("rule_group IN (%s)", strings.Join(in, ",")), args...)
-			for _, group := range query.RuleGroups {
-				groupsMap[group] = struct{}{}
-			}
-		}
-
-		if query.ReceiverName != "" {
-			q, err = st.filterByContentInNotificationSettings(query.ReceiverName, q)
-			if err != nil {
-				return err
-			}
-		}
-
-		if query.TimeIntervalName != "" {
-			q, err = st.filterByContentInNotificationSettings(query.TimeIntervalName, q)
-			if err != nil {
-				return err
-			}
-		}
-
-		if query.HasPrometheusRuleDefinition != nil {
-			q, err = st.filterWithPrometheusRuleDefinition(*query.HasPrometheusRuleDefinition, q)
-			if err != nil {
-				return err
-			}
-		}
-
-		// FIXME: record is nullable but we don't save it as null when it's nil
-		switch query.RuleType {
-		case ngmodels.RuleTypeFilterAlerting:
-			q = q.Where("record = ''")
-		case ngmodels.RuleTypeFilterRecording:
-			q = q.Where("record != ''")
-		case ngmodels.RuleTypeFilterAll:
-			// no additional filter
-		default:
-			return fmt.Errorf("unknown rule type filter %q", query.RuleType)
-		}
-
-		q = q.Asc("namespace_uid", "rule_group", "rule_group_idx", "id")
 
 		if query.ContinueToken != "" {
 			cursor, err := decodeCursor(query.ContinueToken)
@@ -879,7 +812,7 @@ func (st DBstore) ListAlertRulesPaginated(ctx context.Context, query *ngmodels.L
 
 		// Deserialize each rule separately in case any of them contain invalid JSON.
 		for rows.Next() {
-			converted, ok := st.handleRuleRow(rows, query, groupsMap)
+			converted, ok := st.handleRuleRow(rows, query, groupsSet)
 			if ok {
 				alertRules = append(alertRules, converted)
 			}
@@ -908,6 +841,163 @@ func (st DBstore) ListAlertRulesPaginated(ctx context.Context, query *ngmodels.L
 	return result, nextToken, err
 }
 
+func matchersMatchLabels(matchers labels.Matchers, lbls map[string]string) bool {
+	for _, m := range matchers {
+		if !m.Matches(lbls[m.Name]) {
+			return false
+		}
+	}
+	return true
+}
+
+// nolint:gocyclo
+func (st DBstore) buildListAlertRulesQuery(sess *db.Session, query *ngmodels.ListAlertRulesExtendedQuery) (q *xorm.Session, groupsSet map[string]struct{}, err error) {
+	q = sess.Table("alert_rule")
+	if query.OrgID >= 0 {
+		q = q.Where("org_id = ?", query.OrgID)
+	}
+
+	if query.DashboardUID != "" {
+		q = q.Where("dashboard_uid = ?", query.DashboardUID)
+		if query.PanelID != 0 {
+			q = q.Where("panel_id = ?", query.PanelID)
+		}
+	}
+
+	if len(query.NamespaceUIDs) > 0 {
+		args, in := getINSubQueryArgs(query.NamespaceUIDs)
+		q = q.Where(fmt.Sprintf("namespace_uid IN (%s)", strings.Join(in, ",")), args...)
+	}
+
+	if len(query.RuleUIDs) > 0 {
+		args, in := getINSubQueryArgs(query.RuleUIDs)
+		q = q.Where(fmt.Sprintf("uid IN (%s)", strings.Join(in, ",")), args...)
+	}
+
+	var noGroupRuleGroupRuleUIDs []string
+	var realGroups []string
+	if len(query.RuleGroups) > 0 {
+		groupsSet = make(map[string]struct{})
+		for _, group := range query.RuleGroups {
+			if ngmodels.IsNoGroupRuleGroup(group) {
+				noGroupRuleGroup, err := ngmodels.ParseNoRuleGroup(group)
+				if err != nil {
+					return nil, groupsSet, fmt.Errorf("failed to parse rule group %q: %w", group, err)
+				}
+				noGroupRuleGroupRuleUIDs = append(noGroupRuleGroupRuleUIDs, noGroupRuleGroup.GetRuleUID())
+			} else {
+				realGroups = append(realGroups, group)
+			}
+			groupsSet[group] = struct{}{}
+		}
+		switch {
+		// all real rule groups,
+		case len(realGroups) > 0 && len(noGroupRuleGroupRuleUIDs) == 0:
+			groupArgs, groupIn := getINSubQueryArgs(realGroups)
+			q = q.Where(fmt.Sprintf("rule_group IN (%s)", strings.Join(groupIn, ",")), groupArgs...)
+		// all no-group rule groups
+		case len(realGroups) == 0 && len(noGroupRuleGroupRuleUIDs) > 0:
+			ruleUIDArgs, ruleUIDIn := getINSubQueryArgs(noGroupRuleGroupRuleUIDs)
+			q = q.Where(fmt.Sprintf("uid IN (%s)", strings.Join(ruleUIDIn, ",")), ruleUIDArgs...)
+		// mixed case, we need to perform the or
+		case len(realGroups) > 0 && len(noGroupRuleGroupRuleUIDs) > 0:
+			groupArgs, groupIn := getINSubQueryArgs(realGroups)
+			ruleUIDArgs, ruleUIDIn := getINSubQueryArgs(noGroupRuleGroupRuleUIDs)
+			q = q.Where(fmt.Sprintf("rule_group IN (%s)", strings.Join(groupIn, ",")), groupArgs...).Or(
+				fmt.Sprintf("uid IN (%s)", strings.Join(ruleUIDIn, ",")), ruleUIDArgs...,
+			)
+		}
+	}
+
+	if query.ReceiverName != "" {
+		q, err = st.filterByContentInNotificationSettings(query.ReceiverName, q)
+		if err != nil {
+			return nil, groupsSet, err
+		}
+	}
+
+	if query.TimeIntervalName != "" {
+		q, err = st.filterByContentInNotificationSettings(query.TimeIntervalName, q)
+		if err != nil {
+			return nil, groupsSet, err
+		}
+	}
+
+	if len(query.DataSourceUIDs) > 0 {
+		orConditions := make([]string, 0, len(query.DataSourceUIDs))
+		orParams := make([]interface{}, 0, len(query.DataSourceUIDs))
+		for _, dsUID := range query.DataSourceUIDs {
+			// The 'data' column holds the alert definition as JSON. The data source's UID is in the 'datasourceUid' field.
+			// Instead of trying to parse that JSON, we can do a simple text search.
+			// All alert rules go through PreSave(), which normalizes the JSON data using json.Marshal().
+			pattern := fmt.Sprintf(`"datasourceUid":"%s"`, dsUID)
+			sql, param := st.SQLStore.GetDialect().LikeOperator("data", true, pattern, true)
+			orConditions = append(orConditions, sql)
+			orParams = append(orParams, param)
+		}
+
+		q = q.And("("+strings.Join(orConditions, " OR ")+")", orParams...)
+	}
+
+	if query.SearchTitle != "" {
+		words := strings.Fields(query.SearchTitle)
+		if len(words) > 0 {
+			// Build sequential pattern: %word1%word2%word3%
+			pattern := strings.Join(words, "%")
+			sql, param := st.SQLStore.GetDialect().LikeOperator("title", true, pattern, true)
+			q = q.And(sql, param)
+		}
+	}
+
+	if query.SearchRuleGroup != "" {
+		normalizedInput := strings.ToLower(query.SearchRuleGroup)
+		words := strings.Fields(normalizedInput)
+
+		if len(words) > 0 {
+			pattern := "%" + strings.Join(words, "%") + "%"
+			// In MySQL rule_group field has case-sensitive collation by default,
+			// so we need to use LOWER to perform case-insensitive search.
+			q = q.And("LOWER(rule_group) LIKE ?", pattern)
+		}
+	}
+
+	if query.HasPrometheusRuleDefinition != nil {
+		q, err = st.filterWithPrometheusRuleDefinition(*query.HasPrometheusRuleDefinition, q)
+		if err != nil {
+			return nil, groupsSet, err
+		}
+	}
+
+	if len(query.LabelMatchers) > 0 {
+		q, err = st.filterByLabelMatchers(query.LabelMatchers, q)
+		if err != nil {
+			return nil, groupsSet, err
+		}
+	}
+
+	if query.PluginOriginFilter != ngmodels.PluginOriginFilterNone {
+		q, err = st.filterByPluginOrigin(query.PluginOriginFilter, q)
+		if err != nil {
+			return nil, groupsSet, err
+		}
+	}
+
+	// FIXME: record is nullable but we don't save it as null when it's nil
+	switch query.RuleType {
+	case ngmodels.RuleTypeFilterAlerting:
+		q = q.Where("record = ''")
+	case ngmodels.RuleTypeFilterRecording:
+		q = q.Where("record != ''")
+	case ngmodels.RuleTypeFilterAll:
+		// no additional filter
+	default:
+		return nil, groupsSet, fmt.Errorf("unknown rule type filter %q", query.RuleType)
+	}
+
+	q = q.Asc("namespace_uid", "rule_group", "rule_group_idx", "id")
+	return q, groupsSet, nil
+}
+
 func (st DBstore) handleRuleRow(rows *xorm.Rows, query *ngmodels.ListAlertRulesExtendedQuery, groupsSet map[string]struct{}) (*ngmodels.AlertRule, bool) {
 	rule := new(alertRule)
 	err := rows.Scan(rule)
@@ -920,22 +1010,31 @@ func (st DBstore) handleRuleRow(rows *xorm.Rows, query *ngmodels.ListAlertRulesE
 		st.Logger.Error("Invalid rule found in DB store, cannot convert, ignoring it", "func", "ListAlertRules", "error", err)
 		return nil, false
 	}
+	settings := converted.ContactPointRouting()
 	if query.ReceiverName != "" { // remove false-positive hits from the result
-		if !slices.ContainsFunc(converted.NotificationSettings, func(settings ngmodels.NotificationSettings) bool {
-			return settings.Receiver == query.ReceiverName
-		}) {
+		if settings == nil {
+			return nil, false
+		}
+		if settings.Receiver != query.ReceiverName {
 			return nil, false
 		}
 	}
 	if query.TimeIntervalName != "" {
-		if !slices.ContainsFunc(converted.NotificationSettings, func(settings ngmodels.NotificationSettings) bool {
-			return slices.Contains(settings.MuteTimeIntervals, query.TimeIntervalName) || slices.Contains(settings.ActiveTimeIntervals, query.TimeIntervalName)
-		}) {
+		if settings == nil {
+			return nil, false
+		}
+		if !slices.Contains(settings.MuteTimeIntervals, query.TimeIntervalName) &&
+			!slices.Contains(settings.ActiveTimeIntervals, query.TimeIntervalName) {
 			return nil, false
 		}
 	}
 	if query.HasPrometheusRuleDefinition != nil { // remove false-positive hits from the result
 		if *query.HasPrometheusRuleDefinition != converted.HasPrometheusRuleDefinition() {
+			return nil, false
+		}
+	}
+	if len(query.LabelMatchers) > 0 { // remove false-positive hits from the result
+		if !matchersMatchLabels(query.LabelMatchers, converted.Labels) {
 			return nil, false
 		}
 	}
@@ -976,10 +1075,17 @@ func decodeCursor(token string) (continueCursor, error) {
 }
 
 func buildCursorCondition(sess *xorm.Session, c continueCursor) *xorm.Session {
-	return sess.Where("(namespace_uid > ?)", c.NamespaceUID).
-		Or("(namespace_uid = ? AND rule_group > ?)", c.NamespaceUID, c.RuleGroup).
-		Or("(namespace_uid = ? AND rule_group = ? AND rule_group_idx > ?)", c.NamespaceUID, c.RuleGroup, c.RuleGroupIdx).
-		Or("(namespace_uid = ? AND rule_group = ? AND rule_group_idx = ? AND id > ?)", c.NamespaceUID, c.RuleGroup, c.RuleGroupIdx, c.ID)
+	return sess.And(`(
+		(namespace_uid > ?)
+		OR (namespace_uid = ? AND rule_group > ?)
+		OR (namespace_uid = ? AND rule_group = ? AND rule_group_idx > ?)
+		OR (namespace_uid = ? AND rule_group = ? AND rule_group_idx = ? AND id > ?)
+	)`,
+		c.NamespaceUID,
+		c.NamespaceUID, c.RuleGroup,
+		c.NamespaceUID, c.RuleGroup, c.RuleGroupIdx,
+		c.NamespaceUID, c.RuleGroup, c.RuleGroupIdx, c.ID,
+	)
 }
 
 // Count returns either the number of the alert rules under a specific org (if orgID is not zero)
@@ -1097,6 +1203,7 @@ func (st DBstore) GetAlertRulesForScheduling(ctx context.Context, query *ngmodel
 					continue
 				}
 			}
+			//nolint:staticcheck // not yet migrated to OpenFeature
 			if st.FeatureToggles.IsEnabled(ctx, featuremgmt.FlagAlertingQueryOptimization) {
 				if optimizations, err := OptimizeAlertQueries(converted.Data); err != nil {
 					st.Logger.Error("Could not migrate rule from range to instant query", "rule", rule.UID, "err", err)
@@ -1217,15 +1324,15 @@ func (st DBstore) validateAlertRule(alertRule ngmodels.AlertRule) error {
 	}
 
 	// enforce max rule group name length.
-	if len(alertRule.RuleGroup) > AlertRuleMaxRuleGroupNameLength {
+	if len(alertRule.RuleGroup) > AlertRuleMaxRuleGroupNameLength && !ngmodels.IsNoGroupRuleGroup(alertRule.RuleGroup) {
 		return fmt.Errorf("%w: rule group name length should not be greater than %d", ngmodels.ErrAlertRuleFailedValidation, AlertRuleMaxRuleGroupNameLength)
 	}
 
 	return nil
 }
 
-// ListNotificationSettings fetches all notification settings for given organization
-func (st DBstore) ListNotificationSettings(ctx context.Context, q ngmodels.ListNotificationSettingsQuery) (map[ngmodels.AlertRuleKey][]ngmodels.NotificationSettings, error) {
+// ListContactPointRoutings fetches all notification settings for given organization
+func (st DBstore) ListContactPointRoutings(ctx context.Context, q ngmodels.ListContactPointRoutingsQuery) (map[ngmodels.AlertRuleKey]ngmodels.ContactPointRouting, error) {
 	var rules []alertRule
 	err := st.SQLStore.WithDbSession(ctx, func(sess *db.Session) error {
 		query := sess.Table(alertRule{}).Select("uid, notification_settings").Where("org_id = ?", q.OrgID)
@@ -1254,7 +1361,7 @@ func (st DBstore) ListNotificationSettings(ctx context.Context, q ngmodels.ListN
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[ngmodels.AlertRuleKey][]ngmodels.NotificationSettings, len(rules))
+	result := make(map[ngmodels.AlertRuleKey]ngmodels.ContactPointRouting, len(rules))
 	for _, rule := range rules {
 		if rule.NotificationSettings == "" {
 			continue
@@ -1263,23 +1370,20 @@ func (st DBstore) ListNotificationSettings(ctx context.Context, q ngmodels.ListN
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert notification settings %s to models: %w", rule.UID, err)
 		}
-		ns := make([]ngmodels.NotificationSettings, 0, len(rule.NotificationSettings))
-		for _, setting := range converted {
-			if q.ReceiverName != "" && q.ReceiverName != setting.Receiver { // currently, there can be only one setting. If in future there are more, we will return all settings of a rule that has a setting with receiver
-				continue
-			}
-			if q.TimeIntervalName != "" && !slices.Contains(setting.MuteTimeIntervals, q.TimeIntervalName) && !slices.Contains(setting.ActiveTimeIntervals, q.TimeIntervalName) {
-				continue
-			}
-			ns = append(ns, setting)
+		if converted == nil {
+			continue
 		}
-		if len(ns) > 0 {
-			key := ngmodels.AlertRuleKey{
-				OrgID: q.OrgID,
-				UID:   rule.UID,
-			}
-			result[key] = ns
+
+		if q.ReceiverName != "" && q.ReceiverName != converted.Receiver {
+			continue
 		}
+		if q.TimeIntervalName != "" && !slices.Contains(converted.MuteTimeIntervals, q.TimeIntervalName) && !slices.Contains(converted.ActiveTimeIntervals, q.TimeIntervalName) {
+			continue
+		}
+		result[ngmodels.AlertRuleKey{
+			OrgID: q.OrgID,
+			UID:   rule.UID,
+		}] = *converted
 	}
 	return result, nil
 }
@@ -1317,6 +1421,49 @@ func (st DBstore) filterWithPrometheusRuleDefinition(value bool, sess *xorm.Sess
 		"%prometheus_style_rule%",
 		"%original_rule_definition%",
 	), nil
+}
+
+// filterByLabelMatchers adds filtering for equality and inequality label matchers.
+// Returns error if regex matchers are passed.
+func (st DBstore) filterByLabelMatchers(matchers labels.Matchers, sess *xorm.Session) (*xorm.Session, error) {
+	for _, m := range matchers {
+		if m.Type != labels.MatchEqual && m.Type != labels.MatchNotEqual {
+			return nil, fmt.Errorf("matcher %q %s %q is not supported", m.Name, m.Type, m.Value)
+		}
+
+		sql, args, err := buildLabelMatcherCondition(st.SQLStore.GetDialect(), "labels", m)
+		if err != nil {
+			return nil, err
+		}
+		sess = sess.And(sql, args...)
+	}
+	return sess, nil
+}
+
+// filterByPluginOrigin adds filtering for plugin-originated rules based on the __grafana_origin label.
+func (st DBstore) filterByPluginOrigin(filter ngmodels.PluginOriginFilter, sess *xorm.Session) (*xorm.Session, error) {
+	if filter == ngmodels.PluginOriginFilterNone {
+		return sess, nil
+	}
+
+	var sql string
+	var args []any
+	var err error
+
+	switch filter {
+	case ngmodels.PluginOriginFilterHide:
+		sql, args, err = buildLabelKeyMissingCondition(st.SQLStore.GetDialect(), "labels", ngmodels.PluginGrafanaOriginLabel)
+	case ngmodels.PluginOriginFilterOnly:
+		sql, args, err = buildLabelKeyExistsCondition(st.SQLStore.GetDialect(), "labels", ngmodels.PluginGrafanaOriginLabel)
+	default:
+		return nil, fmt.Errorf("unknown plugin origin filter %q", filter)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return sess.And(sql, args...), nil
 }
 
 func (st DBstore) RenameReceiverInNotificationSettings(ctx context.Context, orgID int64, oldReceiver, newReceiver string, validateProvenance func(ngmodels.Provenance) bool, dryRun bool) ([]ngmodels.AlertRuleKey, []ngmodels.AlertRuleKey, error) {
@@ -1359,10 +1506,13 @@ func (st DBstore) RenameReceiverInNotificationSettings(ctx context.Context, orgI
 		}
 
 		r := rule.Copy()
-		for idx := range r.NotificationSettings {
-			if r.NotificationSettings[idx].Receiver == oldReceiver {
-				r.NotificationSettings[idx].Receiver = newReceiver
-			}
+		settings := r.ContactPointRouting()
+		if settings == nil {
+			continue
+		}
+
+		if settings.Receiver == oldReceiver {
+			settings.Receiver = newReceiver
 		}
 
 		updates = append(updates, ngmodels.UpdateRule{
@@ -1434,16 +1584,18 @@ func (st DBstore) RenameTimeIntervalInNotificationSettings(
 		}
 
 		r := rule.Copy()
-		for idx := range r.NotificationSettings {
-			for mtIdx := range r.NotificationSettings[idx].MuteTimeIntervals {
-				if r.NotificationSettings[idx].MuteTimeIntervals[mtIdx] == oldTimeInterval {
-					r.NotificationSettings[idx].MuteTimeIntervals[mtIdx] = newTimeInterval
-				}
+		settings := r.ContactPointRouting()
+		if settings == nil {
+			continue
+		}
+		for mtIdx := range settings.MuteTimeIntervals {
+			if settings.MuteTimeIntervals[mtIdx] == oldTimeInterval {
+				settings.MuteTimeIntervals[mtIdx] = newTimeInterval
 			}
-			for mtIdx := range r.NotificationSettings[idx].ActiveTimeIntervals {
-				if r.NotificationSettings[idx].ActiveTimeIntervals[mtIdx] == oldTimeInterval {
-					r.NotificationSettings[idx].ActiveTimeIntervals[mtIdx] = newTimeInterval
-				}
+		}
+		for mtIdx := range settings.ActiveTimeIntervals {
+			if settings.ActiveTimeIntervals[mtIdx] == oldTimeInterval {
+				settings.ActiveTimeIntervals[mtIdx] = newTimeInterval
 			}
 		}
 

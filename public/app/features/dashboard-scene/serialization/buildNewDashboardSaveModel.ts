@@ -9,7 +9,7 @@ import {
   defaultTimeSettingsSpec,
   GroupByVariableKind,
   Spec as DashboardV2Spec,
-} from '@grafana/schema/dist/esm/schema/dashboard/v2';
+} from '@grafana/schema/apis/dashboard.grafana.app/v2';
 import { AnnoKeyFolder } from 'app/features/apiserver/types';
 import { DashboardWithAccessInfo } from 'app/features/dashboard/api/types';
 import { getDatasourceSrv } from 'app/features/plugins/datasource_srv';
@@ -136,7 +136,7 @@ export async function buildNewDashboardSaveModelV2(
     metadata: {
       name: '',
       resourceVersion: '0',
-      creationTimestamp: '0',
+      creationTimestamp: new Date().toISOString(),
       annotations: {
         [AnnoKeyFolder]: '',
       },

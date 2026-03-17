@@ -1,9 +1,61 @@
+import { ObjectMatcher } from 'app/plugins/datasource/alertmanager/types';
 import { RuleGroupIdentifierV2, RuleIdentifier } from 'app/types/unified-alerting';
 
 import { createReturnTo } from '../hooks/useReturnTo';
 
 import { stringifyIdentifier } from './rule-id';
-import { createRelativeUrl } from './url';
+import { RelativeUrl, createRelativeUrl } from './url';
+
+/**
+ * Tab values for contact points page - duplicated here to avoid circular dependency
+ * with ContactPoints.tsx which has a heavy import chain
+ */
+const ContactPointsTab = {
+  NotificationTemplates: 'templates',
+} as const;
+
+/**
+ * Navigation IDs used for Alerting pages
+ */
+export const NAV_IDS = {
+  NOTIFICATION_CONFIG: 'notification-config',
+  RECEIVERS: 'receivers',
+  ROUTES: 'am-routes',
+} as const;
+
+/**
+ * Alerting page paths
+ */
+export const ALERTING_PATHS: Record<string, RelativeUrl> = {
+  NOTIFICATIONS: '/alerting/notifications',
+  TEMPLATES: '/alerting/notifications/templates',
+  TIME_INTERVALS: '/alerting/routes/mute-timing',
+  ROUTES: '/alerting/routes',
+};
+
+/**
+ * Returns the parent URL for template pages based on navigation mode.
+ * V2 nav uses the dedicated templates page, legacy nav uses contact points with tab parameter.
+ */
+export function getTemplateParentUrl(useV2Nav: boolean | undefined): string {
+  return useV2Nav
+    ? ALERTING_PATHS.TEMPLATES
+    : createRelativeUrl(ALERTING_PATHS.NOTIFICATIONS, {
+        tab: ContactPointsTab.NotificationTemplates,
+      });
+}
+
+/**
+ * Returns the parent URL for time interval pages based on navigation mode.
+ * V2 nav uses the dedicated time intervals page, legacy nav uses routes with tab parameter.
+ */
+export function getTimeIntervalParentUrl(useV2Nav: boolean | undefined): string {
+  return useV2Nav
+    ? ALERTING_PATHS.TIME_INTERVALS
+    : createRelativeUrl(ALERTING_PATHS.ROUTES, {
+        tab: 'time_intervals',
+      });
+}
 
 type QueryParams = ConstructorParameters<typeof URLSearchParams>[0];
 
@@ -88,4 +140,13 @@ export const rulesNav = {
       params,
       { skipSubPath: options?.skipSubPath }
     ),
+};
+
+export const notificationPolicies = {
+  viewLink: (matchers: ObjectMatcher[], alertmanagerSourceName?: string) => {
+    return createRelativeUrl('/alerting/routes', {
+      queryString: matchers.map((matcher) => matcher.join('')).join(','),
+      alertmanager: alertmanagerSourceName ?? 'grafana',
+    });
+  },
 };

@@ -2,7 +2,7 @@ import { useId, useMemo, useRef } from 'react';
 
 import { selectors } from '@grafana/e2e-selectors';
 import { Trans, t } from '@grafana/i18n';
-import { Alert, Input, Switch, TextLink, Field } from '@grafana/ui';
+import { Alert, Field, Input, Switch, TextLink } from '@grafana/ui';
 import { OptionsPaneCategoryDescriptor } from 'app/features/dashboard/components/PanelEditor/OptionsPaneCategoryDescriptor';
 import { OptionsPaneItemDescriptor } from 'app/features/dashboard/components/PanelEditor/OptionsPaneItemDescriptor';
 import { RepeatRowSelect2 } from 'app/features/dashboard/components/RepeatRowSelect/RepeatRowSelect';
@@ -11,13 +11,14 @@ import { MIXED_DATASOURCE_NAME } from 'app/plugins/datasource/mixed/MixedDataSou
 
 import { useConditionalRenderingEditor } from '../../conditional-rendering/hooks/useConditionalRenderingEditor';
 import { dashboardEditActions } from '../../edit-pane/shared';
-import { getQueryRunnerFor, useDashboard } from '../../utils/utils';
+import { getQueryRunnerFor } from '../../utils/utils';
 import { useLayoutCategory } from '../layouts-shared/DashboardLayoutSelector';
-import { useEditPaneInputAutoFocus } from '../layouts-shared/utils';
+import { generateUniqueTitle, useEditPaneInputAutoFocus } from '../layouts-shared/utils';
 
 import { RowItem } from './RowItem';
 
-export function useEditOptions(model: RowItem, isNewElement: boolean): OptionsPaneCategoryDescriptor[] {
+export function useEditOptions(this: RowItem, isNewElement: boolean): OptionsPaneCategoryDescriptor[] {
+  const model = this;
   const { layout } = model.useState();
 
   const rowCategory = useMemo(
@@ -45,7 +46,7 @@ export function useEditOptions(model: RowItem, isNewElement: boolean): OptionsPa
             render: (descriptor) => <RowHeaderSwitch id={descriptor.props.id} row={model} />,
           })
         ),
-    [model, isNewElement]
+    [isNewElement, model]
   );
 
   const repeatCategory = useMemo(
@@ -57,7 +58,7 @@ export function useEditOptions(model: RowItem, isNewElement: boolean): OptionsPa
       }).addItem(
         new OptionsPaneItemDescriptor({
           title: t('dashboard.rows-layout.row-options.repeat.variable.title', 'Repeat by variable'),
-          id: `dash-row-repeat-by-variable`,
+          id: 'dash-row-repeat-by-variable',
           description: t(
             'dashboard.rows-layout.row-options.repeat.variable.description',
             'Repeat this row for each value in the selected variable.'
@@ -107,6 +108,7 @@ function RowTitleInput({ row, isNewElement }: { row: RowItem; isNewElement: bool
         onFocus={() => (prevTitle.current = title || '')}
         onBlur={() => editRowTitleAction(row, title || '', prevTitle.current || '')}
         onChange={(e) => row.onChangeTitle(e.currentTarget.value)}
+        data-testid={selectors.components.PanelEditor.ElementEditPane.RowsLayout.titleInput}
       />
     </Field>
   );
@@ -126,7 +128,6 @@ function FillScreenSwitch({ row, id }: { row: RowItem; id?: string }) {
 
 function RowRepeatSelect({ row, id }: { row: RowItem; id?: string }) {
   const { layout } = row.useState();
-  const dashboard = useDashboard(row);
 
   const isAnyPanelUsingDashboardDS = layout.getVizPanels().some((vizPanel) => {
     const runner = getQueryRunnerFor(vizPanel);
@@ -141,7 +142,7 @@ function RowRepeatSelect({ row, id }: { row: RowItem; id?: string }) {
     <>
       <RepeatRowSelect2
         id={id}
-        sceneContext={dashboard}
+        sceneContext={row}
         repeat={row.state.repeatByVariable}
         onChange={(repeat) => row.onChangeRepeat(repeat)}
       />
@@ -174,8 +175,16 @@ function RowRepeatSelect({ row, id }: { row: RowItem; id?: string }) {
 }
 
 function editRowTitleAction(row: RowItem, title: string, prevTitle: string) {
-  if (title === prevTitle) {
+  if (title !== '' && title === prevTitle) {
     return;
+  }
+
+  if (title === '') {
+    const rowsLayout = row.getParentLayout();
+    const existingNames = new Set(
+      rowsLayout.state.rows.map((row) => row.state.title).filter((title) => title !== undefined)
+    );
+    title = generateUniqueTitle('New row', existingNames);
   }
 
   dashboardEditActions.edit({

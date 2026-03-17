@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 
-import { DashboardCursorSync, PanelProps } from '@grafana/data';
+import { DashboardCursorSync, PanelProps, useDataLinksContext } from '@grafana/data';
 import { PanelDataErrorView } from '@grafana/runtime';
 import {
   AxisPlacement,
   EventBusPlugin,
   TooltipDisplayMode,
   TooltipPlugin2,
+  XAxisInteractionAreaPlugin,
   usePanelContext,
   useTheme2,
 } from '@grafana/ui';
@@ -20,17 +21,16 @@ import {
 
 import { AnnotationsPlugin2 } from '../timeseries/plugins/AnnotationsPlugin2';
 import { OutsideRangePlugin } from '../timeseries/plugins/OutsideRangePlugin';
+import { getXAnnotationFrames } from '../timeseries/plugins/utils';
 import { getTimezones } from '../timeseries/utils';
 
-import { StateTimelineTooltip2 } from './StateTimelineTooltip2';
+import { StateTimelineTooltip } from './StateTimelineTooltip';
+import { usePagination } from './hooks';
 import { Options } from './panelcfg.gen';
-import { containerStyles, usePagination } from './utils';
+import { containerStyles } from './styles';
 
 interface TimelinePanelProps extends PanelProps<Options> {}
 
-/**
- * @alpha
- */
 export const StateTimelinePanel = ({
   data,
   timeRange,
@@ -47,8 +47,9 @@ export const StateTimelinePanel = ({
 
   // temp range set for adding new annotation set by TooltipPlugin2, consumed by AnnotationPlugin2
   const [newAnnotationRange, setNewAnnotationRange] = useState<TimeRange2 | null>(null);
-  const { sync, eventsScope, canAddAnnotations, dataLinkPostProcessor, eventBus, canExecuteActions } =
-    usePanelContext();
+  const { sync, eventsScope, canAddAnnotations, eventBus, canExecuteActions } = usePanelContext();
+
+  const { dataLinkPostProcessor } = useDataLinksContext();
 
   const userCanExecuteActions = useMemo(() => canExecuteActions?.() ?? false, [canExecuteActions]);
   const cursorSync = sync?.() ?? DashboardCursorSync.Off;
@@ -77,7 +78,7 @@ export const StateTimelinePanel = ({
   const enableAnnotationCreation = Boolean(canAddAnnotations && canAddAnnotations());
 
   return (
-    <div className={containerStyles.container}>
+    <div className={containerStyles}>
       <TimelineChart
         theme={theme}
         frames={paginatedFrames}
@@ -88,11 +89,13 @@ export const StateTimelinePanel = ({
         width={width}
         height={height - paginationHeight}
         legendItems={legendItems}
+        annotations={options.annotations}
         {...options}
         mode={TimelineMode.Changes}
         replaceVariables={replaceVariables}
         dataLinkPostProcessor={dataLinkPostProcessor}
         cursorSync={cursorSync}
+        annotationLanes={options.annotations?.multiLane ? getXAnnotationFrames(data.annotations).length : undefined}
       >
         {(builder, alignedFrame) => {
           return (
@@ -100,6 +103,7 @@ export const StateTimelinePanel = ({
               {cursorSync !== DashboardCursorSync.Off && (
                 <EventBusPlugin config={builder} eventBus={eventBus} frame={alignedFrame} />
               )}
+              <XAxisInteractionAreaPlugin config={builder} queryZoom={onChangeTimeRange} />
               {options.tooltip.mode !== TooltipDisplayMode.None && (
                 <TooltipPlugin2
                   config={builder}
@@ -127,7 +131,7 @@ export const StateTimelinePanel = ({
                     };
 
                     return (
-                      <StateTimelineTooltip2
+                      <StateTimelineTooltip
                         series={alignedFrame}
                         dataIdxs={dataIdxs}
                         seriesIdx={seriesIdx}
@@ -149,6 +153,8 @@ export const StateTimelinePanel = ({
               )}
               {alignedFrame.fields[0].config.custom?.axisPlacement !== AxisPlacement.Hidden && (
                 <AnnotationsPlugin2
+                  replaceVariables={replaceVariables}
+                  multiLane={options.annotations?.multiLane}
                   annotations={data.annotations ?? []}
                   config={builder}
                   timeZone={timeZone}
