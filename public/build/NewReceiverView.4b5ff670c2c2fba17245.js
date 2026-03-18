@@ -1,3 +1,0 @@
-"use strict";(self.webpackChunkgrafana=self.webpackChunkgrafana||[]).push([[3167],{23495:((l,r,a)=>{a.r(r),a.d(r,{default:()=>O});var e=a(74848),n=a(13005),t=a(88214),E=a(37104),s=a(32174),P=a(77066),o=a(85946);const D=()=>{const{selectedAlertmanager:_}=(0,n.VI)();return _===t.hY?(0,e.jsx)(o.a,{}):(0,e.jsx)(P.B,{alertManagerSourceName:_})};function M(){return(0,e.jsx)(s.y,{navId:"receivers",accessType:"notification",children:(0,e.jsx)(D,{})})}const O=(0,E.S)(M)})}]);
-
-//# sourceMappingURL=NewReceiverView.4b5ff670c2c2fba17245.js.map
