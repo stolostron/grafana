@@ -401,6 +401,7 @@ const (
 	// Settings scope
 	ScopeSettingsAll  = "settings:*"
 	ScopeSettingsSAML = "settings:auth.saml:*"
+	ScopeSettingsSCIM = "settings:auth.scim:*"
 
 	// Team related actions
 	ActionTeamsCreate           = "teams:create"
@@ -458,6 +459,7 @@ const (
 	ActionAlertingReceiversReadSecrets      = "alert.notifications.receivers.secrets:read"
 	ActionAlertingReceiversCreate           = "alert.notifications.receivers:create"
 	ActionAlertingReceiversUpdate           = "alert.notifications.receivers:write"
+	ActionAlertingReceiversUpdateProtected  = "alert.notifications.receivers.protected:write"
 	ActionAlertingReceiversDelete           = "alert.notifications.receivers:delete"
 	ActionAlertingReceiversTest             = "alert.notifications.receivers:test"
 	ActionAlertingReceiversPermissionsRead  = "receivers.permissions:read"

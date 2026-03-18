@@ -1,7 +1,9 @@
 package models
 
 import (
+	"maps"
 	"reflect"
+	"slices"
 	"testing"
 
 	alertingNotify "github.com/grafana/alerting/notify"
@@ -9,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/grafana/pkg/services/ngalert/notifier/channels_config"
+	"github.com/grafana/grafana/pkg/util"
+	"github.com/grafana/grafana/pkg/util/testutil"
 )
 
 func TestReceiver_Clone(t *testing.T) {
@@ -68,6 +72,8 @@ func TestReceiver_EncryptDecrypt(t *testing.T) {
 }
 
 func TestIntegration_Redact(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	redactFn := func(key string) string {
 		return "TESTREDACTED"
 	}
@@ -98,6 +104,8 @@ func TestIntegration_Redact(t *testing.T) {
 }
 
 func TestIntegration_Validate(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	// Test that all known integration types are valid.
 	for integrationType := range alertingNotify.AllKnownConfigsForTesting {
 		t.Run(integrationType, func(t *testing.T) {
@@ -113,6 +121,8 @@ func TestIntegration_Validate(t *testing.T) {
 }
 
 func TestIntegration_WithExistingSecureFields(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	// Test that WithExistingSecureFields will copy over the secure fields from the existing integration.
 	testCases := []struct {
 		name         string
@@ -230,12 +240,18 @@ func TestIntegration_WithExistingSecureFields(t *testing.T) {
 	}
 }
 
-func TestIntegrationConfig(t *testing.T) {
+func TestSecretsIntegrationConfig(t *testing.T) {
 	// Test that all known integration types have a config and correctly mark their secrets as secure.
 	for integrationType := range alertingNotify.AllKnownConfigsForTesting {
 		t.Run(integrationType, func(t *testing.T) {
-			config, err := IntegrationConfigFromType(integrationType)
+			config, err := IntegrationConfigFromType(integrationType, nil)
 			assert.NoError(t, err)
+
+			t.Run("v1 is current", func(t *testing.T) {
+				configv1, err := IntegrationConfigFromType(integrationType, util.Pointer("v1"))
+				assert.NoError(t, err)
+				assert.Equal(t, config, configv1)
+			})
 
 			secrets, err := channels_config.GetSecretKeysForContactPointType(integrationType)
 			assert.NoError(t, err)
@@ -244,21 +260,35 @@ func TestIntegrationConfig(t *testing.T) {
 				allSecrets[key] = struct{}{}
 			}
 
-			for field := range config.Fields {
-				_, isSecret := allSecrets[field]
-				assert.Equalf(t, isSecret, config.IsSecureField(NewIntegrationFieldPath(field)), "field '%s' is expected to be secret", field)
+			secretFields := config.GetSecretFields()
+			for _, path := range secretFields {
+				_, isSecret := allSecrets[path.String()]
+				assert.Equalf(t, isSecret, config.IsSecureField(path), "field '%s' is expected to be secret", path)
+				delete(allSecrets, path.String())
 			}
 			assert.False(t, config.IsSecureField(IntegrationFieldPath{"__--**unknown_field**--__"}))
+			assert.Empty(t, allSecrets, "mismatched secret fields for integration type %s: %v", integrationType, allSecrets)
 		})
 	}
 
 	t.Run("Unknown type returns error", func(t *testing.T) {
-		_, err := IntegrationConfigFromType("__--**unknown_type**--__")
+		_, err := IntegrationConfigFromType("__--**unknown_type**--__", nil)
 		assert.Error(t, err)
+	})
+
+	t.Run("Unknown version returns error", func(t *testing.T) {
+		version := util.Pointer("__--**unknown_version**--__")
+		types := maps.Keys(alertingNotify.AllKnownConfigsForTesting)
+		for itype := range types {
+			_, err := IntegrationConfigFromType(itype, version)
+			assert.Errorf(t, err, "unknown version for integration type %s did not return error but should", itype)
+		}
 	})
 }
 
 func TestIntegration_SecureFields(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	// Test that all known integration types have a config and correctly mark their secrets as secure.
 	for integrationType := range alertingNotify.AllKnownConfigsForTesting {
 		t.Run(integrationType, func(t *testing.T) {
@@ -407,4 +437,245 @@ func TestReceiver_Fingerprint(t *testing.T) {
 			assert.NotEqualf(t, fingerprint, f2, "Integration field %s does not seem to be used in fingerprint", field)
 		}
 	})
+}
+
+func TestIntegrationDiff(t *testing.T) {
+	s := IntegrationConfig{Type: "test"}
+	a := Integration{
+		UID:                   "test-uid",
+		Name:                  "test-name",
+		Config:                s,
+		DisableResolveMessage: false,
+		Settings: map[string]any{
+			"url":  "http://localhost",
+			"name": 123,
+			"flag": true,
+			"child": map[string]any{
+				"sub-form-field": "test",
+			},
+		},
+		SecureSettings: map[string]string{
+			"password": "12345",
+			"token":    "token-12345",
+		},
+	}
+
+	t.Run("no diff if equal", func(t *testing.T) {
+		result := a.Diff(a)
+		assert.Empty(t, result)
+	})
+
+	t.Run("should deep compare settings", func(t *testing.T) {
+		b := a
+		b.Settings = map[string]any{
+			"url":  "http://localhost:123",
+			"flag": false,
+			"child": map[string]any{
+				"sub-form-field": "test123",
+				"sub-child": map[string]any{
+					"test": "test",
+				},
+			},
+		}
+
+		result := a.Diff(b)
+		assert.ElementsMatch(t,
+			[]string{"Settings[url]", "Settings[name]", "Settings[flag]", "Settings[child][sub-form-field]", "Settings[child][sub-child]"},
+			result.Paths())
+	})
+
+	t.Run("should shallow compare schemas", func(t *testing.T) {
+		b := a
+		b.Config = IntegrationConfig{Type: "test2"}
+		result := a.Diff(b)
+		assert.ElementsMatch(t,
+			[]string{"Config"},
+			result.Paths())
+	})
+
+	t.Run("should compare with zero objects", func(t *testing.T) {
+		result := a.Diff(Integration{})
+		assert.ElementsMatch(t,
+			[]string{
+				"UID",
+				"Name",
+				"Config",
+				"Settings[child]",
+				"Settings[flag]",
+				"Settings[name]",
+				"Settings[url]",
+				"SecureSettings[password]",
+				"SecureSettings[token]",
+			},
+			result.Paths())
+	})
+}
+
+func TestIntegrationDiffReport_GetSettingsPaths(t *testing.T) {
+	a := Integration{
+		UID:                   "test-uid",
+		Name:                  "test-name",
+		Config:                IntegrationConfig{},
+		DisableResolveMessage: false,
+		Settings: map[string]any{
+			"url": "http://localhost",
+			"child": map[string]any{
+				"field": "test",
+				"sub-child": map[string]any{
+					"test": "test",
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name  string
+		left  map[string]any
+		right map[string]any
+		paths []string
+	}{
+		{
+			name:  "empty",
+			left:  map[string]any{},
+			right: map[string]any{},
+		},
+		{
+			name: "left is empty",
+			left: map[string]any{},
+			right: map[string]any{
+				"field": "test",
+			},
+			paths: []string{"field"},
+		},
+		{
+			name: "right is empty",
+			left: map[string]any{
+				"field": "test",
+			},
+			right: map[string]any{},
+			paths: []string{"field"},
+		},
+		{
+			name: "expands nested",
+			left: map[string]any{
+				"field": map[string]any{
+					"sub-field": map[string]any{
+						"test": "test",
+					},
+				},
+			},
+			right: map[string]any{
+				"another": map[string]any{
+					"sub-field": map[string]any{
+						"test": "test",
+					},
+				},
+			},
+			paths: []string{
+				"field.sub-field.test",
+				"another.sub-field.test",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := a
+			b.Settings = tc.right
+			a.Settings = tc.left
+			diff := a.Diff(b)
+
+			actual := diff.GetSettingsPaths()
+			actualStrings := make([]string, 0, len(actual))
+			for _, f := range actual {
+				actualStrings = append(actualStrings, f.String())
+			}
+			assert.ElementsMatch(t, tc.paths, actualStrings)
+		})
+	}
+}
+
+func TestHasDifferentProtectedFields(t *testing.T) {
+	m := IntegrationMuts
+
+	testCase := []struct {
+		name     string
+		existing Integration
+		incoming Integration
+		expected map[string][]string
+	}{
+		{
+			name:     "different UID do not match",
+			existing: IntegrationGen(m.WithUID("existing"), m.WithValidConfig("webhook"))(),
+			incoming: IntegrationGen(
+				m.WithValidConfig("webhook"),
+				m.AddSetting("url", "http://some-other-url"),
+				m.WithUID("incoming"),
+			)(),
+			expected: nil,
+		},
+		{
+			name:     "find url protected",
+			existing: IntegrationGen(m.WithUID("1"), m.WithValidConfig("webhook"))(),
+			incoming: IntegrationGen(
+				m.WithValidConfig("webhook"),
+				m.AddSetting("url", "http://some-other-url"),
+				m.WithUID("1"),
+			)(),
+			expected: map[string][]string{
+				"1": {
+					"url",
+				},
+			},
+		},
+		{
+			name: "secure and protected", // simulate the situation when protected secured field is in secure settings but the incoming one has it in settings
+			existing: IntegrationGen(
+				m.WithUID("1"),
+				m.WithValidConfig("discord"),
+				m.RemoveSetting("url"),
+				m.WithSecureSettings(map[string]string{
+					"url": "<SECURED>",
+				}))(),
+			incoming: IntegrationGen(
+				m.WithValidConfig("discord"),
+				m.AddSetting("url", "http://some-other-url"),
+				m.WithSecureSettings(nil),
+				m.WithUID("1"),
+			)(),
+			expected: map[string][]string{
+				"1": {
+					"url",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCase {
+		t.Run(tc.name, func(t *testing.T) {
+			existing := &Receiver{
+				Integrations: []*Integration{
+					&tc.existing,
+				},
+			}
+			incoming := &Receiver{
+				Integrations: []*Integration{
+					&tc.incoming,
+				},
+			}
+			actual := HasReceiversDifferentProtectedFields(existing, incoming)
+			if len(tc.expected) == 0 {
+				require.Empty(t, actual)
+				return
+			}
+			actualStrings := make(map[string][]string, len(actual))
+			for uid, paths := range actual {
+				for _, path := range paths {
+					actualStrings[uid] = append(actualStrings[uid], path.String())
+				}
+				slices.Sort(actualStrings[uid])
+			}
+			assert.EqualValues(t, tc.expected, actualStrings)
+		})
+	}
 }

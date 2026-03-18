@@ -74,7 +74,7 @@ lineage: schemas: [{
 
 			// Version of the JSON schema, incremented each time a Grafana update brings
 			// changes to said schema.
-			schemaVersion: uint16 | *41
+			schemaVersion: uint16 | *42
 
 			// Version of the dashboard, incremented each time the dashboard is updated.
 			version?: uint32
@@ -215,6 +215,10 @@ lineage: schemas: [{
 			// Optional field, if you want to extract part of a series name or metric node segment.
 			// Named capture groups can be used to separate the display text and value.
 			regex?: string
+			// Additional static options for query variable
+			staticOptions?: [...#VariableOption]
+			// Ordering of static options in relation to options returned from data source for query variable
+			staticOptionsOrder?: "before" | "after" | "sorted"
 			...
 		} @cuetsy(kind="interface") @grafana(TSVeneer="type") @grafanamaturity(NeedsExpertReview)
 
@@ -235,8 +239,8 @@ lineage: schemas: [{
 		#VariableRefresh: 0 | 1 | 2 @cuetsy(kind="enum",memberNames="never|onDashboardLoad|onTimeRangeChanged")
 
 		// Determine if the variable shows on dashboard
-		// Accepted values are 0 (show label and value), 1 (show value only), 2 (show nothing).
-		#VariableHide: 0 | 1 | 2 @cuetsy(kind="enum",memberNames="dontHide|hideLabel|hideVariable") @grafana(TSVeneer="type")
+		// Accepted values are 0 (show label and value), 1 (show value only), 2 (show nothing), 3 (show under the controls dropdown menu).
+		#VariableHide: 0 | 1 | 2 | 3 @cuetsy(kind="enum",memberNames="dontHide|hideLabel|hideVariable|inControlsMenu") @grafana(TSVeneer="type")
 
 		// Sort variable options
 		// Accepted values are:

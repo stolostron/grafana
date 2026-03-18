@@ -6,40 +6,58 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
+	"github.com/grafana/grafana/pkg/services/ngalert/models"
 	"github.com/grafana/grafana/pkg/services/ngalert/notifier/channels_config"
+	"github.com/grafana/grafana/pkg/services/ngalert/notifier/legacy_storage"
 	"github.com/grafana/grafana/pkg/services/ngalert/store"
 	"github.com/grafana/grafana/pkg/services/secrets"
 )
 
+const (
+	// encryptedContentPrefix is a marker that identifies encrypted Alertmanager configurations.
+	// When this prefix is present at the beginning of a configuration string:
+	// 1. During encryption: It indicates the content is already encrypted and should be skipped
+	// 2. During decryption: It indicates the content (minus this prefix) should be base64 decoded
+	//    and then decrypted using the secrets service
+	// This prefix helps maintain idempotency in encryption/decryption operations.
+	cryptoPrefix = "crypto_"
+)
+
+type AuthorizeProtectedFn func(uid string, paths []models.IntegrationFieldPath) error
+
 // Crypto allows decryption of Alertmanager Configuration and encryption of arbitrary payloads.
 type Crypto interface {
-	LoadSecureSettings(ctx context.Context, orgId int64, receivers []*definitions.PostableApiReceiver) error
+	LoadSecureSettings(ctx context.Context, orgId int64, receivers []*definitions.PostableApiReceiver, fn AuthorizeProtectedFn) error
 	Encrypt(ctx context.Context, payload []byte, opt secrets.EncryptionOptions) ([]byte, error)
+	Decrypt(ctx context.Context, payload []byte) ([]byte, error)
+	EncryptExtraConfigs(ctx context.Context, config *definitions.PostableUserConfig) error
+	DecryptExtraConfigs(ctx context.Context, config *definitions.PostableUserConfig) error
 
 	getDecryptedSecret(r *definitions.PostableGrafanaReceiver, key string) (string, error)
-	ProcessSecureSettings(ctx context.Context, orgId int64, recvs []*definitions.PostableApiReceiver) error
+	ProcessSecureSettings(ctx context.Context, orgId int64, recvs []*definitions.PostableApiReceiver, fn AuthorizeProtectedFn) error
 }
 
 // alertmanagerCrypto implements decryption of Alertmanager configuration and encryption of arbitrary payloads based on Grafana's encryptions.
 type alertmanagerCrypto struct {
-	secrets secrets.Service
+	*ExtraConfigsCrypto
 	configs configurationStore
 	log     log.Logger
 }
 
 func NewCrypto(secrets secrets.Service, configs configurationStore, log log.Logger) Crypto {
 	return &alertmanagerCrypto{
-		secrets: secrets,
-		configs: configs,
-		log:     log,
+		ExtraConfigsCrypto: NewExtraConfigsCrypto(secrets),
+		configs:            configs,
+		log:                log,
 	}
 }
 
 // ProcessSecureSettings encrypts new secure settings and loads existing secure settings from the database.
-func (c *alertmanagerCrypto) ProcessSecureSettings(ctx context.Context, orgId int64, recvs []*definitions.PostableApiReceiver) error {
+func (c *alertmanagerCrypto) ProcessSecureSettings(ctx context.Context, orgId int64, recvs []*definitions.PostableApiReceiver, authorizeProtected AuthorizeProtectedFn) error {
 	// First, we encrypt the new or updated secure settings. Then, we load the existing secure settings from the database
 	// and add back any that weren't updated.
 	// We perform these steps in this order to ensure the hash of the secure settings remains stable when no secure
@@ -50,7 +68,7 @@ func (c *alertmanagerCrypto) ProcessSecureSettings(ctx context.Context, orgId in
 		return fmt.Errorf("failed to encrypt receivers: %w", err)
 	}
 
-	if err := c.LoadSecureSettings(ctx, orgId, recvs); err != nil {
+	if err := c.LoadSecureSettings(ctx, orgId, recvs, authorizeProtected); err != nil {
 		return err
 	}
 
@@ -73,7 +91,7 @@ func encryptReceiverConfigs(c []*definitions.PostableApiReceiver, encrypt defini
 	for _, r := range c {
 		switch r.Type() {
 		case definitions.GrafanaReceiverType:
-			for _, gr := range r.PostableGrafanaReceivers.GrafanaManagedReceivers {
+			for _, gr := range r.GrafanaManagedReceivers {
 				if encryptExisting {
 					for k, v := range gr.SecureSettings {
 						encryptedData, err := encrypt(context.Background(), []byte(v))
@@ -152,7 +170,7 @@ func encryptReceiverConfigs(c []*definitions.PostableApiReceiver, encrypt defini
 }
 
 // LoadSecureSettings adds the corresponding unencrypted secrets stored to the list of input receivers.
-func (c *alertmanagerCrypto) LoadSecureSettings(ctx context.Context, orgId int64, receivers []*definitions.PostableApiReceiver) error {
+func (c *alertmanagerCrypto) LoadSecureSettings(ctx context.Context, orgId int64, receivers []*definitions.PostableApiReceiver, authorizeProtected AuthorizeProtectedFn) error {
 	// Get the last known working configuration.
 	amConfig, err := c.configs.GetLatestAlertmanagerConfiguration(ctx, orgId)
 	if err != nil {
@@ -161,10 +179,10 @@ func (c *alertmanagerCrypto) LoadSecureSettings(ctx context.Context, orgId int64
 			return fmt.Errorf("failed to get latest configuration: %w", err)
 		}
 	}
-
+	var currentConfig *definitions.PostableUserConfig
 	currentReceiverMap := make(map[string]*definitions.PostableGrafanaReceiver)
 	if amConfig != nil {
-		currentConfig, err := Load([]byte(amConfig.AlertmanagerConfiguration))
+		currentConfig, err = Load([]byte(amConfig.AlertmanagerConfiguration))
 		// If the current config is un-loadable, treat it as if it never existed. Providing a new, valid config should be able to "fix" this state.
 		if err != nil {
 			c.log.Warn("Last known alertmanager configuration was invalid. Overwriting...")
@@ -183,7 +201,7 @@ func (c *alertmanagerCrypto) LoadSecureSettings(ctx context.Context, orgId int64
 
 	// Copy the previously known secure settings.
 	for i, r := range receivers {
-		for j, gr := range r.PostableGrafanaReceivers.GrafanaManagedReceivers {
+		for j, gr := range r.GrafanaManagedReceivers {
 			if gr.UID == "" { // new receiver
 				continue
 			}
@@ -192,6 +210,33 @@ func (c *alertmanagerCrypto) LoadSecureSettings(ctx context.Context, orgId int64
 			if !ok {
 				// It tries to update a receiver that didn't previously exist
 				return UnknownReceiverError{UID: gr.UID}
+			}
+
+			if authorizeProtected != nil {
+				incoming, errIn := legacy_storage.PostableGrafanaReceiverToIntegration(gr)
+				existing, errEx := legacy_storage.PostableGrafanaReceiverToIntegration(cgmr)
+				var secure []models.IntegrationFieldPath
+				authz := true
+				if errIn == nil && errEx == nil {
+					secure = models.HasIntegrationsDifferentProtectedFields(existing, incoming)
+					authz = len(secure) > 0
+				}
+				// if conversion failed, consider there are changes and authorize
+				if authz && currentConfig != nil {
+					var receiverName string
+				NAME:
+					for _, rcv := range currentConfig.AlertmanagerConfig.Receivers {
+						for _, intg := range rcv.GrafanaManagedReceivers {
+							if intg.UID == cgmr.UID {
+								receiverName = rcv.Name
+								break NAME
+							}
+						}
+					}
+					if err := authorizeProtected(receiverName, secure); err != nil {
+						return err
+					}
+				}
 			}
 
 			// Frontend sends only the secure settings that have to be updated
@@ -232,4 +277,59 @@ func (c *alertmanagerCrypto) getDecryptedSecret(r *definitions.PostableGrafanaRe
 // Encrypt delegates encryption to secrets.Service.
 func (c *alertmanagerCrypto) Encrypt(ctx context.Context, payload []byte, opt secrets.EncryptionOptions) ([]byte, error) {
 	return c.secrets.Encrypt(ctx, payload, opt)
+}
+
+func (c *alertmanagerCrypto) Decrypt(ctx context.Context, payload []byte) ([]byte, error) {
+	return c.secrets.Decrypt(ctx, payload)
+}
+
+type ExtraConfigsCrypto struct {
+	secrets secretService
+}
+
+func NewExtraConfigsCrypto(secrets secretService) *ExtraConfigsCrypto {
+	return &ExtraConfigsCrypto{
+		secrets: secrets,
+	}
+}
+
+func (c *ExtraConfigsCrypto) EncryptExtraConfigs(ctx context.Context, config *definitions.PostableUserConfig) error {
+	for i := range config.ExtraConfigs {
+		// If it has prefix, consider it encrypted already
+		if strings.HasPrefix(config.ExtraConfigs[i].AlertmanagerConfig, cryptoPrefix) {
+			continue
+		}
+
+		encryptedValue, err := c.secrets.Encrypt(ctx, []byte(config.ExtraConfigs[i].AlertmanagerConfig), secrets.WithoutScope())
+		if err != nil {
+			return fmt.Errorf("failed to encrypt extra configuration: %w", err)
+		}
+
+		config.ExtraConfigs[i].AlertmanagerConfig = cryptoPrefix + base64.StdEncoding.EncodeToString(encryptedValue)
+	}
+
+	return nil
+}
+
+func (c *ExtraConfigsCrypto) DecryptExtraConfigs(ctx context.Context, config *definitions.PostableUserConfig) error {
+	for i := range config.ExtraConfigs {
+		// If it does not have prefix, consider it decrypted already
+		if !strings.HasPrefix(config.ExtraConfigs[i].AlertmanagerConfig, cryptoPrefix) {
+			continue
+		}
+		// Check if the config is encrypted by trying to base64 decode it
+		encryptedValue, err := base64.StdEncoding.DecodeString(config.ExtraConfigs[i].AlertmanagerConfig[len(cryptoPrefix):])
+		if err != nil {
+			return fmt.Errorf("failed to decode extra configuration: %w", err)
+		}
+
+		decryptedValue, err := c.secrets.Decrypt(ctx, encryptedValue)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt extra configuration: %w", err)
+		}
+
+		config.ExtraConfigs[i].AlertmanagerConfig = string(decryptedValue)
+	}
+
+	return nil
 }

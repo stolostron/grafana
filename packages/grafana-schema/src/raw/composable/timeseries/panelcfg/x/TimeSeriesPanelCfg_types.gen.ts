@@ -10,11 +10,12 @@
 
 import * as common from '@grafana/schema';
 
-export const pluginVersion = "11.6.1";
+export const pluginVersion = "12.2.6";
 
 export interface Options extends common.OptionsWithTimezones {
   legend: common.VizLegendOptions;
   orientation?: common.VizOrientation;
+  timeCompare?: common.TimeCompareOptions;
   tooltip: common.VizTooltipOptions;
 }
 

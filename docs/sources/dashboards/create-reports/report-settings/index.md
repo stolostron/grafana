@@ -21,8 +21,19 @@ refs:
 
 # Reporting settings
 
-You can configure organization-wide report settings and branding options in **Dashboards > Reporting > Settings**.
-Settings are applied to all the reports for the current organization.
+You can configure organization-wide report settings and branding options in **Dashboards > Reporting**.
+These settings are applied to all the reports for the current organization.
+
+To access the settings, go to **Dashboards > Reporting** and click the **Report settings** button.
+This opens the **Report template settings** drawer, where you can make changes.
+
+{{< admonition type="note" >}}
+
+The redesigned reporting feature, including the report settings drawer, is currently in public preview. Grafana Labs offers limited support, and breaking changes might occur prior to the feature being made generally available. To use this feature, enable the `newShareReportDrawer` feature toggle in your Grafana configuration file or, for Grafana Cloud, contact Support.
+
+{{< /admonition >}}
+
+You can also navigate these settings from the **Schedule report** drawer that opens when you create a report directly from a dashboard.
 
 ## Attachment settings
 
@@ -33,7 +44,7 @@ The options in this section control the branding and theming of the report attac
 - **Company logo** - Company logo displayed in the report PDF.
   Configure it by specifying a URL or uploading a file.
   The maximum file size is 16 MB.
-  Defaults to the Grafana logo.
+  If not set, defaults to the Grafana logo. If the specified URL isn't valid, the logo image appears as broken.
 
 - **Theme** - Theme of the PDF attached to the report.
   The selected theme is also applied to the PDFs generated when you click **Preview PDF** during report creation or select the **Export as PDF** option on a dashboard.
@@ -53,7 +64,7 @@ The options in this section control the branding and theming of the report attac
 
 <!-- vale Grafana.WordList = YES -->
 
-- **Company logo** - Company logo displayed in the report email. Configure it by specifying a URL or uploading a file. The maximum file size is 16 MB. Defaults to the Grafana logo.
+- **Company logo** - Company logo displayed in the report email. Configure it by specifying a URL or uploading a file. The maximum file size is 16 MB. If not set, defaults to the Grafana logo. If the specified URL isn't valid, the logo image appears as broken.
 - **Email footer** - Toggle to enable the report email footer. Select **Sent by** or **None**.
 - **Footer link text** - Text of the link in the report email footer. Defaults to `Grafana`.
 - **Footer link URL** - Link of the report email footer.
