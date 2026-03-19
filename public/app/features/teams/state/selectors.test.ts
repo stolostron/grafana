@@ -1,5 +1,6 @@
-import { TeamState } from '../../../types';
-import { getMockTeam } from '../__mocks__/teamMocks';
+import { TeamState } from 'app/types/teams';
+
+import { getMockTeam } from '../mocks/teamMocks';
 
 import { getTeam } from './selectors';
 
@@ -15,7 +16,7 @@ describe('Team selectors', () => {
         groups: [],
       };
 
-      const team = getTeam(mockState, '1');
+      const team = getTeam(mockState, 'aaaaaa');
       expect(team).toEqual(mockTeam);
     });
   });

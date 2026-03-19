@@ -1,5 +1,6 @@
 import $ from 'jquery';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
+import * as React from 'react';
 
 import {
   DisplayValue,
@@ -13,7 +14,7 @@ import {
 import { VizTextDisplayOptions, VizOrientation } from '@grafana/schema';
 
 import { calculateFontSize } from '../../utils/measureText';
-import { clearButtonStyles } from '../Button';
+import { clearButtonStyles } from '../Button/Button';
 
 import { calculateGaugeAutoProps, DEFAULT_THRESHOLDS, getFormattedThresholds } from './utils';
 

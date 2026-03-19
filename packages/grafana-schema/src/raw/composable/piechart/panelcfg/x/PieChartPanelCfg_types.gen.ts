@@ -10,7 +10,7 @@
 
 import * as common from '@grafana/schema';
 
-export const pluginVersion = "11.1.5";
+export const pluginVersion = "12.2.6";
 
 /**
  * Select the pie chart display style.
@@ -54,6 +54,7 @@ export interface Options extends common.OptionsWithTooltip, common.SingleStatBas
   displayLabels: Array<PieChartLabels>;
   legend: PieChartLegendOptions;
   pieType: PieChartType;
+  sort: common.SortOrder;
 }
 
 export const defaultOptions: Partial<Options> = {

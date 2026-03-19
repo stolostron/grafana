@@ -20,18 +20,19 @@ import {
   VariableRefresh,
   VariableWithOptions,
 } from '@grafana/data';
-import { config, locationService } from '@grafana/runtime';
+import { config, locationService, logWarning } from '@grafana/runtime';
 import { notifyApp } from 'app/core/actions';
 import { contextSrv } from 'app/core/services/context_srv';
 import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
-import { DashboardModel } from 'app/features/dashboard/state';
+import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
 import { store } from 'app/store/store';
+import { AppNotification } from 'app/types/appNotifications';
+import { ThunkResult, StoreState } from 'app/types/store';
 
 import { createErrorNotification } from '../../../core/copy/appNotification';
 import { appEvents } from '../../../core/core';
 import { getBackendSrv } from '../../../core/services/backend_srv';
 import { Graph, Node } from '../../../core/utils/dag';
-import { AppNotification, StoreState, ThunkResult } from '../../../types';
 import { getDatasourceSrv } from '../../plugins/datasource_srv';
 import { getTemplateSrv, TemplateSrv } from '../../templating/template_srv';
 import { variableAdapters } from '../adapters';
@@ -579,7 +580,14 @@ export const createGraph = (variables: TypedVariableModel[]) => {
       }
 
       if (variableAdapters.get(v1.type).dependsOn(v1, v2)) {
-        g.link(v1.name, v2.name);
+        try {
+          // link might fail if it would create a circular dependency
+          g.link(v1.name, v2.name);
+        } catch (error) {
+          // Catch the exception and return partially linked graph. The caller will handle the case of partial linking and display errors
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          logWarning('Error linking variables', { error: errorMessage });
+        }
       }
     });
   });

@@ -1,6 +1,7 @@
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
+import * as React from 'react';
 
-import { t } from 'app/core/internationalization';
+import { t } from '@grafana/i18n';
 
 import { NavigationKey } from '../types';
 

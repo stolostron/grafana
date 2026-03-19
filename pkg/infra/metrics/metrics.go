@@ -200,11 +200,10 @@ var (
 
 	grafanaPluginBuildInfoDesc *prometheus.GaugeVec
 
+	grafanaPluginTargetInfoDesc *prometheus.GaugeVec
+
 	// StatsTotalLibraryPanels is a metric of total number of library panels stored in Grafana.
 	StatsTotalLibraryPanels prometheus.Gauge
-
-	// StatsTotalLibraryVariables is a metric of total number of library variables stored in Grafana.
-	StatsTotalLibraryVariables prometheus.Gauge
 
 	// StatsTotalDataKeys is a metric of total number of data keys stored in Grafana.
 	StatsTotalDataKeys *prometheus.GaugeVec
@@ -570,6 +569,12 @@ func init() {
 		Namespace: ExporterName,
 	}, []string{"plugin_id", "plugin_type", "version", "signature_status"})
 
+	grafanaPluginTargetInfoDesc = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name:      "plugin_target_info",
+		Help:      "A metric with a constant '1' value labeled by pluginId and target",
+		Namespace: ExporterName,
+	}, []string{"plugin_id", "target"})
+
 	StatsTotalDashboardVersions = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name:      "stat_totals_dashboard_versions",
 		Help:      "total amount of dashboard versions in the database",
@@ -633,12 +638,6 @@ func init() {
 	StatsTotalLibraryPanels = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name:      "stat_totals_library_panels",
 		Help:      "total amount of library panels in the database",
-		Namespace: ExporterName,
-	})
-
-	StatsTotalLibraryVariables = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name:      "stat_totals_library_variables",
-		Help:      "total amount of library variables in the database",
 		Namespace: ExporterName,
 	})
 
@@ -710,6 +709,10 @@ func SetPluginBuildInformation(pluginID, pluginType, version, signatureStatus st
 	grafanaPluginBuildInfoDesc.WithLabelValues(pluginID, pluginType, version, signatureStatus).Set(1)
 }
 
+func SetPluginTargetInformation(pluginID, target string) {
+	grafanaPluginTargetInfoDesc.WithLabelValues(pluginID, target).Set(1)
+}
+
 func initMetricVars(reg prometheus.Registerer) {
 	reg.MustRegister(
 		MInstanceStart,
@@ -764,12 +767,12 @@ func initMetricVars(reg prometheus.Registerer) {
 		StatsTotalActiveAdmins,
 		StatsTotalDataSources,
 		grafanaPluginBuildInfoDesc,
+		grafanaPluginTargetInfoDesc,
 		StatsTotalDashboardVersions,
 		StatsTotalAnnotations,
 		StatsTotalAlertRules,
 		StatsTotalRuleGroups,
 		StatsTotalLibraryPanels,
-		StatsTotalLibraryVariables,
 		StatsTotalDataKeys,
 		MStatTotalPublicDashboards,
 		MPublicDashboardRequestCount,

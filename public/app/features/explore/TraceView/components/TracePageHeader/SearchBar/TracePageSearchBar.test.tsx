@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import { render, screen } from '@testing-library/react';
-import React from 'react';
 
-import { defaultFilters } from '../../../useSearch';
-import { trace } from '../TracePageHeader.test';
+import { DEFAULT_SPAN_FILTERS } from 'app/features/explore/state/constants';
+
+import { trace } from '../mocks';
 
 import TracePageSearchBar from './TracePageSearchBar';
 
@@ -24,7 +24,7 @@ describe('<TracePageSearchBar>', () => {
   const TracePageSearchBarWithProps = (props: { matches: string[] | undefined }) => {
     const searchBarProps = {
       trace: trace,
-      search: defaultFilters,
+      search: DEFAULT_SPAN_FILTERS,
       spanFilterMatches: props.matches ? new Set(props.matches) : undefined,
       showSpanFilterMatchesOnly: false,
       setShowSpanFilterMatchesOnly: jest.fn(),
@@ -55,7 +55,7 @@ describe('<TracePageSearchBar>', () => {
 
   it('renders show span filter matches only switch', async () => {
     render(<TracePageSearchBarWithProps matches={[]} />);
-    const matchesSwitch = screen.getByRole('checkbox', { name: 'Show matches only switch' });
+    const matchesSwitch = screen.getByRole('switch', { name: 'Show matches only switch' });
     expect(matchesSwitch).toBeInTheDocument();
   });
 });

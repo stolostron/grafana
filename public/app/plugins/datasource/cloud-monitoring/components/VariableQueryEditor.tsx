@@ -1,4 +1,4 @@
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
 
 import { QueryEditorProps } from '@grafana/data';
 import { getTemplateSrv } from '@grafana/runtime';
@@ -13,7 +13,7 @@ import {
   VariableQueryData,
 } from '../types/types';
 
-import { VariableQueryField } from './';
+import { VariableQueryField } from './Fields';
 
 export type Props = QueryEditorProps<
   CloudMonitoringDatasource,

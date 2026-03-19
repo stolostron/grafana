@@ -1,6 +1,6 @@
 import { css, cx } from '@emotion/css';
 import { uniqueId } from 'lodash';
-import React, { Fragment, ReactNode, useCallback, useEffect, useMemo } from 'react';
+import { Fragment, ReactNode, useCallback, useEffect, useMemo } from 'react';
 import {
   HeaderGroup,
   PluginHook,
@@ -15,10 +15,11 @@ import {
 
 import { GrafanaTheme2, IconName, isTruthy } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { Icon } from '../Icon/Icon';
 import { Pagination } from '../Pagination/Pagination';
-import { PopoverContent, Tooltip } from '../Tooltip';
+import { Tooltip } from '../Tooltip/Tooltip';
+import { PopoverContent } from '../Tooltip/types';
 
 import { Column } from './types';
 import { EXPANDER_CELL_ID, getColumns } from './utils';
@@ -147,6 +148,10 @@ interface BaseProps<TableData extends object> {
    * re-renders of the table.
    */
   fetchData?: FetchDataFunc<TableData>;
+  /**
+   * Optional way to set how the table is sorted from the beginning. Must be memoized.
+   */
+  initialSortBy?: Array<SortingRule<TableData>>;
 }
 
 interface WithExpandableRow<TableData extends object> extends BaseProps<TableData> {
@@ -178,6 +183,7 @@ export function InteractiveTable<TableData extends object>({
   renderExpandedRow,
   showExpandAll = false,
   fetchData,
+  initialSortBy = [],
 }: Props<TableData>) {
   const styles = useStyles2(getStyles);
   const tableColumns = useMemo(() => {
@@ -218,6 +224,7 @@ export function InteractiveTable<TableData extends object>({
             .map((c) => c.id)
             .filter(isTruthy),
         ].filter(isTruthy),
+        sortBy: initialSortBy,
       },
     },
     ...tableHooks

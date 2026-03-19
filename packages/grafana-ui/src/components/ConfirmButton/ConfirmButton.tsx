@@ -1,11 +1,13 @@
 import { cx, css } from '@emotion/css';
-import React, { ReactElement, useEffect, useRef, useState } from 'react';
+import { ReactElement, useEffect, useRef, useState } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
+import { Trans } from '@grafana/i18n';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { ComponentSize } from '../../types/size';
-import { Button, ButtonVariant } from '../Button';
+import { Button, ButtonVariant } from '../Button/Button';
 
 export interface Props {
   /** Confirm action callback */
@@ -114,7 +116,7 @@ export const ConfirmButton = ({
             {confirmText}
           </Button>
           <Button size={size} fill="text" onClick={onClickCancel}>
-            Cancel
+            <Trans i18nKey="grafana-ui.confirm-button.cancel">Cancel</Trans>
           </Button>
         </span>
       </div>

@@ -1,4 +1,4 @@
-import { describeInterval } from '@grafana/data/src/datetime/rangeutil';
+import { rangeUtil } from '@grafana/data';
 
 import { TimeOptions } from '../types/time';
 
@@ -18,7 +18,7 @@ export function parseInterval(value: string): [number, string] {
 }
 
 export function intervalToSeconds(interval: string): number {
-  const { sec, count } = describeInterval(interval);
+  const { sec, count } = rangeUtil.describeInterval(interval);
   return sec * count;
 }
 
@@ -61,7 +61,7 @@ const INVALID_FORMAT = new Error(
  */
 export function parsePrometheusDuration(duration: string): number {
   let input = duration;
-  let parts: Array<[number, string]> = [];
+  const parts: Array<[number, string]> = [];
 
   function matchDuration(part: string) {
     const match = DURATION_REGEXP.exec(part);
@@ -134,6 +134,13 @@ export function formatPrometheusDuration(milliseconds: number): string {
   );
 }
 
+/**
+ * Parses a Prometheus duration string and returns the duration in milliseconds.
+ * If the duration is invalid, it returns 0.
+ *
+ * @param duration - The Prometheus duration string to parse.
+ * @returns The duration in milliseconds.
+ */
 export const safeParsePrometheusDuration = (duration: string): number => {
   try {
     return parsePrometheusDuration(duration);

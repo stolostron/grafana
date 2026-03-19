@@ -1,13 +1,14 @@
 import { css, cx } from '@emotion/css';
-import React from 'react';
+import { forwardRef } from 'react';
 import { useAsync } from 'react-use';
 
 import { GrafanaTheme2, ScopedVars } from '@grafana/data';
-import { sanitize, sanitizeUrl } from '@grafana/data/src/text/sanitize';
+import { sanitize, sanitizeUrl } from '@grafana/data/internal';
 import { selectors } from '@grafana/e2e-selectors';
+import { t } from '@grafana/i18n';
 import { DashboardLink } from '@grafana/schema';
-import { CustomScrollbar, Dropdown, Icon, Button, Menu, useStyles2 } from '@grafana/ui';
-import { ButtonLinkProps, LinkButton } from '@grafana/ui/src/components/Button';
+import { Dropdown, Icon, LinkButton, Button, Menu, ScrollContainer, useStyles2 } from '@grafana/ui';
+import { ButtonLinkProps } from '@grafana/ui/internal';
 import { getBackendSrv } from 'app/core/services/backend_srv';
 import { DashboardSearchItem } from 'app/features/search/types';
 
@@ -36,7 +37,7 @@ function DashboardLinksMenu({ dashboardUID, link }: DashboardLinksMenuProps) {
   return (
     <Menu>
       <div className={styles.dropdown}>
-        <CustomScrollbar>
+        <ScrollContainer maxHeight="inherit">
           {resolvedLinks.map((resolvedLink, index) => {
             return (
               <Menu.Item
@@ -45,11 +46,15 @@ function DashboardLinksMenu({ dashboardUID, link }: DashboardLinksMenuProps) {
                 key={`dashlinks-dropdown-item-${resolvedLink.uid}-${index}`}
                 label={resolvedLink.title}
                 testId={selectors.components.DashboardLinks.link}
-                aria-label={`${resolvedLink.title} dashboard`}
+                aria-label={t(
+                  'dashboard.dashboard-links-menu.aria-label-dashboard-name',
+                  '{{dashboardName}} dashboard',
+                  { dashboardName: resolvedLink.title }
+                )}
               />
             );
           })}
-        </CustomScrollbar>
+        </ScrollContainer>
       </div>
     </Menu>
   );
@@ -157,7 +162,6 @@ function getStyles(theme: GrafanaTheme2) {
     dropdown: css({
       maxWidth: 'max(30vw, 300px)',
       maxHeight: '70vh',
-      overflowY: 'auto',
     }),
     button: css({
       color: theme.colors.text.primary,
@@ -170,7 +174,7 @@ function getStyles(theme: GrafanaTheme2) {
   };
 }
 
-export const DashboardLinkButton = React.forwardRef<unknown, ButtonLinkProps>(({ className, ...otherProps }, ref) => {
+export const DashboardLinkButton = forwardRef<unknown, ButtonLinkProps>(({ className, ...otherProps }, ref) => {
   const styles = useStyles2(getStyles);
   const Component = otherProps.href ? LinkButton : Button;
   return (

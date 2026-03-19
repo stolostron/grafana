@@ -1,10 +1,9 @@
 import { render } from '@testing-library/react';
-import React from 'react';
 import { Provider } from 'react-redux';
 import { mockToolkitActionCreator } from 'test/core/redux/mocks';
 
 import { configureStore } from 'app/store/configureStore';
-import { Invitee, OrgUser } from 'app/types';
+import { Invitee, OrgUser } from 'app/types/user';
 
 import { Props, UsersListPageUnconnected } from './UsersListPage';
 import { pageChanged, sortChanged } from './state/reducers';

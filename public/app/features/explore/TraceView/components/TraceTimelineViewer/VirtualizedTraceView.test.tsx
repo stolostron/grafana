@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import { render, screen } from '@testing-library/react';
-import React from 'react';
 
 import traceGenerator from '../demo/trace-generators';
 import transformTraceData from '../model/transform-trace-data';
-import { Trace } from '../types';
+import { Trace } from '../types/trace';
 import { formatDuration } from '../utils/date';
 
 import SpanTreeOffset from './SpanTreeOffset';

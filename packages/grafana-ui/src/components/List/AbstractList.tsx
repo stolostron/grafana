@@ -1,7 +1,7 @@
 import { cx, css } from '@emotion/css';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
 
-import { stylesFactory } from '../../themes';
+import { stylesFactory } from '../../themes/stylesFactory';
 
 export interface ListProps<T> {
   items: T[];

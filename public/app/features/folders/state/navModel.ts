@@ -1,9 +1,10 @@
 import { NavModel, NavModelItem } from '@grafana/data';
+import { t } from '@grafana/i18n';
 import { config } from '@grafana/runtime';
-import { t } from 'app/core/internationalization';
 import { contextSrv } from 'app/core/services/context_srv';
 import { getNavSubTitle } from 'app/core/utils/navBarItem-translations';
-import { AccessControlAction, FolderDTO } from 'app/types';
+import { AccessControlAction } from 'app/types/accessControl';
+import { FolderDTO, FolderParent } from 'app/types/folders';
 
 export const FOLDER_ID = 'manage-folder';
 
@@ -13,7 +14,9 @@ export const getAlertingTabID = (folderUID: string) => `folder-alerting-${folder
 export const getPermissionsTabID = (folderUID: string) => `folder-permissions-${folderUID}`;
 export const getSettingsTabID = (folderUID: string) => `folder-settings-${folderUID}`;
 
-export function buildNavModel(folder: FolderDTO, parents = folder.parents): NavModelItem {
+export function buildNavModel(folder: FolderDTO | FolderParent, parentsArg?: FolderParent[]): NavModelItem {
+  const parents = parentsArg ?? ('parents' in folder ? folder.parents : undefined);
+
   const model: NavModelItem = {
     icon: 'folder',
     id: FOLDER_ID,
@@ -67,7 +70,7 @@ export function getLoadingNav(tabIndex: number): NavModel {
     updatedBy: '',
     id: 1,
     uid: 'loading',
-    title: 'Loading',
+    title: t('folders.get-loading-nav.main.title.loading', 'Loading'),
     url: 'url',
     canSave: true,
     canEdit: true,

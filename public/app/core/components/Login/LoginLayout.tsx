@@ -1,7 +1,9 @@
 import { cx, css, keyframes } from '@emotion/css';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
+import { Trans } from '@grafana/i18n';
 import { useStyles2 } from '@grafana/ui';
 
 import { Branding } from '../Branding/Branding';
@@ -43,7 +45,9 @@ export const LoginLayout = ({ children, branding, isChangingPassword }: React.Pr
             <Branding.LoginLogo className={loginStyles.loginLogo} logo={loginLogo} />
             <div className={loginStyles.titleWrapper}>
               {isChangingPassword ? (
-                <h1 className={loginStyles.mainTitle}>Update your password</h1>
+                <h1 className={loginStyles.mainTitle}>
+                  <Trans i18nKey="login.layout.update-password">Update your password</Trans>
+                </h1>
               ) : (
                 <>
                   <h1 className={loginStyles.mainTitle}>{loginTitle}</h1>
@@ -85,6 +89,7 @@ export const getLoginStyles = (theme: GrafanaTheme2) => {
       minHeight: '100%',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
+      flex: 1,
       minWidth: '100%',
       marginLeft: 0,
       display: 'flex',

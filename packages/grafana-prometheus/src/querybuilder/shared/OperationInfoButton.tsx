@@ -10,20 +10,21 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react';
-import React, { useState } from 'react';
+import { memo, useState } from 'react';
 
 import { GrafanaTheme2, renderMarkdown } from '@grafana/data';
-import { FlexItem } from '@grafana/experimental';
+import { t } from '@grafana/i18n';
+import { FlexItem } from '@grafana/plugin-ui';
 import { Button, Portal, useStyles2 } from '@grafana/ui';
 
 import { QueryBuilderOperation, QueryBuilderOperationDef } from './types';
 
-export interface Props {
+interface Props {
   operation: QueryBuilderOperation;
   def: QueryBuilderOperationDef;
 }
 
-export const OperationInfoButton = React.memo<Props>(({ def, operation }) => {
+export const OperationInfoButton = memo<Props>(({ def, operation }) => {
   const styles = useStyles2(getStyles);
   const [show, setShow] = useState(false);
 
@@ -55,7 +56,10 @@ export const OperationInfoButton = React.memo<Props>(({ def, operation }) => {
   return (
     <>
       <Button
-        title="Click to show description"
+        tooltip={t(
+          'grafana-prometheus.querybuilder.operation-info-button.title-click-to-show-description',
+          'Click to show description'
+        )}
         ref={refs.setReference}
         icon="info-circle"
         size="sm"
@@ -74,7 +78,10 @@ export const OperationInfoButton = React.memo<Props>(({ def, operation }) => {
                 onClick={() => setShow(false)}
                 fill="text"
                 variant="secondary"
-                title="Remove operation"
+                aria-label={t(
+                  'grafana-prometheus.querybuilder.operation-info-button.title-remove-operation',
+                  'Remove operation'
+                )}
               />
             </div>
             <div
@@ -94,8 +101,8 @@ const getStyles = (theme: GrafanaTheme2) => {
   return {
     docBox: css({
       overflow: 'hidden',
-      background: theme.colors.background.primary,
-      border: `1px solid ${theme.colors.border.strong}`,
+      background: theme.colors.background.elevated,
+      border: `1px solid ${theme.colors.border.weak}`,
       boxShadow: theme.shadows.z3,
       maxWidth: '600px',
       padding: theme.spacing(1),
@@ -118,5 +125,5 @@ const getStyles = (theme: GrafanaTheme2) => {
 };
 
 function getOperationDocs(def: QueryBuilderOperationDef, op: QueryBuilderOperation): string {
-  return renderMarkdown(def.explainHandler ? def.explainHandler(op, def) : def.documentation ?? 'no docs');
+  return renderMarkdown(def.explainHandler ? def.explainHandler(op, def) : (def.documentation ?? 'no docs'));
 }

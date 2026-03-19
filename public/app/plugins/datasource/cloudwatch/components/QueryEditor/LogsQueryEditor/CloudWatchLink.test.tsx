@@ -1,11 +1,10 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
-import React from 'react';
 
 import { LoadingState } from '@grafana/data';
 
-import { setupMockedDataSource } from '../../../__mocks__/CloudWatchDataSource';
-import { RequestMock } from '../../../__mocks__/Request';
-import { validLogsQuery } from '../../../__mocks__/queries';
+import { setupMockedDataSource } from '../../../mocks/CloudWatchDataSource';
+import { RequestMock } from '../../../mocks/Request';
+import { validLogsQuery } from '../../../mocks/queries';
 import { CloudWatchLogsQuery } from '../../../types';
 
 import { CloudWatchLink } from './CloudWatchLink';
