@@ -2,9 +2,13 @@ package channels_config
 
 import (
 	"fmt"
+	"iter"
+	"maps"
 	"os"
 	"strings"
 
+	"github.com/grafana/alerting/receivers/jira"
+	alertingMqtt "github.com/grafana/alerting/receivers/mqtt"
 	alertingOpsgenie "github.com/grafana/alerting/receivers/opsgenie"
 	alertingPagerduty "github.com/grafana/alerting/receivers/pagerduty"
 	alertingTemplates "github.com/grafana/alerting/templates"
@@ -111,6 +115,163 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 		},
 	}
 
+	tlsSubformOptions := func() []NotifierOption {
+		return []NotifierOption{
+			{
+				Label:        "Disable certificate verification",
+				Element:      ElementTypeCheckbox,
+				Description:  "Do not verify the server's certificate chain and host name.",
+				PropertyName: "insecureSkipVerify",
+				Required:     false,
+			},
+			{
+				Label:        "CA Certificate",
+				Element:      ElementTypeTextArea,
+				Description:  "Certificate in PEM format to use when verifying the server's certificate chain.",
+				InputType:    InputTypeText,
+				PropertyName: "caCertificate",
+				Required:     false,
+				Secure:       true,
+			},
+			{
+				Label:        "Client Certificate",
+				Element:      ElementTypeTextArea,
+				Description:  "Client certificate in PEM format to use when connecting to the server.",
+				InputType:    InputTypeText,
+				PropertyName: "clientCertificate",
+				Required:     false,
+				Secure:       true,
+			},
+			{
+				Label:        "Client Key",
+				Element:      ElementTypeTextArea,
+				Description:  "Client key in PEM format to use when connecting to the server.",
+				InputType:    InputTypeText,
+				PropertyName: "clientKey",
+				Required:     false,
+				Secure:       true,
+			},
+		}
+	}
+
+	proxyOption := func() NotifierOption {
+		return NotifierOption{ // New in 12.1.
+			Label:        "Proxy Config",
+			PropertyName: "proxy_config",
+			Description:  "Optional proxy configuration.",
+			Element:      ElementTypeSubform,
+			SubformOptions: []NotifierOption{
+				{
+					Label:        "Proxy URL",
+					PropertyName: "proxy_url",
+					Description:  "HTTP proxy server to use to connect to the targets.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "https://proxy.example.com",
+					Required:     false,
+					Secure:       false,
+				},
+				{
+					Label:        "Proxy from environment",
+					PropertyName: "proxy_from_environment",
+					Description:  "Use environment HTTP_PROXY, HTTPS_PROXY and NO_PROXY to determine proxies.",
+					Element:      ElementTypeCheckbox,
+					Required:     false,
+					Secure:       false,
+				},
+				{
+					Label:        "No Proxy",
+					PropertyName: "no_proxy",
+					Description:  "Comma-separated list of addresses that should not use a proxy.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "example.com,1.2.3.4",
+					Required:     false,
+					Secure:       false,
+				},
+				{
+					Label:        "Proxy Connect Header",
+					PropertyName: "proxy_connect_header",
+					Description:  "Optional headers to send to proxies during CONNECT requests.",
+					Element:      ElementTypeKeyValueMap,
+					InputType:    InputTypeText,
+					Required:     false,
+					Secure:       false,
+				},
+			},
+		}
+	}
+
+	commonHttpClientOption := func() NotifierOption {
+		return NotifierOption{ // New in 12.1.
+			Label:        "HTTP Config",
+			PropertyName: "http_config",
+			Description:  "Common HTTP client options.",
+			Element:      ElementTypeSubform,
+			SubformOptions: []NotifierOption{
+				{ // New in 12.1.
+					Label:        "OAuth2",
+					PropertyName: "oauth2",
+					Description:  "OAuth2 configuration options",
+					Element:      ElementTypeSubform,
+					SubformOptions: []NotifierOption{
+						{
+							Label:        "Token URL",
+							PropertyName: "token_url",
+							Element:      ElementTypeInput,
+							Description:  "URL for the access token endpoint.",
+							InputType:    InputTypeText,
+							Required:     true,
+							Secure:       false,
+						},
+						{
+							Label:        "Client ID",
+							PropertyName: "client_id",
+							Element:      ElementTypeInput,
+							Description:  "Client ID to use when authenticating.",
+							InputType:    InputTypeText,
+							Required:     true,
+							Secure:       false,
+						},
+						{
+							Label:        "Client Secret",
+							PropertyName: "client_secret",
+							Element:      ElementTypeInput,
+							Description:  "Client secret to use when authenticating.",
+							InputType:    InputTypeText,
+							Required:     true,
+							Secure:       true,
+						},
+						{
+							Label:        "Scopes",
+							PropertyName: "scopes",
+							Element:      ElementStringArray,
+							Description:  "Optional scopes to request when obtaining an access token.",
+							Required:     false,
+							Secure:       false,
+						},
+						{
+							Label:        "Endpoint Parameters",
+							PropertyName: "endpoint_params",
+							Element:      ElementTypeKeyValueMap,
+							Description:  "Optional parameters to append to the access token request.",
+							Required:     false,
+							Secure:       false,
+						},
+						{
+							Label:          "TLS",
+							PropertyName:   "tls_config",
+							Description:    "Optional TLS configuration options for OAuth2 requests.",
+							Element:        ElementTypeSubform,
+							SubformOptions: tlsSubformOptions(),
+						},
+						proxyOption(),
+					},
+				},
+			},
+		}
+	}
+
 	return []*NotifierPlugin{
 		{
 			Type:        "dingding",
@@ -125,6 +286,8 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxxx",
 					PropertyName: "url",
 					Required:     true,
+					Secure:       true,
+					Protected:    true,
 				},
 				{
 					Label:        "Message Type",
@@ -171,6 +334,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "http://localhost:8082",
 					PropertyName: "kafkaRestProxy",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Topic",
@@ -229,7 +393,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{
 					Label:        "Description",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated description of the Kafka message",
 					PropertyName: "description",
@@ -272,7 +436,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.0.
 					Label:        "Subject",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Optional subject. You can use templates to customize this field",
 					PropertyName: "subject",
@@ -328,7 +492,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				{ // New in 8.0.
 					Label:        "Summary",
 					Description:  "You can use templates for summary",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Placeholder:  alertingTemplates.DefaultMessageTitleEmbed,
 					PropertyName: "summary",
@@ -364,13 +528,14 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					InputType:    InputTypeText,
 					PropertyName: "details",
 				},
-				{ //New in 11.1
+				{ // New in 11.1
 					Label:        "URL",
 					Description:  "The URL to send API requests to",
 					Element:      ElementTypeInput,
 					InputType:    InputTypeText,
 					Placeholder:  alertingPagerduty.DefaultURL,
 					PropertyName: "url",
+					Protected:    true,
 				},
 			},
 		},
@@ -387,6 +552,8 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "VictorOps url",
 					PropertyName: "url",
 					Required:     true,
+					Secure:       true,
+					Protected:    true,
 				},
 				{ // New in 8.0.
 					Label:        "Message Type",
@@ -404,7 +571,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.3.
 					Label:        "Title",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated title to display",
 					PropertyName: "title",
@@ -412,7 +579,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.3.
 					Label:        "Description",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated description of the message",
 					PropertyName: "description",
@@ -422,9 +589,9 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 		},
 		{
 			Type:        "oncall",
-			Name:        "Grafana OnCall",
-			Description: "Sends alerts to Grafana OnCall",
-			Heading:     "Grafana OnCall settings",
+			Name:        "Grafana IRM",
+			Description: "Sends alerts to Grafana IRM",
+			Heading:     "Grafana IRM settings",
 			Options: []NotifierOption{
 				{
 					Label:        "URL",
@@ -432,6 +599,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					InputType:    InputTypeText,
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:   "HTTP Method",
@@ -487,7 +655,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				{ // New in 9.3.
 					Label:        "Title",
 					Description:  "Templated title of the message.",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					PropertyName: "title",
 					Placeholder:  alertingTemplates.DefaultMessageTitleEmbed,
@@ -557,7 +725,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Label:        "Expire (Only used for Emergency Priority)",
 					Element:      ElementTypeInput,
 					InputType:    InputTypeText,
-					Placeholder:  "maximum 86400 seconds",
+					Placeholder:  "maximum 10800 seconds",
 					PropertyName: "expire",
 				},
 				{
@@ -574,7 +742,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.3.
 					Label:        "Title",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Placeholder:  alertingTemplates.DefaultMessageTitleEmbed,
 					PropertyName: "title",
@@ -681,6 +849,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Secure:       true,
 					Required:     true,
 					DependsOn:    "token",
+					Protected:    true,
 				},
 				{ // New in 8.4.
 					Label:        "Endpoint URL",
@@ -689,6 +858,15 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Description:  "Optionally provide a custom Slack message API endpoint for non-webhook requests, default is https://slack.com/api/chat.postMessage",
 					Placeholder:  "Slack endpoint url",
 					PropertyName: "endpointUrl",
+					Protected:    true,
+				},
+				{
+					Label:        "Color",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Description:  "Templated color of the slack message",
+					Placeholder:  alertingTemplates.DefaultMessageColor,
+					PropertyName: "color",
 				},
 				{ // New in 8.0.
 					Label:        "Title",
@@ -720,6 +898,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "http://sensu-api.local:8080",
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "API Key",
@@ -778,10 +957,11 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "Teams incoming webhook url",
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Title",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated title of the Teams message.",
 					PropertyName: "title",
@@ -896,6 +1076,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					InputType:    InputTypeText,
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:   "HTTP Method",
@@ -941,6 +1122,13 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					PropertyName: "authorization_credentials",
 					Secure:       true,
 				},
+				{ // New in 12.0.
+					Label:        "Extra Headers",
+					Description:  "Optionally provide extra headers to be used in the request.",
+					Element:      ElementTypeKeyValueMap,
+					InputType:    InputTypeText,
+					PropertyName: "headers",
+				},
 				{ // New in 8.0. TODO: How to enforce only numbers?
 					Label:        "Max Alerts",
 					Description:  "Max alerts to include in a notification. Remaining alerts in the same batch will be ignored above this number. 0 means no limit.",
@@ -951,18 +1139,86 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				{ // New in 9.3.
 					Label:        "Title",
 					Description:  "Templated title of the message.",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					PropertyName: "title",
 					Placeholder:  alertingTemplates.DefaultMessageTitleEmbed,
 				},
 				{ // New in 9.3.
 					Label:        "Message",
-					Description:  "Custom message. You can use template variables.",
+					Description:  "Templated message to be used in the payload's \"message\" field.",
 					Element:      ElementTypeTextArea,
 					PropertyName: "message",
 					Placeholder:  alertingTemplates.DefaultMessageEmbed,
 				},
+				{ // New in 12.0.
+					Label:        "Custom Payload",
+					Description:  "Optionally provide a templated payload. Overrides 'Message' and 'Title' field.",
+					Element:      ElementTypeSubform,
+					PropertyName: "payload",
+					SubformOptions: []NotifierOption{
+						{
+							Label:        "Payload Template",
+							Description:  "Custom payload template.",
+							Element:      ElementTypeTextArea,
+							PropertyName: "template",
+							Placeholder:  `{{ template "webhook.default.payload" . }}`,
+							Required:     true,
+						},
+						{
+							Label:        "Payload Variables",
+							Description:  "Optionally provide a variables to be used in the payload template. They will be available in the template as `.Vars.<variable_name>`.",
+							Element:      ElementTypeKeyValueMap,
+							InputType:    InputTypeText,
+							PropertyName: "vars",
+						},
+					},
+				},
+
+				{
+					Label:          "TLS",
+					PropertyName:   "tlsConfig",
+					Description:    "TLS configuration options",
+					Element:        ElementTypeSubform,
+					SubformOptions: tlsSubformOptions(),
+				},
+				{
+					Label:        "HMAC Signature",
+					PropertyName: "hmacConfig",
+					Description:  "HMAC signature configuration options",
+					Element:      ElementTypeSubform,
+					SubformOptions: []NotifierOption{
+						{
+							Label:        "Secret",
+							Element:      ElementTypeInput,
+							Description:  "",
+							InputType:    InputTypeText,
+							PropertyName: "secret",
+							Required:     true,
+							Secure:       true,
+						},
+						{
+							Label:        "Header",
+							Element:      ElementTypeInput,
+							Description:  "The header in which the HMAC signature will be included.",
+							InputType:    InputTypeText,
+							PropertyName: "header",
+							Placeholder:  "X-Grafana-Alerting-Signature",
+							Required:     false,
+							Secure:       false,
+						},
+						{
+							Label:        "Timestamp header",
+							Element:      ElementTypeInput,
+							Description:  "If set, the timestamp will be included in the HMAC signature. The value should be the name of the header to use.",
+							InputType:    InputTypeText,
+							PropertyName: "timestampHeader",
+							Required:     false,
+							Secure:       false,
+						},
+					},
+				},
+				commonHttpClientOption(), // New in 12.1.
 			},
 		},
 		{
@@ -981,6 +1237,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Secure:       true,
 					Required:     true,
 					DependsOn:    "secret",
+					Protected:    true,
 				},
 				{
 					Label:        "Agent ID",
@@ -1038,7 +1295,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.1.
 					Label:        "Title",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated title of the message",
 					PropertyName: "title",
@@ -1066,6 +1323,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "http://localhost:9093",
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Basic Auth User",
@@ -1091,7 +1349,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				{
 					Label:        "Title",
 					Description:  "Templated title of the message",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Placeholder:  alertingTemplates.DefaultMessageTitleEmbed,
 					PropertyName: "title",
@@ -1099,7 +1357,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				{
 					Label:        "Message Content",
 					Description:  "Mention a group using @ or a user using <@ID> when notifying in a channel",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Placeholder:  alertingTemplates.DefaultMessageEmbed,
 					PropertyName: "message",
@@ -1112,6 +1370,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					PropertyName: "url",
 					Required:     true,
 					Secure:       true,
+					Protected:    true,
 				},
 				{
 					Label:        "Avatar URL",
@@ -1140,11 +1399,13 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "Google Chat incoming webhook url",
 					PropertyName: "url",
 					Required:     true,
+					Secure:       true,
+					Protected:    true,
 				},
 				{
 					Label:        "Title",
 					Description:  "Templated title of the message",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Placeholder:  alertingTemplates.DefaultMessageTitleEmbed,
 					PropertyName: "title",
@@ -1174,7 +1435,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.3
 					Label:        "Title",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated title of the message",
 					PropertyName: "title",
@@ -1182,7 +1443,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.3
 					Label:        "Description",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated description of the message",
 					PropertyName: "description",
@@ -1229,7 +1490,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.3
 					Label:        "Title",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated title of the message.",
 					PropertyName: "title",
@@ -1237,11 +1498,163 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{ // New in 9.3
 					Label:        "Description",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Description:  "Templated description of the message.",
 					PropertyName: "description",
 					Placeholder:  alertingTemplates.DefaultMessageEmbed,
+				},
+			},
+		},
+		{
+			Type:        "mqtt",
+			Name:        "MQTT",
+			Description: "Sends notifications to an MQTT broker",
+			Heading:     "MQTT settings",
+			Info:        "The MQTT notifier sends messages to an MQTT broker. The message is sent to the topic specified in the configuration. ",
+			Options: []NotifierOption{
+				{
+					Label:        "Broker URL",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "tcp://localhost:1883",
+					Description:  "The URL of the MQTT broker.",
+					PropertyName: "brokerUrl",
+					Required:     true,
+					Protected:    true,
+				},
+				{
+					Label:        "Topic",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "grafana/alerts",
+					Description:  "The topic to which the message will be sent.",
+					PropertyName: "topic",
+					Required:     true,
+				},
+				{
+					Label:   "Message format",
+					Element: ElementTypeSelect,
+					SelectOptions: []SelectOption{
+						{
+							Value: alertingMqtt.MessageFormatJSON,
+							Label: "json",
+						},
+						{
+							Value: alertingMqtt.MessageFormatText,
+							Label: "text",
+						},
+					},
+					InputType:    InputTypeText,
+					Placeholder:  "json",
+					Description:  "If set to 'json', the notification message is the default JSON payload, and the Message field sets only the message field in the payload. If set to 'text', the Message field defines the entire payload. The default is 'json'.",
+					PropertyName: "messageFormat",
+					Required:     false,
+				},
+				{
+					Label:        "Client ID",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "",
+					Description:  "The client ID to use when connecting to the MQTT broker. If blank, a random client ID is used.",
+					PropertyName: "clientId",
+					Required:     false,
+				},
+				{
+					Label:        "Message",
+					Element:      ElementTypeTextArea,
+					Description:  "In 'json' Message format, sets the message field of the default JSON payload. In 'text' Message format, defines the entire payload.",
+					Placeholder:  alertingTemplates.DefaultMessageEmbed,
+					PropertyName: "message",
+				},
+				{
+					Label:        "Username",
+					Description:  "The username to use when connecting to the MQTT broker.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "",
+					PropertyName: "username",
+					Required:     false,
+				},
+				{
+					Label:        "Password",
+					Description:  "The password to use when connecting to the MQTT broker.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "",
+					PropertyName: "password",
+					Required:     false,
+					Secure:       true,
+				},
+				{
+					Label:   "QoS",
+					Element: ElementTypeSelect,
+					SelectOptions: []SelectOption{
+						{
+							Value: "0",
+							Label: "At most once (0)",
+						},
+						{
+							Value: "1",
+							Label: "At least once (1)",
+						},
+						{
+							Value: "2",
+							Label: "Exactly once (2)",
+						},
+					},
+					Description:  "The quality of service to use when sending the message.",
+					PropertyName: "qos",
+					Required:     false,
+				},
+				{
+					Label:        "Retain",
+					Description:  "If set to true, the message will be retained by the broker.",
+					Element:      ElementTypeCheckbox,
+					PropertyName: "retain",
+					Required:     false,
+				},
+				{
+					Label:        "TLS",
+					PropertyName: "tlsConfig",
+					Description:  "TLS configuration options",
+					Element:      ElementTypeSubform,
+					SubformOptions: []NotifierOption{
+						{
+							Label:        "Disable certificate verification",
+							Element:      ElementTypeCheckbox,
+							Description:  "Do not verify the broker's certificate chain and host name.",
+							PropertyName: "insecureSkipVerify",
+							Required:     false,
+						},
+						{
+							Label:        "CA Certificate",
+							Element:      ElementTypeTextArea,
+							Description:  "Certificate in PEM format to use when verifying the broker's certificate chain.",
+							InputType:    InputTypeText,
+							PropertyName: "caCertificate",
+							Required:     false,
+							Secure:       true,
+						},
+						{
+							Label:        "Client Certificate",
+							Element:      ElementTypeTextArea,
+							Description:  "Client certificate in PEM format to use when connecting to the broker.",
+							InputType:    InputTypeText,
+							PropertyName: "clientCertificate",
+							Required:     false,
+							Secure:       true,
+						},
+						{
+							Label:        "Client Key",
+							Element:      ElementTypeTextArea,
+							Description:  "Client key in PEM format to use when connecting to the broker.",
+							InputType:    InputTypeText,
+							PropertyName: "clientKey",
+							Required:     false,
+							Secure:       true,
+						},
+					},
 				},
 			},
 		},
@@ -1267,11 +1680,12 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "https://api.opsgenie.com/v2/alerts",
 					PropertyName: "apiUrl",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Message",
 					Description:  "Alert text limited to 130 characters.",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
 					Placeholder:  alertingTemplates.DefaultMessageTitleEmbed,
 					PropertyName: "message",
@@ -1363,6 +1777,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "https://api.ciscospark.com/v1/messages",
 					Description:  "API endpoint at which we'll send webhooks to.",
 					PropertyName: "api_url",
+					Protected:    true,
 				},
 				{
 					Label:        "Room ID",
@@ -1396,9 +1811,8 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 		{ // Since Grafana 11.1
 			Type:        "sns",
 			Name:        "AWS SNS",
-			Description: "Sends notifications to Cisco Webex Teams",
-			Heading:     "Webex settings",
-			Info:        "Notifications can be configured for any Cisco Webex Teams",
+			Description: "Sends notifications to AWS Simple Notification Service",
+			Heading:     "AWS SNS settings",
 			Options: []NotifierOption{
 				{
 					Label:        "The Amazon SNS API URL",
@@ -1484,15 +1898,15 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 				{
 					Label:        "Subject",
-					Element:      ElementTypeInput,
+					Element:      ElementTypeTextArea,
 					InputType:    InputTypeText,
-					Description:  "Optional subject. You can use templates to customize this field",
+					Description:  "Optional subject. By default, this field uses the default title template and can be customized with templates and custom messages. It cannot be an empty string",
 					PropertyName: "subject",
 					Placeholder:  alertingTemplates.DefaultMessageTitleEmbed,
 				},
 				{
 					Label:        "Message",
-					Description:  "Optional message. You can use templates to customize this field. Using a custom message will replace the default message",
+					Description:  "Optional message. By default, this field uses the default message template and can be customized with templates and custom messages",
 					Element:      ElementTypeTextArea,
 					PropertyName: "message",
 					Placeholder:  alertingTemplates.DefaultMessageEmbed,
@@ -1506,6 +1920,155 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				},
 			},
 		},
+		{ // Since Grafana 11.6
+			Type:        "jira",
+			Name:        "Jira",
+			Description: "Creates Jira issues from alerts",
+			Heading:     "Jira settings",
+			Options: []NotifierOption{
+				{
+					Label:        "API URL of Jira instance, including version of API",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "https://grafana.atlassian.net/rest/api/3",
+					PropertyName: "api_url",
+					Description:  "Supported v2 or v3 APIs",
+					Required:     true,
+					Protected:    true,
+				},
+				{
+					Label:        "HTTP Basic Authentication - Username",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					PropertyName: "user",
+					Description:  "Username to use for Jira authentication.",
+					Secure:       true,
+					Required:     false,
+				},
+				{
+					Label:        "HTTP Basic Authentication - Password",
+					Element:      ElementTypeInput,
+					InputType:    InputTypePassword,
+					PropertyName: "password",
+					// Go to https://id.atlassian.com/manage-profile/security/api-tokens to obtain a token.
+					Description: "Password to use for Jira authentication.",
+					Secure:      true,
+					Required:    false,
+				},
+				{
+					Label:        "Authorization Header - Personal Access Token",
+					Element:      ElementTypeInput,
+					InputType:    InputTypePassword,
+					PropertyName: "api_token",
+					// Go to https://confluence.atlassian.com/enterprise/using-personal-access-tokens-1026032365.html for how to obtain a token.
+					Description: "Personal Access Token that is used as a bearer authorization header.",
+					Secure:      true,
+					Required:    false,
+				},
+				{
+					Label:        "Project Key",
+					Description:  "The project key associated with the relevant Jira project",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "Grafana",
+					PropertyName: "project",
+					Required:     true,
+				},
+				{
+					Label:        "Issue Type",
+					Description:  "The type of the Jira issue (e.g., Bug, Task, Story). You can use templates to customize this field.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "Task",
+					Required:     true,
+					PropertyName: "issue_type",
+				},
+				{
+					Label:        "Summary",
+					Description:  fmt.Sprintf("The summary of the Jira issue. You can use templates to customize this field. Maximum length is %d characters.", jira.MaxSummaryLenRunes),
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  jira.DefaultSummary,
+					PropertyName: "summary",
+				},
+				{
+					Label:        "Description",
+					Description:  fmt.Sprintf("The description of the Jira issue. You can use templates to customize this field. Maximum length is %d characters.", jira.MaxDescriptionLenRunes),
+					Element:      ElementTypeTextArea,
+					InputType:    InputTypeText,
+					Placeholder:  jira.DefaultDescription,
+					PropertyName: "description",
+				},
+				{
+					Label:        "Labels",
+					Description:  "Labels to assign to the Jira issue. You can use templates to customize this field.",
+					Element:      ElementStringArray,
+					Placeholder:  "",
+					PropertyName: "labels",
+				},
+				{
+					Label:        "Priority",
+					Description:  "The priority of the Jira issue (e.g., High, Medium, Low). You can use templates to customize this field.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  jira.DefaultPriority,
+					PropertyName: "priority",
+					Required:     false,
+				},
+				{
+					Label:        "Resolve Transition",
+					Description:  `Name of the workflow transition to resolve an issue. The target status must have the category "done". If not set, the issue will not be resolved.`,
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "",
+					PropertyName: "resolve_transition",
+					Required:     false,
+				},
+				{
+					Label:        "Reopen Transition",
+					Description:  `Name of the workflow transition to resolve an issue. The target status must not have the category "done". If not set, the issue will not be reopened.`,
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "",
+					PropertyName: "reopen_transition",
+					Required:     false,
+				},
+				{
+					Label:        "Reopen Duration",
+					Description:  "Reopen the issue when it is not older than this value in minutes. Otherwise, create a new issue.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "10m",
+					PropertyName: "reopen_duration",
+				},
+				{
+					Label:        "\"Won't fix\" Transition",
+					Description:  `If reopen transition is defined, ignore issues with that resolution.`,
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "",
+					PropertyName: "wont_fix_resolution",
+					Required:     false,
+				},
+				{
+					Label:          "Custom field ID for deduplication",
+					Description:    "Id of the custom field where the deduplication key should be stored. Otherwise, it is added to labels in format 'ALERT($KEY).'",
+					Element:        ElementTypeInput,
+					InputType:      InputTypeText,
+					Placeholder:    "10000",
+					ValidationRule: "^[0-9]+$",
+					PropertyName:   "dedup_key_field",
+				},
+				{
+					Label:        "Custom Field Data",
+					Description:  "Custom field data to set on the Jira issue.",
+					Element:      ElementTypeKeyValueMap,
+					InputType:    InputTypeText,
+					Placeholder:  "",
+					PropertyName: "fields",
+				},
+			},
+		},
 	}
 }
 
@@ -1513,15 +2076,63 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 func GetSecretKeysForContactPointType(contactPointType string) ([]string, error) {
 	notifiers := GetAvailableNotifiers()
 	for _, n := range notifiers {
-		if n.Type == contactPointType {
-			var secureFields []string
-			for _, field := range n.Options {
-				if field.Secure {
-					secureFields = append(secureFields, field.PropertyName)
-				}
-			}
-			return secureFields, nil
+		if strings.EqualFold(n.Type, contactPointType) {
+			return getSecretFields("", n.Options), nil
 		}
 	}
 	return nil, fmt.Errorf("no secrets configured for type '%s'", contactPointType)
+}
+
+func getSecretFields(parentPath string, options []NotifierOption) []string {
+	var secureFields []string
+	for _, field := range options {
+		name := field.PropertyName
+		if parentPath != "" {
+			name = parentPath + "." + name
+		}
+		if field.Secure {
+			secureFields = append(secureFields, name)
+			continue
+		}
+		if len(field.SubformOptions) > 0 {
+			secureFields = append(secureFields, getSecretFields(name, field.SubformOptions)...)
+		}
+	}
+	return secureFields
+}
+
+// ConfigForIntegrationType returns the config for the given integration type. Returns error is integration type is not known.
+func ConfigForIntegrationType(contactPointType string) (VersionedNotifierPlugin, error) {
+	notifiers := GetAvailableNotifiersV2()
+	for n := range notifiers {
+		if strings.EqualFold(n.Type, contactPointType) {
+			return n, nil
+		}
+	}
+	return VersionedNotifierPlugin{}, fmt.Errorf("unknown integration type '%s'", contactPointType)
+}
+
+func GetAvailableNotifiersV2() iter.Seq[VersionedNotifierPlugin] {
+	v1 := GetAvailableNotifiers()
+	m := make(map[string]VersionedNotifierPlugin, len(v1))
+	for _, n := range v1 {
+		pl := VersionedNotifierPlugin{
+			Type:           n.Type,
+			Name:           n.Name,
+			Description:    n.Description,
+			Heading:        n.Heading,
+			Info:           n.Info,
+			CurrentVersion: "v1",
+			Versions: []NotifierPluginVersion{
+				{
+					Version:   "v1",
+					CanCreate: true,
+					Options:   n.Options,
+					Info:      "",
+				},
+			},
+		}
+		m[n.Type] = pl
+	}
+	return maps.Values(m)
 }

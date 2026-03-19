@@ -2,12 +2,13 @@ import { interpolateRgbBasis } from 'd3-interpolate';
 import stringHash from 'string-hash';
 import tinycolor from 'tinycolor2';
 
-import { colorManipulator } from '../themes';
+import { getContrastRatio } from '../themes/colorManipulator';
 import { GrafanaTheme2 } from '../themes/types';
 import { reduceField } from '../transformations/fieldReducer';
-import { FALLBACK_COLOR, Field, FieldColorModeId, Threshold } from '../types';
-import { RegistryItem } from '../utils';
-import { Registry } from '../utils/Registry';
+import { Field } from '../types/dataFrame';
+import { FALLBACK_COLOR, FieldColorModeId } from '../types/fieldColor';
+import { Threshold } from '../types/thresholds';
+import { Registry, RegistryItem } from '../utils/Registry';
 
 import { getScaleCalculator, ColorScaleValue } from './scale';
 import { fallBackThreshold } from './thresholds';
@@ -69,10 +70,8 @@ export const fieldColorModeRegistry = new Registry<FieldColorMode>(() => {
       getColors: (theme: GrafanaTheme2) => {
         return theme.visualization.palette.filter(
           (color) =>
-            colorManipulator.getContrastRatio(
-              theme.visualization.getColorByName(color),
-              theme.colors.background.primary
-            ) >= theme.colors.contrastThreshold
+            getContrastRatio(theme.visualization.getColorByName(color), theme.colors.background.primary) >=
+            theme.colors.contrastThreshold
         );
       },
     }),
@@ -219,7 +218,7 @@ export class FieldColorSchemeMode implements FieldColorMode {
       }
     } else if (this.useSeriesName) {
       return (_: number, _percent: number, _threshold?: Threshold) => {
-        return colors[Math.abs(stringHash(field.name)) % colors.length];
+        return getColorByStringHash(colors, field.state?.displayName ?? field.name);
       };
     } else {
       return (_: number, _percent: number, _threshold?: Threshold) => {
@@ -262,6 +261,10 @@ export function getFieldSeriesColor(field: Field, theme: GrafanaTheme2): ColorSc
   const value = calcs[stat] ?? 0;
 
   return scale(value);
+}
+
+export function getColorByStringHash(colors: string[], string: string) {
+  return colors[Math.abs(stringHash(string)) % colors.length];
 }
 
 function getFixedColor(field: Field, theme: GrafanaTheme2) {

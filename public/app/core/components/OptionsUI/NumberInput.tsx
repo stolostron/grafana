@@ -1,9 +1,11 @@
 import { debounce } from 'lodash';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
+import * as React from 'react';
 
 import { Field, Input } from '@grafana/ui';
 
 interface Props {
+  id?: string;
   value?: number;
   placeholder?: string;
   autoFocus?: boolean;
@@ -100,6 +102,7 @@ export class NumberInput extends PureComponent<Props, State> {
     return (
       <Input
         type="number"
+        id={this.props.id}
         ref={this.inputRef}
         min={this.props.min}
         max={this.props.max}

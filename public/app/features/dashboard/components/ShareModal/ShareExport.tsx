@@ -1,10 +1,11 @@
 import { saveAs } from 'file-saver';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
 
+import { Trans, t } from '@grafana/i18n';
 import { Button, Field, Modal, Switch } from '@grafana/ui';
 import { appEvents } from 'app/core/core';
-import { t, Trans } from 'app/core/internationalization';
 import { DashboardExporter } from 'app/features/dashboard/components/DashExportModal';
+import { makeExportableV1 } from 'app/features/dashboard-scene/scene/export/exporters';
 import { DashboardInteractions } from 'app/features/dashboard-scene/utils/interactions';
 import { ShowModalReactEvent } from 'app/types/events';
 
@@ -46,7 +47,7 @@ export class ShareExport extends PureComponent<Props, State> {
     });
 
     if (shareExternally) {
-      this.exporter.makeExportable(dashboard).then((dashboardJson) => {
+      makeExportableV1(dashboard).then((dashboardJson) => {
         this.openSaveAsDialog(dashboardJson);
       });
     } else {
@@ -101,7 +102,7 @@ export class ShareExport extends PureComponent<Props, State> {
 
     return (
       <>
-        <p className="share-modal-info-text">
+        <p>
           <Trans i18nKey="share-modal.export.info-text">Export this dashboard.</Trans>
         </p>
         <Field label={exportExternallyTranslation}>

@@ -1,9 +1,11 @@
 import { css, cx } from '@emotion/css';
-import React, { HTMLAttributes } from 'react';
+import { HTMLAttributes } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { styleMixins, useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
+import { getFocusStyles } from '../../themes/mixins';
 
 /**
  * @public
@@ -45,6 +47,8 @@ export interface CardContainerProps extends HTMLAttributes<HTMLOrSVGElement>, Ca
   isSelected?: boolean;
   /** Custom container styles */
   className?: string;
+  /** Remove the bottom margin */
+  noMargin?: boolean;
 }
 
 /** @deprecated Using `CardContainer` directly is discouraged and should be replaced with `Card` */
@@ -55,9 +59,17 @@ export const CardContainer = ({
   isSelected,
   className,
   href,
+  noMargin,
   ...props
 }: CardContainerProps) => {
-  const { oldContainer } = useStyles2(getCardContainerStyles, disableEvents, disableHover, isSelected);
+  const { oldContainer } = useStyles2(
+    getCardContainerStyles,
+    disableEvents,
+    disableHover,
+    isSelected,
+    undefined,
+    noMargin
+  );
 
   return (
     <div {...props} className={cx(oldContainer, className)}>
@@ -71,7 +83,8 @@ export const getCardContainerStyles = (
   disabled = false,
   disableHover = false,
   isSelected?: boolean,
-  isCompact?: boolean
+  isCompact?: boolean,
+  noMargin = false
 ) => {
   const isSelectable = isSelected !== undefined;
 
@@ -92,7 +105,7 @@ export const getCardContainerStyles = (
       padding: theme.spacing(isCompact ? 1 : 2),
       background: theme.colors.background.secondary,
       borderRadius: theme.shape.radius.default,
-      marginBottom: '8px',
+      marginBottom: theme.spacing(noMargin ? 0 : 1),
       pointerEvents: disabled ? 'none' : 'auto',
       [theme.transitions.handleMotion('no-preference', 'reduce')]: {
         transition: theme.transitions.create(['background-color', 'box-shadow', 'border-color', 'color'], {
@@ -106,7 +119,7 @@ export const getCardContainerStyles = (
           cursor: 'pointer',
           zIndex: 1,
         },
-        '&:focus': styleMixins.getFocusStyles(theme),
+        '&:focus': getFocusStyles(theme),
       }),
 
       ...(isSelectable && {
@@ -124,7 +137,7 @@ export const getCardContainerStyles = (
       borderRadius: theme.shape.radius.default,
       position: 'relative',
       pointerEvents: disabled ? 'none' : 'auto',
-      marginBottom: theme.spacing(1),
+      marginBottom: theme.spacing(noMargin ? 0 : 1),
       [theme.transitions.handleMotion('no-preference', 'reduce')]: {
         transition: theme.transitions.create(['background-color', 'box-shadow', 'border-color', 'color'], {
           duration: theme.transitions.duration.short,
@@ -137,7 +150,7 @@ export const getCardContainerStyles = (
           cursor: 'pointer',
           zIndex: 1,
         },
-        '&:focus': styleMixins.getFocusStyles(theme),
+        '&:focus': getFocusStyles(theme),
       }),
     }),
   };

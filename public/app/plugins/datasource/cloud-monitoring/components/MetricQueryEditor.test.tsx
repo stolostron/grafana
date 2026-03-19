@@ -1,12 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
 import { openMenu } from 'react-select-event';
 
 import { getDefaultTimeRange } from '@grafana/data';
 
-import { createMockDatasource } from '../__mocks__/cloudMonitoringDatasource';
-import { createMockQuery } from '../__mocks__/cloudMonitoringQuery';
+import { createMockDatasource } from '../mocks/cloudMonitoringDatasource';
+import { createMockQuery } from '../mocks/cloudMonitoringQuery';
 import { QueryType } from '../types/query';
 
 import { MetricQueryEditor } from './MetricQueryEditor';

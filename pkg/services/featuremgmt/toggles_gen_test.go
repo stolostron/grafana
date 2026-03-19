@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,8 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/grafana/grafana/pkg/apimachinery/utils"
 	featuretoggleapi "github.com/grafana/grafana/pkg/apis/featuretoggle/v0alpha1"
-	"github.com/grafana/grafana/pkg/services/apiserver/utils"
 	"github.com/grafana/grafana/pkg/services/featuremgmt/strcase"
 )
 
@@ -58,6 +59,7 @@ func TestFeatureToggleFiles(t *testing.T) {
 					AllowSelfServe:    flag.AllowSelfServe,
 					HideFromAdminPage: flag.HideFromAdminPage,
 					HideFromDocs:      flag.HideFromDocs,
+					Expression:        flag.Expression,
 					// EnabledVersion: ???,
 				}
 
@@ -90,7 +92,7 @@ func TestFeatureToggleFiles(t *testing.T) {
 					}
 				} else if item.DeletionTimestamp == nil {
 					item.DeletionTimestamp = &created
-					fmt.Printf("mark feature as deleted")
+					t.Log("mark feature as deleted")
 				}
 				current.Items = append(current.Items, item)
 			}
@@ -106,6 +108,25 @@ func TestFeatureToggleFiles(t *testing.T) {
 					Spec: v,
 				})
 			}
+
+			// Set the dates from git history
+			dates := readFlagDateInfo(t)
+			for idx, item := range current.Items {
+				found, ok := dates[item.Name]
+				if ok {
+					// current.Items[idx].ResourceVersion = fmt.Sprintf("%d", found.created.UnixMilli()+int64(idx))
+					current.Items[idx].CreationTimestamp = v1.NewTime(found.created)
+					if found.deleted != nil {
+						tmp := v1.NewTime(*found.deleted)
+						current.Items[idx].DeletionTimestamp = &tmp
+					}
+				}
+			}
+
+			// Sort by name -- will avoid more git conflicts
+			sort.Slice(current.Items, func(i, j int) bool {
+				return current.Items[i].Name < current.Items[j].Name
+			})
 
 			out, err := json.MarshalIndent(current, "", "  ")
 			require.NoError(t, err)
@@ -151,8 +172,8 @@ func verifyFlagsConfiguration(t *testing.T) {
 
 	// Check that all flags set in code are valid
 	for _, flag := range standardFeatureFlags {
-		if flag.Expression == "true" && !(flag.Stage == FeatureStageGeneralAvailability || flag.Stage == FeatureStageDeprecated) {
-			t.Errorf("only FeatureStageGeneralAvailability or FeatureStageDeprecated features can be enabled by default.  See: %s", flag.Name)
+		if flag.Expression == "true" && (flag.Stage != FeatureStageGeneralAvailability && flag.Stage != FeatureStageDeprecated && flag.Stage != FeatureStagePublicPreview) {
+			t.Errorf("only features that are FeatureStagePublicPreview, FeatureStageGeneralAvailability, or FeatureStageDeprecated can be enabled by default.  See: %s", flag.Name)
 		}
 		if flag.RequiresDevMode && flag.Stage != FeatureStageExperimental {
 			t.Errorf("only alpha features can require dev mode.  See: %s", flag.Name)
@@ -166,7 +187,7 @@ func verifyFlagsConfiguration(t *testing.T) {
 		if flag.Name != strings.TrimSpace(flag.Name) {
 			t.Errorf("flag Name should not start/end with spaces.  See: %s", flag.Name)
 		}
-		if flag.AllowSelfServe && !(flag.Stage == FeatureStageGeneralAvailability || flag.Stage == FeatureStagePublicPreview || flag.Stage == FeatureStageDeprecated) {
+		if flag.AllowSelfServe && (flag.Stage != FeatureStageGeneralAvailability && flag.Stage != FeatureStagePublicPreview && flag.Stage != FeatureStageDeprecated) {
 			t.Errorf("only allow self-serving GA, PublicPreview and Deprecated toggles")
 		}
 		if flag.Owner == "" {
@@ -175,7 +196,7 @@ func verifyFlagsConfiguration(t *testing.T) {
 		if flag.Stage == FeatureStageGeneralAvailability && flag.Expression == "" {
 			t.Errorf("GA features must be explicitly enabled or disabled, please add the `Expression` property for %s", flag.Name)
 		}
-		if !(flag.Expression == "" || flag.Expression == "true" || flag.Expression == "false") {
+		if flag.Expression != "" && flag.Expression != "true" && flag.Expression != "false" {
 			t.Errorf("the `Expression` property for %s is incorrect. valid values are: `true`, `false` or empty string for default", flag.Name)
 		}
 		// Check camel case names
@@ -189,14 +210,45 @@ func verifyFlagsConfiguration(t *testing.T) {
 	// acronyms can be configured as needed via `ConfigureAcronym` function from `./strcase/camel.go`
 }
 
+type flagDateInfo struct {
+	created time.Time
+	deleted *time.Time
+}
+
+// Load a cached copy of the feature toggle dates
+func readFlagDateInfo(t *testing.T) map[string]flagDateInfo {
+	info := make(map[string]flagDateInfo, 300)
+	// This file is created by running the script in:
+	// https://github.com/grafana/grafana-enterprise/blob/ff-git-log-history/scripts/sidecar/main.go#L9
+	body, err := os.ReadFile("toggles-gitlog.csv")
+	require.NoError(t, err)
+	reader := csv.NewReader(bytes.NewBuffer(body))
+	rows, err := reader.ReadAll()
+	require.NoError(t, err)
+	for _, row := range rows {
+		if strings.HasPrefix(row[0], "#") {
+			continue
+		}
+		d := flagDateInfo{}
+		d.created, err = time.Parse(time.RFC3339, row[1])
+		require.NoError(t, err)
+		if row[2] != "" {
+			tmp, err := time.Parse(time.RFC3339, row[2])
+			require.NoError(t, err)
+			d.deleted = &tmp
+		}
+		info[row[0]] = d
+	}
+	return info
+}
+
 func verifyAndGenerateFile(t *testing.T, fpath string, gen string) {
 	// nolint:gosec
 	// We can ignore the gosec G304 warning since this is a test and the function is only called explicitly above
 	body, err := os.ReadFile(fpath)
 	if err == nil {
 		if diff := cmp.Diff(gen, string(body)); diff != "" {
-			str := fmt.Sprintf("body mismatch (-want +got):\n%s\n", diff)
-			err = fmt.Errorf(str)
+			err = fmt.Errorf("body mismatch (-want +got):\n%s\n", diff)
 		}
 	}
 
@@ -234,6 +286,15 @@ func generateTypeScript() string {
 export interface FeatureToggles {
 `
 	for _, flag := range standardFeatureFlags {
+		buf += "  /**\n"
+		buf += "  * " + flag.Description + "\n"
+		if flag.Stage == FeatureStageDeprecated {
+			buf += "  * @deprecated\n"
+		}
+		if flag.Expression != "" {
+			buf += "  * @default " + flag.Expression + "\n"
+		}
+		buf += "  */\n"
 		buf += "  " + getTypeScriptKey(flag.Name) + "?: boolean;\n"
 	}
 
@@ -332,6 +393,7 @@ func generateDocsMD() string {
 	buf := `---
 aliases:
   - /docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/
+  - ../../administration/feature-toggles/ # /docs/grafana/latest/administration/feature-toggles/
 description: Learn about feature toggles, which you can enable or disable.
 title: Configure feature toggles
 weight: 150
@@ -344,7 +406,7 @@ weight: 150
 
 You use feature toggles, also known as feature flags, to enable or disable features in Grafana. You can turn on feature toggles to try out new functionality in development or test environments.
 
-This page contains a list of available feature toggles. To learn how to turn on feature toggles, refer to our [Configure Grafana documentation]({{< relref "../_index.md#feature_toggles" >}}). Feature toggles are also available to Grafana Cloud Advanced customers. If you use Grafana Cloud Advanced, you can open a support ticket and specify the feature toggles and stack for which you want them enabled.
+This page contains a list of available feature toggles. To learn how to turn on feature toggles, refer to our [Configure Grafana documentation](../#feature_toggles). Feature toggles are also available to Grafana Cloud Advanced customers. If you use Grafana Cloud Advanced, you can open a support ticket and specify the feature toggles and stack for which you want them enabled.
 
 For more information about feature release stages, refer to [Release life cycle for Grafana Labs](https://grafana.com/docs/release-life-cycle/) and [Manage feature toggles](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/administration/feature-toggles/#manage-feature-toggles).
 
@@ -377,19 +439,9 @@ When features are slated for removal, they will be marked as Deprecated first.
 	}
 
 	buf += `
-## Experimental feature toggles
-
-[Experimental](https://grafana.com/docs/release-life-cycle/#experimental) features are early in their development lifecycle and so are not yet supported in Grafana Cloud.
-Experimental features might be changed or removed without prior notice.
-
-` + writeToggleDocsTable(func(flag FeatureFlag) bool {
-		return flag.Stage == FeatureStageExperimental && !flag.RequiresDevMode
-	}, false)
-
-	buf += `
 ## Development feature toggles
 
-The following toggles require explicitly setting Grafana's [app mode]({{< relref "../_index.md#app_mode" >}}) to 'development' before you can enable this feature toggle. These features tend to be experimental.
+The following toggles require explicitly setting Grafana's [app mode](../#app_mode) to 'development' before you can enable this feature toggle. These features tend to be experimental.
 
 ` + writeToggleDocsTable(func(flag FeatureFlag) bool {
 		return flag.RequiresDevMode

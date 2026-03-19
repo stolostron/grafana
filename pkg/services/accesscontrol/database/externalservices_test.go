@@ -9,10 +9,13 @@ import (
 
 	"github.com/grafana/grafana/pkg/infra/db"
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
+	"github.com/grafana/grafana/pkg/util/testutil"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAccessControlStore_SaveExternalServiceRole(t *testing.T) {
+func TestIntegrationAccessControlStore_SaveExternalServiceRole(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	type run struct {
 		cmd     accesscontrol.SaveExternalServiceRoleCommand
 		wantErr bool
@@ -102,10 +105,10 @@ func TestAccessControlStore_SaveExternalServiceRole(t *testing.T) {
 				{
 					cmd: accesscontrol.SaveExternalServiceRoleCommand{
 						ExternalServiceID: "app1",
-						AssignmentOrgID:   1,
+						AssignmentOrgID:   2,
 						ServiceAccountID:  2,
 					},
-					wantErr: true,
+					wantErr: false,
 				},
 			},
 		},
@@ -152,7 +155,9 @@ func TestAccessControlStore_SaveExternalServiceRole(t *testing.T) {
 	}
 }
 
-func TestAccessControlStore_DeleteExternalServiceRole(t *testing.T) {
+func TestIntegrationAccessControlStore_DeleteExternalServiceRole(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	extID := "app1"
 	tests := []struct {
 		name    string

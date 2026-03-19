@@ -1,4 +1,5 @@
-import React, { Component } from 'react';
+import { Component } from 'react';
+import * as React from 'react';
 import { Subscription } from 'rxjs';
 import { throttleTime } from 'rxjs/operators';
 import uPlot, { AlignedData } from 'uplot';
@@ -24,7 +25,7 @@ import { AxisProps } from '../../components/uPlot/config/UPlotAxisBuilder';
 import { Renderers, UPlotConfigBuilder } from '../../components/uPlot/config/UPlotConfigBuilder';
 import { ScaleProps } from '../../components/uPlot/config/UPlotScaleBuilder';
 import { findMidPointYPosition, pluginLog } from '../../components/uPlot/utils';
-import { Themeable2 } from '../../types';
+import { Themeable2 } from '../../types/theme';
 
 import { GraphNGLegendEvent, XYFieldMatchers } from './types';
 import { preparePlotFrame as defaultPreparePlotFrame } from './utils';

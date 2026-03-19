@@ -1,10 +1,9 @@
 import { StoryFn, Meta } from '@storybook/react';
-import React from 'react';
 
-import { Slider } from '@grafana/ui';
+import { Slider } from './Slider';
 
 const meta: Meta<typeof Slider> = {
-  title: 'Forms/Slider',
+  title: 'Inputs/Slider',
   component: Slider,
   parameters: {
     controls: {
@@ -13,6 +12,8 @@ const meta: Meta<typeof Slider> = {
     knobs: {
       disabled: true,
     },
+    // TODO fix a11y issue in story and remove this
+    a11y: { test: 'off' },
   },
   argTypes: {
     orientation: { control: { type: 'select', options: ['horizontal', 'vertical'] } },

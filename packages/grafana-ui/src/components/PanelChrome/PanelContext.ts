@@ -1,4 +1,4 @@
-import React from 'react';
+import { createContext, useContext } from 'react';
 
 import {
   EventBusSrv,
@@ -39,6 +39,7 @@ export interface PanelContext {
   canAddAnnotations?: () => boolean;
   canEditAnnotations?: (dashboardUID?: string) => boolean;
   canDeleteAnnotations?: (dashboardUID?: string) => boolean;
+  canExecuteActions?: () => boolean;
   onAnnotationCreate?: (annotation: AnnotationEventUIModel) => void;
   onAnnotationUpdate?: (annotation: AnnotationEventUIModel) => void;
   onAnnotationDelete?: (id: string) => void;
@@ -99,7 +100,7 @@ export interface PanelContext {
   dataLinkPostProcessor?: DataLinkPostProcessor;
 }
 
-export const PanelContextRoot = React.createContext<PanelContext>({
+export const PanelContextRoot = createContext<PanelContext>({
   eventsScope: 'global',
   eventBus: new EventBusSrv(),
 });
@@ -112,4 +113,4 @@ export const PanelContextProvider = PanelContextRoot.Provider;
 /**
  * @alpha
  */
-export const usePanelContext = () => React.useContext(PanelContextRoot);
+export const usePanelContext = () => useContext(PanelContextRoot);

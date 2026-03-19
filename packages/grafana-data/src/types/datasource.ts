@@ -1,9 +1,14 @@
 import { ComponentType } from 'react';
 import { Observable } from 'rxjs';
 
+import { DataSourceRef } from '@grafana/schema';
+
+import { deprecationWarning } from '../utils/deprecationWarning';
 import { makeClassES5Compatible } from '../utils/makeClassES5Compatible';
+import { throwIfAngular } from '../utils/throwIfAngular';
 
 import { ScopedVars } from './ScopedVars';
+import { WithAccessControlMetadata } from './accesscontrol';
 import { AnnotationEvent, AnnotationQuery, AnnotationSupport } from './annotations';
 import { CoreApp } from './app';
 import { KeyValue, LoadingState, TableData, TimeSeries } from './data';
@@ -11,10 +16,11 @@ import { DataFrame, DataFrameDTO } from './dataFrame';
 import { PanelData } from './panel';
 import { GrafanaPlugin, PluginMeta } from './plugin';
 import { DataQuery } from './query';
+import { Scope } from './scopes';
+import { AdHocVariableFilter } from './templateVars';
 import { RawTimeRange, TimeRange } from './time';
+import { UserStorage } from './userStorage';
 import { CustomVariableSupport, DataSourceVariableSupport, StandardVariableSupport } from './variables';
-
-import { AdHocVariableFilter, DataSourceRef, Scope, WithAccessControlMetadata } from '.';
 
 export interface DataSourcePluginOptionsEditorProps<
   JSONData extends DataSourceJsonData = DataSourceJsonData,
@@ -47,12 +53,16 @@ export class DataSourcePlugin<
     return this;
   }
 
+  /** @deprecated it will be removed in a future release */
   setConfigCtrl(ConfigCtrl: any) {
+    deprecationWarning('DataSourcePlugin', 'setConfigCtrl');
     this.angularConfigCtrl = ConfigCtrl;
     return this;
   }
 
+  /** @deprecated it will be removed in a future release */
   setQueryCtrl(QueryCtrl: any) {
+    deprecationWarning('DataSourcePlugin', 'setQueryCtrl');
     this.components.QueryCtrl = QueryCtrl;
     return this;
   }
@@ -111,8 +121,8 @@ export class DataSourcePlugin<
     return this;
   }
 
-  setComponentsFromLegacyExports(pluginExports: any) {
-    this.angularConfigCtrl = pluginExports.ConfigCtrl;
+  setComponentsFromLegacyExports(pluginExports: System.Module) {
+    throwIfAngular(pluginExports);
 
     this.components.QueryCtrl = pluginExports.QueryCtrl;
     this.components.AnnotationsQueryCtrl = pluginExports.AnnotationsQueryCtrl;
@@ -139,6 +149,7 @@ export interface DataSourcePluginMeta<T extends KeyValue = {}> extends PluginMet
   unlicensed?: boolean;
   backend?: boolean;
   isBackend?: boolean;
+  multiValueFilterOperators?: boolean;
 }
 
 interface PluginMetaQueryOptions {
@@ -157,7 +168,9 @@ export interface DataSourcePluginComponents<
   TOptions extends DataSourceJsonData = DataSourceJsonData,
   TSecureOptions = {},
 > {
+  /** @deprecated it will be removed in a future release */
   QueryCtrl?: any;
+  /** @deprecated it will be removed in a future release */
   AnnotationsQueryCtrl?: any;
   VariableQueryEditor?: any;
   QueryEditor?: ComponentType<QueryEditorProps<DSType, TQuery, TOptions>>;
@@ -217,9 +230,19 @@ abstract class DataSourceApi<
   readonly uid: string;
 
   /**
+   *  Set in constructor
+   */
+  readonly apiVersion?: string;
+
+  /**
    *  min interval range
    */
   interval?: string;
+
+  /**
+   * Initialized in datasource_srv.ts
+   */
+  userStorage?: UserStorage;
 
   constructor(instanceSettings: DataSourceInstanceSettings<TOptions>) {
     this.name = instanceSettings.name;
@@ -228,6 +251,7 @@ abstract class DataSourceApi<
     this.meta = instanceSettings.meta;
     this.cachingConfig = instanceSettings.cachingConfig;
     this.uid = instanceSettings.uid;
+    this.apiVersion = instanceSettings.apiVersion;
   }
 
   /**
@@ -283,6 +307,13 @@ abstract class DataSourceApi<
   metricFindQuery?(query: any, options?: LegacyMetricFindQueryOptions): Promise<MetricFindValue[]>;
 
   /**
+   * Verify adhoc filters and groupBy keys applicability based on queries and current selected values
+   */
+  getDrilldownsApplicability?(
+    options?: DataSourceGetDrilldownsApplicabilityOptions<TQuery>
+  ): Promise<DrilldownsApplicability[]>;
+
+  /**
    * Get tag keys for adhoc filters
    */
   getTagKeys?(options?: DataSourceGetTagKeysOptions<TQuery>): Promise<GetTagResponse> | Promise<MetricFindValue[]>;
@@ -321,7 +352,11 @@ abstract class DataSourceApi<
 
   /** Get an identifier object for this datasource instance */
   getRef(): DataSourceRef {
-    return { type: this.type, uid: this.uid };
+    const ref: DataSourceRef = { type: this.type, uid: this.uid };
+    if (this.apiVersion) {
+      ref.apiVersion = this.apiVersion;
+    }
+    return ref;
   }
 
   /**
@@ -375,6 +410,7 @@ export interface DataSourceGetTagKeysOptions<TQuery extends DataQuery = DataQuer
    */
   timeRange?: TimeRange;
   queries?: TQuery[];
+  scopes?: Scope[] | undefined;
 }
 
 /**
@@ -391,6 +427,7 @@ export interface DataSourceGetTagValuesOptions<TQuery extends DataQuery = DataQu
    */
   timeRange?: TimeRange;
   queries?: TQuery[];
+  scopes?: Scope[] | undefined;
 }
 
 export interface MetadataInspectorProps<
@@ -541,8 +578,11 @@ export interface DataQueryRequest<TQuery extends DataQuery = DataQuery> {
   rangeRaw?: RawTimeRange;
   timeInfo?: string; // The query time description (blue text in the upper right)
   panelId?: number;
+  panelName?: string;
   panelPluginId?: string;
   dashboardUID?: string;
+  dashboardTitle?: string;
+  headers?: Record<string, string>;
 
   /** Filters to dynamically apply to all queries */
   filters?: AdHocVariableFilter[];
@@ -605,11 +645,30 @@ export interface MetricFindValue {
   expandable?: boolean;
 }
 
+export interface DataSourceGetDrilldownsApplicabilityOptions<TQuery extends DataQuery = DataQuery> {
+  filters: AdHocVariableFilter[];
+  groupByKeys?: string[];
+  timeRange?: TimeRange;
+  queries?: TQuery[];
+  scopes?: Scope[] | undefined;
+}
+
+export interface DrilldownsApplicability {
+  key: string;
+  applicable: boolean;
+  // message explaining why the filter is not applicable
+  reason?: string;
+  // needed to differentiate between filters with same key
+  // but different origin
+  origin?: string;
+}
+
 export interface DataSourceJsonData {
   authType?: string;
   defaultRegion?: string;
   profile?: string;
   manageAlerts?: boolean;
+  allowAsRecordingRulesTarget?: boolean;
   alertmanagerUid?: string;
   disableGrafanaCache?: boolean;
 }
@@ -644,6 +703,7 @@ export interface DataSourceSettings<T extends DataSourceJsonData = DataSourceJso
   readOnly: boolean;
   withCredentials: boolean;
   version?: number;
+  apiVersion?: string;
 }
 
 /**
@@ -656,6 +716,7 @@ export interface DataSourceInstanceSettings<T extends DataSourceJsonData = DataS
   uid: string;
   type: string;
   name: string;
+  apiVersion?: string;
   meta: DataSourcePluginMeta;
   cachingConfig?: PluginQueryCachingConfig;
   readOnly: boolean;

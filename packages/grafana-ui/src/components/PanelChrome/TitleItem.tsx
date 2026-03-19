@@ -1,11 +1,12 @@
 import { cx, css } from '@emotion/css';
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2, LinkModel, LinkTarget } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { getFocusStyles, getMouseFocusStyles } from '../../themes/mixins';
-import { Button } from '../Button';
+import { Button } from '../Button/Button';
 
 type TitleItemProps = {
   className?: string;

@@ -1,4 +1,6 @@
-import { ContactPointsState } from 'app/types';
+/** @deprecated To be deleted - use alertingApiServer API instead */
+
+import { ContactPointsState } from 'app/features/alerting/unified/types/alerting';
 
 import { CONTACT_POINTS_STATE_INTERVAL_MS } from '../utils/constants';
 

@@ -1,15 +1,17 @@
 import { useAsyncFn } from 'react-use';
 
 import { locationUtil } from '@grafana/data';
+import { t } from '@grafana/i18n';
 import { locationService, reportInteraction } from '@grafana/runtime';
 import { Dashboard } from '@grafana/schema';
+import { Spec as DashboardV2Spec } from '@grafana/schema/dist/esm/schema/dashboard/v2';
 import appEvents from 'app/core/app_events';
 import { useAppNotification } from 'app/core/copy/appNotification';
 import { updateDashboardName } from 'app/core/reducers/navBarTree';
 import { useSaveDashboardMutation } from 'app/features/browse-dashboards/api/browseDashboardsAPI';
-import { SaveDashboardOptions } from 'app/features/dashboard/components/SaveDashboard/types';
-import { useDispatch } from 'app/types';
+import { SaveDashboardAsOptions, SaveDashboardOptions } from 'app/features/dashboard/components/SaveDashboard/types';
 import { DashboardSavedEvent } from 'app/types/events';
+import { useDispatch } from 'app/types/store';
 
 import { updateDashboardUidLastUsedDatasource } from '../../dashboard/utils/dashboard';
 import { DashboardScene } from '../scene/DashboardScene';
@@ -20,26 +22,56 @@ export function useSaveDashboard(isCopy = false) {
   const [saveDashboardRtkQuery] = useSaveDashboardMutation();
 
   const [state, onSaveDashboard] = useAsyncFn(
-    async (scene: DashboardScene, saveModel: Dashboard, options: SaveDashboardOptions) => {
+    async (
+      scene: DashboardScene,
+      options: SaveDashboardOptions &
+        SaveDashboardAsOptions & {
+          // When provided, will take precedence over the scene's save model
+          rawDashboardJSON?: Dashboard | DashboardV2Spec;
+        }
+    ) => {
       {
+        let saveModel = options.rawDashboardJSON ?? scene.getSaveModel();
+
+        if (options.saveAsCopy) {
+          saveModel = scene.getSaveAsModel({
+            isNew: options.isNew,
+            title: options.title,
+            description: options.description,
+            copyTags: options.copyTags,
+          });
+        }
+
         const result = await saveDashboardRtkQuery({
           dashboard: saveModel,
           folderUid: options.folderUid,
           message: options.message,
           overwrite: options.overwrite,
           showErrorAlert: false,
+          k8s: options.k8s,
         });
 
         if ('error' in result) {
           throw result.error;
         }
 
-        const resultData = result.data;
+        // result.data is readonly so spreading to allow for slug edits
+        const resultData: typeof result.data = { ...result.data };
+
+        // TODO: use slug from response once implemented
+        // reuse existing slug to avoid "Unsaved changes" modal after save
+        //   due to slugify logic difference between frontend and backend
+        if (!result.data.slug && scene.state.meta.slug) {
+          const slug = scene.state.meta.slug;
+          resultData.slug = slug;
+          resultData.url = `${result.data.url}/${slug}`;
+        }
+
         scene.saveCompleted(saveModel, resultData, options.folderUid);
 
         // important that these happen before location redirect below
         appEvents.publish(new DashboardSavedEvent());
-        notifyApp.success('Dashboard saved');
+        notifyApp.success(t('dashboard-scene.use-save-dashboard.message-dashboard-saved', 'Dashboard saved'));
 
         //Update local storage dashboard to handle things like last used datasource
         updateDashboardUidLastUsedDatasource(resultData.uid);
@@ -50,7 +82,7 @@ export function useSaveDashboard(isCopy = false) {
             url: resultData.url,
           });
         } else {
-          reportInteraction(`grafana_dashboard_${resultData.uid ? 'saved' : 'created'}`, {
+          reportInteraction(`grafana_dashboard_${options.isNew ? 'created' : 'saved'}`, {
             name: saveModel.title,
             url: resultData.url,
           });
@@ -61,10 +93,7 @@ export function useSaveDashboard(isCopy = false) {
 
         if (newUrl !== currentLocation.pathname) {
           setTimeout(() => {
-            // Because the path changes we need to stop and restart url sync
-            scene.stopUrlSync();
             locationService.push({ pathname: newUrl, search: currentLocation.search });
-            scene.startUrlSync();
           });
         }
 

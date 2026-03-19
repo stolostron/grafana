@@ -14,11 +14,10 @@
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
 
 import { createTheme } from '@grafana/data';
 
-import { TraceSpan } from '../types';
+import { TraceSpan } from '../types/trace';
 import spanAncestorIdsSpy from '../utils/span-ancestor-ids';
 
 import SpanTreeOffset, { getStyles, TProps } from './SpanTreeOffset';

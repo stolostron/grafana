@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
-import React from 'react';
 import { select } from 'react-select-event';
 
+import { DateHistogram } from 'app/plugins/datasource/elasticsearch/dataquery.gen';
+
 import { useDispatch } from '../../../../hooks/useStatelessReducer';
-import { DateHistogram } from '../../../../types';
 
 import { DateHistogramSettingsEditor } from './DateHistogramSettingsEditor';
 

@@ -1,7 +1,8 @@
 import { css, cx } from '@emotion/css';
 import classnames from 'classnames';
 import { debounce } from 'lodash';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
+import * as React from 'react';
 import { Value } from 'slate';
 import Plain from 'slate-plain-serializer';
 import { Editor, EventHook, Plugin } from 'slate-react';
@@ -9,16 +10,14 @@ import { Editor, EventHook, Plugin } from 'slate-react';
 import { GrafanaTheme2 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 
-import {
-  ClearPlugin,
-  NewlinePlugin,
-  SelectionShortcutsPlugin,
-  IndentationPlugin,
-  ClipboardPlugin,
-  RunnerPlugin,
-  SuggestionsPlugin,
-} from '../../slate-plugins';
-import { withTheme2 } from '../../themes';
+import { ClearPlugin } from '../../slate-plugins/clear';
+import { ClipboardPlugin } from '../../slate-plugins/clipboard';
+import { IndentationPlugin } from '../../slate-plugins/indentation';
+import { NewlinePlugin } from '../../slate-plugins/newline';
+import { RunnerPlugin } from '../../slate-plugins/runner';
+import { SelectionShortcutsPlugin } from '../../slate-plugins/selection_shortcuts';
+import { SuggestionsPlugin } from '../../slate-plugins/suggestions';
+import { withTheme2 } from '../../themes/ThemeContext';
 import { getFocusStyles } from '../../themes/mixins';
 import { CompletionItemGroup, SuggestionsState, TypeaheadInput, TypeaheadOutput } from '../../types/completion';
 import { Themeable2 } from '../../types/theme';
@@ -66,6 +65,12 @@ export class UnThemedQueryField extends PureComponent<QueryFieldProps, QueryFiel
   lastExecutedValue: Value | null = null;
   mounted = false;
   editor: Editor | null = null;
+
+  // By default QueryField calls onChange if onBlur is not defined, this will trigger a rerender
+  // And slate will claim the focus, making it impossible to leave the field.
+  static defaultProps = {
+    onBlur: () => {},
+  };
 
   constructor(props: QueryFieldProps) {
     super(props);
@@ -234,12 +239,6 @@ export class UnThemedQueryField extends PureComponent<QueryFieldProps, QueryFiel
 }
 
 export const QueryField = withTheme2(UnThemedQueryField);
-
-// By default QueryField calls onChange if onBlur is not defined, this will trigger a rerender
-// And slate will claim the focus, making it impossible to leave the field.
-QueryField.defaultProps = {
-  onBlur: () => {},
-};
 
 const getStyles = (theme: GrafanaTheme2) => {
   const focusStyles = getFocusStyles(theme);

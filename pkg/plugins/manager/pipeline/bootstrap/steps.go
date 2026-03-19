@@ -22,8 +22,8 @@ type DefaultConstructor struct {
 }
 
 // DefaultConstructFunc is the default ConstructFunc used for the Construct step of the Bootstrap stage.
-func DefaultConstructFunc(signatureCalculator plugins.SignatureCalculator, assetPath *assetpath.Service) ConstructFunc {
-	return NewDefaultConstructor(signatureCalculator, assetPath).Construct
+func DefaultConstructFunc(cfg *config.PluginManagementCfg, signatureCalculator plugins.SignatureCalculator, assetPath *assetpath.Service) ConstructFunc {
+	return NewDefaultConstructor(cfg, signatureCalculator, assetPath).Construct
 }
 
 // DefaultDecorateFuncs are the default DecorateFuncs used for the Decorate step of the Bootstrap stage.
@@ -37,9 +37,9 @@ func DefaultDecorateFuncs(cfg *config.PluginManagementCfg) []DecorateFunc {
 }
 
 // NewDefaultConstructor returns a new DefaultConstructor.
-func NewDefaultConstructor(signatureCalculator plugins.SignatureCalculator, assetPath *assetpath.Service) *DefaultConstructor {
+func NewDefaultConstructor(cfg *config.PluginManagementCfg, signatureCalculator plugins.SignatureCalculator, assetPath *assetpath.Service) *DefaultConstructor {
 	return &DefaultConstructor{
-		pluginFactoryFunc:   NewDefaultPluginFactory(assetPath).createPlugin,
+		pluginFactoryFunc:   NewDefaultPluginFactory(&cfg.Features, assetPath).createPlugin,
 		signatureCalculator: signatureCalculator,
 		log:                 log.New("plugins.construct"),
 	}
@@ -47,34 +47,19 @@ func NewDefaultConstructor(signatureCalculator plugins.SignatureCalculator, asse
 
 // Construct will calculate the plugin's signature state and create the plugin using the pluginFactoryFunc.
 func (c *DefaultConstructor) Construct(ctx context.Context, src plugins.PluginSource, bundle *plugins.FoundBundle) ([]*plugins.Plugin, error) {
-	res := []*plugins.Plugin{}
-
 	sig, err := c.signatureCalculator.Calculate(ctx, src, bundle.Primary)
 	if err != nil {
 		c.log.Warn("Could not calculate plugin signature state", "pluginId", bundle.Primary.JSONData.ID, "error", err)
 		return nil, err
 	}
-	plugin, err := c.pluginFactoryFunc(bundle.Primary, src.PluginClass(ctx), sig)
+	plugin, err := c.pluginFactoryFunc(bundle, src.PluginClass(ctx), sig)
 	if err != nil {
 		c.log.Error("Could not create primary plugin base", "pluginId", bundle.Primary.JSONData.ID, "error", err)
 		return nil, err
 	}
+	res := make([]*plugins.Plugin, 0, len(plugin.Children)+1)
 	res = append(res, plugin)
-
-	children := make([]*plugins.Plugin, 0, len(bundle.Children))
-	for _, child := range bundle.Children {
-		cp, err := c.pluginFactoryFunc(*child, plugin.Class, sig)
-		if err != nil {
-			c.log.Error("Could not create child plugin base", "pluginId", child.JSONData.ID, "error", err)
-			return nil, err
-		}
-		cp.Parent = plugin
-		plugin.Children = append(plugin.Children, cp)
-
-		children = append(children, cp)
-	}
-	res = append(res, children...)
-
+	res = append(res, plugin.Children...)
 	return res, nil
 }
 

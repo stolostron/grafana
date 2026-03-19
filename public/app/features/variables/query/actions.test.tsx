@@ -1,5 +1,3 @@
-import React from 'react';
-
 import {
   DataSourceApi,
   DataSourceRef,
@@ -71,7 +69,7 @@ const mocks: Record<string, any> = {
 
 setDataSourceSrv(mocks.dataSourceSrv as DataSourceSrv);
 
-jest.mock('../../plugins/plugin_loader', () => ({
+jest.mock('../../plugins/pluginLoader', () => ({
   importDataSourcePlugin: () => mocks.pluginLoader.importDataSourcePlugin(),
 }));
 

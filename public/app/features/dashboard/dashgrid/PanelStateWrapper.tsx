@@ -1,5 +1,5 @@
 import { debounce } from 'lodash';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
 import { Subscription } from 'rxjs';
 
 import {
@@ -17,6 +17,7 @@ import {
   PanelData,
   PanelPlugin,
   PanelPluginMeta,
+  PluginContextProvider,
   SetPanelAttentionEvent,
   TimeRange,
   toDataFrameDTO,
@@ -46,7 +47,8 @@ import { RenderEvent } from 'app/types/events';
 import { deleteAnnotation, saveAnnotation, updateAnnotation } from '../../annotations/api';
 import { getDashboardQueryRunner } from '../../query/state/DashboardQueryRunner/DashboardQueryRunner';
 import { getTimeSrv, TimeSrv } from '../services/TimeSrv';
-import { DashboardModel, PanelModel } from '../state';
+import { DashboardModel } from '../state/DashboardModel';
+import { PanelModel } from '../state/PanelModel';
 import { getPanelChromeProps } from '../utils/getPanelChromeProps';
 import { loadSnapshotData } from '../utils/loadSnapshotData';
 
@@ -113,6 +115,7 @@ export class PanelStateWrapper extends PureComponent<Props, State> {
         canAddAnnotations: props.dashboard.canAddAnnotations.bind(props.dashboard),
         canEditAnnotations: props.dashboard.canEditAnnotations.bind(props.dashboard),
         canDeleteAnnotations: props.dashboard.canDeleteAnnotations.bind(props.dashboard),
+        canExecuteActions: props.dashboard.canExecuteActions.bind(props.dashboard),
         onAddAdHocFilter: this.onAddAdHocFilter,
         onUpdateData: this.onUpdateData,
       },
@@ -361,6 +364,7 @@ export class PanelStateWrapper extends PureComponent<Props, State> {
       panel.runAllPanelQueries({
         dashboardUID: dashboard.uid,
         dashboardTimezone: dashboard.getTimezone(),
+        dashboardTitle: dashboard.title,
         timeData,
         width,
       });
@@ -379,7 +383,7 @@ export class PanelStateWrapper extends PureComponent<Props, State> {
     this.setState(stateUpdate);
   };
 
-  onOptionsChange = (options: any) => {
+  onOptionsChange = (options: object) => {
     this.props.panel.updateOptions(options);
   };
 
@@ -522,27 +526,29 @@ export class PanelStateWrapper extends PureComponent<Props, State> {
     return (
       <>
         <PanelContextProvider value={this.state.context}>
-          <PanelComponent
-            id={panel.id}
-            data={data}
-            title={panel.title}
-            timeRange={timeRange}
-            timeZone={this.props.dashboard.getTimezone()}
-            options={panelOptions}
-            fieldConfig={panel.fieldConfig}
-            transparent={panel.transparent}
-            width={innerWidth}
-            height={innerHeight}
-            renderCounter={renderCounter}
-            replaceVariables={panel.replaceVariables}
-            onOptionsChange={this.onOptionsChange}
-            onFieldConfigChange={this.onFieldConfigChange}
-            onChangeTimeRange={this.onChangeTimeRange}
-            eventBus={dashboard.events}
-          />
-          {config.featureToggles.panelMonitoring && this.state.errorMessage === undefined && (
-            <PanelLoadTimeMonitor panelType={plugin.meta.id} panelId={panel.id} panelTitle={panel.title} />
-          )}
+          <PluginContextProvider meta={plugin.meta}>
+            <PanelComponent
+              id={panel.id}
+              data={data}
+              title={panel.title}
+              timeRange={timeRange}
+              timeZone={this.props.dashboard.getTimezone()}
+              options={panelOptions}
+              fieldConfig={panel.fieldConfig}
+              transparent={panel.transparent}
+              width={innerWidth}
+              height={innerHeight}
+              renderCounter={renderCounter}
+              replaceVariables={panel.replaceVariables}
+              onOptionsChange={this.onOptionsChange}
+              onFieldConfigChange={this.onFieldConfigChange}
+              onChangeTimeRange={this.onChangeTimeRange}
+              eventBus={dashboard.events}
+            />
+            {config.featureToggles.panelMonitoring && this.state.errorMessage === undefined && (
+              <PanelLoadTimeMonitor panelType={plugin.meta.id} panelId={panel.id} panelTitle={panel.title} />
+            )}
+          </PluginContextProvider>
         </PanelContextProvider>
       </>
     );
@@ -587,8 +593,8 @@ export class PanelStateWrapper extends PureComponent<Props, State> {
         hoverHeader={panelChromeProps.hasOverlayHeader()}
         displayMode={transparent ? 'transparent' : 'default'}
         onCancelQuery={panelChromeProps.onCancelQuery}
-        onOpenMenu={panelChromeProps.onOpenMenu}
         onFocus={() => this.setPanelAttention()}
+        onMouseEnter={() => this.setPanelAttention()}
         onMouseMove={() => this.debouncedSetPanelAttention()}
       >
         {(innerWidth, innerHeight) => (

@@ -1,15 +1,17 @@
 import { css } from '@emotion/css';
-import React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
+import { Trans, t } from '@grafana/i18n';
 import { SceneComponentProps, sceneGraph } from '@grafana/scenes';
 import { useStyles2 } from '@grafana/ui';
 import { contextSrv } from 'app/core/core';
 import { useDeletePublicDashboardMutation } from 'app/features/dashboard/api/publicDashboardApi';
 import { ConfigPublicDashboardBase } from 'app/features/dashboard/components/ShareModal/SharePublicDashboard/ConfigPublicDashboard/ConfigPublicDashboard';
 import { PublicDashboard } from 'app/features/dashboard/components/ShareModal/SharePublicDashboard/SharePublicDashboardUtils';
-import { AccessControlAction } from 'app/types';
+import { AccessControlAction } from 'app/types/accessControl';
 
+import { shareDashboardType } from '../../../dashboard/components/ShareModal/utils';
+import { getDashboardSceneFor } from '../../utils/utils';
 import { ShareModal } from '../ShareModal';
 
 import { ConfirmModal } from './ConfirmModal';
@@ -25,8 +27,8 @@ export function ConfigPublicDashboard({ model, publicDashboard, isGetLoading }: 
   const styles = useStyles2(getStyles);
 
   const hasWritePermissions = contextSrv.hasPermission(AccessControlAction.DashboardsPublicWrite);
-  const { dashboardRef } = model.useState();
-  const dashboard = dashboardRef.resolve();
+
+  const dashboard = getDashboardSceneFor(model);
   const { isDirty } = dashboard.useState();
   const [deletePublicDashboard] = useDeletePublicDashboardMutation();
   const hasTemplateVariables = (dashboard.state.$variables?.state.variables.length ?? 0) > 0;
@@ -43,16 +45,21 @@ export function ConfigPublicDashboard({ model, publicDashboard, isGetLoading }: 
         dashboard.showModal(
           new ConfirmModal({
             isOpen: true,
-            title: 'Revoke public URL',
+            title: t('dashboard-scene.config-public-dashboard.title.revoke-public-url', 'Revoke public URL'),
             icon: 'trash-alt',
-            confirmText: 'Revoke public URL',
+            confirmText: t(
+              'dashboard-scene.config-public-dashboard.confirmText.revoke-public-url',
+              'Revoke public URL'
+            ),
             body: (
               <p className={styles.description}>
-                Are you sure you want to revoke this URL? The dashboard will no longer be public.
+                <Trans i18nKey="public-dashboard.config.revoke-body">
+                  Are you sure you want to revoke this URL? The dashboard will no longer be public.
+                </Trans>
               </p>
             ),
             onDismiss: () => {
-              dashboard.showModal(new ShareModal({ dashboardRef, activeTab: 'Public Dashboard' }));
+              dashboard.showModal(new ShareModal({ activeTab: shareDashboardType.publicDashboard }));
             },
             onConfirm: () => {
               deletePublicDashboard({ dashboard, dashboardUid: dashboard.state.uid!, uid: publicDashboard!.uid });

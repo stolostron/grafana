@@ -1,4 +1,4 @@
-import React from 'react';
+import { Fragment } from 'react';
 
 import { CanvasFrameOptions } from '../frame';
 
@@ -51,7 +51,9 @@ export class RootElement extends FrameState {
         ref={this.setRootRef}
         style={{ ...this.sizeStyle, ...this.dataStyle }}
       >
-        {this.elements.map((v) => v.render())}
+        {this.elements.map((v) => (
+          <Fragment key={v.UID}>{v.render()}</Fragment>
+        ))}
       </div>
     );
   }

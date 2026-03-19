@@ -1,12 +1,11 @@
-import React from 'react';
-
+import { t } from '@grafana/i18n';
 import { SceneComponentProps, SceneObjectBase } from '@grafana/scenes';
-import { t } from 'app/core/internationalization';
 import { useGetPublicDashboardQuery } from 'app/features/dashboard/api/publicDashboardApi';
 import { Loader } from 'app/features/dashboard/components/ShareModal/SharePublicDashboard/SharePublicDashboard';
 import { publicDashboardPersisted } from 'app/features/dashboard/components/ShareModal/SharePublicDashboard/SharePublicDashboardUtils';
 import { shareDashboardType } from 'app/features/dashboard/components/ShareModal/utils';
 
+import { getDashboardSceneFor } from '../../utils/utils';
 import { SceneShareTabState } from '../types';
 
 import { ConfigPublicDashboard } from './ConfigPublicDashboard';
@@ -23,7 +22,7 @@ export class SharePublicDashboardTab extends SceneObjectBase<SceneShareTabState>
 
 function SharePublicDashboardTabRenderer({ model }: SceneComponentProps<SharePublicDashboardTab>) {
   const { data: publicDashboard, isLoading: isGetLoading } = useGetPublicDashboardQuery(
-    model.state.dashboardRef.resolve().state.uid!
+    getDashboardSceneFor(model).state.uid!
   );
 
   return (

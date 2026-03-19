@@ -1,10 +1,11 @@
 import { css, cx } from '@emotion/css';
-import React, { CSSProperties } from 'react';
+import { CSSProperties } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2, fieldColorModeRegistry } from '@grafana/data';
 import { LineStyle } from '@grafana/schema';
 
-import { useTheme2, useStyles2 } from '../../themes';
+import { useTheme2, useStyles2 } from '../../themes/ThemeContext';
 
 export interface Props extends React.HTMLAttributes<HTMLDivElement> {
   color?: string;

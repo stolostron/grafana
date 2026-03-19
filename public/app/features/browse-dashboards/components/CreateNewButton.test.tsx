@@ -1,9 +1,8 @@
 import { render as rtlRender, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
 import { TestProvider } from 'test/helpers/TestProvider';
 
-import { FolderDTO } from 'app/types';
+import { FolderDTO } from 'app/types/folders';
 
 import { mockFolderDTO } from '../fixtures/folder.fixture';
 
@@ -16,7 +15,7 @@ function render(...[ui, options]: Parameters<typeof rtlRender>) {
 }
 
 async function renderAndOpen(folder?: FolderDTO) {
-  render(<CreateNewButton canCreateDashboard canCreateFolder parentFolder={folder} />);
+  render(<CreateNewButton canCreateDashboard canCreateFolder parentFolder={folder} isReadOnlyRepo={false} />);
   const newButton = screen.getByText('New');
   await userEvent.click(newButton);
 }
@@ -43,7 +42,9 @@ describe('NewActionsButton', () => {
   });
 
   it('clicking the "New folder" button opens the drawer', async () => {
-    render(<CreateNewButton canCreateDashboard canCreateFolder parentFolder={mockParentFolder} />);
+    render(
+      <CreateNewButton canCreateDashboard canCreateFolder parentFolder={mockParentFolder} isReadOnlyRepo={false} />
+    );
 
     const newButton = screen.getByText('New');
     await userEvent.click(newButton);
@@ -56,7 +57,7 @@ describe('NewActionsButton', () => {
   });
 
   it('should only render dashboard items when folder creation is disabled', async () => {
-    render(<CreateNewButton canCreateDashboard canCreateFolder={false} />);
+    render(<CreateNewButton canCreateDashboard canCreateFolder={false} isReadOnlyRepo={false} />);
     const newButton = screen.getByText('New');
     await userEvent.click(newButton);
 
@@ -66,7 +67,7 @@ describe('NewActionsButton', () => {
   });
 
   it('should only render folder item when dashboard creation is disabled', async () => {
-    render(<CreateNewButton canCreateDashboard={false} canCreateFolder />);
+    render(<CreateNewButton canCreateDashboard={false} canCreateFolder isReadOnlyRepo={false} />);
     const newButton = screen.getByText('New');
     await userEvent.click(newButton);
 

@@ -1,6 +1,6 @@
 import { uniqueId } from 'lodash';
 
-import { DataFrameDTO, DataFrameJSON, TypedVariableModel } from '@grafana/data';
+import { DataFrameDTO, DataFrameJSON } from '@grafana/data';
 import { config } from '@grafana/runtime';
 import {
   VizPanel,
@@ -9,13 +9,6 @@ import {
   SceneGridRow,
   SceneTimeRange,
   SceneVariableSet,
-  VariableValueSelectors,
-  SceneVariable,
-  CustomVariable,
-  DataSourceVariable,
-  QueryVariable,
-  ConstantVariable,
-  IntervalVariable,
   SceneRefreshPicker,
   SceneObject,
   VizPanelMenu,
@@ -23,39 +16,47 @@ import {
   VizPanelState,
   SceneGridItemLike,
   SceneDataLayerProvider,
-  SceneDataLayerControls,
-  TextBoxVariable,
   UserActionEvent,
-  GroupByVariable,
-  AdHocFiltersVariable,
+  SceneObjectState,
+  LocalValueVariable,
 } from '@grafana/scenes';
-import { DashboardModel, PanelModel } from 'app/features/dashboard/state';
-import { DashboardDTO } from 'app/types';
+import { isWeekStart } from '@grafana/ui';
+import { K8S_V1_DASHBOARD_API_CONFIG } from 'app/features/dashboard/api/v1';
+import {
+  getDashboardInteractionCallback,
+  getDashboardSceneProfiler,
+} from 'app/features/dashboard/services/DashboardProfiler';
+import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
+import { PanelModel } from 'app/features/dashboard/state/PanelModel';
+import { DashboardDTO, DashboardDataDTO } from 'app/types/dashboard';
 
+import { addPanelsOnLoadBehavior } from '../addToDashboard/addPanelsOnLoadBehavior';
 import { AlertStatesDataLayer } from '../scene/AlertStatesDataLayer';
+import { CustomTimeRangeCompare } from '../scene/CustomTimeRangeCompare';
 import { DashboardAnnotationsDataLayer } from '../scene/DashboardAnnotationsDataLayer';
 import { DashboardControls } from '../scene/DashboardControls';
 import { DashboardDataLayerSet } from '../scene/DashboardDataLayerSet';
-import { DashboardGridItem, RepeatDirection } from '../scene/DashboardGridItem';
 import { registerDashboardMacro } from '../scene/DashboardMacro';
+import { DashboardReloadBehavior } from '../scene/DashboardReloadBehavior';
 import { DashboardScene } from '../scene/DashboardScene';
-import { LibraryVizPanel } from '../scene/LibraryVizPanel';
+import { LibraryPanelBehavior } from '../scene/LibraryPanelBehavior';
 import { VizPanelLinks, VizPanelLinksMenu } from '../scene/PanelLinks';
 import { panelLinksBehavior, panelMenuBehavior } from '../scene/PanelMenuBehavior';
 import { PanelNotices } from '../scene/PanelNotices';
 import { PanelTimeRange } from '../scene/PanelTimeRange';
-import { RowRepeaterBehavior } from '../scene/RowRepeaterBehavior';
-import { RowActions } from '../scene/row-actions/RowActions';
+import { DashboardGridItem, RepeatDirection } from '../scene/layout-default/DashboardGridItem';
+import { DefaultGridLayoutManager } from '../scene/layout-default/DefaultGridLayoutManager';
+import { RowRepeaterBehavior } from '../scene/layout-default/RowRepeaterBehavior';
+import { RowActions } from '../scene/layout-default/row-actions/RowActions';
+import { RowItem } from '../scene/layout-rows/RowItem';
+import { RowsLayoutManager } from '../scene/layout-rows/RowsLayoutManager';
+import { getIsLazy } from '../scene/layouts-shared/utils';
 import { setDashboardPanelContext } from '../scene/setDashboardPanelContext';
+import { DashboardLayoutManager } from '../scene/types/DashboardLayoutManager';
 import { createPanelDataProvider } from '../utils/createPanelDataProvider';
-import { preserveDashboardSceneStateInLocalStorage } from '../utils/dashboardSessionState';
 import { DashboardInteractions } from '../utils/interactions';
-import {
-  getCurrentValueForOldIntervalModel,
-  getDashboardSceneFor,
-  getIntervalsFromQueryString,
-  getVizPanelKeyForPanelId,
-} from '../utils/utils';
+import { getVizPanelKeyForPanelId } from '../utils/utils';
+import { createVariablesForDashboard, createVariablesForSnapshot } from '../utils/variables';
 
 import { getAngularPanelMigrationHandler } from './angularMigration';
 import { GRAFANA_DATASOURCE_REF } from './const';
@@ -74,11 +75,66 @@ export function transformSaveModelToScene(rsp: DashboardDTO): DashboardScene {
   // Just to have migrations run
   const oldModel = new DashboardModel(rsp.dashboard, rsp.meta);
 
-  const scene = createDashboardSceneFromDashboardModel(oldModel);
+  const scene = createDashboardSceneFromDashboardModel(oldModel, rsp.dashboard);
   // TODO: refactor createDashboardSceneFromDashboardModel to work on Dashboard schema model
-  scene.setInitialSaveModel(rsp.dashboard);
+
+  const apiVersion = config.featureToggles.kubernetesDashboards
+    ? `${K8S_V1_DASHBOARD_API_CONFIG.group}/${K8S_V1_DASHBOARD_API_CONFIG.version}`
+    : undefined;
+
+  scene.setInitialSaveModel(rsp.dashboard, rsp.meta, apiVersion);
 
   return scene;
+}
+
+export function createRowsFromPanels(oldPanels: PanelModel[]): RowsLayoutManager {
+  const rowItems: RowItem[] = [];
+
+  let currentLegacyRow: PanelModel | null = null;
+  let currentRowPanels: DashboardGridItem[] = [];
+
+  for (const panel of oldPanels) {
+    if (panel.type === 'row') {
+      if (!currentLegacyRow && currentRowPanels.length === 0) {
+        // This is the first row, and we have no panels before it. We set currentLegacyRow to the first row.
+        currentLegacyRow = panel;
+      } else if (!currentLegacyRow) {
+        // This is the first row but we have panels before the first row. We should flush the current panels into a row item with header hidden.
+        rowItems.push(
+          new RowItem({
+            title: '',
+            collapse: panel.collapsed,
+            layout: new DefaultGridLayoutManager({
+              grid: new SceneGridLayout({
+                children: currentRowPanels,
+              }),
+            }),
+            hideHeader: true,
+            $behaviors: [],
+          })
+        );
+        currentRowPanels = [];
+
+        currentLegacyRow = panel;
+      } else {
+        // This is a new row. We should flush the current panels into a row item.
+        rowItems.push(createRowItemFromLegacyRow(currentLegacyRow, currentRowPanels));
+        currentRowPanels = [];
+        currentLegacyRow = panel;
+      }
+    } else {
+      currentRowPanels.push(buildGridItemForPanel(panel));
+    }
+  }
+
+  if (currentLegacyRow) {
+    // If there is a row left to process, we should flush it into a row item.
+    rowItems.push(createRowItemFromLegacyRow(currentLegacyRow, currentRowPanels));
+  }
+
+  return new RowsLayoutManager({
+    rows: rowItems,
+  });
 }
 
 export function createSceneObjectsForPanels(oldPanels: PanelModel[]): SceneGridItemLike[] {
@@ -106,21 +162,17 @@ export function createSceneObjectsForPanels(oldPanels: PanelModel[]): SceneGridI
           // commit previous row panels
           panels.push(createRowFromPanelModel(currentRow, currentRowPanels));
 
-          currentRow = panel;
+          if (Boolean(panel.collapsed)) {
+            // collapsed rows contain their panels within the row model
+            panels.push(createRowFromPanelModel(panel, []));
+            currentRow = null;
+          } else {
+            // indicate new row to be processed
+            currentRow = panel;
+          }
+
           currentRowPanels = [];
         }
-      }
-    } else if (panel.libraryPanel?.uid && !('model' in panel.libraryPanel)) {
-      const gridItem = buildGridItemForLibPanel(panel);
-
-      if (!gridItem) {
-        continue;
-      }
-
-      if (currentRow) {
-        currentRowPanels.push(gridItem);
-      } else {
-        panels.push(gridItem);
       }
     } else {
       // when rendering a snapshot created with the legacy Dashboards convert data to new snapshot format to be compatible with Scenes
@@ -156,16 +208,6 @@ function createRowFromPanelModel(row: PanelModel, content: SceneGridItemLike[]):
           saveModel = new PanelModel(saveModel);
         }
 
-        if (saveModel.libraryPanel?.uid && !('model' in saveModel.libraryPanel)) {
-          const gridItem = buildGridItemForLibPanel(saveModel);
-
-          if (!gridItem) {
-            throw new Error('Failed to build grid item for library panel');
-          }
-
-          return gridItem;
-        }
-
         return buildGridItemForPanel(saveModel);
       });
     }
@@ -190,33 +232,33 @@ function createRowFromPanelModel(row: PanelModel, content: SceneGridItemLike[]):
   });
 }
 
-export function createDashboardSceneFromDashboardModel(oldModel: DashboardModel) {
+function createRowItemFromLegacyRow(row: PanelModel, panels: DashboardGridItem[]): RowItem {
+  const rowItem = new RowItem({
+    key: getVizPanelKeyForPanelId(row.id),
+    title: row.title,
+    collapse: row.collapsed,
+    layout: new DefaultGridLayoutManager({
+      grid: new SceneGridLayout({
+        // If the row is collapsed it will have panels within the row model.
+        children: (row.panels?.map((p) => buildGridItemForPanel(p)) ?? []).concat(panels),
+      }),
+    }),
+    repeatByVariable: row.repeat,
+  });
+  return rowItem;
+}
+
+export function createDashboardSceneFromDashboardModel(oldModel: DashboardModel, dto: DashboardDataDTO) {
   let variables: SceneVariableSet | undefined;
   let annotationLayers: SceneDataLayerProvider[] = [];
   let alertStatesLayer: AlertStatesDataLayer | undefined;
+  const uid = oldModel.uid;
+  const serializerVersion = config.featureToggles.dashboardNewLayouts ? 'v2' : 'v1';
 
-  if (oldModel.templating?.list?.length) {
-    const variableObjects = oldModel.templating.list
-      .map((v) => {
-        try {
-          return createSceneVariableFromVariableModel(v);
-        } catch (err) {
-          console.error(err);
-          return null;
-        }
-      })
-      // TODO: Remove filter
-      // Added temporarily to allow skipping non-compatible variables
-      .filter((v): v is SceneVariable => Boolean(v));
-
-    variables = new SceneVariableSet({
-      variables: variableObjects,
-    });
+  if (oldModel.meta.isSnapshot) {
+    variables = createVariablesForSnapshot(oldModel);
   } else {
-    // Create empty variable set
-    variables = new SceneVariableSet({
-      variables: [],
-    });
+    variables = createVariablesForDashboard(oldModel);
   }
 
   if (oldModel.annotations?.list?.length && !oldModel.isSnapshot()) {
@@ -246,207 +288,101 @@ export function createDashboardSceneFromDashboardModel(oldModel: DashboardModel)
     });
   }
 
-  const dashboardScene = new DashboardScene({
-    description: oldModel.description,
-    editable: oldModel.editable,
-    id: oldModel.id,
-    isDirty: false,
-    links: oldModel.links || [],
-    meta: oldModel.meta,
-    tags: oldModel.tags || [],
-    title: oldModel.title,
-    uid: oldModel.uid,
-    version: oldModel.version,
-    body: new SceneGridLayout({
-      isLazy: true,
-      children: createSceneObjectsForPanels(oldModel.panels),
-      $behaviors: [trackIfEmpty],
+  const scopeMeta =
+    config.featureToggles.scopeFilters && oldModel.scopeMeta
+      ? {
+          trait: oldModel.scopeMeta.trait,
+          groups: oldModel.scopeMeta.groups,
+        }
+      : undefined;
+
+  const queryController = new behaviors.SceneQueryController(
+    {
+      enableProfiling:
+        config.dashboardPerformanceMetrics.findIndex((uid) => uid === '*' || uid === oldModel.uid) !== -1,
+      onProfileComplete: getDashboardInteractionCallback(oldModel.uid, oldModel.title),
+    },
+    getDashboardSceneProfiler()
+  );
+
+  const behaviorList: SceneObjectState['$behaviors'] = [
+    new behaviors.CursorSync({
+      sync: oldModel.graphTooltip,
     }),
-    $timeRange: new SceneTimeRange({
-      from: oldModel.time.from,
-      to: oldModel.time.to,
-      fiscalYearStartMonth: oldModel.fiscalYearStartMonth,
-      timeZone: oldModel.timezone,
-      weekStart: oldModel.weekStart,
-      UNSAFE_nowDelay: oldModel.timepicker?.nowDelay,
+    queryController,
+    registerDashboardMacro,
+    registerPanelInteractionsReporter,
+    new behaviors.LiveNowTimer({ enabled: oldModel.liveNow }),
+    addPanelsOnLoadBehavior,
+    new DashboardReloadBehavior({
+      reloadOnParamsChange: config.featureToggles.reloadDashboardsOnParamsChange && oldModel.meta.reloadOnParamsChange,
+      uid,
     }),
-    $variables: variables,
-    $behaviors: [
-      new behaviors.CursorSync({
-        sync: oldModel.graphTooltip,
+  ];
+
+  let body: DashboardLayoutManager;
+
+  if (config.featureToggles.dashboardNewLayouts && oldModel.panels.some((p) => p.type === 'row')) {
+    body = createRowsFromPanels(oldModel.panels);
+  } else {
+    body = new DefaultGridLayoutManager({
+      grid: new SceneGridLayout({
+        isLazy: getIsLazy(dto.preload),
+        children: createSceneObjectsForPanels(oldModel.panels),
       }),
-      new behaviors.SceneQueryController(),
-      registerDashboardMacro,
-      registerPanelInteractionsReporter,
-      new behaviors.LiveNowTimer({ enabled: oldModel.liveNow }),
-      preserveDashboardSceneStateInLocalStorage,
-    ],
-    $data: new DashboardDataLayerSet({ annotationLayers, alertStatesLayer }),
-    controls: new DashboardControls({
-      variableControls: [new VariableValueSelectors({}), new SceneDataLayerControls()],
-      timePicker: new SceneTimePicker({}),
-      refreshPicker: new SceneRefreshPicker({
-        refresh: oldModel.refresh,
-        intervals: oldModel.timepicker.refresh_intervals,
-        withText: true,
+    });
+  }
+
+  const dashboardScene = new DashboardScene(
+    {
+      uid,
+      description: oldModel.description,
+      editable: oldModel.editable,
+      preload: dto.preload ?? false,
+      id: oldModel.id,
+      isDirty: false,
+      links: oldModel.links || [],
+      meta: oldModel.meta,
+      tags: oldModel.tags || [],
+      title: oldModel.title,
+      version: oldModel.version,
+      scopeMeta,
+      body,
+      $timeRange: new SceneTimeRange({
+        from: oldModel.time.from,
+        to: oldModel.time.to,
+        fiscalYearStartMonth: oldModel.fiscalYearStartMonth,
+        timeZone: oldModel.timezone,
+        weekStart: isWeekStart(oldModel.weekStart) ? oldModel.weekStart : undefined,
+        UNSAFE_nowDelay: oldModel.timepicker?.nowDelay,
       }),
-      hideTimeControls: oldModel.timepicker.hidden,
-    }),
-  });
+      $variables: variables,
+      $behaviors: behaviorList,
+      $data: new DashboardDataLayerSet({ annotationLayers, alertStatesLayer }),
+      controls: new DashboardControls({
+        timePicker: new SceneTimePicker({
+          quickRanges: oldModel.timepicker.quick_ranges,
+          defaultQuickRanges: config.quickRanges,
+        }),
+        refreshPicker: new SceneRefreshPicker({
+          refresh: oldModel.refresh,
+          intervals: oldModel.timepicker.refresh_intervals,
+          withText: true,
+        }),
+        hideTimeControls: oldModel.timepicker.hidden,
+      }),
+    },
+    serializerVersion
+  );
 
   return dashboardScene;
-}
-
-export function createSceneVariableFromVariableModel(variable: TypedVariableModel): SceneVariable {
-  const commonProperties = {
-    name: variable.name,
-    label: variable.label,
-    description: variable.description,
-  };
-  if (variable.type === 'adhoc') {
-    return new AdHocFiltersVariable({
-      ...commonProperties,
-      description: variable.description,
-      skipUrlSync: variable.skipUrlSync,
-      hide: variable.hide,
-      datasource: variable.datasource,
-      applyMode: 'auto',
-      filters: variable.filters ?? [],
-      baseFilters: variable.baseFilters ?? [],
-      defaultKeys: variable.defaultKeys,
-      useQueriesAsFilterForOptions: true,
-    });
-  }
-  if (variable.type === 'custom') {
-    return new CustomVariable({
-      ...commonProperties,
-      value: variable.current?.value ?? '',
-      text: variable.current?.text ?? '',
-
-      query: variable.query,
-      isMulti: variable.multi,
-      allValue: variable.allValue || undefined,
-      includeAll: variable.includeAll,
-      defaultToAll: Boolean(variable.includeAll),
-      skipUrlSync: variable.skipUrlSync,
-      hide: variable.hide,
-    });
-  } else if (variable.type === 'query') {
-    return new QueryVariable({
-      ...commonProperties,
-      value: variable.current?.value ?? '',
-      text: variable.current?.text ?? '',
-
-      query: variable.query,
-      datasource: variable.datasource,
-      sort: variable.sort,
-      refresh: variable.refresh,
-      regex: variable.regex,
-      allValue: variable.allValue || undefined,
-      includeAll: variable.includeAll,
-      defaultToAll: Boolean(variable.includeAll),
-      isMulti: variable.multi,
-      skipUrlSync: variable.skipUrlSync,
-      hide: variable.hide,
-      definition: variable.definition,
-    });
-  } else if (variable.type === 'datasource') {
-    return new DataSourceVariable({
-      ...commonProperties,
-      value: variable.current?.value ?? '',
-      text: variable.current?.text ?? '',
-      regex: variable.regex,
-      pluginId: variable.query,
-      allValue: variable.allValue || undefined,
-      includeAll: variable.includeAll,
-      defaultToAll: Boolean(variable.includeAll),
-      skipUrlSync: variable.skipUrlSync,
-      isMulti: variable.multi,
-      hide: variable.hide,
-    });
-  } else if (variable.type === 'interval') {
-    const intervals = getIntervalsFromQueryString(variable.query);
-    const currentInterval = getCurrentValueForOldIntervalModel(variable, intervals);
-    return new IntervalVariable({
-      ...commonProperties,
-      value: currentInterval,
-      intervals: intervals,
-      autoEnabled: variable.auto,
-      autoStepCount: variable.auto_count,
-      autoMinInterval: variable.auto_min,
-      refresh: variable.refresh,
-      skipUrlSync: variable.skipUrlSync,
-      hide: variable.hide,
-    });
-  } else if (variable.type === 'constant') {
-    return new ConstantVariable({
-      ...commonProperties,
-      value: variable.query,
-      skipUrlSync: variable.skipUrlSync,
-      hide: variable.hide,
-    });
-  } else if (variable.type === 'textbox') {
-    let val;
-    if (!variable?.current?.value) {
-      val = variable.query;
-    } else {
-      if (typeof variable.current.value === 'string') {
-        val = variable.current.value;
-      } else {
-        val = variable.current.value[0];
-      }
-    }
-
-    return new TextBoxVariable({
-      ...commonProperties,
-      value: val,
-      skipUrlSync: variable.skipUrlSync,
-      hide: variable.hide,
-    });
-  } else if (config.featureToggles.groupByVariable && variable.type === 'groupby') {
-    return new GroupByVariable({
-      ...commonProperties,
-      datasource: variable.datasource,
-      value: variable.current?.value || [],
-      text: variable.current?.text || [],
-      skipUrlSync: variable.skipUrlSync,
-      hide: variable.hide,
-      // @ts-expect-error
-      defaultOptions: variable.options,
-    });
-  } else {
-    throw new Error(`Scenes: Unsupported variable type ${variable.type}`);
-  }
-}
-
-export function buildGridItemForLibPanel(panel: PanelModel) {
-  if (!panel.libraryPanel) {
-    return null;
-  }
-
-  const body = new LibraryVizPanel({
-    title: panel.title,
-    uid: panel.libraryPanel.uid,
-    name: panel.libraryPanel.name,
-    panelKey: getVizPanelKeyForPanelId(panel.id),
-  });
-
-  return new DashboardGridItem({
-    key: `grid-item-${panel.id}`,
-    y: panel.gridPos.y,
-    x: panel.gridPos.x,
-    width: panel.gridPos.w,
-    height: panel.gridPos.h,
-    itemHeight: panel.gridPos.h,
-    body,
-  });
 }
 
 export function buildGridItemForPanel(panel: PanelModel): DashboardGridItem {
   const repeatOptions: Partial<{ variableName: string; repeatDirection: RepeatDirection }> = panel.repeat
     ? {
         variableName: panel.repeat,
-        repeatDirection: panel.repeatDirection === 'h' ? 'h' : 'v',
+        repeatDirection: panel.repeatDirection === 'v' ? 'v' : 'h',
       }
     : {};
 
@@ -461,24 +397,38 @@ export function buildGridItemForPanel(panel: PanelModel): DashboardGridItem {
 
   titleItems.push(new PanelNotices());
 
+  const timeOverrideShown = (panel.timeFrom || panel.timeShift) && !panel.hideTimeOverride;
+
   const vizPanelState: VizPanelState = {
     key: getVizPanelKeyForPanelId(panel.id),
-    title: panel.title,
+    title: panel.title?.substring(0, 5000),
     description: panel.description,
-    pluginId: panel.type,
+    pluginId: panel.type ?? 'timeseries',
     options: panel.options ?? {},
     fieldConfig: panel.fieldConfig,
     pluginVersion: panel.pluginVersion,
+    seriesLimit: config.panelSeriesLimit,
     displayMode: panel.transparent ? 'transparent' : undefined,
     // To be replaced with it's own option persited option instead derived
-    hoverHeader: !panel.title && !panel.timeFrom && !panel.timeShift,
+    hoverHeader: !panel.title && !timeOverrideShown,
     hoverHeaderOffset: 0,
     $data: createPanelDataProvider(panel),
     titleItems,
-
+    $behaviors: [],
     extendPanelContext: setDashboardPanelContext,
     _UNSAFE_customMigrationHandler: getAngularPanelMigrationHandler(panel),
+    headerActions: config.featureToggles.timeComparison
+      ? [new CustomTimeRangeCompare({ key: 'time-compare', compareWith: undefined, compareOptions: [] })]
+      : undefined,
   };
+
+  if (panel.libraryPanel) {
+    vizPanelState.$behaviors!.push(
+      new LibraryPanelBehavior({ uid: panel.libraryPanel.uid, name: panel.libraryPanel.name })
+    );
+    vizPanelState.pluginId = LibraryPanelBehavior.LOADING_VIZ_PANEL_PLUGIN_ID;
+    vizPanelState.$data = undefined;
+  }
 
   if (!config.publicDashboardAccessToken) {
     vizPanelState.menu = new VizPanelMenu({
@@ -491,6 +441,21 @@ export function buildGridItemForPanel(panel: PanelModel): DashboardGridItem {
       timeFrom: panel.timeFrom,
       timeShift: panel.timeShift,
       hideTimeOverride: panel.hideTimeOverride,
+    });
+  }
+
+  if (panel.scopedVars && panel.targets?.[0]?.queryType === 'snapshot') {
+    vizPanelState.$variables = new SceneVariableSet({
+      variables: Object.entries(panel.scopedVars).map(
+        ([key, variable]) =>
+          new LocalValueVariable({
+            name: key,
+            value: variable?.value,
+            text: variable?.text,
+            isMulti: true,
+            includeAll: true,
+          })
+      ),
     });
   }
 
@@ -509,7 +474,7 @@ export function buildGridItemForPanel(panel: PanelModel): DashboardGridItem {
   });
 }
 
-function registerPanelInteractionsReporter(scene: DashboardScene) {
+export function registerPanelInteractionsReporter(scene: DashboardScene) {
   // Subscriptions set with subscribeToEvent are automatically unsubscribed when the scene deactivated
   scene.subscribeToEvent(UserActionEvent, (e) => {
     const { interaction } = e.payload;
@@ -519,9 +484,6 @@ function registerPanelInteractionsReporter(scene: DashboardScene) {
         break;
       case 'panel-cancel-query-clicked':
         DashboardInteractions.panelCancelQueryClicked();
-        break;
-      case 'panel-menu-shown':
-        DashboardInteractions.panelMenuShown();
         break;
     }
   });
@@ -561,17 +523,3 @@ export const convertOldSnapshotToScenesSnapshot = (panel: PanelModel) => {
     panel.snapshotData = [];
   }
 };
-
-function trackIfEmpty(grid: SceneGridLayout) {
-  getDashboardSceneFor(grid).setState({ isEmpty: grid.state.children.length === 0 });
-
-  const sub = grid.subscribeToState((n, p) => {
-    if (n.children.length !== p.children.length || n.children !== p.children) {
-      getDashboardSceneFor(grid).setState({ isEmpty: n.children.length === 0 });
-    }
-  });
-
-  return () => {
-    sub.unsubscribe();
-  };
-}
