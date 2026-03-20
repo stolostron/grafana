@@ -1,29 +1,41 @@
 import { getDataSourceRef, IntervalVariableModel } from '@grafana/data';
-import { getDataSourceSrv } from '@grafana/runtime';
+import { t } from '@grafana/i18n';
+import { config, getDataSourceSrv } from '@grafana/runtime';
 import {
+  CancelActivationHandler,
   CustomVariable,
   MultiValueVariable,
   SceneDataTransformer,
   sceneGraph,
-  SceneGridRow,
   SceneObject,
+  SceneObjectState,
   SceneQueryRunner,
   VizPanel,
   VizPanelMenu,
 } from '@grafana/scenes';
+import { Dashboard, Panel, RowPanel } from '@grafana/schema';
+import { createLogger } from '@grafana/ui';
 import { initialIntervalVariableModelState } from 'app/features/variables/interval/reducer';
 
+import { CustomTimeRangeCompare } from '../scene/CustomTimeRangeCompare';
 import { DashboardDatasourceBehaviour } from '../scene/DashboardDatasourceBehaviour';
-import { DashboardScene } from '../scene/DashboardScene';
-import { LibraryVizPanel } from '../scene/LibraryVizPanel';
+import { DashboardLayoutOrchestrator } from '../scene/DashboardLayoutOrchestrator';
+import { DashboardScene, DashboardSceneState } from '../scene/DashboardScene';
+import { LibraryPanelBehavior } from '../scene/LibraryPanelBehavior';
 import { VizPanelLinks, VizPanelLinksMenu } from '../scene/PanelLinks';
 import { panelMenuBehavior } from '../scene/PanelMenuBehavior';
-import { RowActions } from '../scene/row-actions/RowActions';
-
-import { dashboardSceneGraph } from './dashboardSceneGraph';
+import { UNCONFIGURED_PANEL_PLUGIN_ID } from '../scene/UnconfiguredPanel';
+import { DashboardGridItem } from '../scene/layout-default/DashboardGridItem';
+import { setDashboardPanelContext } from '../scene/setDashboardPanelContext';
+import { DashboardLayoutManager, isDashboardLayoutManager } from '../scene/types/DashboardLayoutManager';
 
 export const NEW_PANEL_HEIGHT = 8;
 export const NEW_PANEL_WIDTH = 12;
+
+const V1_PANEL_PROPERTIES = {
+  LIBRARY_PANEL: 'libraryPanel',
+  COLLAPSED: 'collapsed',
+} as const;
 
 export function getVizPanelKeyForPanelId(panelId: number) {
   return `panel-${panelId}`;
@@ -31,10 +43,6 @@ export function getVizPanelKeyForPanelId(panelId: number) {
 
 export function getPanelIdForVizPanel(panel: SceneObject): number {
   return parseInt(panel.state.key!.replace('panel-', ''), 10);
-}
-
-export function getPanelIdForLibraryVizPanel(panel: LibraryVizPanel): number {
-  return parseInt(panel.state.panelKey!.replace('panel-', ''), 10);
 }
 
 /**
@@ -87,6 +95,22 @@ function findVizPanelInternal(scene: SceneObject, key: string | undefined): VizP
   }
 
   return null;
+}
+export function findEditPanel(scene: SceneObject, key: string | undefined): VizPanel | null {
+  if (!key) {
+    return null;
+  }
+
+  let panel: SceneObject | null = findVizPanelByKey(scene, key);
+  if (!panel || !panel.state.key) {
+    return null;
+  }
+
+  if (!(panel instanceof VizPanel)) {
+    return null;
+  }
+
+  return panel;
 }
 
 /**
@@ -164,7 +188,7 @@ export function getCurrentValueForOldIntervalModel(variable: IntervalVariableMod
   const selectedInterval = Array.isArray(variable.current.value) ? variable.current.value[0] : variable.current.value;
 
   // If the interval is the old auto format, return the new auto interval from scenes.
-  if (selectedInterval.startsWith('$__auto_interval_')) {
+  if (selectedInterval.startsWith('$__auto_interval_') || selectedInterval === '$__auto') {
     return '$__auto';
   }
 
@@ -217,22 +241,24 @@ export function getClosestVizPanel(sceneObject: SceneObject): VizPanel | null {
   return null;
 }
 
-export function isPanelClone(key: string) {
-  return key.includes('clone');
-}
-
-export function getDefaultVizPanel(dashboard: DashboardScene): VizPanel {
-  const panelId = dashboardSceneGraph.getNextPanelId(dashboard);
+export function getDefaultVizPanel(): VizPanel {
+  const defaultPluginId = config.featureToggles.dashboardNewLayouts ? UNCONFIGURED_PANEL_PLUGIN_ID : 'timeseries';
+  const newPanelTitle = t('dashboard.new-panel-title', 'New panel');
 
   return new VizPanel({
-    title: 'Panel Title',
-    key: getVizPanelKeyForPanelId(panelId),
-    pluginId: 'timeseries',
+    title: newPanelTitle,
+    pluginId: defaultPluginId,
+    seriesLimit: config.panelSeriesLimit,
     titleItems: [new VizPanelLinks({ menu: new VizPanelLinksMenu({}) })],
     hoverHeaderOffset: 0,
+    $behaviors: [],
+    extendPanelContext: setDashboardPanelContext,
     menu: new VizPanelMenu({
       $behaviors: [panelMenuBehavior],
     }),
+    headerActions: config.featureToggles.timeComparison
+      ? [new CustomTimeRangeCompare({ key: 'time-compare', compareWith: undefined, compareOptions: [] })]
+      : undefined,
     $data: new SceneDataTransformer({
       $data: new SceneQueryRunner({
         queries: [{ refId: 'A' }],
@@ -244,20 +270,172 @@ export function getDefaultVizPanel(dashboard: DashboardScene): VizPanel {
   });
 }
 
-export function getDefaultRow(dashboard: DashboardScene): SceneGridRow {
-  const id = dashboardSceneGraph.getNextPanelId(dashboard);
+export function isLibraryPanel(vizPanel: VizPanel): boolean {
+  return getLibraryPanelBehavior(vizPanel) !== undefined;
+}
 
-  return new SceneGridRow({
-    key: getVizPanelKeyForPanelId(id),
-    title: 'Row title',
-    actions: new RowActions({}),
-    y: 0,
+export function getLibraryPanelBehavior(vizPanel: VizPanel): LibraryPanelBehavior | undefined {
+  const behavior = vizPanel.state.$behaviors?.find((behaviour) => behaviour instanceof LibraryPanelBehavior);
+
+  if (behavior) {
+    return behavior;
+  }
+
+  return undefined;
+}
+
+export function calculateGridItemDimensions(repeater: DashboardGridItem) {
+  const rowCount = Math.ceil(repeater.getChildCount() / repeater.getMaxPerRow());
+  const columnCount = Math.ceil(repeater.getChildCount() / rowCount);
+  const w = 24 / columnCount;
+  const h = repeater.state.itemHeight ?? 10;
+  return { h, w, columnCount };
+}
+
+/**
+ * Activates any inactive ancestors of the scene object.
+ * Useful when rendering a scene object out of context of it's parent
+ * @returns
+ */
+export function activateSceneObjectAndParentTree(so: SceneObject): CancelActivationHandler | undefined {
+  let cancel: CancelActivationHandler | undefined;
+  let parentCancel: CancelActivationHandler | undefined;
+
+  if (so.isActive) {
+    return cancel;
+  }
+
+  if (so.parent) {
+    parentCancel = activateSceneObjectAndParentTree(so.parent);
+  }
+
+  cancel = so.activate();
+
+  return () => {
+    parentCancel?.();
+    cancel();
+  };
+}
+
+/**
+ * Adaptation of activateSceneObjectAndParentTree specific for PanelSearchLayout use case with
+ *   with panelSearch and panelsPerRow custom panel filtering logic.
+ *
+ * Activating the whole tree because dashboard does not react to variable updates such as panel repeats
+ */
+export function forceActivateFullSceneObjectTree(so: SceneObject): CancelActivationHandler | undefined {
+  let cancel: CancelActivationHandler | undefined;
+  let parentCancel: CancelActivationHandler | undefined;
+
+  if (so.parent) {
+    parentCancel = forceActivateFullSceneObjectTree(so.parent);
+  }
+
+  if (!so.isActive) {
+    cancel = so.activate();
+    return () => {
+      parentCancel?.();
+      cancel?.();
+    };
+  }
+
+  return () => {
+    parentCancel?.();
+    cancel?.();
+  };
+}
+
+/**
+ * @deprecated use activateSceneObjectAndParentTree instead.
+ * Activates any inactive ancestors of the scene object.
+ * Useful when rendering a scene object out of context of it's parent
+ */
+export const activateInActiveParents = activateSceneObjectAndParentTree;
+
+export function getLayoutManagerFor(sceneObject: SceneObject): DashboardLayoutManager {
+  let parent = sceneObject.parent;
+
+  while (parent) {
+    if (isDashboardLayoutManager(parent)) {
+      return parent;
+    }
+    parent = parent.parent;
+  }
+
+  throw new Error('Could not find layout manager for scene object');
+}
+
+export function getGridItemKeyForPanelId(panelId: number): string {
+  return `grid-item-${panelId}`;
+}
+
+export function useDashboard(scene: SceneObject): DashboardScene {
+  return getDashboardSceneFor(scene);
+}
+
+export function useDashboardState(scene: SceneObject): DashboardSceneState {
+  const dashboard = useDashboard(scene);
+  return dashboard.useState();
+}
+
+export function useInterpolatedTitle<T extends SceneObjectState & { title?: string }>(scene: SceneObject<T>): string {
+  const { title } = scene.useState();
+
+  if (!title) {
+    return '';
+  }
+
+  return sceneGraph.interpolate(scene, title, undefined, 'text');
+}
+
+export function getLayoutOrchestratorFor(scene: SceneObject): DashboardLayoutOrchestrator | undefined {
+  return getDashboardSceneFor(scene).state.layoutOrchestrator;
+}
+
+// @returns true if the panel is a valid library panel reference
+// a valid library panel reference is a panel with this
+// property: `libraryPanel: {name: string, uid: string}`
+
+export function isValidLibraryPanelRef(panel: Panel): boolean {
+  return (
+    (V1_PANEL_PROPERTIES.LIBRARY_PANEL in panel &&
+      panel.libraryPanel &&
+      Boolean(panel.libraryPanel?.uid && panel.libraryPanel?.name)) ||
+    false
+  );
+}
+
+/**
+ * Checks if a V1 dashboard contains library panels
+ * @returns true if the dashboard contains library panels
+ */
+export function hasLibraryPanelsInV1Dashboard(dashboard: Dashboard | undefined): boolean {
+  if (!dashboard?.panels) {
+    return false;
+  }
+
+  return dashboard.panels.some((panel: Panel | RowPanel) => {
+    if (isValidLibraryPanelRef(panel)) {
+      return true;
+    }
+    // Check if this is a collapsed row containing library panels
+    const isCollapsedRow =
+      V1_PANEL_PROPERTIES.COLLAPSED in panel && panel.collapsed && 'panels' in panel && panel.panels;
+
+    if (!isCollapsedRow) {
+      return false;
+    }
+
+    return panel.panels.some(isValidLibraryPanelRef);
   });
 }
 
-export function getLibraryPanel(vizPanel: VizPanel): LibraryVizPanel | undefined {
-  if (vizPanel.parent instanceof LibraryVizPanel) {
-    return vizPanel.parent;
-  }
-  return;
+export const dashboardLog = createLogger('Dashboard');
+
+/**
+ * Checks if there are save changes but not counting time range, refresh rate and default variable value change
+ */
+export function hasActualSaveChanges(dashboard: DashboardScene) {
+  const changes = dashboard.getDashboardChanges();
+  return !!changes.diffCount;
 }

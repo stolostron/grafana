@@ -102,11 +102,12 @@ func TestRules(t *testing.T) {
 		_, err := rule.mapToModel(1)
 		require.Error(t, err)
 	})
-	t.Run("a rule with out a for duration should error", func(t *testing.T) {
+	t.Run("a rule without a for duration should default to 0s", func(t *testing.T) {
 		rule := validRuleV1(t)
 		rule.For = values.StringValue{}
-		_, err := rule.mapToModel(1)
-		require.Error(t, err)
+		ruleMapped, err := rule.mapToModel(1)
+		require.NoError(t, err)
+		require.Equal(t, time.Duration(0), ruleMapped.For)
 	})
 	t.Run("a rule with an invalid for duration should error", func(t *testing.T) {
 		rule := validRuleV1(t)
@@ -211,20 +212,22 @@ func TestNotificationsSettingsV1MapToModel(t *testing.T) {
 		{
 			name: "Valid Input",
 			input: NotificationSettingsV1{
-				Receiver:          stringToStringValue("test-receiver"),
-				GroupBy:           []values.StringValue{stringToStringValue("test-group_by")},
-				GroupWait:         stringToStringValue("1s"),
-				GroupInterval:     stringToStringValue("2s"),
-				RepeatInterval:    stringToStringValue("3s"),
-				MuteTimeIntervals: []values.StringValue{stringToStringValue("test-mute")},
+				Receiver:            stringToStringValue("test-receiver"),
+				GroupBy:             []values.StringValue{stringToStringValue("test-group_by")},
+				GroupWait:           stringToStringValue("1s"),
+				GroupInterval:       stringToStringValue("2s"),
+				RepeatInterval:      stringToStringValue("3s"),
+				MuteTimeIntervals:   []values.StringValue{stringToStringValue("test-mute")},
+				ActiveTimeIntervals: []values.StringValue{stringToStringValue("test-active")},
 			},
 			expected: models.NotificationSettings{
-				Receiver:          "test-receiver",
-				GroupBy:           []string{"test-group_by"},
-				GroupWait:         util.Pointer(model.Duration(1 * time.Second)),
-				GroupInterval:     util.Pointer(model.Duration(2 * time.Second)),
-				RepeatInterval:    util.Pointer(model.Duration(3 * time.Second)),
-				MuteTimeIntervals: []string{"test-mute"},
+				Receiver:            "test-receiver",
+				GroupBy:             []string{"test-group_by"},
+				GroupWait:           util.Pointer(model.Duration(1 * time.Second)),
+				GroupInterval:       util.Pointer(model.Duration(2 * time.Second)),
+				RepeatInterval:      util.Pointer(model.Duration(3 * time.Second)),
+				MuteTimeIntervals:   []string{"test-mute"},
+				ActiveTimeIntervals: []string{"test-active"},
 			},
 		},
 		{

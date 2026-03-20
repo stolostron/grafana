@@ -1,9 +1,8 @@
 import { css } from '@emotion/css';
-import React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 
 import { VizTooltipRow } from './VizTooltipRow';
 import { VizTooltipItem } from './types';
@@ -37,5 +36,6 @@ const getStyles = (theme: GrafanaTheme2) => ({
     flexDirection: 'column',
     flex: 1,
     padding: theme.spacing(1),
+    lineHeight: 1,
   }),
 });

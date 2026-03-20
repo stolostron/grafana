@@ -1,10 +1,10 @@
 import { css } from '@emotion/css';
-import React, { memo } from 'react';
+import { memo } from 'react';
 import Calendar from 'react-calendar';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles2 } from '../../../themes';
+import { useStyles2 } from '../../../themes/ThemeContext';
 import { ClickOutsideWrapper } from '../../ClickOutsideWrapper/ClickOutsideWrapper';
 import { Icon } from '../../Icon/Icon';
 import { getBodyStyles } from '../TimeRangePicker/CalendarBody';

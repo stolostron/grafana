@@ -1,5 +1,4 @@
 import { css, cx } from '@emotion/css';
-import React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
@@ -12,6 +11,7 @@ export interface CallToActionCardProps {
   className?: string;
 }
 
+/** @deprecated Use <EmptyState variant="call-to-action" /> instead */
 export const CallToActionCard = ({ message, callToActionElement, footer, className }: CallToActionCardProps) => {
   const css = useStyles2(getStyles);
 

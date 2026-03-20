@@ -15,7 +15,10 @@ import (
 	"github.com/grafana/grafana/pkg/services/ngalert/models"
 )
 
-var errRuleDeleted = errors.New("rule deleted")
+var (
+	errRuleDeleted   = errors.New("rule deleted")
+	errRuleRestarted = errors.New("rule restarted")
+)
 
 type ruleFactory interface {
 	new(context.Context, *models.AlertRule) Rule
@@ -53,6 +56,14 @@ func (r *ruleRegistry) exists(key models.AlertRuleKey) bool {
 	return ok
 }
 
+// get fetches a rule from the registry by key. It returns (rule, ok) where ok is false if the rule did not exist.
+func (r *ruleRegistry) get(key models.AlertRuleKey) (Rule, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ru, ok := r.rules[key]
+	return ru, ok
+}
+
 // del removes pair that has specific key from the registry.
 // Returns 2-tuple where the first element is value of the removed pair
 // and the second element indicates whether element with the specified key existed.
@@ -76,15 +87,11 @@ func (r *ruleRegistry) keyMap() map[models.AlertRuleKey]struct{} {
 	return definitionsIDs
 }
 
-type RuleVersionAndPauseStatus struct {
-	Fingerprint fingerprint
-	IsPaused    bool
-}
-
 type Evaluation struct {
 	scheduledAt time.Time
 	rule        *models.AlertRule
 	folderTitle string
+	afterEval   func()
 }
 
 func (e *Evaluation) Fingerprint() fingerprint {
@@ -94,13 +101,13 @@ func (e *Evaluation) Fingerprint() fingerprint {
 type alertRulesRegistry struct {
 	rules        map[models.AlertRuleKey]*models.AlertRule
 	folderTitles map[models.FolderKey]string
-	mu           sync.Mutex
+	mu           sync.RWMutex
 }
 
 // all returns all rules in the registry.
 func (r *alertRulesRegistry) all() ([]*models.AlertRule, map[models.FolderKey]string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	result := make([]*models.AlertRule, 0, len(r.rules))
 	for _, rule := range r.rules {
 		result = append(result, rule)
@@ -109,8 +116,8 @@ func (r *alertRulesRegistry) all() ([]*models.AlertRule, map[models.FolderKey]st
 }
 
 func (r *alertRulesRegistry) get(k models.AlertRuleKey) *models.AlertRule {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.rules[k]
 }
 
@@ -150,12 +157,14 @@ func (r *alertRulesRegistry) del(k models.AlertRuleKey) (*models.AlertRule, bool
 }
 
 func (r *alertRulesRegistry) isEmpty() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return len(r.rules) == 0
 }
 
 func (r *alertRulesRegistry) needsUpdate(keys []models.AlertRuleKeyWithVersion) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	if len(r.rules) != len(keys) {
 		return true
 	}
@@ -303,8 +312,6 @@ func (r ruleWithFolder) Fingerprint() fingerprint {
 
 	// fields that do not affect the state.
 	// TODO consider removing fields below from the fingerprint
-	writeInt(rule.ID)
-	writeInt(rule.OrgID)
 	writeInt(int64(rule.For))
 	if rule.DashboardUID != nil {
 		writeString(*rule.DashboardUID)
@@ -313,7 +320,6 @@ func (r ruleWithFolder) Fingerprint() fingerprint {
 		writeInt(*rule.PanelID)
 	}
 	writeString(rule.RuleGroup)
-	writeInt(int64(rule.RuleGroupIndex))
 	writeString(string(rule.NoDataState))
 	writeString(string(rule.ExecErrState))
 	if rule.Record != nil {

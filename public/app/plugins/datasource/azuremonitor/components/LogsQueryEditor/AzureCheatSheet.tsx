@@ -1,29 +1,24 @@
 import { css } from '@emotion/css';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { GrafanaTheme2, SelectableValue } from '@grafana/data';
+import { Trans, t } from '@grafana/i18n';
 import { reportInteraction } from '@grafana/runtime';
 import {
   Button,
   Card,
   Collapse,
-  CustomScrollbar,
   Field,
   Input,
   LoadingPlaceholder,
+  ScrollContainer,
   Select,
   useStyles2,
 } from '@grafana/ui';
 
 import AzureLogAnalyticsDatasource from '../../azure_log_analytics/azure_log_analytics_datasource';
-import {
-  AzureMonitorQuery,
-  AzureQueryType,
-  Category,
-  CheatsheetQueries,
-  CheatsheetQuery,
-  DropdownCategories,
-} from '../../types';
+import { AzureMonitorQuery, AzureQueryType } from '../../types/query';
+import { Category, CheatsheetQueries, CheatsheetQuery, DropdownCategories } from '../../types/types';
 
 import { RawQuery } from './RawQuery';
 import tokenizer from './syntax';
@@ -41,6 +36,7 @@ const AzureCheatSheet = (props: AzureCheatSheetProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchInputValue, setSearchInputValue] = useState('');
   const styles = useStyles2(getStyles);
+
   const lang = { grammar: tokenizer, name: 'kql' };
   const dropdownMenu = useMemo(() => {
     if (cheatsheetQueries) {
@@ -144,19 +140,25 @@ const AzureCheatSheet = (props: AzureCheatSheetProps) => {
                 const filteredQueries = filterQueriesBySearch(e.currentTarget.value);
                 setVisibleQueries(filteredQueries);
               }}
-              placeholder="Search Logs queries"
+              placeholder={t('components.azure-cheat-sheet.placeholder-search-logs', 'Search Logs queries')}
               width={40}
             />
-            <Field label="Categories" className={styles.categoryDropdown}>
+            <Field
+              label={t('components.azure-cheat-sheet.label-categories', 'Categories')}
+              className={styles.categoryDropdown}
+            >
               <Select
                 options={dropdownMenu}
                 value={''}
                 onChange={(a) => filterQueriesByCategory(a)}
                 allowCustomValue={false}
                 backspaceRemovesValue={true}
-                placeholder="All categories"
+                placeholder={t('components.azure-cheat-sheet.placeholder-all-categories', 'All categories')}
                 isClearable={true}
-                noOptionsMessage="Unable to list all categories"
+                noOptionsMessage={t(
+                  'components.azure-cheat-sheet.noOptionsMessage-unable-to-list-categories',
+                  'Unable to list all categories'
+                )}
                 formatCreateLabel={(input: string) => `Category: ${input}`}
                 isSearchable={true}
                 isMulti={true}
@@ -165,13 +167,19 @@ const AzureCheatSheet = (props: AzureCheatSheetProps) => {
             </Field>
           </div>
           <div className={styles.spacing}>
-            Query results:{' '}
-            {Object.keys(visibleQueries).reduce((totalQueries: number, category) => {
-              totalQueries = visibleQueries[category]!.length + totalQueries;
-              return totalQueries;
-            }, 0)}
+            <Trans
+              i18nKey="components.azure-cheat-sheet.label-query-results"
+              values={{
+                numResults: Object.keys(visibleQueries).reduce((totalQueries: number, category) => {
+                  totalQueries = visibleQueries[category]!.length + totalQueries;
+                  return totalQueries;
+                }, 0),
+              }}
+            >
+              Query results: {'{{numResults}}'}
+            </Trans>
           </div>
-          <CustomScrollbar showScrollIndicators={true} autoHeightMax="350px">
+          <ScrollContainer showScrollIndicators maxHeight="350px">
             {Object.keys(visibleQueries).map((category: string) => {
               if (visibleQueries[category]!.length) {
                 return (
@@ -186,18 +194,25 @@ const AzureCheatSheet = (props: AzureCheatSheetProps) => {
                       return (
                         <Card className={styles.card} key={query.id}>
                           <Card.Heading>{query.displayName}</Card.Heading>
-                          <CustomScrollbar showScrollIndicators={true} autoHeightMax="100px">
+                          <ScrollContainer showScrollIndicators maxHeight="100px">
                             <RawQuery
-                              aria-label={`${query.displayName} raw query`}
+                              aria-label={t(
+                                'components.azure-cheat-sheet.aria-label-raw-query',
+                                '{{queryDisplayName}} raw query',
+                                { queryDisplayName: query.displayName }
+                              )}
                               query={query.body}
                               lang={lang}
                               className={styles.rawQuery}
                             />
-                          </CustomScrollbar>
+                          </ScrollContainer>
                           <Card.Actions>
                             <Button
                               size="sm"
-                              aria-label="use this query button"
+                              aria-label={t(
+                                'components.azure-cheat-sheet.aria-label-use-query',
+                                'Use this query button'
+                              )}
                               onClick={() => {
                                 props.onChange({
                                   refId: 'A',
@@ -213,7 +228,7 @@ const AzureCheatSheet = (props: AzureCheatSheetProps) => {
                                 });
                               }}
                             >
-                              Use this query
+                              <Trans i18nKey="components.azure-cheat-sheet.button-use-query">Use this query</Trans>
                             </Button>
                           </Card.Actions>
                         </Card>
@@ -224,10 +239,10 @@ const AzureCheatSheet = (props: AzureCheatSheetProps) => {
               }
               return;
             })}
-          </CustomScrollbar>
+          </ScrollContainer>
         </div>
       ) : (
-        <LoadingPlaceholder text="Loading..." />
+        <LoadingPlaceholder text={t('components.azure-cheat-sheet.text-loading', 'Loading...')} />
       )}
     </div>
   );

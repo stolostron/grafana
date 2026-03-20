@@ -10,13 +10,14 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react';
-import React, { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import * as React from 'react';
 import { CSSTransition } from 'react-transition-group';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
-import { ReactUtils } from '../../utils';
+import { useStyles2 } from '../../themes/ThemeContext';
+import { renderOrCallToRender } from '../../utils/reactUtils';
 import { getPlacement } from '../../utils/tooltipUtils';
 import { Portal } from '../Portal/Portal';
 import { TooltipPlacement } from '../Tooltip/types';
@@ -104,7 +105,7 @@ export const Dropdown = React.memo(({ children, overlay, placement, offset, onVi
                 timeout={{ appear: animationDuration, exit: 0, enter: 0 }}
                 classNames={animationStyles}
               >
-                <div ref={transitionRef}>{ReactUtils.renderOrCallToRender(overlay, { ...getFloatingProps() })}</div>
+                <div ref={transitionRef}>{renderOrCallToRender(overlay, { ...getFloatingProps() })}</div>
               </CSSTransition>
             </div>
           </FloatingFocusManager>

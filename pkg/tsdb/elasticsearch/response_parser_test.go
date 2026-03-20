@@ -9,13 +9,12 @@ import (
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/grafana/grafana-plugin-sdk-go/experimental"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/infra/tracing"
 	es "github.com/grafana/grafana/pkg/tsdb/elasticsearch/client"
 )
 
@@ -47,6 +46,7 @@ func TestProcessLogsResponse(t *testing.T) {
 					  {
 						"aggregations": {},
 						"hits": {
+						  "total": { "value": 2 },
 						  "hits": [
 							{
 							  "_id": "fdsfs",
@@ -108,7 +108,7 @@ func TestProcessLogsResponse(t *testing.T) {
 			logsFrame := frames[0]
 
 			meta := logsFrame.Meta
-			require.Equal(t, map[string]any{"searchWords": []string{"hello", "message"}, "limit": 500}, meta.Custom)
+			require.Equal(t, map[string]any{"searchWords": []string{"hello", "message"}, "limit": 500, "total": 2}, meta.Custom)
 			require.Equal(t, data.VisTypeLogs, string(meta.PreferredVisualization))
 
 			logsFieldMap := make(map[string]*data.Field)
@@ -432,6 +432,7 @@ func TestProcessLogsResponse(t *testing.T) {
 		require.Equal(t, map[string]any{
 			"searchWords": []string{"hello", "message"},
 			"limit":       500,
+			"total":       109,
 		}, customMeta)
 	})
 }
@@ -704,7 +705,7 @@ func TestProcessRawDocumentResponse(t *testing.T) {
 		"responses": [
 			{
 			"hits": {
-				"total": 100,
+				"total": { "value": 100 },
 				"hits": [
 				{
 					"_id": "1",
@@ -3240,7 +3241,7 @@ func TestParseResponse(t *testing.T) {
 				  },
 				  {
 					"hits": {
-					  "total": 2,
+					  "total": { "value": 2 },
 					  "hits": [
 						{
 						  "_id": "5",
@@ -3677,12 +3678,12 @@ func parseTestResponse(tsdbQueries map[string]string, responseBody string, keepL
 		return nil, err
 	}
 
-	queries, err := parseQuery(tsdbQuery.Queries, log.New("test.logger"))
+	queries, err := parseQuery(tsdbQuery.Queries, log.New())
 	if err != nil {
 		return nil, err
 	}
 
-	return parseResponse(context.Background(), response.Responses, queries, configuredFields, keepLabelsInResponse, log.New("test.logger"), tracing.InitializeTracerForTest())
+	return parseResponse(context.Background(), response.Responses, queries, configuredFields, keepLabelsInResponse, log.New())
 }
 
 func requireTimeValue(t *testing.T, expected int64, frame *data.Frame, index int) {

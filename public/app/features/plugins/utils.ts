@@ -2,8 +2,8 @@ import { GrafanaPlugin, NavModel, NavModelItem, PanelPluginMeta, PluginType } fr
 import { createMonitoringLogger } from '@grafana/runtime';
 
 import { importPanelPluginFromMeta } from './importPanelPlugin';
+import { importAppPlugin, importDataSourcePlugin } from './pluginLoader';
 import { getPluginSettings } from './pluginSettings';
-import { importAppPlugin, importDataSourcePlugin } from './plugin_loader';
 
 export async function loadPlugin(pluginId: string): Promise<GrafanaPlugin> {
   const info = await getPluginSettings(pluginId);
@@ -30,11 +30,10 @@ export async function loadPlugin(pluginId: string): Promise<GrafanaPlugin> {
   return result;
 }
 
-export function buildPluginSectionNav(
-  pluginNavSection: NavModelItem,
-  pluginNav: NavModel | null,
-  currentUrl: string
-): NavModel | undefined {
+export function buildPluginSectionNav(currentUrl: string, pluginNavSection?: NavModelItem): NavModel | undefined {
+  if (!pluginNavSection) {
+    return undefined;
+  }
   // shallow clone as we set active flag
   const MAX_RECURSION_DEPTH = 10;
   let copiedPluginNavSection = { ...pluginNavSection };

@@ -1,9 +1,9 @@
 import { css, cx } from '@emotion/css';
-import React, { HTMLProps } from 'react';
+import { forwardRef, HTMLProps } from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { getFocusStyle, sharedInputStyle } from '../Forms/commonStyles';
 
 export interface Props extends Omit<HTMLProps<HTMLTextAreaElement>, 'size'> {
@@ -11,7 +11,7 @@ export interface Props extends Omit<HTMLProps<HTMLTextAreaElement>, 'size'> {
   invalid?: boolean;
 }
 
-export const TextArea = React.forwardRef<HTMLTextAreaElement, Props>(({ invalid, className, ...props }, ref) => {
+export const TextArea = forwardRef<HTMLTextAreaElement, Props>(({ invalid, className, ...props }, ref) => {
   const styles = useStyles2(getTextAreaStyle, invalid);
 
   return <textarea {...props} className={cx(styles.textarea, className)} ref={ref} />;

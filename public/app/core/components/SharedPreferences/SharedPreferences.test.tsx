@@ -1,11 +1,17 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
+import { comboboxTestSetup } from 'test/helpers/comboboxTestSetup';
 import { getSelectParent, selectOptionInTest } from 'test/helpers/selectOptionInTest';
 
 import { Preferences as UserPreferencesDTO } from '@grafana/schema/src/raw/preferences/x/preferences_types.gen';
 
 import SharedPreferences from './SharedPreferences';
+
+const selectComboboxOptionInTest = async (input: HTMLElement, optionOrOptions: string) => {
+  await userEvent.click(input);
+  const option = await screen.findByRole('option', { name: optionOrOptions });
+  await userEvent.click(option);
+};
 
 jest.mock('app/features/dashboard/api/dashboard_api', () => ({
   getDashboardAPI: () => ({
@@ -87,8 +93,8 @@ const defaultPreferences: UserPreferencesDTO = {
   language: '',
 };
 
-const mockPrefsPatch = jest.fn();
-const mockPrefsUpdate = jest.fn();
+const mockPrefsPatch = jest.fn().mockResolvedValue(undefined);
+const mockPrefsUpdate = jest.fn().mockResolvedValue(undefined);
 const mockPrefsLoad = jest.fn().mockResolvedValue(mockPreferences);
 
 jest.mock('app/core/services/PreferencesService', () => ({
@@ -115,6 +121,7 @@ describe('SharedPreferences', () => {
       configurable: true,
       value: { reload: mockReload },
     });
+    comboboxTestSetup();
   });
 
   afterAll(() => {
@@ -122,17 +129,14 @@ describe('SharedPreferences', () => {
   });
 
   beforeEach(async () => {
-    mockReload.mockReset();
-    mockPrefsUpdate.mockReset();
-
     render(<SharedPreferences {...props} />);
 
     await waitFor(() => expect(mockPrefsLoad).toHaveBeenCalled());
   });
 
-  it('renders the theme preference', () => {
-    const themeSelect = getSelectParent(screen.getByLabelText('Interface theme'));
-    expect(themeSelect).toHaveTextContent('Light');
+  it('renders the theme preference', async () => {
+    const themeSelect = await screen.findByRole('combobox', { name: 'Interface theme' });
+    expect(themeSelect).toHaveValue('Light');
   });
 
   it('renders the home dashboard preference', async () => {
@@ -148,20 +152,38 @@ describe('SharedPreferences', () => {
   });
 
   it('renders the week start preference', async () => {
-    const weekSelect = getSelectParent(screen.getByLabelText('Week start'));
-    expect(weekSelect).toHaveTextContent('Monday');
+    const weekSelect = await screen.findByRole('combobox', { name: 'Week start' });
+    expect(weekSelect).toHaveValue('Monday');
   });
 
-  it('renders the language preference', async () => {
-    const weekSelect = getSelectParent(screen.getByLabelText(/language/i));
-    expect(weekSelect).toHaveTextContent('Default');
+  it('renders the default language preference', async () => {
+    const langSelect = await screen.findByRole('combobox', { name: /language/i });
+    expect(langSelect).toHaveValue('Default');
+  });
+
+  it('does not render the pseudo-locale', async () => {
+    const langSelect = await screen.findByRole('combobox', { name: /language/i });
+
+    // Open the combobox and wait for the options to be rendered
+    await userEvent.click(langSelect);
+
+    // TODO: The input value should be cleared when clicked, but for some reason it's not?
+    // checking langSelect.value beforehand indicates that it is cleared, but after using
+    // userEvent.type the default value comes back?
+    await userEvent.type(
+      langSelect,
+      '{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}Pseudo'
+    );
+
+    const option = screen.queryByRole('option', { name: 'Pseudo-locale' });
+    expect(option).not.toBeInTheDocument();
   });
 
   it('saves the users new preferences', async () => {
-    await selectOptionInTest(screen.getByLabelText('Interface theme'), 'Dark');
+    await selectComboboxOptionInTest(await screen.findByRole('combobox', { name: 'Interface theme' }), 'Dark');
     await selectOptionInTest(screen.getByLabelText('Timezone'), 'Australia/Sydney');
-    await selectOptionInTest(screen.getByLabelText('Week start'), 'Saturday');
-    await selectOptionInTest(screen.getByLabelText(/language/i), 'Français');
+    await selectComboboxOptionInTest(await screen.findByRole('combobox', { name: 'Week start' }), 'Saturday');
+    await selectComboboxOptionInTest(await screen.findByRole('combobox', { name: /language/i }), 'Français');
 
     await userEvent.click(screen.getByText('Save'));
 
@@ -178,16 +200,18 @@ describe('SharedPreferences', () => {
   });
 
   it('saves the users default preferences', async () => {
-    await selectOptionInTest(screen.getByLabelText('Interface theme'), 'Default');
+    await selectComboboxOptionInTest(await screen.findByRole('combobox', { name: 'Interface theme' }), 'Default');
 
     // there's no default option in this dropdown - there's a clear selection button
-    // get the parent container, and find the "select-clear-value" button
+    // get the parent container, and find the "Clear value" button
     const dashboardSelect = screen.getByTestId('User preferences home dashboard drop down');
-    await userEvent.click(within(dashboardSelect).getByRole('button', { name: 'select-clear-value' }));
+    await userEvent.click(within(dashboardSelect).getByRole('button', { name: 'Clear value' }));
 
     await selectOptionInTest(screen.getByLabelText('Timezone'), 'Default');
-    await selectOptionInTest(screen.getByLabelText('Week start'), 'Default');
-    await selectOptionInTest(screen.getByLabelText(/language/i), 'Default');
+
+    await selectComboboxOptionInTest(await screen.findByRole('combobox', { name: 'Week start' }), 'Default');
+
+    await selectComboboxOptionInTest(screen.getByRole('combobox', { name: /language/i }), 'Default');
 
     await userEvent.click(screen.getByText('Save'));
     expect(mockPrefsUpdate).toHaveBeenCalledWith(defaultPreferences);

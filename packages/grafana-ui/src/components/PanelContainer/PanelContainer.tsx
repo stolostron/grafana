@@ -1,12 +1,14 @@
 import { css, cx } from '@emotion/css';
-import React, { DetailedHTMLProps, HTMLAttributes } from 'react';
+import { DetailedHTMLProps, HTMLAttributes } from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 
 type Props = DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>;
 
+// TODO: Reimplement this with Box
+/** @deprecated Use Box instead */
 export const PanelContainer = ({ children, className, ...props }: Props) => {
   const styles = useStyles2(getStyles);
   return (

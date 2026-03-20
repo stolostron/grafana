@@ -2,6 +2,7 @@ package dashboards
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,7 @@ import (
 	"github.com/grafana/grafana/pkg/tests/apis"
 	"github.com/grafana/grafana/pkg/tests/testinfra"
 	"github.com/grafana/grafana/pkg/tests/testsuite"
+	"github.com/grafana/grafana/pkg/util/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -20,9 +22,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestIntegrationTestDatasource(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	helper := apis.NewK8sTestHelper(t, testinfra.GrafanaOpts{
 		AppModeProduction: false, // dev mode required for datasource connections
 		DisableAnonymous:  true,
@@ -42,7 +43,7 @@ func TestIntegrationTestDatasource(t *testing.T) {
 
 	t.Run("Check discovery client", func(t *testing.T) {
 		disco := helper.GetGroupVersionInfoJSON("testdata.datasource.grafana.app")
-		// fmt.Printf("%s", string(disco))
+		fmt.Printf("%s", disco)
 
 		require.JSONEq(t, `[
 			{
@@ -103,7 +104,20 @@ func TestIntegrationTestDatasource(t *testing.T) {
 					"get",
 					"list"
 				  ]
-				}
+				},
+				{
+        			"resource": "queryconvert",
+        			"responseKind": {
+          				"group": "",
+          				"kind": "QueryDataRequest",
+          				"version": ""
+        			},
+        			"scope": "Namespaced",
+        			"singularResource": "queryconvert",
+        			"verbs": [
+          				"create"
+        			]
+   				}
 			  ],
 			  "version": "v0alpha1"
 			}

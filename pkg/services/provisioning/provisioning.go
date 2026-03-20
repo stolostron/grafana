@@ -2,12 +2,14 @@ package provisioning
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
 
 	"github.com/grafana/grafana/pkg/infra/db"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/infra/tracing"
 	"github.com/grafana/grafana/pkg/registry"
 	"github.com/grafana/grafana/pkg/services/accesscontrol"
 	"github.com/grafana/grafana/pkg/services/correlations"
@@ -16,13 +18,16 @@ import (
 	"github.com/grafana/grafana/pkg/services/encryption"
 	"github.com/grafana/grafana/pkg/services/folder"
 	alertingauthz "github.com/grafana/grafana/pkg/services/ngalert/accesscontrol"
+	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
 	"github.com/grafana/grafana/pkg/services/ngalert/notifier"
+	"github.com/grafana/grafana/pkg/services/ngalert/notifier/legacy_storage"
 	"github.com/grafana/grafana/pkg/services/ngalert/provisioning"
-	"github.com/grafana/grafana/pkg/services/ngalert/store"
+	alertstore "github.com/grafana/grafana/pkg/services/ngalert/store"
 	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/services/org"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginsettings"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginstore"
+	"github.com/grafana/grafana/pkg/services/promtypemigration"
 	prov_alerting "github.com/grafana/grafana/pkg/services/provisioning/alerting"
 	"github.com/grafana/grafana/pkg/services/provisioning/dashboards"
 	"github.com/grafana/grafana/pkg/services/provisioning/datasources"
@@ -31,6 +36,7 @@ import (
 	"github.com/grafana/grafana/pkg/services/searchV2"
 	"github.com/grafana/grafana/pkg/services/secrets"
 	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/storage/legacysql/dualwrite"
 )
 
 func ProvideService(
@@ -38,6 +44,7 @@ func ProvideService(
 	cfg *setting.Cfg,
 	sqlStore db.DB,
 	pluginStore pluginstore.Store,
+	alertingStore *alertstore.DBstore,
 	encryptionService encryption.Internal,
 	notificatonService *notifications.NotificationService,
 	dashboardProvisioningService dashboardservice.DashboardProvisioningService,
@@ -50,12 +57,17 @@ func ProvideService(
 	quotaService quota.Service,
 	secrectService secrets.Service,
 	orgService org.Service,
+	resourcePermissions accesscontrol.ReceiverPermissionsService,
+	tracer tracing.Tracer,
+	dual dualwrite.Service,
+	promTypeMigrationProvider promtypemigration.PromTypeMigrationProvider,
 ) (*ProvisioningServiceImpl, error) {
 	s := &ProvisioningServiceImpl{
 		Cfg:                          cfg,
 		SQLStore:                     sqlStore,
 		ac:                           ac,
 		pluginStore:                  pluginStore,
+		alertingStore:                alertingStore,
 		EncryptionService:            encryptionService,
 		NotificationService:          notificatonService,
 		newDashboardProvisioner:      dashboards.New,
@@ -73,11 +85,13 @@ func ProvideService(
 		log:                          log.New("provisioning"),
 		orgService:                   orgService,
 		folderService:                folderService,
+		resourcePermissions:          resourcePermissions,
+		tracer:                       tracer,
+		migratePrometheusType:        promTypeMigrationProvider.Run,
 	}
 
-	err := s.setDashboardProvisioner()
-	if err != nil {
-		return nil, fmt.Errorf("%v: %w", "Failed to create provisioner", err)
+	if err := s.setDashboardProvisioner(); err != nil {
+		return nil, err
 	}
 
 	return s, nil
@@ -85,7 +99,7 @@ func ProvideService(
 
 func (ps *ProvisioningServiceImpl) setDashboardProvisioner() error {
 	dashboardPath := filepath.Join(ps.Cfg.ProvisioningPath, "dashboards")
-	dashProvisioner, err := ps.newDashboardProvisioner(context.Background(), dashboardPath, ps.dashboardProvisioningService, ps.orgService, ps.dashboardService, ps.folderService)
+	dashProvisioner, err := ps.newDashboardProvisioner(context.Background(), dashboardPath, ps.dashboardProvisioningService, ps.orgService, ps.dashboardService, ps.folderService, ps.dual)
 	if err != nil {
 		return fmt.Errorf("%v: %w", "Failed to create provisioner", err)
 	}
@@ -104,30 +118,29 @@ type ProvisioningService interface {
 	GetAllowUIUpdatesFromConfig(name string) bool
 }
 
-// Add a public constructor for overriding service to be able to instantiate OSS as fallback
-func NewProvisioningServiceImpl() *ProvisioningServiceImpl {
-	logger := log.New("provisioning")
-	return &ProvisioningServiceImpl{
-		log:                     logger,
-		newDashboardProvisioner: dashboards.New,
-		provisionDatasources:    datasources.Provision,
-		provisionPlugins:        plugins.Provision,
-	}
-}
-
 // Used for testing purposes
 func newProvisioningServiceImpl(
 	newDashboardProvisioner dashboards.DashboardProvisionerFactory,
 	provisionDatasources func(context.Context, string, datasources.BaseDataSourceService, datasources.CorrelationsStore, org.Service) error,
 	provisionPlugins func(context.Context, string, pluginstore.Store, pluginsettings.Service, org.Service) error,
-) *ProvisioningServiceImpl {
-	return &ProvisioningServiceImpl{
+	migratePrometheusType func(context.Context) error,
+	searchService searchV2.SearchService,
+) (*ProvisioningServiceImpl, error) {
+	s := &ProvisioningServiceImpl{
 		log:                     log.New("provisioning"),
 		newDashboardProvisioner: newDashboardProvisioner,
 		provisionDatasources:    provisionDatasources,
 		provisionPlugins:        provisionPlugins,
 		Cfg:                     setting.NewCfg(),
+		searchService:           searchService,
+		migratePrometheusType:   migratePrometheusType,
 	}
+
+	if err := s.setDashboardProvisioner(); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 type ProvisioningServiceImpl struct {
@@ -136,6 +149,7 @@ type ProvisioningServiceImpl struct {
 	orgService                   org.Service
 	ac                           accesscontrol.AccessControl
 	pluginStore                  pluginstore.Store
+	alertingStore                *alertstore.DBstore
 	EncryptionService            encryption.Internal
 	NotificationService          *notifications.NotificationService
 	log                          log.Logger
@@ -155,35 +169,68 @@ type ProvisioningServiceImpl struct {
 	quotaService                 quota.Service
 	secretService                secrets.Service
 	folderService                folder.Service
+	resourcePermissions          accesscontrol.ReceiverPermissionsService
+	tracer                       tracing.Tracer
+	dual                         dualwrite.Service
+	onceInitProvisioners         sync.Once
+	migratePrometheusType        func(context.Context) error
 }
 
 func (ps *ProvisioningServiceImpl) RunInitProvisioners(ctx context.Context) error {
-	err := ps.ProvisionDatasources(ctx)
-	if err != nil {
-		ps.log.Error("Failed to provision data sources", "error", err)
-		return err
-	}
-
-	err = ps.ProvisionPlugins(ctx)
-	if err != nil {
-		ps.log.Error("Failed to provision plugins", "error", err)
-		return err
-	}
-
-	err = ps.ProvisionAlerting(ctx)
-	if err != nil {
-		ps.log.Error("Failed to provision alerting", "error", err)
-		return err
-	}
-
+	// We had to move the initialization of OSS provisioners to Run()
+	// because they need the /apis/* endpoints to be ready and listening.
+	// They query these endpoints to retrieve folders and dashboards.
 	return nil
 }
 
 func (ps *ProvisioningServiceImpl) Run(ctx context.Context) error {
-	err := ps.ProvisionDashboards(ctx)
+	var err error
+
+	// Run Datasources, Plugins and Alerting Provisioning only once.
+	// It can't be initialized at RunInitProvisioners because it
+	// depends on the /apis endpoints to be already running and listeningq
+	ps.onceInitProvisioners.Do(func() {
+		err = ps.ProvisionDatasources(ctx)
+		if err != nil {
+			ps.log.Error("Failed to provision data sources", "error", err)
+			return
+		}
+
+		err = ps.ProvisionPlugins(ctx)
+		if err != nil {
+			ps.log.Error("Failed to provision plugins", "error", err)
+			return
+		}
+
+		err = ps.ProvisionAlerting(ctx)
+		if err != nil {
+			ps.log.Error("Failed to provision alerting", "error", err)
+			return
+		}
+
+		// Migrating prom types relies on data source provisioning to already be completed
+		// If we can make services depend on other services completing first,
+		// then we should remove this from provisioning
+		err = ps.migratePrometheusType(ctx)
+		if err != nil {
+			ps.log.Error("Failed to migrate Prometheus type", "error", err)
+			return
+		}
+	})
+
+	if err != nil {
+		// error already logged
+		return err
+	}
+
+	err = ps.ProvisionDashboards(ctx)
 	if err != nil {
 		ps.log.Error("Failed to provision dashboard", "error", err)
-		return err
+		// Consider the allow list of errors for which running the provisioning service should not
+		// fail. For now this includes only dashboards.ErrGetOrCreateFolder.
+		if !errors.Is(err, dashboards.ErrGetOrCreateFolder) {
+			return err
+		}
 	}
 	if ps.dashboardProvisioner.HasDashboardSources() {
 		ps.searchService.TriggerReIndex()
@@ -212,6 +259,8 @@ func (ps *ProvisioningServiceImpl) Run(ctx context.Context) error {
 }
 
 func (ps *ProvisioningServiceImpl) ProvisionDatasources(ctx context.Context) error {
+	ps.mutex.Lock()
+	defer ps.mutex.Unlock()
 	datasourcePath := filepath.Join(ps.Cfg.ProvisioningPath, "datasources")
 	if err := ps.provisionDatasources(ctx, datasourcePath, ps.datasourceService, ps.correlationsService, ps.orgService); err != nil {
 		err = fmt.Errorf("%v: %w", "Datasource provisioning error", err)
@@ -222,6 +271,8 @@ func (ps *ProvisioningServiceImpl) ProvisionDatasources(ctx context.Context) err
 }
 
 func (ps *ProvisioningServiceImpl) ProvisionPlugins(ctx context.Context) error {
+	ps.mutex.Lock()
+	defer ps.mutex.Unlock()
 	appPath := filepath.Join(ps.Cfg.ProvisioningPath, "plugins")
 	if err := ps.provisionPlugins(ctx, appPath, ps.pluginStore, ps.pluginsSettings, ps.orgService); err != nil {
 		err = fmt.Errorf("%v: %w", "app provisioning error", err)
@@ -232,13 +283,18 @@ func (ps *ProvisioningServiceImpl) ProvisionPlugins(ctx context.Context) error {
 }
 
 func (ps *ProvisioningServiceImpl) ProvisionDashboards(ctx context.Context) error {
+	err := ps.setDashboardProvisioner()
+	if err != nil {
+		return fmt.Errorf("%v: %w", "Failed to create provisioner", err)
+	}
+
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 
 	ps.cancelPolling()
 	ps.dashboardProvisioner.CleanUpOrphanedDashboards(ctx)
 
-	err := ps.dashboardProvisioner.Provision(ctx)
+	err = ps.dashboardProvisioner.Provision(ctx)
 	if err != nil {
 		// If we fail to provision with the new provisioner, the mutex will unlock and the polling will restart with the
 		// old provisioner as we did not switch them yet.
@@ -249,34 +305,38 @@ func (ps *ProvisioningServiceImpl) ProvisionDashboards(ctx context.Context) erro
 
 func (ps *ProvisioningServiceImpl) ProvisionAlerting(ctx context.Context) error {
 	alertingPath := filepath.Join(ps.Cfg.ProvisioningPath, "alerting")
-	st := store.DBstore{
-		Cfg:              ps.Cfg.UnifiedAlerting,
-		SQLStore:         ps.SQLStore,
-		Logger:           ps.log,
-		FolderService:    nil, // we don't use it yet
-		DashboardService: ps.dashboardService,
-	}
 	ruleService := provisioning.NewAlertRuleService(
-		st,
-		st,
+		ps.alertingStore,
+		ps.alertingStore,
 		ps.folderService,
-		//ps.dashboardService,
+		// ps.dashboardService,
 		ps.quotaService,
 		ps.SQLStore,
 		int64(ps.Cfg.UnifiedAlerting.DefaultRuleEvaluationInterval.Seconds()),
 		int64(ps.Cfg.UnifiedAlerting.BaseInterval.Seconds()),
 		ps.Cfg.UnifiedAlerting.RulesPerRuleGroupLimit,
 		ps.log,
-		notifier.NewCachedNotificationSettingsValidationService(&st),
+		notifier.NewCachedNotificationSettingsValidationService(ps.alertingStore),
 		alertingauthz.NewRuleService(ps.ac),
 	)
-	receiverSvc := notifier.NewReceiverService(ps.ac, &st, st, ps.secretService, ps.SQLStore, ps.log)
-	contactPointService := provisioning.NewContactPointService(&st, ps.secretService,
-		st, ps.SQLStore, receiverSvc, ps.log, &st)
-	notificationPolicyService := provisioning.NewNotificationPolicyService(&st,
-		st, ps.SQLStore, ps.Cfg.UnifiedAlerting, ps.log)
-	mutetimingsService := provisioning.NewMuteTimingService(&st, st, &st, ps.log)
-	templateService := provisioning.NewTemplateService(&st, st, &st, ps.log)
+	configStore := legacy_storage.NewAlertmanagerConfigStore(ps.alertingStore, notifier.NewExtraConfigsCrypto(ps.secretService))
+	receiverSvc := notifier.NewReceiverService(
+		alertingauthz.NewReceiverAccess[*ngmodels.Receiver](ps.ac, true),
+		configStore,
+		ps.alertingStore,
+		ps.alertingStore,
+		ps.secretService,
+		ps.SQLStore,
+		ps.log,
+		ps.resourcePermissions,
+		ps.tracer,
+	)
+	contactPointService := provisioning.NewContactPointService(configStore, ps.secretService,
+		ps.alertingStore, ps.SQLStore, receiverSvc, ps.log, ps.alertingStore, ps.resourcePermissions)
+	notificationPolicyService := provisioning.NewNotificationPolicyService(configStore,
+		ps.alertingStore, ps.SQLStore, ps.Cfg.UnifiedAlerting, ps.log)
+	mutetimingsService := provisioning.NewMuteTimingService(configStore, ps.alertingStore, ps.alertingStore, ps.log, ps.alertingStore)
+	templateService := provisioning.NewTemplateService(configStore, ps.alertingStore, ps.alertingStore, ps.log)
 	cfg := prov_alerting.ProvisionerConfig{
 		Path:                       alertingPath,
 		RuleService:                *ruleService,

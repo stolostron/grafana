@@ -1,17 +1,25 @@
 import { css } from '@emotion/css';
-import React from 'react';
+import { useCallback, useMemo } from 'react';
 
 import {
+  ActionModel,
   DashboardCursorSync,
   DataFrame,
   FieldMatcherID,
   getFrameDisplayName,
+  InterpolateFunction,
   PanelProps,
   SelectableValue,
+  Field,
+  cacheFieldDisplayNames,
 } from '@grafana/data';
 import { config, PanelDataErrorView } from '@grafana/runtime';
-import { Select, Table, usePanelContext, useTheme2 } from '@grafana/ui';
-import { TableSortByFieldState } from '@grafana/ui/src/components/Table/types';
+import { Select, usePanelContext, useTheme2 } from '@grafana/ui';
+import { TableSortByFieldState } from '@grafana/ui/internal';
+import { TableNG } from '@grafana/ui/unstable';
+import { getConfig } from 'app/core/config';
+
+import { getActions } from '../../../features/actions/utils';
 
 import { hasDeprecatedParentRowIndex, migrateFromParentRowIndexToNestedFrames } from './migrations';
 import { Options } from './panelcfg.gen';
@@ -19,15 +27,25 @@ import { Options } from './panelcfg.gen';
 interface Props extends PanelProps<Options> {}
 
 export function TablePanel(props: Props) {
-  const { data, height, width, options, fieldConfig, id, timeRange } = props;
+  const { data, height, width, options, fieldConfig, id, timeRange, replaceVariables, transparent } = props;
+
+  useMemo(() => {
+    cacheFieldDisplayNames(data.series);
+  }, [data.series]);
 
   const theme = useTheme2();
   const panelContext = usePanelContext();
+  const userCanExecuteActions = useMemo(() => panelContext.canExecuteActions?.() ?? false, [panelContext]);
+  const _getActions = useCallback(
+    (frame: DataFrame, field: Field, rowIndex: number) =>
+      userCanExecuteActions ? getCellActions(frame, field, rowIndex, replaceVariables) : [],
+    [replaceVariables, userCanExecuteActions]
+  );
   const frames = hasDeprecatedParentRowIndex(data.series)
     ? migrateFromParentRowIndexToNestedFrames(data.series)
     : data.series;
   const count = frames?.length;
-  const hasFields = frames[0]?.fields.length;
+  const hasFields = frames.some((frame) => frame.fields.length > 0);
   const currentIndex = getCurrentFrameIndex(frames, options);
   const main = frames[currentIndex];
 
@@ -46,8 +64,10 @@ export function TablePanel(props: Props) {
 
   const enableSharedCrosshair = panelContext.sync && panelContext.sync() !== DashboardCursorSync.Off;
 
+  const disableSanitizeHtml = getConfig().disableSanitizeHtml;
+
   const tableElement = (
-    <Table
+    <TableNG
       height={tableHeight}
       width={width}
       data={main}
@@ -58,12 +78,17 @@ export function TablePanel(props: Props) {
       onSortByChange={(sortBy) => onSortByChange(sortBy, props)}
       onColumnResize={(displayName, resizedWidth) => onColumnResize(displayName, resizedWidth, props)}
       onCellFilterAdded={panelContext.onAddAdHocFilter}
-      footerOptions={options.footer}
-      enablePagination={options.footer?.enablePagination}
+      frozenColumns={options.frozenColumns?.left}
+      enablePagination={options.enablePagination}
       cellHeight={options.cellHeight}
+      maxRowHeight={options.maxRowHeight}
       timeRange={timeRange}
       enableSharedCrosshair={config.featureToggles.tableSharedCrosshair && enableSharedCrosshair}
       fieldConfig={fieldConfig}
+      getActions={_getActions}
+      structureRev={data.structureRev}
+      transparent={transparent}
+      disableSanitizeHtml={disableSanitizeHtml}
     />
   );
 
@@ -137,14 +162,57 @@ function onChangeTableSelection(val: SelectableValue<number>, props: Props) {
   });
 }
 
+// placeholder function; assuming the values are already interpolated
+const replaceVars: InterpolateFunction = (value: string) => value;
+
+const getCellActions = (
+  dataFrame: DataFrame,
+  field: Field,
+  rowIndex: number,
+  replaceVariables: InterpolateFunction | undefined
+): Array<ActionModel<Field>> => {
+  const numActions = field.config.actions?.length ?? 0;
+
+  if (numActions > 0) {
+    const actions = getActions(
+      dataFrame,
+      field,
+      field.state!.scopedVars!,
+      replaceVariables ?? replaceVars,
+      field.config.actions ?? [],
+      { valueRowIndex: rowIndex }
+    );
+
+    if (actions.length === 1) {
+      return actions;
+    } else {
+      const actionsOut: Array<ActionModel<Field>> = [];
+      const actionLookup = new Set<string>();
+
+      actions.forEach((action) => {
+        const key = action.title;
+
+        if (!actionLookup.has(key)) {
+          actionsOut.push(action);
+          actionLookup.add(key);
+        }
+      });
+
+      return actionsOut;
+    }
+  }
+
+  return [];
+};
+
 const tableStyles = {
-  wrapper: css`
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100%;
-  `,
-  selectWrapper: css`
-    padding: 8px 8px 0px 8px;
-  `,
+  wrapper: css({
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    height: '100%',
+  }),
+  selectWrapper: css({
+    padding: '8px 8px 0px 8px',
+  }),
 };

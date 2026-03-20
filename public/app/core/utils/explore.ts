@@ -12,6 +12,7 @@ import {
   DefaultTimeZone,
   getNextRefId,
   IntervalValues,
+  locationUtil,
   LogsDedupStrategy,
   LogsSortOrder,
   rangeUtil,
@@ -92,9 +93,13 @@ export async function getExploreUrl(args: GetExploreUrlArguments): Promise<strin
     .map((q) => q.value);
 
   const exploreState = JSON.stringify({
-    [generateExploreId()]: { range: toURLRange(timeRange.raw), queries: interpolatedQueries, datasource: dsRef?.uid },
+    [generateExploreId()]: {
+      range: toURLRange(timeRange.raw),
+      queries: interpolatedQueries,
+      datasource: dsRef?.uid,
+    },
   });
-  return urlUtil.renderUrl('/explore', { panes: exploreState, schemaVersion: 1 });
+  return locationUtil.assureBaseUrl(urlUtil.renderUrl('/explore', { panes: exploreState, schemaVersion: 1 }));
 }
 
 export function requestIdGenerator(exploreId: string) {

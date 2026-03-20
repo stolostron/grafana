@@ -1,11 +1,11 @@
 import { css } from '@emotion/css';
-import React from 'react';
 
 import { formattedValueToString, getValueFormat, GrafanaTheme2 } from '@grafana/data';
+import { t, Trans } from '@grafana/i18n';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { trimFileName } from '../../utils/file';
-import { Button } from '../Button';
+import { Button } from '../Button/Button';
 import { Icon } from '../Icon/Icon';
 import { IconButton } from '../IconButton/IconButton';
 
@@ -26,7 +26,14 @@ export function FileListItem({ file: customFile, removeFile }: FileListItemProps
       return (
         <>
           <span className={styles.error}>{error.message}</span>
-          {retryUpload && <IconButton name="sync" tooltip="Retry" tooltipPlacement="top" onClick={retryUpload} />}
+          {retryUpload && (
+            <IconButton
+              name="sync"
+              tooltip={t('grafana-ui.file-dropzone.item-retry', 'Retry')}
+              tooltipPlacement="top"
+              onClick={retryUpload}
+            />
+          )}
           {removeFile && (
             <IconButton
               className={retryUpload ? styles.marginLeft : ''}
@@ -43,10 +50,13 @@ export function FileListItem({ file: customFile, removeFile }: FileListItemProps
       return (
         <>
           <progress className={styles.progressBar} max={file.size} value={progress} />
-          <span className={styles.paddingLeft}>{Math.round((progress / file.size) * 100)}%</span>
+          <span className={styles.paddingLeft}>
+            {Math.round((progress / file.size) * 100)}
+            {'%'}
+          </span>
           {abortUpload && (
             <Button variant="secondary" type="button" fill="text" onClick={abortUpload}>
-              Cancel upload
+              <Trans i18nKey="grafana-ui.file-dropzone.cancel-upload">Cancel upload</Trans>
             </Button>
           )}
         </>

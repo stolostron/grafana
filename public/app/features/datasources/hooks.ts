@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import * as React from 'react';
 import { useLocalStorage } from 'react-use';
 import { Observable } from 'rxjs';
 
@@ -27,7 +28,12 @@ export function useRecentlyUsedDataSources(): [string[], (ds: DataSourceInstance
         );
         setStorage([...value, ds.uid]);
       } else {
-        setStorage([...value, ds.uid].slice(1, 6));
+        const newArray = [...value, ds.uid];
+        if (newArray.length > 5) {
+          setStorage(newArray.slice(1, 6));
+        } else {
+          setStorage(newArray);
+        }
       }
     },
     [value, setStorage]
@@ -36,7 +42,10 @@ export function useRecentlyUsedDataSources(): [string[], (ds: DataSourceInstance
   return [value, pushRecentlyUsedDataSource];
 }
 
-export function useDatasources(filters: GetDataSourceListFilters) {
+export function useDatasources(filters: GetDataSourceListFilters, datasources?: DataSourceInstanceSettings[]) {
+  if (datasources) {
+    return datasources;
+  }
   const dataSourceSrv = getDataSourceSrv();
   const dataSources = dataSourceSrv.getList(filters);
 

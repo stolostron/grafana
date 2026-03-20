@@ -1,10 +1,11 @@
 import { cx } from '@emotion/css';
 import { isObject } from 'lodash';
-import React, { HTMLProps } from 'react';
+import { HTMLProps } from 'react';
+import * as React from 'react';
 
 import { SelectableValue } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { InlineLabel } from '../Forms/InlineLabel';
 
 import { SegmentSelect } from './SegmentSelect';

@@ -10,14 +10,14 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/grafana/grafana/pkg/apimachinery/errutil"
+	"github.com/grafana/grafana/pkg/apimachinery/identity"
 	"github.com/grafana/grafana/pkg/login/social"
-	"github.com/grafana/grafana/pkg/services/auth/identity"
 	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/ssosettings"
 	ssoModels "github.com/grafana/grafana/pkg/services/ssosettings/models"
 	"github.com/grafana/grafana/pkg/services/ssosettings/validation"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/util/errutil"
 )
 
 const (
@@ -58,20 +58,22 @@ func NewGoogleProvider(info *social.OAuthInfo, cfg *setting.Cfg, orgRoleMapper *
 		provider.log.Warn("Using legacy Google API URL, please update your configuration")
 	}
 
-	if features.IsEnabledGlobally(featuremgmt.FlagSsoSettingsApi) {
-		ssoSettings.RegisterReloadable(social.GoogleProviderName, provider)
-	}
+	ssoSettings.RegisterReloadable(social.GoogleProviderName, provider)
 
 	return provider
 }
 
-func (s *SocialGoogle) Validate(ctx context.Context, settings ssoModels.SSOSettings, _ ssoModels.SSOSettings, requester identity.Requester) error {
-	info, err := CreateOAuthInfoFromKeyValues(settings.Settings)
+func (s *SocialGoogle) Validate(ctx context.Context, newSettings ssoModels.SSOSettings, oldSettings ssoModels.SSOSettings, requester identity.Requester) error {
+	info, err := CreateOAuthInfoFromKeyValues(newSettings.Settings)
 	if err != nil {
 		return ssosettings.ErrInvalidSettings.Errorf("SSO settings map cannot be converted to OAuthInfo: %v", err)
 	}
+	oldInfo, err := CreateOAuthInfoFromKeyValues(oldSettings.Settings)
+	if err != nil {
+		oldInfo = &social.OAuthInfo{}
+	}
 
-	err = validateInfo(info, requester)
+	err = validateInfo(info, oldInfo, requester)
 	if err != nil {
 		return err
 	}
@@ -83,7 +85,7 @@ func (s *SocialGoogle) Validate(ctx context.Context, settings ssoModels.SSOSetti
 }
 
 func (s *SocialGoogle) Reload(ctx context.Context, settings ssoModels.SSOSettings) error {
-	newInfo, err := CreateOAuthInfoFromKeyValues(settings.Settings)
+	newInfo, err := CreateOAuthInfoFromKeyValuesWithLogging(s.log, social.GoogleProviderName, settings.Settings)
 	if err != nil {
 		return ssosettings.ErrInvalidSettings.Errorf("SSO settings map cannot be converted to OAuthInfo: %v", err)
 	}
@@ -222,7 +224,8 @@ func (s *SocialGoogle) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) 
 	if s.info.UseRefreshToken {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	}
-	return s.SocialBase.Config.AuthCodeURL(state, opts...)
+
+	return s.getAuthCodeURL(state, opts...)
 }
 
 func (s *SocialGoogle) extractFromToken(_ context.Context, _ *http.Client, token *oauth2.Token) (*googleUserData, error) {
@@ -234,7 +237,7 @@ func (s *SocialGoogle) extractFromToken(_ context.Context, _ *http.Client, token
 		return nil, nil
 	}
 
-	rawJSON, err := s.retrieveRawIDToken(idToken)
+	rawJSON, err := s.retrieveRawJWTPayload(idToken)
 	if err != nil {
 		s.log.Warn("Error retrieving id_token", "error", err, "token", fmt.Sprintf("%+v", idToken))
 		return nil, nil
@@ -266,7 +269,7 @@ type googleGroupResp struct {
 }
 
 func (s *SocialGoogle) retrieveGroups(ctx context.Context, client *http.Client, userData *googleUserData) ([]string, error) {
-	s.log.Debug("Retrieving groups", "scopes", s.Config.Scopes)
+	s.log.Debug("Retrieving groups", "scopes", s.Scopes)
 	if !slices.Contains(s.Scopes, googleIAMScope) {
 		return nil, nil
 	}
