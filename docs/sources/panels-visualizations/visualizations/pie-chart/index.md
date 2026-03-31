@@ -47,12 +47,6 @@ The following video guides you through the creation steps and common customizati
 
 {{< youtube id="A_lDhM9w4_g" >}}
 
-## Configure a pie chart visualization
-
-The following video guides you through the creation steps and common customizations of pie chart visualizations and is great for beginners:
-
-{{< youtube id="A_lDhM9w4_g" >}}
-
 {{< docs/play title="Grafana Bar Charts and Pie Charts" url="https://play.grafana.org/d/ktMs4D6Mk/" >}}
 
 ## Supported data formats
@@ -141,6 +135,15 @@ Use these options to refine how your visualization looks.
 Select the pie chart display style. Choose from **Pie** or **Donut**.
 
 ![Pie chart types](/media/docs/grafana/panels-visualizations/screenshot-pie-chart-types.png)
+
+#### Slice sorting
+
+By default, the pie chart is sorted so that the slices decrease in size clockwise around the circle.
+You can configure the sorting of the slices, and by extension the legend, with the following options:
+
+- **Descending** - The slices decrease in size, clockwise (default).
+- **Ascending** - The slices increase in size, clockwise.
+- **None** - No sorting is applied. The original order of the data is maintained.
 
 #### Labels
 

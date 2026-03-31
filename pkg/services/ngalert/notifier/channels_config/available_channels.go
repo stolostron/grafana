@@ -2,6 +2,8 @@ package channels_config
 
 import (
 	"fmt"
+	"iter"
+	"maps"
 	"os"
 	"strings"
 
@@ -113,6 +115,163 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 		},
 	}
 
+	tlsSubformOptions := func() []NotifierOption {
+		return []NotifierOption{
+			{
+				Label:        "Disable certificate verification",
+				Element:      ElementTypeCheckbox,
+				Description:  "Do not verify the server's certificate chain and host name.",
+				PropertyName: "insecureSkipVerify",
+				Required:     false,
+			},
+			{
+				Label:        "CA Certificate",
+				Element:      ElementTypeTextArea,
+				Description:  "Certificate in PEM format to use when verifying the server's certificate chain.",
+				InputType:    InputTypeText,
+				PropertyName: "caCertificate",
+				Required:     false,
+				Secure:       true,
+			},
+			{
+				Label:        "Client Certificate",
+				Element:      ElementTypeTextArea,
+				Description:  "Client certificate in PEM format to use when connecting to the server.",
+				InputType:    InputTypeText,
+				PropertyName: "clientCertificate",
+				Required:     false,
+				Secure:       true,
+			},
+			{
+				Label:        "Client Key",
+				Element:      ElementTypeTextArea,
+				Description:  "Client key in PEM format to use when connecting to the server.",
+				InputType:    InputTypeText,
+				PropertyName: "clientKey",
+				Required:     false,
+				Secure:       true,
+			},
+		}
+	}
+
+	proxyOption := func() NotifierOption {
+		return NotifierOption{ // New in 12.1.
+			Label:        "Proxy Config",
+			PropertyName: "proxy_config",
+			Description:  "Optional proxy configuration.",
+			Element:      ElementTypeSubform,
+			SubformOptions: []NotifierOption{
+				{
+					Label:        "Proxy URL",
+					PropertyName: "proxy_url",
+					Description:  "HTTP proxy server to use to connect to the targets.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "https://proxy.example.com",
+					Required:     false,
+					Secure:       false,
+				},
+				{
+					Label:        "Proxy from environment",
+					PropertyName: "proxy_from_environment",
+					Description:  "Use environment HTTP_PROXY, HTTPS_PROXY and NO_PROXY to determine proxies.",
+					Element:      ElementTypeCheckbox,
+					Required:     false,
+					Secure:       false,
+				},
+				{
+					Label:        "No Proxy",
+					PropertyName: "no_proxy",
+					Description:  "Comma-separated list of addresses that should not use a proxy.",
+					Element:      ElementTypeInput,
+					InputType:    InputTypeText,
+					Placeholder:  "example.com,1.2.3.4",
+					Required:     false,
+					Secure:       false,
+				},
+				{
+					Label:        "Proxy Connect Header",
+					PropertyName: "proxy_connect_header",
+					Description:  "Optional headers to send to proxies during CONNECT requests.",
+					Element:      ElementTypeKeyValueMap,
+					InputType:    InputTypeText,
+					Required:     false,
+					Secure:       false,
+				},
+			},
+		}
+	}
+
+	commonHttpClientOption := func() NotifierOption {
+		return NotifierOption{ // New in 12.1.
+			Label:        "HTTP Config",
+			PropertyName: "http_config",
+			Description:  "Common HTTP client options.",
+			Element:      ElementTypeSubform,
+			SubformOptions: []NotifierOption{
+				{ // New in 12.1.
+					Label:        "OAuth2",
+					PropertyName: "oauth2",
+					Description:  "OAuth2 configuration options",
+					Element:      ElementTypeSubform,
+					SubformOptions: []NotifierOption{
+						{
+							Label:        "Token URL",
+							PropertyName: "token_url",
+							Element:      ElementTypeInput,
+							Description:  "URL for the access token endpoint.",
+							InputType:    InputTypeText,
+							Required:     true,
+							Secure:       false,
+						},
+						{
+							Label:        "Client ID",
+							PropertyName: "client_id",
+							Element:      ElementTypeInput,
+							Description:  "Client ID to use when authenticating.",
+							InputType:    InputTypeText,
+							Required:     true,
+							Secure:       false,
+						},
+						{
+							Label:        "Client Secret",
+							PropertyName: "client_secret",
+							Element:      ElementTypeInput,
+							Description:  "Client secret to use when authenticating.",
+							InputType:    InputTypeText,
+							Required:     true,
+							Secure:       true,
+						},
+						{
+							Label:        "Scopes",
+							PropertyName: "scopes",
+							Element:      ElementStringArray,
+							Description:  "Optional scopes to request when obtaining an access token.",
+							Required:     false,
+							Secure:       false,
+						},
+						{
+							Label:        "Endpoint Parameters",
+							PropertyName: "endpoint_params",
+							Element:      ElementTypeKeyValueMap,
+							Description:  "Optional parameters to append to the access token request.",
+							Required:     false,
+							Secure:       false,
+						},
+						{
+							Label:          "TLS",
+							PropertyName:   "tls_config",
+							Description:    "Optional TLS configuration options for OAuth2 requests.",
+							Element:        ElementTypeSubform,
+							SubformOptions: tlsSubformOptions(),
+						},
+						proxyOption(),
+					},
+				},
+			},
+		}
+	}
+
 	return []*NotifierPlugin{
 		{
 			Type:        "dingding",
@@ -127,6 +286,8 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxxx",
 					PropertyName: "url",
 					Required:     true,
+					Secure:       true,
+					Protected:    true,
 				},
 				{
 					Label:        "Message Type",
@@ -173,6 +334,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "http://localhost:8082",
 					PropertyName: "kafkaRestProxy",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Topic",
@@ -373,6 +535,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					InputType:    InputTypeText,
 					Placeholder:  alertingPagerduty.DefaultURL,
 					PropertyName: "url",
+					Protected:    true,
 				},
 			},
 		},
@@ -390,6 +553,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					PropertyName: "url",
 					Required:     true,
 					Secure:       true,
+					Protected:    true,
 				},
 				{ // New in 8.0.
 					Label:        "Message Type",
@@ -425,9 +589,9 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 		},
 		{
 			Type:        "oncall",
-			Name:        "Grafana OnCall",
-			Description: "Sends alerts to Grafana OnCall",
-			Heading:     "Grafana OnCall settings",
+			Name:        "Grafana IRM",
+			Description: "Sends alerts to Grafana IRM",
+			Heading:     "Grafana IRM settings",
 			Options: []NotifierOption{
 				{
 					Label:        "URL",
@@ -435,6 +599,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					InputType:    InputTypeText,
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:   "HTTP Method",
@@ -684,6 +849,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Secure:       true,
 					Required:     true,
 					DependsOn:    "token",
+					Protected:    true,
 				},
 				{ // New in 8.4.
 					Label:        "Endpoint URL",
@@ -692,6 +858,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Description:  "Optionally provide a custom Slack message API endpoint for non-webhook requests, default is https://slack.com/api/chat.postMessage",
 					Placeholder:  "Slack endpoint url",
 					PropertyName: "endpointUrl",
+					Protected:    true,
 				},
 				{
 					Label:        "Color",
@@ -731,6 +898,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "http://sensu-api.local:8080",
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "API Key",
@@ -789,6 +957,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "Teams incoming webhook url",
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Title",
@@ -907,6 +1076,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					InputType:    InputTypeText,
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:   "HTTP Method",
@@ -952,6 +1122,13 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					PropertyName: "authorization_credentials",
 					Secure:       true,
 				},
+				{ // New in 12.0.
+					Label:        "Extra Headers",
+					Description:  "Optionally provide extra headers to be used in the request.",
+					Element:      ElementTypeKeyValueMap,
+					InputType:    InputTypeText,
+					PropertyName: "headers",
+				},
 				{ // New in 8.0. TODO: How to enforce only numbers?
 					Label:        "Max Alerts",
 					Description:  "Max alerts to include in a notification. Remaining alerts in the same batch will be ignored above this number. 0 means no limit.",
@@ -974,48 +1151,74 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					PropertyName: "message",
 					Placeholder:  alertingTemplates.DefaultMessageEmbed,
 				},
-				{
-					Label:        "TLS",
-					PropertyName: "tlsConfig",
-					Description:  "TLS configuration options",
+				{ // New in 12.0.
+					Label:        "Custom Payload",
+					Description:  "Optionally provide a templated payload. Overrides 'Message' and 'Title' field.",
 					Element:      ElementTypeSubform,
+					PropertyName: "payload",
 					SubformOptions: []NotifierOption{
 						{
-							Label:        "Disable certificate verification",
-							Element:      ElementTypeCheckbox,
-							Description:  "Do not verify the server's certificate chain and host name.",
-							PropertyName: "insecureSkipVerify",
-							Required:     false,
+							Label:        "Payload Template",
+							Description:  "Custom payload template.",
+							Element:      ElementTypeTextArea,
+							PropertyName: "template",
+							Placeholder:  `{{ template "webhook.default.payload" . }}`,
+							Required:     true,
 						},
 						{
-							Label:        "CA Certificate",
-							Element:      ElementTypeTextArea,
-							Description:  "Certificate in PEM format to use when verifying the server's certificate chain.",
+							Label:        "Payload Variables",
+							Description:  "Optionally provide a variables to be used in the payload template. They will be available in the template as `.Vars.<variable_name>`.",
+							Element:      ElementTypeKeyValueMap,
 							InputType:    InputTypeText,
-							PropertyName: "caCertificate",
-							Required:     false,
-							Secure:       true,
-						},
-						{
-							Label:        "Client Certificate",
-							Element:      ElementTypeTextArea,
-							Description:  "Client certificate in PEM format to use when connecting to the server.",
-							InputType:    InputTypeText,
-							PropertyName: "clientCertificate",
-							Required:     false,
-							Secure:       true,
-						},
-						{
-							Label:        "Client Key",
-							Element:      ElementTypeTextArea,
-							Description:  "Client key in PEM format to use when connecting to the server.",
-							InputType:    InputTypeText,
-							PropertyName: "clientKey",
-							Required:     false,
-							Secure:       true,
+							PropertyName: "vars",
 						},
 					},
 				},
+
+				{
+					Label:          "TLS",
+					PropertyName:   "tlsConfig",
+					Description:    "TLS configuration options",
+					Element:        ElementTypeSubform,
+					SubformOptions: tlsSubformOptions(),
+				},
+				{
+					Label:        "HMAC Signature",
+					PropertyName: "hmacConfig",
+					Description:  "HMAC signature configuration options",
+					Element:      ElementTypeSubform,
+					SubformOptions: []NotifierOption{
+						{
+							Label:        "Secret",
+							Element:      ElementTypeInput,
+							Description:  "",
+							InputType:    InputTypeText,
+							PropertyName: "secret",
+							Required:     true,
+							Secure:       true,
+						},
+						{
+							Label:        "Header",
+							Element:      ElementTypeInput,
+							Description:  "The header in which the HMAC signature will be included.",
+							InputType:    InputTypeText,
+							PropertyName: "header",
+							Placeholder:  "X-Grafana-Alerting-Signature",
+							Required:     false,
+							Secure:       false,
+						},
+						{
+							Label:        "Timestamp header",
+							Element:      ElementTypeInput,
+							Description:  "If set, the timestamp will be included in the HMAC signature. The value should be the name of the header to use.",
+							InputType:    InputTypeText,
+							PropertyName: "timestampHeader",
+							Required:     false,
+							Secure:       false,
+						},
+					},
+				},
+				commonHttpClientOption(), // New in 12.1.
 			},
 		},
 		{
@@ -1034,6 +1237,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Secure:       true,
 					Required:     true,
 					DependsOn:    "secret",
+					Protected:    true,
 				},
 				{
 					Label:        "Agent ID",
@@ -1119,6 +1323,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "http://localhost:9093",
 					PropertyName: "url",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Basic Auth User",
@@ -1165,6 +1370,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					PropertyName: "url",
 					Required:     true,
 					Secure:       true,
+					Protected:    true,
 				},
 				{
 					Label:        "Avatar URL",
@@ -1194,6 +1400,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					PropertyName: "url",
 					Required:     true,
 					Secure:       true,
+					Protected:    true,
 				},
 				{
 					Label:        "Title",
@@ -1314,6 +1521,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Description:  "The URL of the MQTT broker.",
 					PropertyName: "brokerUrl",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Topic",
@@ -1339,7 +1547,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					},
 					InputType:    InputTypeText,
 					Placeholder:  "json",
-					Description:  "The format of the message to be sent. If set to 'json', the message will be sent as a JSON object. If set to 'text', the message will be sent as a plain text string. By default json is used.",
+					Description:  "If set to 'json', the notification message is the default JSON payload, and the Message field sets only the message field in the payload. If set to 'text', the Message field defines the entire payload. The default is 'json'.",
 					PropertyName: "messageFormat",
 					Required:     false,
 				},
@@ -1355,6 +1563,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 				{
 					Label:        "Message",
 					Element:      ElementTypeTextArea,
+					Description:  "In 'json' Message format, sets the message field of the default JSON payload. In 'text' Message format, defines the entire payload.",
 					Placeholder:  alertingTemplates.DefaultMessageEmbed,
 					PropertyName: "message",
 				},
@@ -1471,6 +1680,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "https://api.opsgenie.com/v2/alerts",
 					PropertyName: "apiUrl",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "Message",
@@ -1567,6 +1777,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					Placeholder:  "https://api.ciscospark.com/v1/messages",
 					Description:  "API endpoint at which we'll send webhooks to.",
 					PropertyName: "api_url",
+					Protected:    true,
 				},
 				{
 					Label:        "Room ID",
@@ -1601,7 +1812,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 			Type:        "sns",
 			Name:        "AWS SNS",
 			Description: "Sends notifications to AWS Simple Notification Service",
-			Heading:     "Webex settings",
+			Heading:     "AWS SNS settings",
 			Options: []NotifierOption{
 				{
 					Label:        "The Amazon SNS API URL",
@@ -1723,6 +1934,7 @@ func GetAvailableNotifiers() []*NotifierPlugin {
 					PropertyName: "api_url",
 					Description:  "Supported v2 or v3 APIs",
 					Required:     true,
+					Protected:    true,
 				},
 				{
 					Label:        "HTTP Basic Authentication - Username",
@@ -1890,12 +2102,37 @@ func getSecretFields(parentPath string, options []NotifierOption) []string {
 }
 
 // ConfigForIntegrationType returns the config for the given integration type. Returns error is integration type is not known.
-func ConfigForIntegrationType(contactPointType string) (*NotifierPlugin, error) {
-	notifiers := GetAvailableNotifiers()
-	for _, n := range notifiers {
+func ConfigForIntegrationType(contactPointType string) (VersionedNotifierPlugin, error) {
+	notifiers := GetAvailableNotifiersV2()
+	for n := range notifiers {
 		if strings.EqualFold(n.Type, contactPointType) {
 			return n, nil
 		}
 	}
-	return nil, fmt.Errorf("unknown integration type '%s'", contactPointType)
+	return VersionedNotifierPlugin{}, fmt.Errorf("unknown integration type '%s'", contactPointType)
+}
+
+func GetAvailableNotifiersV2() iter.Seq[VersionedNotifierPlugin] {
+	v1 := GetAvailableNotifiers()
+	m := make(map[string]VersionedNotifierPlugin, len(v1))
+	for _, n := range v1 {
+		pl := VersionedNotifierPlugin{
+			Type:           n.Type,
+			Name:           n.Name,
+			Description:    n.Description,
+			Heading:        n.Heading,
+			Info:           n.Info,
+			CurrentVersion: "v1",
+			Versions: []NotifierPluginVersion{
+				{
+					Version:   "v1",
+					CanCreate: true,
+					Options:   n.Options,
+					Info:      "",
+				},
+			},
+		}
+		m[n.Type] = pl
+	}
+	return maps.Values(m)
 }

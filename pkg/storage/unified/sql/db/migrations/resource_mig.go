@@ -151,5 +151,34 @@ func initResourceTables(mg *migrator.Migrator) string {
 
 	mg.AddMigration("Migrate DeletionMarkers to real Resource objects", &deletionMarkerMigrator{})
 
+	mg.AddMigration("Add index to resource_history for get trash", migrator.NewAddIndexMigration(resource_history_table, &migrator.Index{
+		Name: "IDX_resource_history_namespace_group_resource_action_version",
+		Cols: []string{"namespace", "group", "resource", "action", "resource_version"},
+		Type: migrator.IndexType,
+	}))
+
+	// Add generation column so we can use it for more aggressive pruning
+	mg.AddMigration("Add generation to resource history", migrator.NewAddColumnMigration(resource_history_table, &migrator.Column{
+		Name: "generation", Type: migrator.DB_BigInt, Nullable: false, Default: "0",
+	}))
+	mg.AddMigration("Add generation index to resource history", migrator.NewAddIndexMigration(resource_history_table, &migrator.Index{
+		Cols: []string{"namespace", "group", "resource", "name", "generation"},
+		Type: migrator.IndexType,
+		Name: "IDX_resource_history_namespace_group_resource_name_generation",
+	}))
+
+	oldResourceVersionUniqueKey := migrator.Index{Cols: []string{"group", "resource"}, Type: migrator.UniqueIndex}
+	updatedResourceVersionTable := migrator.Table{
+		Name: "resource_version",
+		Columns: []*migrator.Column{
+			{Name: "group", Type: migrator.DB_NVarchar, Length: 190, Nullable: false, IsPrimaryKey: true},
+			{Name: "resource", Type: migrator.DB_NVarchar, Length: 190, Nullable: false, IsPrimaryKey: true},
+			{Name: "resource_version", Type: migrator.DB_BigInt, Nullable: false},
+		},
+		PrimaryKeys: []string{"group", "resource"},
+	}
+
+	migrator.ConvertUniqueKeyToPrimaryKey(mg, oldResourceVersionUniqueKey, updatedResourceVersionTable)
+
 	return marker
 }

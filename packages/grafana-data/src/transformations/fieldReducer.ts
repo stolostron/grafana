@@ -17,6 +17,7 @@ export enum ReducerID {
   median = 'median',
   first = 'first',
   count = 'count',
+  countAll = 'countAll',
   range = 'range',
   diff = 'diff',
   diffperc = 'diffperc',
@@ -132,7 +133,10 @@ export enum ReducerID {
 }
 
 export function getFieldTypeForReducer(id: ReducerID, fallback: FieldType): FieldType {
-  return id === ReducerID.count
+  return id === ReducerID.count ||
+    id === ReducerID.distinctCount ||
+    id === ReducerID.changeCount ||
+    id === ReducerID.countAll
     ? FieldType.number
     : id === ReducerID.allIsNull || id === ReducerID.allIsZero
       ? FieldType.boolean
@@ -327,6 +331,15 @@ export const fieldReducers = new Registry<FieldReducerInfo>(() => [
     description: 'Number of values in response',
     emptyInputResult: 0,
     standard: true,
+    preservesUnits: false,
+  },
+  {
+    id: ReducerID.countAll,
+    name: 'Count all',
+    description: 'Number of values (including empty)',
+    emptyInputResult: 0,
+    standard: false,
+    reduce: (field: Field): FieldCalcs => ({ countAll: field.values.length }),
     preservesUnits: false,
   },
   {
@@ -527,15 +540,9 @@ export function doStandardCalcs(field: Field, ignoreNulls: boolean, nullAsZero: 
           if (calcs.lastNotNull! > currentValue) {
             // counter reset
             calcs.previousDeltaUp = false;
-            if (i === data.length - 1) {
-              // reset on last
-              calcs.delta += currentValue;
-            }
           } else {
             if (calcs.previousDeltaUp) {
               calcs.delta += step; // normal increment
-            } else {
-              calcs.delta += currentValue; // account for counter reset
             }
             calcs.previousDeltaUp = true;
           }

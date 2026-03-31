@@ -1,6 +1,6 @@
-From b4e89d25665d508fed99fea30ba8d83d4a634043 Mon Sep 17 00:00:00 2001
+From 6e6b7bcd641ccbbe5d3d8dd99b5422d94a7aec5d Mon Sep 17 00:00:00 2001
 From: Jacob Baungard Hansen <jacobbaungard@redhat.com>
-Date: Thu, 24 Apr 2025 17:32:43 +0200
+Date: Fri, 26 Sep 2025 10:58:20 +0200
 Subject: [PATCH] Forward headers from auth proxy to datasource
 
 Signed-off-by: Jacob Baungard Hansen <jacobbaungard@redhat.com>
@@ -12,7 +12,7 @@ Signed-off-by: Jacob Baungard Hansen <jacobbaungard@redhat.com>
  create mode 100644 pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
 
 diff --git a/pkg/services/datasources/models.go b/pkg/services/datasources/models.go
-index 2d49c717ad9..01150f931dc 100644
+index 329d936dedb..05c8caf4fd9 100644
 --- a/pkg/services/datasources/models.go
 +++ b/pkg/services/datasources/models.go
 @@ -147,6 +147,18 @@ func (ds DataSource) AllowedCookies() []string {
@@ -31,9 +31,9 @@ index 2d49c717ad9..01150f931dc 100644
 +	return []string{}
 +}
 +
- // Specific error type for grpc secrets management so that we can show more detailed plugin errors to users
- type ErrDatasourceSecretsPluginUserFriendly struct {
- 	Err string
+ // ----------------------
+ // COMMANDS
+ 
 diff --git a/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go b/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
 new file mode 100644
 index 00000000000..d567fc2d588
@@ -141,10 +141,10 @@ index 00000000000..d567fc2d588
 +	return m.BaseHandler.CheckHealth(ctx, req)
 +}
 diff --git a/pkg/services/pluginsintegration/pluginsintegration.go b/pkg/services/pluginsintegration/pluginsintegration.go
-index eca6c3be53f..c49ec392f4d 100644
+index 73d39b06321..1aa821ebea0 100644
 --- a/pkg/services/pluginsintegration/pluginsintegration.go
 +++ b/pkg/services/pluginsintegration/pluginsintegration.go
-@@ -187,6 +187,7 @@ func CreateMiddlewares(cfg *setting.Cfg, oAuthTokenService oauthtoken.OAuthToken
+@@ -198,6 +198,7 @@ func CreateMiddlewares(cfg *setting.Cfg, oAuthTokenService oauthtoken.OAuthToken
  	middlewares = append(middlewares,
  		clientmiddleware.NewTracingHeaderMiddleware(),
  		clientmiddleware.NewClearAuthHeadersMiddleware(),
@@ -153,5 +153,5 @@ index eca6c3be53f..c49ec392f4d 100644
  		clientmiddleware.NewCookiesMiddleware(skipCookiesNames),
  		clientmiddleware.NewCachingMiddlewareWithFeatureManager(cachingService, features),
 -- 
-2.49.0
+2.51.0
 

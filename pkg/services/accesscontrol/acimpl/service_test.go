@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/grafana/pkg/services/user"
 	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/tests/testsuite"
+	"github.com/grafana/grafana/pkg/util/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -35,20 +36,23 @@ func setupTestEnv(t testing.TB) *Service {
 	cfg := setting.NewCfg()
 
 	ac := &Service{
-		cache:         localcache.ProvideService(),
-		cfg:           cfg,
-		features:      featuremgmt.WithFeatures(),
-		log:           log.New("accesscontrol"),
-		registrations: accesscontrol.RegistrationList{},
-		roles:         accesscontrol.BuildBasicRoleDefinitions(),
-		store:         database.ProvideService(db.InitTestDB(t)),
-		permRegistry:  permreg.ProvidePermissionRegistry(),
+		cache:          localcache.ProvideService(),
+		cfg:            cfg,
+		features:       featuremgmt.WithFeatures(),
+		log:            log.New("accesscontrol"),
+		registrations:  accesscontrol.RegistrationList{},
+		roles:          accesscontrol.BuildBasicRoleDefinitions(),
+		store:          database.ProvideService(db.InitTestDB(t)),
+		permRegistry:   permreg.ProvidePermissionRegistry(),
+		actionResolver: resourcepermissions.NewActionSetService(),
 	}
 	require.NoError(t, ac.RegisterFixedRoles(context.Background()))
 	return ac
 }
 
-func TestUsageMetrics(t *testing.T) {
+func TestIntegrationUsageMetrics(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	tests := []struct {
 		name          string
 		expectedValue int
@@ -79,7 +83,9 @@ func TestUsageMetrics(t *testing.T) {
 	}
 }
 
-func TestService_DeclareFixedRoles(t *testing.T) {
+func TestIntegrationService_DeclareFixedRoles(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	tests := []struct {
 		name          string
 		registrations []accesscontrol.RoleRegistration
@@ -164,7 +170,9 @@ func TestService_DeclareFixedRoles(t *testing.T) {
 	}
 }
 
-func TestService_DeclarePluginRoles(t *testing.T) {
+func TestIntegrationService_DeclarePluginRoles(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	tests := []struct {
 		name          string
 		pluginID      string
@@ -277,7 +285,9 @@ func TestService_DeclarePluginRoles(t *testing.T) {
 	}
 }
 
-func TestService_RegisterFixedRoles(t *testing.T) {
+func TestIntegrationService_RegisterFixedRoles(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	tests := []struct {
 		name          string
 		token         licensing.Licensing
@@ -379,7 +389,9 @@ func TestService_RegisterFixedRoles(t *testing.T) {
 	}
 }
 
-func TestService_SearchUsersPermissions(t *testing.T) {
+func TestIntegrationService_SearchUsersPermissions(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	searchOption := accesscontrol.SearchOptions{ActionPrefix: "teams"}
 	ctx := context.Background()
 	listAllPerms := map[string][]string{accesscontrol.ActionUsersPermissionsRead: {"users:*"}}
@@ -600,7 +612,9 @@ func TestService_SearchUsersPermissions(t *testing.T) {
 	}
 }
 
-func TestService_SearchUserPermissions(t *testing.T) {
+func TestIntegrationService_SearchUserPermissions(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	ctx := context.Background()
 	tests := []struct {
 		name           string
@@ -805,8 +819,7 @@ func TestService_SearchUserPermissions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ac := setupTestEnv(t)
 			if tt.withActionSets {
-				ac.features = featuremgmt.WithFeatures(featuremgmt.FlagAccessActionSets)
-				actionSetSvc := resourcepermissions.NewActionSetService(ac.features)
+				actionSetSvc := resourcepermissions.NewActionSetService()
 				for set, actions := range tt.actionSets {
 					actionSetName := resourcepermissions.GetActionSetName(strings.Split(set, ":")[0], strings.Split(set, ":")[1])
 					actionSetSvc.StoreActionSet(actionSetName, actions)
@@ -832,7 +845,9 @@ func TestService_SearchUserPermissions(t *testing.T) {
 	}
 }
 
-func TestService_SaveExternalServiceRole(t *testing.T) {
+func TestIntegrationService_SaveExternalServiceRole(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	type run struct {
 		cmd     accesscontrol.SaveExternalServiceRoleCommand
 		wantErr bool
@@ -912,13 +927,16 @@ func TestService_SaveExternalServiceRole(t *testing.T) {
 				// Check that the permissions and assignment are stored correctly
 				perms, errGetPerms := ac.getUserPermissions(ctx, &user.SignedInUser{OrgID: r.cmd.AssignmentOrgID, UserID: 2}, accesscontrol.Options{})
 				require.NoError(t, errGetPerms)
-				assert.ElementsMatch(t, r.cmd.Permissions, perms)
+				// shared with me is added by default for all users in pkg/services/accesscontrol/acimpl/service.go
+				assert.Equal(t, append([]accesscontrol.Permission{{Action: "folders:read", Scope: "folders:uid:sharedwithme"}}, r.cmd.Permissions...), perms)
 			}
 		})
 	}
 }
 
-func TestService_DeleteExternalServiceRole(t *testing.T) {
+func TestIntegrationService_DeleteExternalServiceRole(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	tests := []struct {
 		name              string
 		initCmd           *accesscontrol.SaveExternalServiceRoleCommand
@@ -965,13 +983,16 @@ func TestService_DeleteExternalServiceRole(t *testing.T) {
 				// Check that the permissions and assignment are removed correctly
 				perms, errGetPerms := ac.getUserPermissions(ctx, &user.SignedInUser{OrgID: tt.initCmd.AssignmentOrgID, UserID: 2}, accesscontrol.Options{})
 				require.NoError(t, errGetPerms)
-				assert.Empty(t, perms)
+				// shared with me is added by default for all users in pkg/services/accesscontrol/acimpl/service.go
+				assert.Equal(t, []accesscontrol.Permission{{Action: "folders:read", Scope: "folders:uid:sharedwithme"}}, perms)
 			}
 		})
 	}
 }
 
-func TestService_GetRoleByName(t *testing.T) {
+func TestIntegrationService_GetRoleByName(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
 	t.Parallel()
 
 	ctx := context.Background()
