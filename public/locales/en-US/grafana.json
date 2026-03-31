@@ -156,8 +156,11 @@
       "title": "Get Grafana Enterprise"
     },
     "ldap": {
+      "debug-subtitle": "Verify your LDAP and user mapping configuration.",
+      "debug-title": "LDAP Diagnostics",
       "test-mapping-heading": "Test user mapping",
-      "test-mapping-run-button": "Run"
+      "test-mapping-run-button": "Run",
+      "text-loading-ldap-status": "Loading LDAP status..."
     },
     "ldap-connection-status": {
       "columns": {
@@ -2243,6 +2246,13 @@
     },
     "receiver-metadata-badge": {
       "aria-label-open-external-link": "Open external link"
+    },
+    "receivers": {
+      "protected": {
+        "field": {
+          "description": "This field is protected and can only be edited by users with elevated permissions"
+        }
+      }
     },
     "receivers-section": {
       "button-more": "More",
@@ -9232,7 +9242,8 @@
       "disable-button": "Disable",
       "discard-button": "Discard",
       "save-and-enable-button": "Save and enable",
-      "save-button": "Save"
+      "save-button": "Save",
+      "test-button": "Test"
     },
     "documentation": "documentation",
     "host": {
