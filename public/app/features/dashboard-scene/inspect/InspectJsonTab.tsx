@@ -1,14 +1,15 @@
 import { isEqual } from 'lodash';
-import React from 'react';
 import AutoSizer from 'react-virtualized-auto-sizer';
 
 import { SelectableValue } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
+import { Trans, t } from '@grafana/i18n';
 import {
   SceneComponentProps,
   SceneDataTransformer,
   sceneGraph,
   SceneGridItemStateLike,
+  SceneGridLayout,
   SceneObjectBase,
   SceneObjectRef,
   SceneObjectState,
@@ -18,20 +19,25 @@ import {
 } from '@grafana/scenes';
 import { LibraryPanel } from '@grafana/schema/';
 import { Button, CodeEditor, Field, Select, useStyles2 } from '@grafana/ui';
-import { t } from 'app/core/internationalization';
+import { isDashboardV2Spec } from 'app/features/dashboard/api/utils';
 import { getPanelDataFrames } from 'app/features/dashboard/components/HelpWizard/utils';
-import { PanelModel } from 'app/features/dashboard/state';
+import { PanelModel } from 'app/features/dashboard/state/PanelModel';
 import { getPanelInspectorStyles2 } from 'app/features/inspector/styles';
 import { InspectTab } from 'app/features/inspector/types';
 import { getPrettyJSON } from 'app/features/inspector/utils/utils';
 import { reportPanelInspectInteraction } from 'app/features/search/page/reporting';
 
-import { VizPanelManager } from '../panel-edit/VizPanelManager';
-import { DashboardGridItem } from '../scene/DashboardGridItem';
-import { LibraryVizPanel } from '../scene/LibraryVizPanel';
+import { DashboardGridItem } from '../scene/layout-default/DashboardGridItem';
 import { buildGridItemForPanel } from '../serialization/transformSaveModelToScene';
 import { gridItemToPanel, vizPanelToPanel } from '../serialization/transformSceneToSaveModel';
-import { getDashboardSceneFor, getPanelIdForVizPanel, getQueryRunnerFor } from '../utils/utils';
+import { vizPanelToSchemaV2 } from '../serialization/transformSceneToSaveModelSchemaV2';
+import {
+  getDashboardSceneFor,
+  getLibraryPanelBehavior,
+  getPanelIdForVizPanel,
+  getQueryRunnerFor,
+  isLibraryPanel,
+} from '../utils/utils';
 
 export type ShowContent = 'panel-json' | 'panel-data' | 'data-frames';
 
@@ -122,6 +128,12 @@ export class InspectJsonTab extends SceneObjectBase<InspectJsonTabState> {
 
     panel.parent.setState(newState);
 
+    // Force the grid layout to re-render with the new positions
+    const layout = sceneGraph.getLayout(panel);
+    if (layout instanceof SceneGridLayout) {
+      layout.forceRender();
+    }
+
     //Report relevant updates
     reportPanelInspectInteraction(InspectTab.JSON, 'apply', {
       panel_type_changed: panel.state.pluginId !== panelModel.type,
@@ -143,7 +155,12 @@ export class InspectJsonTab extends SceneObjectBase<InspectJsonTabState> {
     const panel = this.state.panelRef.resolve();
 
     // Library panels are not editable from the inspect
-    if (panel.parent instanceof LibraryVizPanel) {
+    if (isLibraryPanel(panel)) {
+      return false;
+    }
+
+    // V2 dashboard panels are not editable from the inspect
+    if (isDashboardV2Spec(getDashboardSceneFor(panel).getSaveModel())) {
       return false;
     }
 
@@ -156,48 +173,50 @@ export class InspectJsonTab extends SceneObjectBase<InspectJsonTabState> {
     return dashboard.state.meta.canEdit;
   }
 
-  static Component = ({ model }: SceneComponentProps<InspectJsonTab>) => {
-    const { source: show, jsonText } = model.useState();
-    const styles = useStyles2(getPanelInspectorStyles2);
-    const options = model.getOptions();
+  static Component = InspectJsonTabComponent;
+}
 
-    return (
-      <div className={styles.wrap}>
-        <div className={styles.toolbar} data-testid={selectors.components.PanelInspector.Json.content}>
-          <Field label={t('dashboard.inspect-json.select-source', 'Select source')} className="flex-grow-1">
-            <Select
-              inputId="select-source-dropdown"
-              options={options}
-              value={options.find((v) => v.value === show) ?? options[0].value}
-              onChange={model.onChangeSource}
-            />
-          </Field>
-          {model.isEditable() && (
-            <Button className={styles.toolbarItem} onClick={model.onApplyChange}>
-              Apply
-            </Button>
-          )}
-        </div>
+function InspectJsonTabComponent({ model }: SceneComponentProps<InspectJsonTab>) {
+  const { source: show, jsonText } = model.useState();
+  const styles = useStyles2(getPanelInspectorStyles2);
+  const options = model.getOptions();
 
-        <div className={styles.content}>
-          <AutoSizer disableWidth>
-            {({ height }) => (
-              <CodeEditor
-                width="100%"
-                height={height}
-                language="json"
-                showLineNumbers={true}
-                showMiniMap={jsonText.length > 100}
-                value={jsonText}
-                readOnly={!model.isEditable()}
-                onBlur={model.onCodeEditorBlur}
-              />
-            )}
-          </AutoSizer>
-        </div>
+  return (
+    <div className={styles.wrap}>
+      <div className={styles.toolbar} data-testid={selectors.components.PanelInspector.Json.content}>
+        <Field label={t('dashboard.inspect-json.select-source', 'Select source')} className="flex-grow-1">
+          <Select
+            inputId="select-source-dropdown"
+            options={options}
+            value={options.find((v) => v.value === show) ?? options[0].value}
+            onChange={model.onChangeSource}
+          />
+        </Field>
+        {model.isEditable() && (
+          <Button className={styles.toolbarItem} onClick={model.onApplyChange}>
+            <Trans i18nKey="dashboard-scene.inspect-json-tab.apply">Apply</Trans>
+          </Button>
+        )}
       </div>
-    );
-  };
+
+      <div className={styles.content}>
+        <AutoSizer disableWidth>
+          {({ height }) => (
+            <CodeEditor
+              width="100%"
+              height={height}
+              language="json"
+              showLineNumbers={true}
+              showMiniMap={jsonText.length > 100}
+              value={jsonText}
+              readOnly={!model.isEditable()}
+              onBlur={model.onCodeEditorBlur}
+            />
+          )}
+        </AutoSizer>
+      </div>
+    </div>
+  );
 }
 
 function getJsonText(show: ShowContent, panel: VizPanel): string {
@@ -207,21 +226,21 @@ function getJsonText(show: ShowContent, panel: VizPanel): string {
     case 'panel-json': {
       reportPanelInspectInteraction(InspectTab.JSON, 'panelData');
 
-      const isInspectingLibraryPanel = panel.parent instanceof LibraryVizPanel;
-      const gridItem = isInspectingLibraryPanel ? panel.parent.parent : panel.parent;
+      const isInspectingLibraryPanel = isLibraryPanel(panel);
+      const gridItem = panel.parent;
 
       if (isInspectingLibraryPanel) {
-        objToStringify = libraryPanelChildToLegacyRepresentation(panel);
+        objToStringify = libraryPanelToLegacyRepresentation(panel);
         break;
       }
 
-      if (panel.parent instanceof VizPanelManager) {
-        objToStringify = panel.parent.getPanelSaveModel();
+      if (isDashboardV2Spec(getDashboardSceneFor(panel).getSaveModel())) {
+        objToStringify = vizPanelToSchemaV2(panel);
         break;
-      }
-
-      if (gridItem instanceof DashboardGridItem) {
-        objToStringify = gridItemToPanel(gridItem);
+      } else {
+        if (gridItem instanceof DashboardGridItem) {
+          objToStringify = gridItemToPanel(gridItem);
+        }
       }
 
       break;
@@ -257,19 +276,20 @@ function getJsonText(show: ShowContent, panel: VizPanel): string {
 
 /**
  *
- * @param panel Must be child of a LibraryVizPanel that is in turn the child of a DashboardGridItem
+ * @param panel Must hold a LibraryPanel behavior
  * @returns object representation of the legacy library panel structure.
  */
-function libraryPanelChildToLegacyRepresentation(panel: VizPanel<{}, {}>) {
-  if (!(panel.parent instanceof LibraryVizPanel)) {
-    throw 'Panel not child of LibraryVizPanel';
+function libraryPanelToLegacyRepresentation(panel: VizPanel<{}, {}>) {
+  if (!isLibraryPanel(panel)) {
+    throw 'Panel not a library panel';
   }
 
-  if (!(panel.parent.parent instanceof DashboardGridItem)) {
+  const gridItem = panel.parent;
+
+  if (!(gridItem instanceof DashboardGridItem)) {
     throw 'LibraryPanel not child of DashboardGridItem';
   }
 
-  const gridItem = panel.parent.parent;
   const gridPos = {
     x: gridItem.state.x || 0,
     y: gridItem.state.y || 0,
@@ -277,19 +297,26 @@ function libraryPanelChildToLegacyRepresentation(panel: VizPanel<{}, {}>) {
     w: gridItem.state.width || 0,
   };
   const libraryPanelObj = vizPanelToLibraryPanel(panel);
-  const panelObj = vizPanelToPanel(panel, gridPos, false, gridItem);
+  const panelObj = vizPanelToPanel(panel.clone({ $behaviors: undefined }), gridPos, false, gridItem);
 
   return { libraryPanel: { ...libraryPanelObj }, ...panelObj };
 }
 
 function vizPanelToLibraryPanel(panel: VizPanel): LibraryPanel {
-  if (!(panel.parent instanceof LibraryVizPanel)) {
-    throw new Error('Panel not a child of LibraryVizPanel');
+  if (!isLibraryPanel(panel)) {
+    throw new Error('Panel not a Library panel');
   }
-  if (!panel.parent.state._loadedPanel) {
+
+  const libraryPanel = getLibraryPanelBehavior(panel);
+
+  if (!libraryPanel) {
+    throw new Error('Library panel behavior not found');
+  }
+
+  if (!libraryPanel.state._loadedPanel) {
     throw new Error('Library panel not loaded');
   }
-  return panel.parent.state._loadedPanel;
+  return libraryPanel.state._loadedPanel;
 }
 
 function hasGridPosChanged(a: SceneGridItemStateLike, b: SceneGridItemStateLike) {

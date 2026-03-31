@@ -1,5 +1,4 @@
 import { css } from '@emotion/css';
-import React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 import { Stack, useStyles2 } from '@grafana/ui';
@@ -9,8 +8,8 @@ interface DotStylesProps {
   includeState?: boolean;
 }
 
-const AlertStateDot = (props: DotStylesProps) => {
-  const styles = useStyles2(getDotStyles, props);
+const AlertStateDot = ({ color, includeState }: DotStylesProps) => {
+  const styles = useStyles2(getDotStyles, { color, includeState });
 
   return (
     <Stack direction="row" gap={0.5}>
@@ -33,8 +32,7 @@ const getDotStyles = (theme: GrafanaTheme2, props: DotStylesProps) => {
         width: size,
         height: size,
 
-        // eslint-disable-next-line @grafana/no-border-radius-literal
-        borderRadius: '100%',
+        borderRadius: theme.shape.radius.circle,
 
         backgroundColor: theme.colors.secondary.main,
         outline: `solid ${outlineSize} ${theme.colors.secondary.transparent}`,

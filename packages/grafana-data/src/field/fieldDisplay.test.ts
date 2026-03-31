@@ -1,9 +1,10 @@
 import { merge } from 'lodash';
 
 import { toDataFrame } from '../dataframe/processDataFrame';
-import { createTheme } from '../themes';
+import { createTheme } from '../themes/createTheme';
 import { ReducerID } from '../transformations/fieldReducer';
-import { FieldConfigPropertyItem, MappingType, SpecialValueMatch, ValueMapping } from '../types';
+import { FieldConfigPropertyItem } from '../types/fieldOverrides';
+import { MappingType, SpecialValueMatch, ValueMapping } from '../types/valueMapping';
 
 import { getDisplayProcessor } from './displayProcessor';
 import { fixCellTemplateExpressions, getFieldDisplayValues, GetFieldDisplayValuesOptions } from './fieldDisplay';
@@ -387,7 +388,7 @@ describe('FieldDisplay', () => {
 
       const result = getFieldDisplayValues(options);
       expect(result[0].display.color).toEqual('#73BF69');
-      expect(result[1].display.color).toEqual('#F2CC0C');
+      expect(result[1].display.color).toEqual('#FADE2A');
     });
 
     it('When showing all values lookup color via an override', () => {
@@ -434,7 +435,7 @@ describe('FieldDisplay', () => {
 
       const result = getFieldDisplayValues(options);
       expect(result[0].display.color).toEqual('#AAA');
-      expect(result[1].display.color).toEqual('#F2CC0C');
+      expect(result[1].display.color).toEqual('#FADE2A');
     });
 
     it('Multiple other string fields', () => {

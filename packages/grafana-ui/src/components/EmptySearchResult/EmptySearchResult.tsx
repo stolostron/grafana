@@ -1,14 +1,14 @@
 import { css } from '@emotion/css';
-import React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 
 export interface Props {
   children: JSX.Element | string;
 }
 
+/** @deprecated Use <EmptyState variant="not-found" /> instead */
 const EmptySearchResult = ({ children }: Props) => {
   const styles = useStyles2(getStyles);
   return <div className={styles.container}>{children}</div>;

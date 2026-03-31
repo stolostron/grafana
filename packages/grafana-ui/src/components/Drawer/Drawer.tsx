@@ -3,16 +3,18 @@ import { useDialog } from '@react-aria/dialog';
 import { FocusScope } from '@react-aria/focus';
 import { useOverlay } from '@react-aria/overlays';
 import RcDrawer from 'rc-drawer';
-import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useState } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
+import { t } from '@grafana/i18n';
 
-import { useStyles2 } from '../../themes';
-import { t } from '../../utils/i18n';
-import { CustomScrollbar } from '../CustomScrollbar/CustomScrollbar';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { getDragStyles } from '../DragHandle/DragHandle';
 import { IconButton } from '../IconButton/IconButton';
+import { Stack } from '../Layout/Stack/Stack';
+import { ScrollContainer } from '../ScrollContainer/ScrollContainer';
 import { Text } from '../Text/Text';
 
 import 'rc-drawer/assets/index.css';
@@ -44,14 +46,21 @@ export interface Props {
   size?: 'sm' | 'md' | 'lg';
   /** Tabs */
   tabs?: React.ReactNode;
-  // TODO remove this prop next major version
   /**
-   * @deprecated this is now default behaviour. content is always scrollable.
+   * Whether the content should be wrapped in a ScrollContainer
+   * Only change this if you intend to manage scroll behaviour yourself
+   * (e.g. having a split pane with independent scrolling)
    **/
   scrollableContent?: boolean;
   /** Callback for closing the drawer */
   onClose: () => void;
 }
+
+const drawerSizes = {
+  sm: { width: '25vw', minWidth: 384 },
+  md: { width: '50vw', minWidth: 568 },
+  lg: { width: '75vw', minWidth: 744 },
+};
 
 export function Drawer({
   children,
@@ -67,7 +76,7 @@ export function Drawer({
   const [drawerWidth, onMouseDown, onTouchStart] = useResizebleDrawer();
 
   const styles = useStyles2(getStyles);
-  const sizeStyles = useStyles2(getSizeStyles, size, drawerWidth ?? width);
+  const wrapperStyles = useStyles2(getWrapperStyles, size);
   const dragStyles = useStyles2(getDragStyles);
 
   const overlayRef = React.useRef(null);
@@ -84,8 +93,9 @@ export function Drawer({
   // Adds body class while open so the toolbar nav can hide some actions while drawer is open
   useBodyClassWhileOpen();
 
-  const rootClass = cx(styles.drawer, sizeStyles);
   const content = <div className={styles.content}>{children}</div>;
+  const overrideWidth = drawerWidth ?? width ?? drawerSizes[size].width;
+  const minWidth = drawerSizes[size].minWidth;
 
   return (
     <RcDrawer
@@ -94,7 +104,16 @@ export function Drawer({
       placement="right"
       getContainer={'.main-view'}
       className={styles.drawerContent}
-      rootClassName={rootClass}
+      rootClassName={styles.drawer}
+      classNames={{
+        wrapper: wrapperStyles,
+      }}
+      styles={{
+        wrapper: {
+          width: overrideWidth,
+          minWidth,
+        },
+      }}
       width={''}
       motion={{
         motionAppear: true,
@@ -125,19 +144,19 @@ export function Drawer({
             onMouseDown={onMouseDown}
             onTouchStart={onTouchStart}
           />
-          {typeof title === 'string' && (
-            <div className={cx(styles.header, Boolean(tabs) && styles.headerWithTabs)}>
-              <div className={styles.actions}>
-                <IconButton
-                  name="times"
-                  variant="secondary"
-                  onClick={onClose}
-                  data-testid={selectors.components.Drawer.General.close}
-                  tooltip={t(`grafana-ui.drawer.close`, 'Close')}
-                />
-              </div>
-              <div className={styles.titleWrapper}>
-                <Text element="h3" {...titleProps}>
+          <div className={cx(styles.header, Boolean(tabs) && styles.headerWithTabs)}>
+            <div className={styles.actions}>
+              <IconButton
+                name="times"
+                variant="secondary"
+                onClick={onClose}
+                data-testid={selectors.components.Drawer.General.close}
+                tooltip={t(`grafana-ui.drawer.close`, 'Close')}
+              />
+            </div>
+            {typeof title === 'string' ? (
+              <Stack direction="column">
+                <Text element="h3" truncate {...titleProps}>
                   {title}
                 </Text>
                 {subtitle && (
@@ -145,12 +164,13 @@ export function Drawer({
                     {subtitle}
                   </div>
                 )}
-                {tabs && <div className={styles.tabsWrapper}>{tabs}</div>}
-              </div>
-            </div>
-          )}
-          {typeof title !== 'string' && title}
-          {!scrollableContent ? content : <CustomScrollbar>{content}</CustomScrollbar>}
+              </Stack>
+            ) : (
+              title
+            )}
+            {tabs && <div className={styles.tabsWrapper}>{tabs}</div>}
+          </div>
+          {!scrollableContent ? content : <ScrollContainer showScrollIndicators>{content}</ScrollContainer>}
         </div>
       </FocusScope>
     </RcDrawer>
@@ -239,17 +259,7 @@ const getStyles = (theme: GrafanaTheme2) => {
       position: 'relative',
     }),
     drawer: css({
-      '.main-view &': {
-        top: 80,
-      },
-
-      '.main-view--search-bar-hidden &': {
-        top: 40,
-      },
-
-      '.main-view--chrome-hidden &': {
-        top: 0,
-      },
+      top: 0,
 
       '.rc-drawer-content-wrapper': {
         boxShadow: theme.shadows.z3,
@@ -277,29 +287,19 @@ const getStyles = (theme: GrafanaTheme2) => {
     // but we don't want the backdrop styling to apply over the top bar as it looks weird
     // instead have a child pseudo element to apply the backdrop styling below the top bar
     mask: css({
-      backgroundColor: 'transparent',
-      position: 'fixed',
+      // The !important here is to override the default .rc-drawer-mask styles
+      backgroundColor: 'transparent !important',
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      position: 'fixed !important' as 'fixed',
 
       '&:before': {
         backgroundColor: `${theme.components.overlay.background} !important`,
-        backdropFilter: 'blur(1px)',
         bottom: 0,
         content: '""',
         left: 0,
         position: 'fixed',
         right: 0,
-
-        '.main-view &': {
-          top: 80,
-        },
-
-        '.main-view--search-bar-hidden &': {
-          top: 40,
-        },
-
-        '.main-view--chrome-hidden &': {
-          top: 0,
-        },
+        top: 0,
       },
     }),
     maskMotion: css({
@@ -326,19 +326,15 @@ const getStyles = (theme: GrafanaTheme2) => {
       right: theme.spacing(1),
       top: theme.spacing(1),
     }),
-    titleWrapper: css({
-      label: 'drawer-title',
-      overflowWrap: 'break-word',
-    }),
     subtitle: css({
       label: 'drawer-subtitle',
       color: theme.colors.text.secondary,
-      paddingTop: theme.spacing(1),
     }),
     content: css({
-      padding: theme.spacing(2),
+      padding: theme.spacing(theme.components.drawer?.padding ?? 2),
       height: '100%',
       flexGrow: 1,
+      minHeight: 0,
     }),
     tabsWrapper: css({
       label: 'drawer-tabs',
@@ -355,27 +351,14 @@ const getStyles = (theme: GrafanaTheme2) => {
   };
 };
 
-const drawerSizes = {
-  sm: { width: '25vw', minWidth: 384 },
-  md: { width: '50vw', minWidth: 568 },
-  lg: { width: '75vw', minWidth: 744 },
-};
-
-function getSizeStyles(theme: GrafanaTheme2, size: 'sm' | 'md' | 'lg', overrideWidth: number | string | undefined) {
-  let width = overrideWidth ?? drawerSizes[size].width;
-  let minWidth = drawerSizes[size].minWidth;
-
+function getWrapperStyles(theme: GrafanaTheme2, size: 'sm' | 'md' | 'lg') {
   return css({
-    '.rc-drawer-content-wrapper': {
-      label: `drawer-content-wrapper-${size}`,
-      width: width,
-      minWidth: minWidth,
-      overflow: 'unset',
+    label: `drawer-content-wrapper-${size}`,
+    overflow: 'unset !important',
 
-      [theme.breakpoints.down('md')]: {
-        width: `calc(100% - ${theme.spacing(2)}) !important`,
-        minWidth: 0,
-      },
+    [theme.breakpoints.down('md')]: {
+      width: `calc(100% - ${theme.spacing(2)}) !important`,
+      minWidth: '0 !important',
     },
   });
 }

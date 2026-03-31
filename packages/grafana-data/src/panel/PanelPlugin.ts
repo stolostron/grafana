@@ -1,21 +1,22 @@
 import { set } from 'lodash';
 import { ComponentClass, ComponentType } from 'react';
 
-import { FieldConfigOptionsRegistry, StandardEditorContext } from '../field';
+import { FieldConfigOptionsRegistry } from '../field/FieldConfigOptionsRegistry';
+import { StandardEditorContext } from '../field/standardFieldConfigEditorRegistry';
+import { PanelModel } from '../types/dashboard';
+import { FieldConfigProperty, FieldConfigSource } from '../types/fieldOverrides';
 import {
-  FieldConfigProperty,
-  FieldConfigSource,
-  GrafanaPlugin,
+  PanelPluginMeta,
+  VisualizationSuggestionsSupplier,
+  PanelProps,
   PanelEditorProps,
   PanelMigrationHandler,
-  PanelPluginDataSupport,
-  PanelPluginMeta,
-  PanelProps,
   PanelTypeChangedHandler,
-  VisualizationSuggestionsSupplier,
-} from '../types';
-import { deprecationWarning } from '../utils';
+  PanelPluginDataSupport,
+} from '../types/panel';
+import { GrafanaPlugin } from '../types/plugin';
 import { FieldConfigEditorBuilder, PanelOptionsEditorBuilder } from '../utils/OptionsUIBuilders';
+import { deprecationWarning } from '../utils/deprecationWarning';
 
 import { createFieldConfigRegistry } from './registryFactories';
 
@@ -94,7 +95,7 @@ export type PanelOptionsSupplier<TOptions> = (
 
 export class PanelPlugin<
   TOptions = any,
-  TFieldConfigOptions extends object = any,
+  TFieldConfigOptions extends object = {},
 > extends GrafanaPlugin<PanelPluginMeta> {
   private _defaults?: TOptions;
   private _fieldConfigDefaults: FieldConfigSource<TFieldConfigOptions> = {
@@ -113,6 +114,7 @@ export class PanelPlugin<
   panel: ComponentType<PanelProps<TOptions>> | null;
   editor?: ComponentClass<PanelEditorProps<TOptions>>;
   onPanelMigration?: PanelMigrationHandler<TOptions>;
+  shouldMigrate?: (panel: PanelModel) => boolean;
   onPanelTypeChanged?: PanelTypeChangedHandler<TOptions>;
   noPadding?: boolean;
   dataSupport: PanelPluginDataSupport = {
@@ -201,10 +203,15 @@ export class PanelPlugin<
    * This function is called before the panel first loads if
    * the current version is different than the version that was saved.
    *
+   * If shouldMigrate is provided, it will be called regardless of whether
+   * the version has changed, and can explicitly opt into running the
+   * migration handler
+   *
    * This is a good place to support any changes to the options model
    */
-  setMigrationHandler(handler: PanelMigrationHandler<TOptions>) {
+  setMigrationHandler(handler: PanelMigrationHandler<TOptions>, shouldMigrate?: (panel: PanelModel) => boolean) {
     this.onPanelMigration = handler;
+    this.shouldMigrate = shouldMigrate;
     return this;
   }
 

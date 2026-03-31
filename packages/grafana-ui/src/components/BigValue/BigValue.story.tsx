@@ -1,9 +1,8 @@
 import { StoryFn, Meta } from '@storybook/react';
-import React from 'react';
 
 import { FieldSparkline, FieldType } from '@grafana/data';
 
-import { useTheme2 } from '../../themes';
+import { useTheme2 } from '../../themes/ThemeContext';
 
 import {
   BigValue,
@@ -16,7 +15,7 @@ import {
 import mdx from './BigValue.mdx';
 
 const meta: Meta = {
-  title: 'Visualizations/BigValue',
+  title: 'Plugins/BigValue',
   component: BigValue,
   parameters: {
     docs: {

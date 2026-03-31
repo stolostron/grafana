@@ -1,15 +1,16 @@
 import { cx, css } from '@emotion/css';
-import React, { forwardRef, ButtonHTMLAttributes } from 'react';
+import { forwardRef, ButtonHTMLAttributes } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2, IconName, isIconName } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 
-import { styleMixins, useStyles2 } from '../../themes';
-import { getFocusStyles, getMouseFocusStyles } from '../../themes/mixins';
+import { useStyles2 } from '../../themes/ThemeContext';
+import { getFocusStyles, getMouseFocusStyles, mediaUp } from '../../themes/mixins';
 import { IconSize } from '../../types/icon';
-import { getPropertiesForVariant } from '../Button';
+import { getPropertiesForVariant } from '../Button/Button';
 import { Icon } from '../Icon/Icon';
-import { Tooltip } from '../Tooltip';
+import { Tooltip } from '../Tooltip/Tooltip';
 
 type CommonProps = {
   /** Icon name */
@@ -85,6 +86,7 @@ export const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
         className={buttonStyles}
         aria-label={getButtonAriaLabel(ariaLabel, tooltip)}
         aria-expanded={isOpen}
+        type="button"
         {...rest}
       >
         {renderIcon(icon, iconSize)}
@@ -158,16 +160,16 @@ const getStyles = (theme: GrafanaTheme2) => {
         }),
       },
 
+      [theme.breakpoints.down('md')]: {
+        width: 'auto !important',
+      },
+
       '&:focus, &:focus-visible': {
         ...getFocusStyles(theme),
         zIndex: 1,
       },
 
       '&:focus:not(:focus-visible)': getMouseFocusStyles(theme),
-
-      '&:hover': {
-        boxShadow: theme.shadows.z1,
-      },
 
       '&[disabled], &:disabled': {
         cursor: 'not-allowed',
@@ -189,7 +191,7 @@ const getStyles = (theme: GrafanaTheme2) => {
 
       '&:hover': {
         color: theme.colors.text.primary,
-        background: theme.colors.background.secondary,
+        background: theme.colors.action.hover,
       },
     }),
     canvas: defaultOld,
@@ -223,13 +225,14 @@ const getStyles = (theme: GrafanaTheme2) => {
       flexGrow: 1,
     }),
     content: css({
+      display: 'flex',
       flexGrow: 1,
     }),
     contentWithIcon: css({
       display: 'none',
       paddingLeft: theme.spacing(1),
 
-      [`@media ${styleMixins.mediaUp(theme.v1.breakpoints.md)}`]: {
+      [`@media ${mediaUp(theme.v1.breakpoints.md)}`]: {
         display: 'block',
       },
     }),

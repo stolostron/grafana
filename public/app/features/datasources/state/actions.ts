@@ -5,7 +5,9 @@ import {
   TestDataSourceResponse,
   DataSourceTestSucceeded,
   DataSourceTestFailed,
+  DataSourceApi,
 } from '@grafana/data';
+import { t } from '@grafana/i18n';
 import {
   config,
   DataSourceSrv,
@@ -18,11 +20,14 @@ import {
 import { updateNavIndex } from 'app/core/actions';
 import { appEvents, contextSrv } from 'app/core/core';
 import { getBackendSrv } from 'app/core/services/backend_srv';
+import { DatasourceAPIVersions } from 'app/features/apiserver/client';
 import { ROUTES as CONNECTIONS_ROUTES } from 'app/features/connections/constants';
 import { getDatasourceSrv } from 'app/features/plugins/datasource_srv';
+import { importDataSourcePlugin } from 'app/features/plugins/pluginLoader';
 import { getPluginSettings } from 'app/features/plugins/pluginSettings';
-import { importDataSourcePlugin } from 'app/features/plugins/plugin_loader';
-import { AccessControlAction, DataSourcePluginCategory, ThunkDispatch, ThunkResult } from 'app/types';
+import { AccessControlAction } from 'app/types/accessControl';
+import { DataSourcePluginCategory } from 'app/types/datasources';
+import { ThunkDispatch, ThunkResult } from 'app/types/store';
 
 import * as api from '../api';
 import { DATASOURCES_ROUTES } from '../constants';
@@ -124,6 +129,11 @@ export const initDataSourceSettings = (
   };
 };
 
+const getPluginVersion = (dsApi: DataSourceApi) => {
+  const isCorePlugin = (dsApi?.meta?.module || '').startsWith('core');
+  return isCorePlugin ? config?.buildInfo?.version : dsApi?.meta?.info?.version;
+};
+
 export const testDataSource = (
   dataSourceName: string,
   editRoute = DATASOURCES_ROUTES.Edit,
@@ -152,6 +162,7 @@ export const testDataSource = (
         trackDataSourceTested({
           grafana_version: config.buildInfo.version,
           plugin_id: dsApi.type,
+          plugin_version: getPluginVersion(dsApi),
           datasource_uid: dsApi.uid,
           success: true,
           path: editLink,
@@ -164,6 +175,7 @@ export const testDataSource = (
         trackDataSourceTested({
           grafana_version: config.buildInfo.version,
           plugin_id: dsApi.type,
+          plugin_version: getPluginVersion(dsApi),
           datasource_uid: dsApi.uid,
           success: false,
           path: editLink,
@@ -248,7 +260,7 @@ export function addDataSource(
       plugin_id: plugin.id,
       datasource_uid: result.datasource.uid,
       plugin_version: result.meta?.info?.version,
-      path: editLink,
+      path: window.location.pathname,
     });
 
     locationService.push(editLink);
@@ -264,6 +276,8 @@ export function loadDataSourcePlugins(): ThunkResult<void> {
   };
 }
 
+const dsApiVersions = new DatasourceAPIVersions();
+
 export function updateDataSource(dataSource: DataSourceSettings) {
   return async (
     dispatch: (
@@ -271,13 +285,24 @@ export function updateDataSource(dataSource: DataSourceSettings) {
     ) => DataSourceSettings
   ) => {
     try {
+      if (config.featureToggles.grafanaAPIServerWithExperimentalAPIs) {
+        dataSource.apiVersion = await dsApiVersions.get(dataSource.type);
+      }
       await api.updateDataSource(dataSource);
     } catch (err) {
       const formattedError = parseHealthCheckError(err);
 
       dispatch(testDataSourceFailed(formattedError));
-
-      return Promise.reject(dataSource);
+      const errorInfo = isFetchError(err)
+        ? err.data
+        : {
+            message: t(
+              'datasources.update-data-source.error-info.message.an-unexpected-error-occurred',
+              'An unexpected error occurred.'
+            ),
+            traceID: '',
+          };
+      return Promise.reject(errorInfo);
     }
 
     await getDatasourceSrv().reload();

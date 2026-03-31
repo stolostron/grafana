@@ -1,4 +1,5 @@
-import React, { PureComponent, useState } from 'react';
+import { PureComponent, useState } from 'react';
+import * as React from 'react';
 
 import { Button, InlineField, InlineFieldRow, Input } from '@grafana/ui';
 
@@ -82,7 +83,12 @@ const CSVWaveEditor = (props: WaveProps) => {
           onBlur={() => onValueChange('labels', labels)}
         />
       </InlineField>
-      <Button icon={last ? 'plus' : 'minus'} variant="secondary" onClick={onAction} />
+      <Button
+        aria-label={last ? 'Add wave' : 'Remove wave'}
+        icon={last ? 'plus' : 'minus'}
+        variant="secondary"
+        onClick={onAction}
+      />
     </InlineFieldRow>
   );
 };

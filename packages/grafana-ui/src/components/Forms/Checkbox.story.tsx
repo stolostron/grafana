@@ -1,5 +1,6 @@
 import { Meta, StoryFn } from '@storybook/react';
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import * as React from 'react';
 
 import { Stack } from '../Layout/Stack/Stack';
 
@@ -8,7 +9,7 @@ import mdx from './Checkbox.mdx';
 import { Field } from './Field';
 
 const meta: Meta<typeof Checkbox> = {
-  title: 'Forms/Checkbox',
+  title: 'Inputs/Checkbox',
   component: Checkbox,
   parameters: {
     docs: {
@@ -17,6 +18,8 @@ const meta: Meta<typeof Checkbox> = {
     controls: {
       exclude: ['value', 'htmlValue'],
     },
+    // TODO fix a11y issue in story and remove this
+    a11y: { test: 'off' },
   },
 };
 

@@ -18,6 +18,8 @@ Check if border-radius theme tokens are used.
 
 To improve the consistency across Grafana we encourage devs to use tokens instead of custom values. In this case, we want the `borderRadius` to use the appropriate token such as `theme.shape.radius.default`, `theme.shape.radius.pill` or `theme.shape.radius.circle`.
 
+Instead of using `0` to remove a previously set border-radius, use `unset`.
+
 ### `no-unreduced-motion`
 
 Avoid direct use of `animation*` or `transition*` properties.
@@ -112,52 +114,29 @@ const getStyles = (theme: GrafanaTheme2) => ({
 
 Used to find all instances of `theme` tokens being used in the codebase and emit the counts as metrics. Should **not** be used as an actual lint rule!
 
-### `no-untranslated-strings`
+### `consistent-story-titles`
 
-Check if strings are marked for translation.
+Enforce consistent Storybook titles in `.story.tsx` files.
+
+Storybook titles should not contain more than one `/` for sections (resulting in maximum 2 parts), unless one of the sections is 'Deprecated'. This helps maintain a clean and organized Storybook structure.
+
+#### Examples
 
 ```tsx
 // Bad ❌
-<InlineToast placement="top" referenceElement={buttonRef.current}>
-  Copied
-</InlineToast>
+export default { title: 'Components/Forms/Button' };
 
 // Good ✅
-<InlineToast placement="top" referenceElement={buttonRef.current}>
-  <Trans i18nKey="clipboard-button.inline-toast.success">Copied</Trans>
-</InlineToast>
+export default { title: 'Components/Button' };
 
+// Good ✅ - Deprecated allows any number of sections
+export default { title: 'Components/Deprecated/Forms/Button/Extra' };
+
+// Good ✅ - Variable assignment pattern
+const storyConfig = { title: 'Components/Button' };
+export default storyConfig;
+
+// Bad ❌ - Variable assignment with too many sections
+const storyConfig = { title: 'Components/Forms/Button' };
+export default storyConfig;
 ```
-
-#### Passing variables to translations
-
-```tsx
-// Bad ❌
-const SearchTitle = ({ term }) => (
-  <div>
-    Results for <em>{term}</em>
-  </div>
-);
-
-//Good ✅
-const SearchTitle = ({ term }) => (
-  <Trans i18nKey="search-page.results-title">
-    Results for <em>{{ term }}</em>
-  </Trans>
-);
-```
-
-#### How to translate props or attributes
-
-Right now, we only check if a string is wrapped up by the `Trans` tag. We currently do not apply this rule to props, attributes or similar, but we also ask for them to be translated with the `t()` function.
-
-```tsx
-// Bad ❌
-<input type="value" placeholder={'Username'} />;
-
-// Good ✅
-const placeholder = t('form.username-placeholder', 'Username');
-return <input type="value" placeholder={placeholder} />;
-```
-
-Check more info about how translations work in Grafana in [Internationalization.md](https://github.com/grafana/grafana/blob/main/contribute/internationalization.md)

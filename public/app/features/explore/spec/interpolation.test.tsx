@@ -1,4 +1,3 @@
-import React from 'react';
 import { Props } from 'react-virtualized-auto-sizer';
 
 import { DataQueryRequest, EventBusSrv, serializeStateToUrlParam } from '@grafana/data';
@@ -18,6 +17,7 @@ jest.mock('@grafana/runtime', () => ({
 
 jest.mock('app/core/core', () => ({
   contextSrv: {
+    ...jest.requireActual('app/core/core').contextSrv,
     hasPermission: () => true,
     getValidIntervals: (defaultIntervals: string[]) => defaultIntervals,
   },

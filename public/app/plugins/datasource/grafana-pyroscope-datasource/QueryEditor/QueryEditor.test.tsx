@@ -1,19 +1,16 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
 
 import { CoreApp, PluginType } from '@grafana/data';
-import { setPluginExtensionsHook } from '@grafana/runtime';
 
 import { PyroscopeDataSource } from '../datasource';
-import { mockFetchPyroscopeDatasourceSettings } from '../datasource.test';
+import { mockFetchPyroscopeDatasourceSettings } from '../mocks';
 import { ProfileTypeMessage } from '../types';
 
 import { Props, QueryEditor } from './QueryEditor';
 
 describe('QueryEditor', () => {
   beforeEach(() => {
-    setPluginExtensionsHook(() => ({ extensions: [], isLoading: false })); // No extensions
     mockFetchPyroscopeDatasourceSettings();
   });
 
@@ -127,6 +124,7 @@ function setup(options: { props: Partial<Props> } = { props: {} }) {
         refId: 'A',
         maxNodes: 1000,
         groupBy: [],
+        limit: 42,
       }}
       datasource={setupDs()}
       onChange={onChange}

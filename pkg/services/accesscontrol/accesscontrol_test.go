@@ -1,8 +1,11 @@
 package accesscontrol
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	// this import is needed for github.com/grafana/grafana/pkg/web hack_wrap to work
@@ -121,6 +124,77 @@ func TestReduce(t *testing.T) {
 				want, ok := tt.want[action]
 				require.True(t, ok)
 				require.ElementsMatch(t, scopes, want)
+			}
+		})
+	}
+}
+
+func TestGroupScopesByActionContext(t *testing.T) {
+	// test data = 3 actions with 2+i scopes each, including a duplicate
+	permissions := []Permission{}
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 2+i; j++ {
+			permissions = append(permissions, Permission{
+				Action: fmt.Sprintf("action:%d", i),
+				Scope:  fmt.Sprintf("scope:%d_%d", i, j),
+			})
+		}
+	}
+
+	expected := map[string][]string{}
+	for i := 0; i < 3; i++ {
+		action := fmt.Sprintf("action:%d", i)
+		scopes := []string{}
+		for j := 0; j < 2+i; j++ {
+			scopes = append(scopes, fmt.Sprintf("scope:%d_%d", i, j))
+		}
+		expected[action] = scopes
+	}
+
+	assert.EqualValues(t, expected, GroupScopesByActionContext(context.Background(), permissions))
+}
+
+func BenchmarkGroupScopesByAction(b *testing.B) {
+	testCases := []struct {
+		name         string
+		numActions   int
+		totalPerms   int
+		avgPerAction int
+	}{
+		{"small", 10, 1000, 100},
+		{"medium", 50, 10000, 200},
+		{"large", 100, 70000, 700},
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			permissions := make([]Permission, 0, tc.totalPerms)
+
+			// Create realistic distribution with variance
+			// Some actions have more scopes than others
+			for i := 0; i < tc.numActions; i++ {
+				// Add variance: some actions get more scopes
+				scopeCount := tc.avgPerAction
+				if i%3 == 0 {
+					scopeCount = scopeCount * 2
+				} else if i%5 == 0 {
+					scopeCount = scopeCount / 2
+				}
+
+				for j := 0; j < scopeCount && len(permissions) < tc.totalPerms; j++ {
+					permissions = append(permissions, Permission{
+						Action: fmt.Sprintf("action:%d", i),
+						Scope:  fmt.Sprintf("scope:%d_%d", i, j),
+					})
+				}
+			}
+
+			b.ReportMetric(float64(len(permissions)), "permissions")
+			b.ReportMetric(float64(tc.numActions), "actions")
+			b.ResetTimer()
+
+			for b.Loop() {
+				GroupScopesByActionContext(context.Background(), permissions)
 			}
 		})
 	}

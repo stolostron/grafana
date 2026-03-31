@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React, { useState } from 'react';
+import { useState } from 'react';
 
-import { defaultFilters } from '../../../useSearch';
+import { DEFAULT_SPAN_FILTERS } from 'app/features/explore/state/constants';
+
 import { Trace } from '../../types/trace';
 
 import { SpanFilters } from './SpanFilters';
@@ -50,7 +51,7 @@ const trace: Trace = {
 describe('SpanFilters', () => {
   let user: ReturnType<typeof userEvent.setup>;
   const SpanFiltersWithProps = ({ showFilters = true, matches }: { showFilters?: boolean; matches?: Set<string> }) => {
-    const [search, setSearch] = useState(defaultFilters);
+    const [search, setSearch] = useState(DEFAULT_SPAN_FILTERS);
     const [showSpanFilterMatchesOnly, setShowSpanFilterMatchesOnly] = useState(false);
     const [showCriticalPathSpansOnly, setShowCriticalPathSpansOnly] = useState(false);
     const props = {
@@ -99,7 +100,7 @@ describe('SpanFilters', () => {
     const toValue = screen.getByLabelText('Select max span duration');
     const tagKey = screen.getByLabelText('Select tag key');
     const tagOperator = screen.getByLabelText('Select tag operator');
-    const tagValue = screen.getByLabelText('Select tag value');
+    const tagSelectValue = screen.getByLabelText('Select tag value');
 
     expect(serviceOperator).toBeInTheDocument();
     expect(getElemText(serviceOperator)).toBe('=');
@@ -116,7 +117,7 @@ describe('SpanFilters', () => {
     expect(tagKey).toBeInTheDocument();
     expect(tagOperator).toBeInTheDocument();
     expect(getElemText(tagOperator)).toBe('=');
-    expect(tagValue).toBeInTheDocument();
+    expect(tagSelectValue).toBeInTheDocument();
 
     await user.click(serviceValue);
     jest.advanceTimersByTime(1000);
@@ -129,6 +130,13 @@ describe('SpanFilters', () => {
     await waitFor(() => {
       expect(screen.getByText('Span0')).toBeInTheDocument();
       expect(screen.getByText('Span1')).toBeInTheDocument();
+    });
+    await user.click(tagOperator);
+    jest.advanceTimersByTime(1000);
+    await waitFor(() => {
+      expect(screen.getByText('!~')).toBeInTheDocument();
+      expect(screen.getByText('=~')).toBeInTheDocument();
+      expect(screen.getByText('!~')).toBeInTheDocument();
     });
     await user.click(tagKey);
     jest.advanceTimersByTime(1000);
@@ -149,6 +157,7 @@ describe('SpanFilters', () => {
     const serviceValue = screen.getByLabelText('Select service name');
     const spanValue = screen.getByLabelText('Select span name');
     const tagKey = screen.getByLabelText('Select tag key');
+    const tagOperator = screen.getByLabelText('Select tag operator');
     const tagValue = screen.getByLabelText('Select tag value');
 
     expect(getElemText(serviceValue)).toBe('All service names');
@@ -164,6 +173,9 @@ describe('SpanFilters', () => {
     await selectAndCheckValue(user, tagKey, 'TagKey0');
     expect(getElemText(tagValue)).toBe('Select value');
     await selectAndCheckValue(user, tagValue, 'TagValue0');
+    expect(screen.queryByLabelText('Input tag value')).toBeNull();
+    await selectAndCheckValue(user, tagOperator, '=~');
+    expect(screen.getByLabelText('Input tag value')).toBeInTheDocument();
   });
 
   it('should order tag filters', async () => {
@@ -174,19 +186,19 @@ describe('SpanFilters', () => {
     jest.advanceTimersByTime(1000);
     await waitFor(() => {
       const container = screen.getByText('TagKey0').parentElement?.parentElement?.parentElement;
-      expect(container?.childNodes[0].textContent).toBe('ProcessKey0');
-      expect(container?.childNodes[1].textContent).toBe('ProcessKey1');
-      expect(container?.childNodes[2].textContent).toBe('TagKey0');
-      expect(container?.childNodes[3].textContent).toBe('TagKey1');
-      expect(container?.childNodes[4].textContent).toBe('id');
-      expect(container?.childNodes[5].textContent).toBe('kind');
-      expect(container?.childNodes[6].textContent).toBe('library.name');
-      expect(container?.childNodes[7].textContent).toBe('library.version');
-      expect(container?.childNodes[8].textContent).toBe('status');
-      expect(container?.childNodes[9].textContent).toBe('status.message');
-      expect(container?.childNodes[10].textContent).toBe('trace.state');
-      expect(container?.childNodes[11].textContent).toBe('LogKey0');
-      expect(container?.childNodes[12].textContent).toBe('LogKey1');
+      expect(container?.childNodes[1].textContent).toBe('ProcessKey0');
+      expect(container?.childNodes[2].textContent).toBe('ProcessKey1');
+      expect(container?.childNodes[3].textContent).toBe('TagKey0');
+      expect(container?.childNodes[4].textContent).toBe('TagKey1');
+      expect(container?.childNodes[5].textContent).toBe('id');
+      expect(container?.childNodes[6].textContent).toBe('kind');
+      expect(container?.childNodes[7].textContent).toBe('library.name');
+      expect(container?.childNodes[8].textContent).toBe('library.version');
+      expect(container?.childNodes[9].textContent).toBe('status');
+      expect(container?.childNodes[10].textContent).toBe('status.message');
+      expect(container?.childNodes[11].textContent).toBe('trace.state');
+      expect(container?.childNodes[12].textContent).toBe('LogKey0');
+      expect(container?.childNodes[13].textContent).toBe('LogKey1');
     });
   });
 
@@ -249,7 +261,7 @@ describe('SpanFilters', () => {
     await selectAndCheckValue(user, tagKey, 'TagKey0');
     await selectAndCheckValue(user, tagValue, 'TagValue0');
 
-    const matchesSwitch = screen.getByRole('checkbox', { name: 'Show matches only switch' });
+    const matchesSwitch = screen.getByRole('switch', { name: 'Show matches only switch' });
     expect(matchesSwitch).not.toBeChecked();
     await user.click(matchesSwitch);
     expect(matchesSwitch).toBeChecked();

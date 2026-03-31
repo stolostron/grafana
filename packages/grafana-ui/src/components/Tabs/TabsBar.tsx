@@ -1,9 +1,9 @@
 import { css, cx } from '@emotion/css';
-import React, { ReactNode } from 'react';
+import { forwardRef, ReactNode } from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 
 export interface Props {
   /** Children should be a single <Tab /> or an array of <Tab /> */
@@ -13,7 +13,7 @@ export interface Props {
   hideBorder?: boolean;
 }
 
-export const TabsBar = React.forwardRef<HTMLDivElement, Props>(({ children, className, hideBorder = false }, ref) => {
+export const TabsBar = forwardRef<HTMLDivElement, Props>(({ children, className, hideBorder = false }, ref) => {
   const styles = useStyles2(getStyles);
 
   return (
@@ -36,7 +36,6 @@ const getStyles = (theme: GrafanaTheme2) => ({
   tabs: css({
     position: 'relative',
     display: 'flex',
-    height: `${theme.components.menuTabs.height}px`,
     alignItems: 'center',
   }),
 });

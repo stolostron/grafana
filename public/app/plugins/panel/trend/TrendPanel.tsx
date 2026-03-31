@@ -1,14 +1,21 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
-import { DataFrame, FieldMatcherID, fieldMatchers, FieldType, PanelProps, TimeRange } from '@grafana/data';
-import { isLikelyAscendingVector } from '@grafana/data/src/transformations/transformers/joinDataFrames';
+import {
+  isLikelyAscendingVector,
+  DataFrame,
+  FieldMatcherID,
+  fieldMatchers,
+  FieldType,
+  PanelProps,
+  TimeRange,
+} from '@grafana/data';
 import { config, PanelDataErrorView } from '@grafana/runtime';
 import { KeyboardPlugin, TooltipDisplayMode, usePanelContext, TooltipPlugin2 } from '@grafana/ui';
-import { TooltipHoverMode } from '@grafana/ui/src/components/uPlot/plugins/TooltipPlugin2';
+import { TooltipHoverMode } from '@grafana/ui/internal';
 import { XYFieldMatchers } from 'app/core/components/GraphNG/types';
 import { preparePlotFrame } from 'app/core/components/GraphNG/utils';
 import { TimeSeries } from 'app/core/components/TimeSeries/TimeSeries';
-import { findFieldIndex } from 'app/features/dimensions';
+import { findFieldIndex } from 'app/features/dimensions/utils';
 
 import { TimeSeriesTooltip } from '../timeseries/TimeSeriesTooltip';
 import { prepareGraphableFields } from '../timeseries/utils';
@@ -26,11 +33,13 @@ export const TrendPanel = ({
   replaceVariables,
   id,
 }: PanelProps<Options>) => {
-  const { dataLinkPostProcessor } = usePanelContext();
+  const { dataLinkPostProcessor, canExecuteActions } = usePanelContext();
+
+  const userCanExecuteActions = useMemo(() => canExecuteActions?.() ?? false, [canExecuteActions]);
+
   // Need to fallback to first number field if no xField is set in options otherwise panel crashes 😬
   const trendXFieldName =
-    options.xField ?? data.series[0].fields.find((field) => field.type === FieldType.number)?.name;
-
+    options.xField ?? data.series[0]?.fields.find((field) => field.type === FieldType.number)?.name;
   const preparePlotFrameTimeless = (frames: DataFrame[], dimFields: XYFieldMatchers, timeRange?: TimeRange | null) => {
     dimFields = {
       ...dimFields,
@@ -61,7 +70,7 @@ export const TrendPanel = ({
     } else {
       // first number field
       // Perhaps we can/should support any ordinal rather than an error here
-      xFieldIdx = frames[0].fields.findIndex((f) => f.type === FieldType.number);
+      xFieldIdx = frames[0] ? frames[0].fields.findIndex((f) => f.type === FieldType.number) : -1;
       if (xFieldIdx === -1) {
         return {
           warning: 'No numeric fields found for X axis',
@@ -120,7 +129,10 @@ export const TrendPanel = ({
                 hoverMode={
                   options.tooltip.mode === TooltipDisplayMode.Single ? TooltipHoverMode.xOne : TooltipHoverMode.xAll
                 }
-                render={(u, dataIdxs, seriesIdx, isPinned = false) => {
+                getDataLinks={(seriesIdx, dataIdx) =>
+                  alignedDataFrame.fields[seriesIdx].getLinks?.({ valueRowIndex: dataIdx }) ?? []
+                }
+                render={(u, dataIdxs, seriesIdx, isPinned = false, dismiss, timeRange, viaSync, dataLinks) => {
                   return (
                     <TimeSeriesTooltip
                       series={alignedDataFrame}
@@ -130,6 +142,10 @@ export const TrendPanel = ({
                       sortOrder={options.tooltip.sort}
                       isPinned={isPinned}
                       maxHeight={options.tooltip.maxHeight}
+                      replaceVariables={replaceVariables}
+                      dataLinks={dataLinks}
+                      hideZeros={options.tooltip.hideZeros}
+                      canExecuteActions={userCanExecuteActions}
                     />
                   );
                 }}

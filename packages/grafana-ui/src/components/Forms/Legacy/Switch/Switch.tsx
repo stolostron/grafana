@@ -1,12 +1,13 @@
 import { css, cx } from '@emotion/css';
 import { Placement } from '@popperjs/core';
 import { uniqueId } from 'lodash';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { withTheme2 } from '../../../../themes';
-import { Themeable2 } from '../../../../types';
+import { withTheme2 } from '../../../../themes/ThemeContext';
+import { Themeable2 } from '../../../../types/theme';
 import { Icon } from '../../../Icon/Icon';
 import { Tooltip } from '../../../Tooltip/Tooltip';
 

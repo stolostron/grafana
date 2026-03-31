@@ -14,8 +14,8 @@ import { DatasourceSrv } from 'app/features/plugins/datasource_srv';
 import { LinkSrv, setLinkSrv } from '../../panel/panellinks/link_srv';
 import { TemplateSrv } from '../../templating/template_srv';
 
-import { Trace, TraceSpan } from './components';
 import { SpanLinkType } from './components/types/links';
+import { Trace, TraceSpan } from './components/types/trace';
 import { createSpanLinkFactory, pyroscopeProfileIdTagKey } from './createSpanLink';
 
 const dummyTraceData = { duration: 10, traceID: 'trace1', traceName: 'test trace' } as unknown as Trace;
@@ -200,7 +200,7 @@ describe('createSpanLinkFactory', () => {
             datasource: 'loki1_uid',
             queries: [
               {
-                expr: '{cluster="cluster1", hostname="hostname1", service_namespace="namespace1"} |="7946b05c2e2e4e5a" |="6605c7b08e715d6c"',
+                expr: '{cluster="cluster1", hostname="hostname1", service_namespace="namespace1"} | label_format log_line_contains_trace_id=`{{ contains "7946b05c2e2e4e5a" __line__  }}` | log_line_contains_trace_id="true" or trace_id="7946b05c2e2e4e5a" | label_format log_line_contains_span_id=`{{ contains "6605c7b08e715d6c" __line__  }}` | log_line_contains_span_id="true" or span_id="6605c7b08e715d6c"',
                 refId: '',
               },
             ],
@@ -1266,6 +1266,57 @@ describe('createSpanLinkFactory', () => {
     });
   });
 
+  describe('should return session link', () => {
+    beforeAll(() => {
+      setLinkSrv(new LinkSrv());
+      setTemplateSrv(new TemplateSrv());
+    });
+
+    it('does not add link when no ids are present', () => {
+      const createLink = setupSpanLinkFactory();
+      expect(createLink).toBeDefined();
+      const links = createLink!(createTraceSpan());
+      const sessionLink = links?.find((link) => link.type === SpanLinkType.Session);
+      expect(sessionLink).toBe(undefined);
+    });
+
+    it('adds link when fe o11y ids are present', () => {
+      const createLink = setupSpanLinkFactory();
+      expect(createLink).toBeDefined();
+      const links = createLink!(
+        createTraceSpan({
+          process: {
+            serviceName: 'feo11y-service',
+            tags: [{ key: 'gf.feo11y.app.id', value: 'appId' }],
+          },
+          tags: [{ key: 'session_id', value: 'the-session-id' }],
+        })
+      );
+      expect(links).toHaveLength(1);
+      const sessionLink = links?.find((link) => link.type === SpanLinkType.Session);
+      expect(sessionLink).toBeDefined();
+      expect(sessionLink!.href).toBe('/a/grafana-kowalski-app/apps/appId/sessions/the-session-id');
+    });
+
+    it('adds link when session id is defined following otel semantic convention', () => {
+      const createLink = setupSpanLinkFactory();
+      expect(createLink).toBeDefined();
+      const links = createLink!(
+        createTraceSpan({
+          process: {
+            serviceName: 'feo11y-service',
+            tags: [{ key: 'gf.feo11y.app.id', value: 'appId' }],
+          },
+          tags: [{ key: 'session.id', value: 'the-otel-session-id' }],
+        })
+      );
+      expect(links).toHaveLength(1);
+      const sessionLink = links?.find((link) => link.type === SpanLinkType.Session);
+      expect(sessionLink).toBeDefined();
+      expect(sessionLink!.href).toBe('/a/grafana-kowalski-app/apps/appId/sessions/the-otel-session-id');
+    });
+  });
+
   describe('should return pyroscope link', () => {
     beforeAll(() => {
       setDataSourceSrv({
@@ -1464,6 +1515,91 @@ describe('createSpanLinkFactory', () => {
       expect(decodeURIComponent(links![0].href)).toContain('spanName=\\"operation\\"');
     });
   });
+
+  describe('should return victorialogs link', () => {
+    const victoriaLogsUID = 'victoriaLogsUID';
+
+    beforeAll(() => {
+      setDataSourceSrv({
+        getInstanceSettings() {
+          return {
+            uid: victoriaLogsUID,
+            name: 'VictoriaLogs',
+            type: 'victoriametrics-logs-datasource',
+          } as unknown as DataSourceInstanceSettings;
+        },
+      } as unknown as DataSourceSrv);
+
+      setLinkSrv(new LinkSrv());
+      setTemplateSrv(new TemplateSrv());
+    });
+
+    it('with default keys when tags not configured', () => {
+      const createLink = setupSpanLinkFactory({}, victoriaLogsUID);
+      const links = createLink!(createTraceSpan());
+
+      const linkDef = links?.[0];
+      expect(linkDef).toBeDefined();
+      expect(linkDef?.type).toBe(SpanLinkType.Logs);
+      expect(linkDef!.href).toBe(
+        `/explore?left=${encodeURIComponent(
+          '{"range":{"from":"1602637200000","to":"1602637201000"},"datasource":"victoriaLogsUID","queries":[{"expr":"cluster:=\\"cluster1\\" AND hostname:=\\"hostname1\\" AND service_namespace:=\\"namespace1\\"","refId":""}]}'
+        )}`
+      );
+    });
+
+    it('formats query correctly if filterByTraceID and filterBySpanID is true', () => {
+      const createLink = setupSpanLinkFactory(
+        {
+          datasourceUid: victoriaLogsUID,
+          filterByTraceID: true,
+          filterBySpanID: true,
+        },
+        victoriaLogsUID
+      );
+
+      const links = createLink!(createTraceSpan());
+
+      const linkDef = links?.[0];
+      expect(linkDef).toBeDefined();
+      expect(linkDef?.type).toBe(SpanLinkType.Logs);
+      expect(linkDef!.href).toBe(
+        `/explore?left=${encodeURIComponent(
+          '{"range":{"from":"1602637200000","to":"1602637201000"},"datasource":"victoriaLogsUID","queries":[{"expr":"span_id:=\\"6605c7b08e715d6c\\" AND trace_id:=\\"7946b05c2e2e4e5a\\" AND cluster:=\\"cluster1\\" AND hostname:=\\"hostname1\\" AND service_namespace:=\\"namespace1\\"","refId":""}]}'
+        )}`
+      );
+    });
+
+    it('should format multiple tags correctly', () => {
+      const createLink = setupSpanLinkFactory(
+        {
+          tags: [{ key: 'ip' }, { key: 'hostname' }],
+        },
+        victoriaLogsUID
+      );
+
+      const links = createLink!(
+        createTraceSpan({
+          process: {
+            serviceName: 'service',
+            tags: [
+              { key: 'hostname', value: 'hostname1' },
+              { key: 'ip', value: '192.168.0.1' },
+            ],
+          },
+        })
+      );
+
+      const linkDef = links?.[0];
+      expect(linkDef).toBeDefined();
+      expect(linkDef?.type).toBe(SpanLinkType.Logs);
+      expect(linkDef!.href).toBe(
+        `/explore?left=${encodeURIComponent(
+          '{"range":{"from":"1602637200000","to":"1602637201000"},"datasource":"victoriaLogsUID","queries":[{"expr":"hostname:=\\"hostname1\\" AND ip:=\\"192.168.0.1\\"","refId":""}]}'
+        )}`
+      );
+    });
+  });
 });
 
 describe('dataFrame links', () => {
@@ -1603,6 +1739,11 @@ function createMultiLinkDataFrame() {
                 },
                 datasourceUid: 'loki1_uid',
                 datasourceName: 'loki1',
+              },
+              url: '',
+              title: 'Test',
+              origin: DataLinkConfigOrigin.Correlations,
+              meta: {
                 transformations: [
                   {
                     type: SupportedTransformationType.Regex,
@@ -1611,9 +1752,6 @@ function createMultiLinkDataFrame() {
                   },
                 ],
               },
-              url: '',
-              title: 'Test',
-              origin: DataLinkConfigOrigin.Correlations,
             },
             {
               internal: {
@@ -1622,6 +1760,11 @@ function createMultiLinkDataFrame() {
                 },
                 datasourceUid: 'loki1_uid',
                 datasourceName: 'loki1',
+              },
+              url: '',
+              title: 'Test',
+              origin: DataLinkConfigOrigin.Correlations,
+              meta: {
                 transformations: [
                   {
                     type: SupportedTransformationType.Regex,
@@ -1630,9 +1773,6 @@ function createMultiLinkDataFrame() {
                   },
                 ],
               },
-              url: '',
-              title: 'Test2',
-              origin: DataLinkConfigOrigin.Correlations,
             },
           ],
         },

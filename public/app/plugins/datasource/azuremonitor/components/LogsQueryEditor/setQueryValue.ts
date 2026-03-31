@@ -1,4 +1,6 @@
-import { AzureMonitorQuery, ResultFormat } from '../../types';
+import { SelectableValue } from '@grafana/data';
+
+import { AzureMonitorQuery, ResultFormat } from '../../types/query';
 
 export function setKustoQuery(query: AzureMonitorQuery, kustoQuery: string): AzureMonitorQuery {
   return {
@@ -48,4 +50,17 @@ export function setBasicLogsQuery(query: AzureMonitorQuery, basicLogsQuery: bool
       basicLogsQuery,
     },
   };
+}
+export function onLoad(
+  query: AzureMonitorQuery,
+  defaultValue: ResultFormat,
+  handleChange: (change: SelectableValue<ResultFormat>) => void
+) {
+  if (!query.azureLogAnalytics) {
+    handleChange({ value: defaultValue });
+    return;
+  }
+  if (!query.azureLogAnalytics.resultFormat) {
+    handleChange({ value: ResultFormat.TimeSeries });
+  }
 }

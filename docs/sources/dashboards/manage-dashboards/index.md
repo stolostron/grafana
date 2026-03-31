@@ -19,7 +19,7 @@ labels:
 menuTitle: Manage dashboards
 title: Manage dashboards
 description: Learn about dashboard management and generative AI features for dashboards
-weight: 8
+weight: 300
 refs:
   build-dashboards:
     - pattern: /docs/grafana/
@@ -70,25 +70,26 @@ If you have permission to view all folders, you won't see a **Shared with me**.
 
 Folders help you organize and group dashboards, which is useful when you have many dashboards or multiple teams using the same Grafana instance.
 
-> **Before you begin:** Ensure you have Editor permissions or greater to create folders. For more information about dashboard permissions, refer to [Dashboard permissions](ref:dashboard-permissions).
+> **Before you begin:** Ensure you have organization Editor permissions or greater to create root level folders or Edit or Admin access to a parent folder to create subfolders. For more information about dashboard permissions, refer to [Dashboard permissions](ref:dashboard-permissions).
 
 **To create a dashboard folder:**
 
 1. Click **Dashboards** in the primary menu.
 1. Do one of the following:
-
    - On the **Dashboards** page, click **New** and select **New folder** in the drop-down.
    - Click an existing folder and on the folder’s page, click **New** and select **New folder** in the drop-down.
 
-1. Enter a unique name and click **Create**.
+1. Enter a unique name.
+
+   Folder names can't include underscores (\_) or percentage signs (%), as it interferes with the search functionality.
+
+   Also, alerts can't be placed in folders with slashes (\ /) in the name. If you want to place alerts in the folder, don't use slashes in the folder name.
+
+1. Click **Create**
 
 When you nest folders, you can do so up to four levels deep.
 
 When you save a dashboard, you can optionally select a folder to save the dashboard in.
-
-{{% admonition type="note" %}}
-Alerts can't be placed in folders with slashes (\ /) in the name. If you wish to place alerts in the folder, don't use slashes in the folder name.
-{{% /admonition %}}
 
 **To edit the name of a folder:**
 

@@ -10,15 +10,15 @@ import {
   useInteractions,
 } from '@floating-ui/react';
 import { FocusScope } from '@react-aria/focus';
-import React, { HTMLAttributes, useState } from 'react';
+import { memo, HTMLAttributes, useState } from 'react';
 
 import { GrafanaTheme2, SelectableValue } from '@grafana/data';
 
 import { useStyles2 } from '../../themes/ThemeContext';
 import { Menu } from '../Menu/Menu';
 import { MenuItem } from '../Menu/MenuItem';
-import { ToolbarButton, ToolbarButtonVariant } from '../ToolbarButton';
-import { PopoverContent } from '../Tooltip';
+import { ToolbarButton, ToolbarButtonVariant } from '../ToolbarButton/ToolbarButton';
+import { PopoverContent } from '../Tooltip/types';
 
 export interface Props<T> extends HTMLAttributes<HTMLButtonElement> {
   className?: string;
@@ -33,8 +33,7 @@ export interface Props<T> extends HTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * @internal
- * A temporary component until we have a proper dropdown component
+ * @deprecated Use Combobox or Dropdown instead
  */
 const ButtonSelectComponent = <T,>(props: Props<T>) => {
   const { className, options, value, onChange, narrow, variant, ...restProps } = props;
@@ -118,7 +117,7 @@ ButtonSelectComponent.displayName = 'ButtonSelect';
 // needed to properly forward the generic type through React.memo
 // see https://github.com/DefinitelyTyped/DefinitelyTyped/issues/37087#issuecomment-656596623
 // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-export const ButtonSelect = React.memo(ButtonSelectComponent) as typeof ButtonSelectComponent;
+export const ButtonSelect = memo(ButtonSelectComponent) as typeof ButtonSelectComponent;
 
 const getStyles = (theme: GrafanaTheme2) => {
   return {
@@ -128,6 +127,8 @@ const getStyles = (theme: GrafanaTheme2) => {
     }),
     menuWrapper: css({
       zIndex: theme.zIndex.dropdown,
+      maxHeight: '100vh',
+      overflow: 'auto',
     }),
   };
 };
