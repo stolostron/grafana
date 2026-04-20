@@ -27,6 +27,9 @@ const (
 var (
 	ScopeFoldersAll      = ac.GetResourceAllScope(ScopeFoldersRoot)
 	ScopeFoldersProvider = ac.NewScopeProvider(ScopeFoldersRoot)
+
+	ScopeDashboardsAll      = ac.GetResourceAllScope(ScopeDashboardsRoot)
+	ScopeDashboardsProvider = ac.NewScopeProvider(ScopeDashboardsRoot)
 )
 
 // NewNameScopeResolver provides an AttributeScopeResolver that is able to convert a scope prefixed with "folders:name:" into an uid based scope.
