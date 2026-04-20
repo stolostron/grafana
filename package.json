@@ -402,7 +402,8 @@
     "@storybook/react/webpack": "5.70.0",
     "node-fetch": "2.6.7",
     "@types/slate": "0.47.9",
-    "slate-dev-environment@^0.2.2": "patch:slate-dev-environment@npm:0.2.5#.yarn/patches/slate-dev-environment-npm-0.2.5-9aeb7da7b5.patch"
+    "slate-dev-environment@^0.2.2": "patch:slate-dev-environment@npm:0.2.5#.yarn/patches/slate-dev-environment-npm-0.2.5-9aeb7da7b5.patch",
+    "sha.js": "2.4.12"
   },
   "workspaces": {
     "packages": [
