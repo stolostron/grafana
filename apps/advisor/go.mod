@@ -120,7 +120,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
-	github.com/google/gnostic-models v0.6.9 // indirect
+	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -301,7 +301,7 @@ require (
 
 // Lock Kubernetes dependencies to the version we support, since OpenFGA tries to bump it.
 replace (
-	github.com/google/gnostic-models => github.com/google/gnostic-models v0.6.9 // breaks kube-openapi on v0.7.0
+	github.com/google/gnostic-models => github.com/google/gnostic-models v0.7.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // breaks k8s.io/apiserver on v0.63.0
 	k8s.io/api => k8s.io/api v0.33.3
 	k8s.io/apimachinery => k8s.io/apimachinery v0.33.3
@@ -309,7 +309,7 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.33.3
 	k8s.io/component-base => k8s.io/component-base v0.33.3
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.33.3
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b
 	k8s.io/utils => k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/json => sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8
 	sigs.k8s.io/structured-merge-diff/v4 => sigs.k8s.io/structured-merge-diff/v4 v4.7.0
