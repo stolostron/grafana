@@ -309,7 +309,7 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.33.3
 	k8s.io/component-base => k8s.io/component-base v0.33.3
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.33.3
-	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250628140032-d90c4fd18f59
 	k8s.io/utils => k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/json => sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8
 	sigs.k8s.io/structured-merge-diff/v4 => sigs.k8s.io/structured-merge-diff/v4 v4.7.0
