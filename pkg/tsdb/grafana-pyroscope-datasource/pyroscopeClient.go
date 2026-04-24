@@ -152,7 +152,7 @@ func (c *PyroscopeClient) GetSeries(ctx context.Context, profileTypeID string, l
 				for j, e := range p.Exemplars {
 					points[i].Exemplars[j] = &Exemplar{
 						Id:        e.ProfileId,
-						Value:     e.Value,
+						Value:     uint64(e.Value), //nolint:gosec
 						Timestamp: e.Timestamp,
 					}
 				}
