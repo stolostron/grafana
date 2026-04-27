@@ -1,7 +1,8 @@
 import { Point } from 'ol/geom';
 import { toLonLat } from 'ol/proj';
 
-import { toDataFrame, FieldType, FrameGeometrySourceMode } from '@grafana/data';
+import { toDataFrame, FieldType } from '@grafana/data';
+import { FrameGeometrySourceMode } from '@grafana/schema';
 
 import { getGeometryField, getLocationFields, getLocationMatchers } from './location';
 
@@ -9,8 +10,55 @@ const longitude = [0, -74.1];
 const latitude = [0, 40.7];
 const geohash = ['9q94r', 'dr5rs'];
 const names = ['A', 'B'];
+const geojsonObject = {
+  type: 'FeatureCollection',
+  features: [
+    {
+      id: 'A',
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [0, 0],
+      },
+      properties: {
+        hello: 'A',
+      },
+    },
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [1, 1],
+      },
+      properties: {
+        some_code: 'B',
+        hello: 'B',
+      },
+    },
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [2, 2],
+      },
+      properties: {
+        an_id: 'C',
+        hello: 'C',
+      },
+    },
+  ],
+};
 
 describe('handle location parsing', () => {
+  beforeEach(() => {
+    jest.spyOn(console, 'warn').mockImplementation();
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue(geojsonObject),
+    } as unknown as Response);
+  });
+
   it('auto should find geohash field', async () => {
     const frame = toDataFrame({
       name: 'simple',
@@ -20,7 +68,7 @@ describe('handle location parsing', () => {
       ],
     });
 
-    const matchers = await getLocationMatchers();
+    const matchers = await getLocationMatchers({ mode: FrameGeometrySourceMode.Auto });
     const fields = getLocationFields(frame, matchers);
     expect(fields.mode).toEqual(FrameGeometrySourceMode.Geohash);
     expect(fields.geohash).toBeDefined();
@@ -28,18 +76,18 @@ describe('handle location parsing', () => {
 
     const info = getGeometryField(frame, matchers);
     expect(info.field!.type).toBe(FieldType.geo);
-    expect(info.field!.values.toArray().map((p) => toLonLat((p as Point).getCoordinates()))).toMatchInlineSnapshot(`
-        Array [
-          Array [
-            -122.01416015625001,
-            36.979980468750014,
-          ],
-          Array [
-            -73.98193359375,
-            40.71533203125,
-          ],
-        ]
-      `);
+    expect(info.field!.values.map((p) => toLonLat((p as Point).getCoordinates()))).toMatchInlineSnapshot(`
+      [
+        [
+          -122.01416015625001,
+          36.979980468750014,
+        ],
+        [
+          -73.98193359375,
+          40.71533203125,
+        ],
+      ]
+    `);
   });
 
   it('auto should find coordinate fields', async () => {
@@ -54,13 +102,13 @@ describe('handle location parsing', () => {
 
     const matchers = await getLocationMatchers();
     const geo = getGeometryField(frame, matchers).field!;
-    expect(geo.values.toArray().map((p) => toLonLat((p as Point).getCoordinates()))).toMatchInlineSnapshot(`
-      Array [
-        Array [
+    expect(geo.values.map((p) => toLonLat((p as Point).getCoordinates()))).toMatchInlineSnapshot(`
+      [
+        [
           0,
           0,
         ],
-        Array [
+        [
           -74.1,
           40.69999999999999,
         ],
@@ -78,16 +126,16 @@ describe('handle location parsing', () => {
     });
 
     const matchers = await getLocationMatchers({
-      mode: FrameGeometrySourceMode.Geohash,
+      mode: FrameGeometrySourceMode.Auto,
     });
     const geo = getGeometryField(frame, matchers).field!;
-    expect(geo.values.toArray().map((p) => toLonLat((p as Point).getCoordinates()))).toMatchInlineSnapshot(`
-      Array [
-        Array [
+    expect(geo.values.map((p) => toLonLat((p as Point).getCoordinates()))).toMatchInlineSnapshot(`
+      [
+        [
           -122.01416015625001,
           36.979980468750014,
         ],
-        Array [
+        [
           -73.98193359375,
           40.71533203125,
         ],

@@ -5,259 +5,286 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"slices"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
-
-	"github.com/grafana/grafana/pkg/services/accesscontrol"
-	"github.com/grafana/grafana/pkg/services/datasources"
-	"github.com/grafana/grafana/pkg/services/ngalert/provisioning"
-	"github.com/grafana/grafana/pkg/services/ngalert/store"
-	"github.com/grafana/grafana/pkg/services/quota"
-	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/util/cmputil"
 
 	"github.com/prometheus/common/model"
 
 	"github.com/grafana/grafana/pkg/api/apierrors"
 	"github.com/grafana/grafana/pkg/api/response"
+	"github.com/grafana/grafana/pkg/apimachinery/errutil"
+	"github.com/grafana/grafana/pkg/apimachinery/identity"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/models"
+	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	"github.com/grafana/grafana/pkg/services/dashboards"
+	"github.com/grafana/grafana/pkg/services/featuremgmt"
+	authz "github.com/grafana/grafana/pkg/services/ngalert/accesscontrol"
+	. "github.com/grafana/grafana/pkg/services/ngalert/api/compat"
 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
+	apivalidation "github.com/grafana/grafana/pkg/services/ngalert/api/validation"
+	"github.com/grafana/grafana/pkg/services/ngalert/eval"
 	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
-	"github.com/grafana/grafana/pkg/services/ngalert/schedule"
+	"github.com/grafana/grafana/pkg/services/ngalert/notifier"
+	"github.com/grafana/grafana/pkg/services/ngalert/provisioning"
+	"github.com/grafana/grafana/pkg/services/ngalert/store"
+	"github.com/grafana/grafana/pkg/services/quota"
+	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/util"
-	"github.com/grafana/grafana/pkg/web"
 )
 
+type ConditionValidator interface {
+	// Validate validates that the condition is correct. Returns nil if the condition is correct. Otherwise, error that describes the failure
+	Validate(ctx eval.EvaluationContext, condition ngmodels.Condition) error
+}
+
+type AMConfigStore interface {
+	GetLatestAlertmanagerConfiguration(ctx context.Context, orgID int64) (*ngmodels.AlertConfiguration, error)
+}
+
+type AMRefresher interface {
+	ApplyConfig(ctx context.Context, orgId int64, dbConfig *ngmodels.AlertConfiguration) error
+}
+
 type RulerSrv struct {
-	xactManager     provisioning.TransactionManager
-	provenanceStore provisioning.ProvisioningStore
-	store           store.RuleStore
-	DatasourceCache datasources.CacheService
-	QuotaService    *quota.QuotaService
-	scheduleService schedule.ScheduleService
-	log             log.Logger
-	cfg             *setting.UnifiedAlertingSettings
-	ac              accesscontrol.AccessControl
+	xactManager        provisioning.TransactionManager
+	provenanceStore    provisioning.ProvisioningStore
+	store              RuleStore
+	QuotaService       quota.Service
+	log                log.Logger
+	cfg                *setting.UnifiedAlertingSettings
+	conditionValidator ConditionValidator
+	authz              RuleAccessControlService
+	userService        user.Service
+
+	amConfigStore  AMConfigStore
+	amRefresher    AMRefresher
+	featureManager featuremgmt.FeatureToggles
 }
 
 var (
-	errQuotaReached = errors.New("quota has been exceeded")
+	errProvisionedResource = errors.New("request affects resources created via provisioning API")
 )
 
-// RouteDeleteAlertRules deletes all alert rules user is authorized to access in the namespace (request parameter :Namespace)
-// or, if specified, a group of rules (request parameter :Groupname) in the namespace
-func (srv RulerSrv) RouteDeleteAlertRules(c *models.ReqContext) response.Response {
-	namespaceTitle := web.Params(c.Req)[":Namespace"]
-	namespace, err := srv.store.GetNamespaceByTitle(c.Req.Context(), namespaceTitle, c.SignedInUser.OrgId, c.SignedInUser, true)
+// ignore fields that are not part of the rule definition
+var ignoreFieldsForValidate = [...]string{"RuleGroupIndex"}
+
+// RouteDeleteAlertRules deletes all alert rules the user is authorized to access in the given namespace
+// or, if non-empty, a specific group of rules in the namespace.
+// Returns http.StatusForbidden if user does not have access to any of the rules that match the filter.
+// Returns http.StatusBadRequest if all rules that match the filter and the user is authorized to delete are provisioned.
+func (srv RulerSrv) RouteDeleteAlertRules(c *contextmodel.ReqContext, namespaceUID string, group string) response.Response {
+	var permanently bool
+	if c.QueryBool("deletePermanently") {
+		if !c.HasRole(identity.RoleAdmin) {
+			return ErrResp(http.StatusForbidden, errors.New("only administrators can delete rules permanently"), "")
+		}
+		permanently = true
+	}
+
+	namespace, err := srv.store.GetNamespaceByUID(c.Req.Context(), namespaceUID, c.GetOrgID(), c.SignedInUser)
 	if err != nil {
 		return toNamespaceErrorResponse(err)
 	}
-	var loggerCtx = []interface{}{
-		"namespace",
-		namespace.Title,
+
+	id, _ := c.GetInternalID()
+	userNamespace := c.GetIdentityType()
+	var loggerCtx = []any{
+		"identity",
+		id,
+		"userNamespace",
+		userNamespace,
+		"namespaceUid",
+		namespace.UID,
 	}
-	var ruleGroup string
-	if group, ok := web.Params(c.Req)[":Groupname"]; ok {
-		ruleGroup = group
-		loggerCtx = append(loggerCtx, "group", group)
+
+	finalGroup, err := getRulesGroupParam(c, group)
+	if err != nil {
+		return ErrResp(http.StatusBadRequest, err, "")
+	}
+
+	if finalGroup != "" {
+		loggerCtx = append(loggerCtx, "group", finalGroup)
 	}
 	logger := srv.log.New(loggerCtx...)
 
-	hasAccess := func(evaluator accesscontrol.Evaluator) bool {
-		return accesscontrol.HasAccess(srv.ac, c)(accesscontrol.ReqOrgAdminOrEditor, evaluator)
-	}
-
-	provenances, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.SignedInUser.OrgId, (&ngmodels.AlertRule{}).ResourceType())
+	provenances, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.GetOrgID(), (&ngmodels.AlertRule{}).ResourceType())
 	if err != nil {
 		return ErrResp(http.StatusInternalServerError, err, "failed to fetch provenances of alert rules")
 	}
 
-	var deletableRules []string
 	err = srv.xactManager.InTransaction(c.Req.Context(), func(ctx context.Context) error {
-		q := ngmodels.ListAlertRulesQuery{
-			OrgID:         c.SignedInUser.OrgId,
-			NamespaceUIDs: []string{namespace.Uid},
-			RuleGroup:     ruleGroup,
+		deletionCandidates := map[ngmodels.AlertRuleGroupKey]ngmodels.RulesGroup{}
+		if finalGroup != "" {
+			key := ngmodels.AlertRuleGroupKey{
+				OrgID:        c.GetOrgID(),
+				NamespaceUID: namespace.UID,
+				RuleGroup:    finalGroup,
+			}
+			rules, err := srv.getAuthorizedRuleGroup(ctx, c, key)
+			if err != nil {
+				return err
+			}
+			deletionCandidates[key] = rules
+		} else {
+			var totalGroups int
+			deletionCandidates, totalGroups, err = srv.searchAuthorizedAlertRules(ctx, authorizedRuleGroupQuery{
+				User:          c.SignedInUser,
+				NamespaceUIDs: []string{namespace.UID},
+			})
+			if err != nil {
+				return err
+			}
+			if totalGroups > 0 && len(deletionCandidates) == 0 {
+				return authz.NewAuthorizationErrorGeneric("delete any existing rules in the namespace due to missing data source query permissions")
+			}
 		}
-		if err = srv.store.ListAlertRules(ctx, &q); err != nil {
-			return err
+		rulesToDelete := make([]string, 0)
+		provisioned := false
+		for groupKey, rules := range deletionCandidates {
+			if containsProvisionedAlerts(provenances, rules) {
+				logger.Debug("Alert group cannot be deleted because it is provisioned", "group", groupKey.RuleGroup)
+				provisioned = true
+				continue
+			}
+			uid := make([]string, 0, len(rules))
+			for _, rule := range rules {
+				uid = append(uid, rule.UID)
+			}
+			rulesToDelete = append(rulesToDelete, uid...)
 		}
-
-		if len(q.Result) == 0 {
-			logger.Debug("no alert rules to delete from namespace/group")
+		if len(rulesToDelete) > 0 {
+			err := srv.store.DeleteAlertRulesByUID(ctx, c.GetOrgID(), ngmodels.NewUserUID(c.SignedInUser), permanently, rulesToDelete...)
+			if err != nil {
+				return err
+			}
+			logger.Info("Alert rules were deleted", "ruleUid", strings.Join(rulesToDelete, ","))
 			return nil
 		}
-
-		var canDelete []*ngmodels.AlertRule
-		var cannotDelete []string
-
-		// partition will partation the given rules in two, one partition
-		// being the rules that fulfill the predicate the other partation being
-		// the ruleIDs not fulfilling it.
-		partition := func(alerts []*ngmodels.AlertRule, predicate func(rule *ngmodels.AlertRule) bool) ([]*ngmodels.AlertRule, []string) {
-			positive, negative := make([]*ngmodels.AlertRule, 0, len(alerts)), make([]string, 0, len(alerts))
-			for _, rule := range alerts {
-				if predicate(rule) {
-					positive = append(positive, rule)
-					continue
-				}
-				negative = append(negative, rule.UID)
-			}
-			return positive, negative
+		// if none rules were deleted return an error.
+		// Check whether provisioned check failed first because if it is true, then all rules that the user can access (actually read via GET API) are provisioned.
+		if provisioned {
+			return errProvisionedResource
 		}
-
-		canDelete, cannotDelete = partition(q.Result, func(rule *ngmodels.AlertRule) bool {
-			return authorizeDatasourceAccessForRule(rule, hasAccess)
-		})
-		if len(canDelete) == 0 {
-			return fmt.Errorf("%w to delete rules because user is not authorized to access data sources used by the rules", ErrAuthorization)
-		}
-		if len(cannotDelete) > 0 {
-			logger.Info("user cannot delete one or many alert rules because it does not have access to data sources. Those rules will be skipped", "expected", len(q.Result), "authorized", len(canDelete), "unauthorized", cannotDelete)
-		}
-
-		canDelete, cannotDelete = partition(canDelete, func(rule *ngmodels.AlertRule) bool {
-			provenance, exists := provenances[rule.UID]
-			return (exists && provenance == ngmodels.ProvenanceNone) || !exists
-		})
-
-		if len(canDelete) == 0 {
-			return fmt.Errorf("all rules have been provisioned and cannot be deleted through this api")
-		}
-
-		if len(cannotDelete) > 0 {
-			logger.Info("user cannot delete one or many alert rules because it does have a provenance set. Those rules will be skipped", "expected", len(q.Result), "provenance_none", len(canDelete), "provenance_set", cannotDelete)
-		}
-
-		for _, rule := range canDelete {
-			deletableRules = append(deletableRules, rule.UID)
-		}
-
-		return srv.store.DeleteAlertRulesByUID(ctx, c.SignedInUser.OrgId, deletableRules...)
+		logger.Info("No alert rules were deleted")
+		return nil
 	})
 
 	if err != nil {
-		if errors.Is(err, ErrAuthorization) {
-			return ErrResp(http.StatusUnauthorized, err, "")
+		if errors.As(err, &errutil.Error{}) {
+			return response.Err(err)
+		}
+		if errors.Is(err, errProvisionedResource) {
+			return ErrResp(http.StatusBadRequest, err, "failed to delete rule group")
 		}
 		return ErrResp(http.StatusInternalServerError, err, "failed to delete rule group")
 	}
-
-	logger.Debug("rules have been deleted from the store. updating scheduler")
-
-	for _, uid := range deletableRules {
-		srv.scheduleService.DeleteAlertRule(ngmodels.AlertRuleKey{
-			OrgID: c.SignedInUser.OrgId,
-			UID:   uid,
-		})
-	}
-
 	return response.JSON(http.StatusAccepted, util.DynMap{"message": "rules deleted"})
 }
 
-func (srv RulerSrv) RouteGetNamespaceRulesConfig(c *models.ReqContext) response.Response {
-	namespaceTitle := web.Params(c.Req)[":Namespace"]
-	namespace, err := srv.store.GetNamespaceByTitle(c.Req.Context(), namespaceTitle, c.SignedInUser.OrgId, c.SignedInUser, false)
+// RouteGetNamespaceRulesConfig returns all rules in a specific folder that user has access to
+func (srv RulerSrv) RouteGetNamespaceRulesConfig(c *contextmodel.ReqContext, namespaceUID string) response.Response {
+	namespace, err := srv.store.GetNamespaceByUID(c.Req.Context(), namespaceUID, c.GetOrgID(), c.SignedInUser)
 	if err != nil {
 		return toNamespaceErrorResponse(err)
 	}
 
-	q := ngmodels.ListAlertRulesQuery{
-		OrgID:         c.SignedInUser.OrgId,
-		NamespaceUIDs: []string{namespace.Uid},
+	ruleGroups, _, err := srv.searchAuthorizedAlertRules(c.Req.Context(), authorizedRuleGroupQuery{
+		User:          c.SignedInUser,
+		NamespaceUIDs: []string{namespace.UID},
+	})
+	if err != nil {
+		return errorToResponse(err)
 	}
-	if err := srv.store.ListAlertRules(c.Req.Context(), &q); err != nil {
-		return ErrResp(http.StatusInternalServerError, err, "failed to update rule group")
-	}
-
-	result := apimodels.NamespaceConfigResponse{}
-	ruleGroupConfigs := make(map[string]apimodels.GettableRuleGroupConfig)
-
-	hasAccess := func(evaluator accesscontrol.Evaluator) bool {
-		return accesscontrol.HasAccess(srv.ac, c)(accesscontrol.ReqViewer, evaluator)
-	}
-
-	provenanceRecords, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.SignedInUser.OrgId, (&ngmodels.AlertRule{}).ResourceType())
+	provenanceRecords, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.GetOrgID(), (&ngmodels.AlertRule{}).ResourceType())
 	if err != nil {
 		return ErrResp(http.StatusInternalServerError, err, "failed to get provenance for rule group")
 	}
 
-	for _, r := range q.Result {
-		if !authorizeDatasourceAccessForRule(r, hasAccess) {
-			continue
-		}
-		ruleGroupConfig, ok := ruleGroupConfigs[r.RuleGroup]
-		if !ok {
-			ruleGroupInterval := model.Duration(time.Duration(r.IntervalSeconds) * time.Second)
-			ruleGroupConfigs[r.RuleGroup] = apimodels.GettableRuleGroupConfig{
-				Name:     r.RuleGroup,
-				Interval: ruleGroupInterval,
-				Rules: []apimodels.GettableExtendedRuleNode{
-					toGettableExtendedRuleNode(*r, namespace.Id, provenanceRecords),
-				},
-			}
-		} else {
-			ruleGroupConfig.Rules = append(ruleGroupConfig.Rules, toGettableExtendedRuleNode(*r, namespace.Id, provenanceRecords))
-			ruleGroupConfigs[r.RuleGroup] = ruleGroupConfig
-		}
+	result := apimodels.NamespaceConfigResponse{}
+
+	ruleList := make([]*ngmodels.AlertRule, 0)
+	for _, ruleGroup := range ruleGroups {
+		ruleList = append(ruleList, ruleGroup...)
 	}
 
-	for _, ruleGroupConfig := range ruleGroupConfigs {
-		result[namespaceTitle] = append(result[namespaceTitle], ruleGroupConfig)
+	userUIDmapping := srv.getUserUIDmapping(c.Req.Context(), ruleList)
+
+	for groupKey, rules := range ruleGroups {
+		result[namespace.Fullpath] = append(result[namespace.Fullpath], toGettableRuleGroupConfig(groupKey.RuleGroup, rules, provenanceRecords, userUIDmapping))
 	}
 
 	return response.JSON(http.StatusAccepted, result)
 }
 
-func (srv RulerSrv) RouteGetRulesGroupConfig(c *models.ReqContext) response.Response {
-	namespaceTitle := web.Params(c.Req)[":Namespace"]
-	namespace, err := srv.store.GetNamespaceByTitle(c.Req.Context(), namespaceTitle, c.SignedInUser.OrgId, c.SignedInUser, false)
+// RouteGetRulesGroupConfig returns rules that belong to a specific group in a specific namespace (folder).
+// If user does not have access to at least one of the rule in the group, returns status 403 Forbidden
+func (srv RulerSrv) RouteGetRulesGroupConfig(c *contextmodel.ReqContext, namespaceUID string, ruleGroup string) response.Response {
+	namespace, err := srv.store.GetNamespaceByUID(c.Req.Context(), namespaceUID, c.GetOrgID(), c.SignedInUser)
 	if err != nil {
 		return toNamespaceErrorResponse(err)
 	}
 
-	ruleGroup := web.Params(c.Req)[":Groupname"]
-	q := ngmodels.ListAlertRulesQuery{
-		OrgID:         c.SignedInUser.OrgId,
-		NamespaceUIDs: []string{namespace.Uid},
-		RuleGroup:     ruleGroup,
-	}
-	if err := srv.store.ListAlertRules(c.Req.Context(), &q); err != nil {
-		return ErrResp(http.StatusInternalServerError, err, "failed to get group alert rules")
+	finalRuleGroup, err := getRulesGroupParam(c, ruleGroup)
+	if err != nil {
+		return ErrResp(http.StatusBadRequest, err, "")
 	}
 
-	var ruleGroupInterval model.Duration
-	ruleNodes := make([]apimodels.GettableExtendedRuleNode, 0, len(q.Result))
-
-	hasAccess := func(evaluator accesscontrol.Evaluator) bool {
-		return accesscontrol.HasAccess(srv.ac, c)(accesscontrol.ReqViewer, evaluator)
+	rules, err := srv.getAuthorizedRuleGroup(c.Req.Context(), c, ngmodels.AlertRuleGroupKey{
+		OrgID:        c.GetOrgID(),
+		RuleGroup:    finalRuleGroup,
+		NamespaceUID: namespace.UID,
+	})
+	if err != nil {
+		return errorToResponse(err)
 	}
 
-	provenanceRecords, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.SignedInUser.OrgId, (&ngmodels.AlertRule{}).ResourceType())
+	if len(rules) == 0 {
+		return ErrResp(http.StatusNotFound, errors.New("rule group does not exist"), "")
+	}
+
+	provenanceRecords, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.GetOrgID(), (&ngmodels.AlertRule{}).ResourceType())
 	if err != nil {
 		return ErrResp(http.StatusInternalServerError, err, "failed to get group alert rules")
 	}
 
-	for _, r := range q.Result {
-		if !authorizeDatasourceAccessForRule(r, hasAccess) {
-			continue
-		}
-		ruleGroupInterval = model.Duration(time.Duration(r.IntervalSeconds) * time.Second)
-		ruleNodes = append(ruleNodes, toGettableExtendedRuleNode(*r, namespace.Id, provenanceRecords))
+	userUIDmapping := srv.getUserUIDmapping(c.Req.Context(), rules)
+	result := apimodels.RuleGroupConfigResponse{
+		// nolint:staticcheck
+		GettableRuleGroupConfig: toGettableRuleGroupConfig(finalRuleGroup, rules, provenanceRecords, userUIDmapping),
 	}
 
-	result := apimodels.RuleGroupConfigResponse{
-		GettableRuleGroupConfig: apimodels.GettableRuleGroupConfig{
-			Name:     ruleGroup,
-			Interval: ruleGroupInterval,
-			Rules:    ruleNodes,
-		},
-	}
 	return response.JSON(http.StatusAccepted, result)
 }
 
-func (srv RulerSrv) RouteGetRulesConfig(c *models.ReqContext) response.Response {
-	namespaceMap, err := srv.store.GetUserVisibleNamespaces(c.Req.Context(), c.OrgId, c.SignedInUser)
+// RouteGetRulesConfig returns all alert rules that are available to the current user
+func (srv RulerSrv) RouteGetRulesConfig(c *contextmodel.ReqContext) response.Response {
+	if strings.ToLower(c.Query("deleted")) == "true" {
+		if !srv.featureManager.IsEnabledGlobally(featuremgmt.FlagAlertRuleRestore) {
+			return ErrResp(http.StatusBadRequest, errors.New("restore of deleted rules is not enabled"), "")
+		}
+		if !c.HasRole(identity.RoleAdmin) {
+			return ErrResp(http.StatusForbidden, errors.New("only admins can get deleted rules"), "")
+		}
+		rules, err := srv.store.ListDeletedRules(c.Req.Context(), c.GetOrgID())
+		if err != nil {
+			return ErrResp(http.StatusInternalServerError, err, "failed to get deleted rules")
+		}
+		result := apimodels.NamespaceConfigResponse{}
+		userUIDmapping := srv.getUserUIDmapping(c.Req.Context(), rules)
+		if len(rules) > 0 {
+			result[""] = []apimodels.GettableRuleGroupConfig{
+				toGettableRuleGroupConfig("", rules, map[string]ngmodels.Provenance{}, userUIDmapping),
+			}
+		}
+		return response.JSON(http.StatusOK, result)
+	}
+
+	namespaceMap, err := srv.store.GetUserVisibleNamespaces(c.Req.Context(), c.GetOrgID(), c.SignedInUser)
 	if err != nil {
 		return ErrResp(http.StatusInternalServerError, err, "failed to get namespaces visible to the user")
 	}
@@ -274,7 +301,7 @@ func (srv RulerSrv) RouteGetRulesConfig(c *models.ReqContext) response.Response 
 	}
 
 	dashboardUID := c.Query("dashboard_uid")
-	panelID, err := getPanelIDFromRequest(c.Req)
+	panelID, err := getPanelIDFromQuery(c.Req.URL.Query())
 	if err != nil {
 		return ErrResp(http.StatusBadRequest, err, "invalid panel_id")
 	}
@@ -282,279 +309,376 @@ func (srv RulerSrv) RouteGetRulesConfig(c *models.ReqContext) response.Response 
 		return ErrResp(http.StatusBadRequest, errors.New("panel_id must be set with dashboard_uid"), "")
 	}
 
-	q := ngmodels.ListAlertRulesQuery{
-		OrgID:         c.SignedInUser.OrgId,
+	configs, _, err := srv.searchAuthorizedAlertRules(c.Req.Context(), authorizedRuleGroupQuery{
+		User:          c.SignedInUser,
 		NamespaceUIDs: namespaceUIDs,
 		DashboardUID:  dashboardUID,
 		PanelID:       panelID,
+	})
+	if err != nil {
+		return errorToResponse(err)
 	}
-
-	if err := srv.store.ListAlertRules(c.Req.Context(), &q); err != nil {
-		return ErrResp(http.StatusInternalServerError, err, "failed to get alert rules")
-	}
-
-	configs := make(map[string]map[string]apimodels.GettableRuleGroupConfig)
-
-	hasAccess := func(evaluator accesscontrol.Evaluator) bool {
-		return accesscontrol.HasAccess(srv.ac, c)(accesscontrol.ReqViewer, evaluator)
-	}
-
-	provenanceRecords, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.SignedInUser.OrgId, (&ngmodels.AlertRule{}).ResourceType())
+	provenanceRecords, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.GetOrgID(), (&ngmodels.AlertRule{}).ResourceType())
 	if err != nil {
 		return ErrResp(http.StatusInternalServerError, err, "failed to get alert rules")
 	}
 
-	for _, r := range q.Result {
-		if !authorizeDatasourceAccessForRule(r, hasAccess) {
-			continue
-		}
-		folder, ok := namespaceMap[r.NamespaceUID]
-		if !ok {
-			srv.log.Error("namespace not visible to the user", "user", c.SignedInUser.UserId, "namespace", r.NamespaceUID, "rule", r.UID)
-			continue
-		}
-		namespace := folder.Title
-		_, ok = configs[namespace]
-		if !ok {
-			ruleGroupInterval := model.Duration(time.Duration(r.IntervalSeconds) * time.Second)
-			configs[namespace] = make(map[string]apimodels.GettableRuleGroupConfig)
-			configs[namespace][r.RuleGroup] = apimodels.GettableRuleGroupConfig{
-				Name:     r.RuleGroup,
-				Interval: ruleGroupInterval,
-				Rules: []apimodels.GettableExtendedRuleNode{
-					toGettableExtendedRuleNode(*r, folder.Id, provenanceRecords),
-				},
-			}
-		} else {
-			ruleGroupConfig, ok := configs[namespace][r.RuleGroup]
-			if !ok {
-				ruleGroupInterval := model.Duration(time.Duration(r.IntervalSeconds) * time.Second)
-				configs[namespace][r.RuleGroup] = apimodels.GettableRuleGroupConfig{
-					Name:     r.RuleGroup,
-					Interval: ruleGroupInterval,
-					Rules: []apimodels.GettableExtendedRuleNode{
-						toGettableExtendedRuleNode(*r, folder.Id, provenanceRecords),
-					},
-				}
-			} else {
-				ruleGroupConfig.Rules = append(ruleGroupConfig.Rules, toGettableExtendedRuleNode(*r, folder.Id, provenanceRecords))
-				configs[namespace][r.RuleGroup] = ruleGroupConfig
-			}
-		}
+	ruleList := make([]*ngmodels.AlertRule, 0)
+	for _, ruleGroup := range configs {
+		ruleList = append(ruleList, ruleGroup...)
 	}
 
-	for namespace, m := range configs {
-		for _, ruleGroupConfig := range m {
-			result[namespace] = append(result[namespace], ruleGroupConfig)
+	userUIDmapping := srv.getUserUIDmapping(c.Req.Context(), ruleList)
+
+	for groupKey, rules := range configs {
+		folder, ok := namespaceMap[groupKey.NamespaceUID]
+		if !ok {
+			id, _ := c.GetInternalID()
+			userNamespace := c.GetIdentityType()
+			srv.log.Error("Namespace not visible to the user", "user", id, "userNamespace", userNamespace, "namespace", groupKey.NamespaceUID)
+			continue
 		}
+		result[folder.Fullpath] = append(result[folder.Fullpath], toGettableRuleGroupConfig(groupKey.RuleGroup, rules, provenanceRecords, userUIDmapping))
 	}
 	return response.JSON(http.StatusOK, result)
 }
 
-func (srv RulerSrv) RoutePostNameRulesConfig(c *models.ReqContext, ruleGroupConfig apimodels.PostableRuleGroupConfig) response.Response {
-	namespaceTitle := web.Params(c.Req)[":Namespace"]
-	namespace, err := srv.store.GetNamespaceByTitle(c.Req.Context(), namespaceTitle, c.SignedInUser.OrgId, c.SignedInUser, true)
+// RouteGetRuleByUID returns the alert rule with the given UID
+func (srv RulerSrv) RouteGetRuleByUID(c *contextmodel.ReqContext, ruleUID string) response.Response {
+	ctx := c.Req.Context()
+	orgID := c.GetOrgID()
+
+	rule, err := srv.getAuthorizedRuleByUid(ctx, c, ruleUID)
+	if err != nil {
+		if errors.Is(err, ngmodels.ErrAlertRuleNotFound) {
+			return response.Empty(http.StatusNotFound)
+		}
+		return response.ErrOrFallback(http.StatusInternalServerError, "failed to get rule by UID", err)
+	}
+
+	provenance, err := srv.provenanceStore.GetProvenance(ctx, &rule, orgID)
+	if err != nil {
+		return response.ErrOrFallback(http.StatusInternalServerError, "failed to get rule provenance", err)
+	}
+
+	userUIDmapping := srv.getUserUIDmapping(ctx, []*ngmodels.AlertRule{&rule})
+	result := toGettableExtendedRuleNode(rule, map[string]ngmodels.Provenance{rule.ResourceID(): provenance}, userUIDmapping)
+
+	return response.JSON(http.StatusOK, result)
+}
+
+func (srv RulerSrv) RouteGetRuleVersionsByUID(c *contextmodel.ReqContext, ruleUID string) response.Response {
+	ctx := c.Req.Context()
+	// make sure the user has access to the current version of the rule. Also, check if it exists
+	rule, err := srv.getAuthorizedRuleByUid(ctx, c, ruleUID)
+	if err != nil {
+		if errors.Is(err, ngmodels.ErrAlertRuleNotFound) {
+			return response.Empty(http.StatusNotFound)
+		}
+		return response.ErrOrFallback(http.StatusInternalServerError, "failed to get rule by UID", err)
+	}
+
+	rules, err := srv.store.GetAlertRuleVersions(ctx, rule.OrgID, rule.GUID)
+	if err != nil {
+		return response.ErrOrFallback(http.StatusInternalServerError, "failed to get rule history", err)
+	}
+	sort.Slice(rules, func(i, j int) bool { return rules[i].ID > rules[j].ID })
+	result := make(apimodels.GettableRuleVersions, 0, len(rules))
+	userUIDmapping := srv.getUserUIDmapping(ctx, rules)
+	for _, rule := range rules {
+		// do not provide provenance status because we do not have historical changes for it
+		result = append(result, toGettableExtendedRuleNode(*rule, map[string]ngmodels.Provenance{}, userUIDmapping))
+	}
+	return response.JSON(http.StatusOK, result)
+}
+
+func (srv RulerSrv) RoutePostNameRulesConfig(c *contextmodel.ReqContext, ruleGroupConfig apimodels.PostableRuleGroupConfig, namespaceUID string) response.Response {
+	var deletePermanently bool
+	if c.QueryBool("deletePermanently") {
+		if !c.HasRole(identity.RoleAdmin) {
+			return ErrResp(http.StatusForbidden, errors.New("only administrators can delete rules permanently"), "")
+		}
+		deletePermanently = true
+	}
+
+	namespace, err := srv.store.GetNamespaceByUID(c.Req.Context(), namespaceUID, c.GetOrgID(), c.SignedInUser)
 	if err != nil {
 		return toNamespaceErrorResponse(err)
 	}
 
-	rules, err := validateRuleGroup(&ruleGroupConfig, c.SignedInUser.OrgId, namespace, conditionValidator(c, srv.DatasourceCache), srv.cfg)
+	if err := srv.checkGroupLimits(ruleGroupConfig); err != nil {
+		return ErrResp(http.StatusBadRequest, err, "")
+	}
+
+	rules, err := apivalidation.ValidateRuleGroup(&ruleGroupConfig, c.GetOrgID(), namespace.UID, apivalidation.RuleLimitsFromConfig(srv.cfg, srv.featureManager))
 	if err != nil {
 		return ErrResp(http.StatusBadRequest, err, "")
 	}
 
-	return srv.updateAlertRulesInGroup(c, namespace, ruleGroupConfig.Name, rules)
+	groupKey := ngmodels.AlertRuleGroupKey{
+		OrgID:        c.GetOrgID(),
+		NamespaceUID: namespace.UID,
+		RuleGroup:    ruleGroupConfig.Name,
+	}
+
+	return srv.updateAlertRulesInGroup(c, groupKey, rules, deletePermanently)
+}
+
+func (srv RulerSrv) RouteDeleteAlertRuleFromTrashByGUID(ctx *contextmodel.ReqContext, guid string) response.Response {
+	deleted, err := srv.store.DeleteRuleFromTrashByGUID(ctx.Req.Context(), ctx.GetOrgID(), guid)
+	if err != nil {
+		return ErrResp(http.StatusInternalServerError, err, "failed to delete rule from trash")
+	}
+	if deleted == 0 {
+		return response.Empty(http.StatusNotFound)
+	}
+	return response.Empty(http.StatusOK)
+}
+
+func (srv RulerSrv) checkGroupLimits(group apimodels.PostableRuleGroupConfig) error {
+	if srv.cfg.RulesPerRuleGroupLimit > 0 && int64(len(group.Rules)) > srv.cfg.RulesPerRuleGroupLimit {
+		srv.log.Warn("Large rule group was edited. Large groups are discouraged and may be rejected in the future.",
+			"limit", srv.cfg.RulesPerRuleGroupLimit,
+			"actual", len(group.Rules),
+			"group", group.Name,
+		)
+	}
+
+	return nil
 }
 
 // updateAlertRulesInGroup calculates changes (rules to add,update,delete), verifies that the user is authorized to do the calculated changes and updates database.
 // All operations are performed in a single transaction
-//nolint: gocyclo
-func (srv RulerSrv) updateAlertRulesInGroup(c *models.ReqContext, namespace *models.Folder, groupName string, rules []*ngmodels.AlertRule) response.Response {
-	var finalChanges *changes
-	hasAccess := accesscontrol.HasAccess(srv.ac, c)
-	err := srv.xactManager.InTransaction(c.Req.Context(), func(tranCtx context.Context) error {
-		logger := srv.log.New("namespace_uid", namespace.Uid, "group", groupName, "org_id", c.OrgId, "user_id", c.UserId)
+//
+//nolint:gocyclo
+func (srv RulerSrv) updateAlertRulesInGroup(c *contextmodel.ReqContext, groupKey ngmodels.AlertRuleGroupKey, rules []*ngmodels.AlertRuleWithOptionals, deletePermanently bool) response.Response {
+	finalChanges, amConfig, err := srv.performUpdateAlertRules(c.Req.Context(), c, groupKey, rules, deletePermanently)
 
-		groupChanges, err := calculateChanges(tranCtx, srv.store, c.SignedInUser.OrgId, namespace, groupName, rules)
+	if err != nil {
+		if errors.As(err, &errutil.Error{}) {
+			return response.Err(err)
+		} else if errors.Is(err, ngmodels.ErrAlertRuleNotFound) {
+			return ErrResp(http.StatusNotFound, err, "failed to update rule group")
+		} else if errors.Is(err, ngmodels.ErrAlertRuleFailedValidation) || errors.Is(err, errProvisionedResource) {
+			return ErrResp(http.StatusBadRequest, err, "failed to update rule group")
+		} else if errors.Is(err, ngmodels.ErrQuotaReached) {
+			return ErrResp(http.StatusForbidden, err, "")
+		} else if errors.Is(err, store.ErrOptimisticLock) {
+			return ErrResp(http.StatusConflict, err, "")
+		}
+		return ErrResp(http.StatusInternalServerError, err, "failed to update rule group")
+	}
+
+	if amConfig != nil {
+		// This isn't strictly necessary since the alertmanager config is periodically synced.
+		err := srv.amRefresher.ApplyConfig(c.Req.Context(), groupKey.OrgID, amConfig)
+		if err != nil {
+			srv.log.Warn("Failed to refresh Alertmanager config for org after change in notification settings", "org", c.GetOrgID(), "error", err)
+		}
+	}
+
+	return changesToResponse(finalChanges)
+}
+
+func (srv RulerSrv) performUpdateAlertRules(ctx context.Context, c *contextmodel.ReqContext, groupKey ngmodels.AlertRuleGroupKey, rules []*ngmodels.AlertRuleWithOptionals, deletePermanently bool) (*store.GroupDelta, *ngmodels.AlertConfiguration, error) {
+	var finalChanges *store.GroupDelta
+	var dbConfig *ngmodels.AlertConfiguration
+	err := srv.xactManager.InTransaction(ctx, func(tranCtx context.Context) error {
+		id, _ := c.GetInternalID()
+		userNamespace := c.GetIdentityType()
+
+		logger := srv.log.New("namespace_uid", groupKey.NamespaceUID, "group",
+			groupKey.RuleGroup, "org_id", groupKey.OrgID, "user_id", id, "userNamespace", userNamespace)
+		groupChanges, err := store.CalculateChanges(tranCtx, srv.store, groupKey, rules)
 		if err != nil {
 			return err
 		}
 
-		if groupChanges.isEmpty() {
+		if groupChanges.IsEmpty() {
 			finalChanges = groupChanges
-			logger.Info("no changes detected in the request. Do nothing")
+			logger.Info("No changes detected in the request. Do nothing")
 			return nil
 		}
 
-		authorizedChanges := groupChanges // if RBAC is disabled the permission are limited to folder access that is done upstream
-		if !srv.ac.IsDisabled() {
-			authorizedChanges, err = authorizeRuleChanges(namespace, groupChanges, func(evaluator accesscontrol.Evaluator) bool {
-				return hasAccess(accesscontrol.ReqOrgAdminOrEditor, evaluator)
-			})
-			if err != nil {
-				return err
-			}
-			if authorizedChanges.isEmpty() {
-				logger.Info("no authorized changes detected in the request. Do nothing", "not_authorized_add", len(groupChanges.New), "not_authorized_update", len(groupChanges.Update), "not_authorized_delete", len(groupChanges.Delete))
-				return nil
-			}
-			if len(groupChanges.Delete) > len(authorizedChanges.Delete) {
-				logger.Info("user is not authorized to delete one or many rules in the group. those rules will be skipped", "expected", len(groupChanges.Delete), "authorized", len(authorizedChanges.Delete))
-			}
-		}
-
-		provenances, err := srv.provenanceStore.GetProvenances(c.Req.Context(), c.OrgId, (&ngmodels.AlertRule{}).ResourceType())
+		err = srv.authz.AuthorizeRuleChanges(tranCtx, c.SignedInUser, groupChanges)
 		if err != nil {
 			return err
 		}
 
-		// New rules don't need to be checked for provenance, just copy the whole slice.
-		finalChanges = &changes{}
-		finalChanges.New = authorizedChanges.New
-		for _, rule := range authorizedChanges.Update {
-			if provenance, exists := provenances[rule.Existing.UID]; (exists && provenance == ngmodels.ProvenanceNone) || !exists {
-				finalChanges.Update = append(finalChanges.Update, rule)
-			}
-		}
-		for _, rule := range authorizedChanges.Delete {
-			if provenance, exists := provenances[rule.UID]; (exists && provenance == ngmodels.ProvenanceNone) || !exists {
-				finalChanges.Delete = append(finalChanges.Delete, rule)
-			}
+		if err := validateQueries(tranCtx, groupChanges, srv.conditionValidator, c.SignedInUser); err != nil {
+			return err
 		}
 
-		if finalChanges.isEmpty() {
-			logger.Info("no changes detected that have 'none' provenance in the request. Do nothing",
-				"provenance_invalid_add", len(authorizedChanges.New),
-				"provenance_invalid_update", len(authorizedChanges.Update),
-				"provenance_invalid_delete", len(authorizedChanges.Delete))
-			return nil
-		}
-
-		if len(authorizedChanges.Delete) > len(finalChanges.Delete) {
-			logger.Info("provenance is not 'none' for one or many rules in the group that should be deleted. those rules will be skipped",
-				"expected", len(authorizedChanges.Delete),
-				"allowed", len(authorizedChanges.Delete))
-		}
-
-		if len(authorizedChanges.Update) > len(finalChanges.Update) {
-			logger.Info("provenance is not 'none' for one or many rules in the group that should be updated. those rules will be skipped",
-				"expected", len(authorizedChanges.Update),
-				"allowed", len(authorizedChanges.Update))
-		}
-
-		logger.Debug("updating database with the authorized changes", "add", len(finalChanges.New), "update", len(finalChanges.New), "delete", len(finalChanges.Delete))
-
-		if len(finalChanges.Update) > 0 || len(finalChanges.New) > 0 {
-			updates := make([]store.UpdateRule, 0, len(finalChanges.Update))
-			inserts := make([]ngmodels.AlertRule, 0, len(finalChanges.New))
-			for _, update := range finalChanges.Update {
-				logger.Debug("updating rule", "rule_uid", update.New.UID, "diff", update.Diff.String())
-				updates = append(updates, store.UpdateRule{
-					Existing: update.Existing,
-					New:      *update.New,
-				})
-			}
-			for _, rule := range finalChanges.New {
-				inserts = append(inserts, *rule)
-			}
-			err = srv.store.InsertAlertRules(tranCtx, inserts)
+		newOrUpdatedNotificationSettings := groupChanges.NewOrUpdatedNotificationSettings()
+		if len(newOrUpdatedNotificationSettings) > 0 {
+			dbConfig, err = srv.amConfigStore.GetLatestAlertmanagerConfiguration(tranCtx, groupChanges.GroupKey.OrgID)
 			if err != nil {
-				return fmt.Errorf("failed to add rules: %w", err)
+				return fmt.Errorf("failed to get latest configuration: %w", err)
 			}
-			err = srv.store.UpdateAlertRules(tranCtx, updates)
+			cfg, err := notifier.Load([]byte(dbConfig.AlertmanagerConfiguration))
 			if err != nil {
-				return fmt.Errorf("failed to update rules: %w", err)
+				return fmt.Errorf("failed to parse configuration: %w", err)
+			}
+			validator := notifier.NewNotificationSettingsValidator(&cfg.AlertmanagerConfig)
+			for _, s := range newOrUpdatedNotificationSettings {
+				if err := validator.Validate(s); err != nil {
+					return errors.Join(ngmodels.ErrAlertRuleFailedValidation, err)
+				}
 			}
 		}
 
+		if err := verifyProvisionedRulesNotAffected(tranCtx, srv.provenanceStore, c.GetOrgID(), groupChanges); err != nil {
+			return err
+		}
+
+		finalChanges = store.UpdateCalculatedRuleFields(groupChanges)
+		logger.Debug("Updating database with the authorized changes", "add", len(finalChanges.New), "update", len(finalChanges.New), "delete", len(finalChanges.Delete))
+
+		// Delete first as this could prevent future unique constraint violations.
 		if len(finalChanges.Delete) > 0 {
 			UIDs := make([]string, 0, len(finalChanges.Delete))
 			for _, rule := range finalChanges.Delete {
 				UIDs = append(UIDs, rule.UID)
 			}
 
-			if err = srv.store.DeleteAlertRulesByUID(tranCtx, c.SignedInUser.OrgId, UIDs...); err != nil {
+			if err = srv.store.DeleteAlertRulesByUID(tranCtx, c.GetOrgID(), ngmodels.NewUserUID(c.SignedInUser), deletePermanently, UIDs...); err != nil {
 				return fmt.Errorf("failed to delete rules: %w", err)
 			}
 		}
 
+		if len(finalChanges.Update) > 0 {
+			updates := make([]ngmodels.UpdateRule, 0, len(finalChanges.Update))
+			for _, update := range finalChanges.Update {
+				logger.Debug("Updating rule", "rule_uid", update.New.UID, "diff", update.Diff.String())
+				updates = append(updates, ngmodels.UpdateRule{
+					Existing: update.Existing,
+					New:      *update.New,
+				})
+			}
+			err = srv.store.UpdateAlertRules(tranCtx, ngmodels.NewUserUID(c.SignedInUser), updates)
+			if err != nil {
+				return fmt.Errorf("failed to update rules: %w", err)
+			}
+		}
+
 		if len(finalChanges.New) > 0 {
-			limitReached, err := srv.QuotaService.CheckQuotaReached(tranCtx, "alert_rule", &quota.ScopeParameters{
-				OrgId:  c.OrgId,
-				UserId: c.UserId,
+			inserts := make([]ngmodels.AlertRule, 0, len(finalChanges.New))
+			for _, rule := range finalChanges.New {
+				inserts = append(inserts, *rule)
+			}
+			added, err := srv.store.InsertAlertRules(tranCtx, ngmodels.NewUserUID(c.SignedInUser), inserts)
+			if err != nil {
+				return fmt.Errorf("failed to add rules: %w", err)
+			}
+			if len(added) != len(finalChanges.New) {
+				logger.Error("Cannot match inserted rules with final changes", "insertedCount", len(added), "changes", len(finalChanges.New))
+			} else {
+				for i, newRule := range finalChanges.New {
+					newRule.ID = added[i].ID
+					newRule.UID = added[i].UID
+				}
+			}
+		}
+
+		if len(finalChanges.New) > 0 {
+			userID, _ := identity.UserIdentifier(c.GetID())
+			limitReached, err := srv.QuotaService.CheckQuotaReached(tranCtx, ngmodels.QuotaTargetSrv, &quota.ScopeParameters{
+				OrgID:  c.GetOrgID(),
+				UserID: userID,
 			}) // alert rule is table name
 			if err != nil {
 				return fmt.Errorf("failed to get alert rules quota: %w", err)
 			}
 			if limitReached {
-				return errQuotaReached
+				return ngmodels.ErrQuotaReached
 			}
 		}
 		return nil
 	})
 
 	if err != nil {
-		if errors.Is(err, ngmodels.ErrAlertRuleNotFound) {
-			return ErrResp(http.StatusNotFound, err, "failed to update rule group")
-		} else if errors.Is(err, ngmodels.ErrAlertRuleFailedValidation) {
-			return ErrResp(http.StatusBadRequest, err, "failed to update rule group")
-		} else if errors.Is(err, errQuotaReached) {
-			return ErrResp(http.StatusForbidden, err, "")
-		} else if errors.Is(err, ErrAuthorization) {
-			return ErrResp(http.StatusUnauthorized, err, "")
-		}
-		return ErrResp(http.StatusInternalServerError, err, "failed to update rule group")
+		return nil, nil, err
 	}
 
-	for _, rule := range finalChanges.Update {
-		srv.scheduleService.UpdateAlertRule(ngmodels.AlertRuleKey{
-			OrgID: c.SignedInUser.OrgId,
-			UID:   rule.Existing.UID,
-		})
-	}
-
-	for _, rule := range finalChanges.Delete {
-		srv.scheduleService.DeleteAlertRule(ngmodels.AlertRuleKey{
-			OrgID: c.SignedInUser.OrgId,
-			UID:   rule.UID,
-		})
-	}
-
-	if finalChanges.isEmpty() {
-		return response.JSON(http.StatusAccepted, util.DynMap{"message": "no changes detected in the rule group"})
-	}
-
-	return response.JSON(http.StatusAccepted, util.DynMap{"message": "rule group updated successfully"})
+	return finalChanges, dbConfig, nil
 }
 
-func toGettableExtendedRuleNode(r ngmodels.AlertRule, namespaceID int64, provenanceRecords map[string]ngmodels.Provenance) apimodels.GettableExtendedRuleNode {
+func changesToResponse(finalChanges *store.GroupDelta) response.Response {
+	body := apimodels.UpdateRuleGroupResponse{
+		Message: "rule group updated successfully",
+		Created: make([]string, 0, len(finalChanges.New)),
+		Updated: make([]string, 0, len(finalChanges.Update)),
+		Deleted: make([]string, 0, len(finalChanges.Delete)),
+	}
+	if finalChanges.IsEmpty() {
+		body.Message = "no changes detected in the rule group"
+	} else {
+		for _, r := range finalChanges.New {
+			body.Created = append(body.Created, r.UID)
+		}
+		for _, r := range finalChanges.Update {
+			body.Updated = append(body.Updated, r.Existing.UID)
+		}
+		for _, r := range finalChanges.Delete {
+			body.Deleted = append(body.Deleted, r.UID)
+		}
+	}
+	return response.JSON(http.StatusAccepted, body)
+}
+
+func toGettableRuleGroupConfig(groupName string, rules ngmodels.RulesGroup, provenanceRecords map[string]ngmodels.Provenance, userUIDmapping map[ngmodels.UserUID]*apimodels.UserInfo) apimodels.GettableRuleGroupConfig {
+	rules.SortByGroupIndex()
+	ruleNodes := make([]apimodels.GettableExtendedRuleNode, 0, len(rules))
+	var interval time.Duration
+	if len(rules) > 0 {
+		interval = time.Duration(rules[0].IntervalSeconds) * time.Second
+	}
+	for _, r := range rules {
+		ruleNodes = append(ruleNodes, toGettableExtendedRuleNode(*r, provenanceRecords, userUIDmapping))
+	}
+	return apimodels.GettableRuleGroupConfig{
+		Name:     groupName,
+		Interval: model.Duration(interval),
+		Rules:    ruleNodes,
+	}
+}
+
+func toGettableExtendedRuleNode(r ngmodels.AlertRule, provenanceRecords map[string]ngmodels.Provenance, userUIDmapping map[ngmodels.UserUID]*apimodels.UserInfo) apimodels.GettableExtendedRuleNode {
 	provenance := ngmodels.ProvenanceNone
 	if prov, exists := provenanceRecords[r.ResourceID()]; exists {
 		provenance = prov
 	}
+
 	gettableExtendedRuleNode := apimodels.GettableExtendedRuleNode{
 		GrafanaManagedAlert: &apimodels.GettableGrafanaRule{
-			ID:              r.ID,
-			OrgID:           r.OrgID,
-			Title:           r.Title,
-			Condition:       r.Condition,
-			Data:            r.Data,
-			Updated:         r.Updated,
-			IntervalSeconds: r.IntervalSeconds,
-			Version:         r.Version,
-			UID:             r.UID,
-			NamespaceUID:    r.NamespaceUID,
-			NamespaceID:     namespaceID,
-			RuleGroup:       r.RuleGroup,
-			NoDataState:     apimodels.NoDataState(r.NoDataState),
-			ExecErrState:    apimodels.ExecutionErrorState(r.ExecErrState),
-			Provenance:      provenance,
+			Title:                       r.Title,
+			Condition:                   r.Condition,
+			Data:                        ApiAlertQueriesFromAlertQueries(r.Data),
+			Updated:                     r.Updated,
+			UpdatedBy:                   getUserFromMapping(userUIDmapping, r.UpdatedBy),
+			IntervalSeconds:             r.IntervalSeconds,
+			Version:                     r.Version,
+			UID:                         r.UID,
+			NamespaceUID:                r.NamespaceUID,
+			RuleGroup:                   r.RuleGroup,
+			NoDataState:                 apimodels.NoDataState(r.NoDataState),
+			ExecErrState:                apimodels.ExecutionErrorState(r.ExecErrState),
+			Provenance:                  apimodels.Provenance(provenance),
+			IsPaused:                    r.IsPaused,
+			NotificationSettings:        AlertRuleNotificationSettingsFromNotificationSettings(r.NotificationSettings),
+			Record:                      ApiRecordFromModelRecord(r.Record),
+			Metadata:                    AlertRuleMetadataFromModelMetadata(r.Metadata),
+			GUID:                        r.GUID,
+			MissingSeriesEvalsToResolve: r.MissingSeriesEvalsToResolve,
 		},
 	}
+	forDuration := model.Duration(r.For)
+	keepFiringForDuration := model.Duration(r.KeepFiringFor)
 	gettableExtendedRuleNode.ApiRuleNode = &apimodels.ApiRuleNode{
-		For:         model.Duration(r.For),
-		Annotations: r.Annotations,
-		Labels:      r.Labels,
+		For:           &forDuration,
+		KeepFiringFor: &keepFiringForDuration,
+		Annotations:   r.Annotations,
+		Labels:        r.Labels,
 	}
 	return gettableExtendedRuleNode
 }
@@ -563,100 +687,268 @@ func toNamespaceErrorResponse(err error) response.Response {
 	if errors.Is(err, ngmodels.ErrCannotEditNamespace) {
 		return ErrResp(http.StatusForbidden, err, err.Error())
 	}
-	if errors.Is(err, models.ErrDashboardIdentifierNotSet) {
+	if errors.Is(err, dashboards.ErrDashboardIdentifierNotSet) {
 		return ErrResp(http.StatusBadRequest, err, err.Error())
 	}
 	return apierrors.ToFolderErrorResponse(err)
 }
 
-type ruleUpdate struct {
-	Existing *ngmodels.AlertRule
-	New      *ngmodels.AlertRule
-	Diff     cmputil.DiffReport
+// verifyProvisionedRulesNotAffected check that neither of provisioned alerts are affected by changes.
+// Returns errProvisionedResource if there is at least one rule in groups affected by changes that was provisioned.
+func verifyProvisionedRulesNotAffected(ctx context.Context, provenanceStore provisioning.ProvisioningStore, orgID int64, ch *store.GroupDelta) error {
+	provenances, err := provenanceStore.GetProvenances(ctx, orgID, (&ngmodels.AlertRule{}).ResourceType())
+	if err != nil {
+		return err
+	}
+	errorMsg := strings.Builder{}
+	for group, alertRules := range ch.AffectedGroups {
+		if !containsProvisionedAlerts(provenances, alertRules) {
+			continue
+		}
+		if errorMsg.Len() > 0 {
+			errorMsg.WriteRune(',')
+		}
+		errorMsg.WriteString(group.String())
+	}
+	if errorMsg.Len() == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: alert rule group [%s]", errProvisionedResource, errorMsg.String())
 }
 
-type changes struct {
-	New    []*ngmodels.AlertRule
-	Update []ruleUpdate
-	Delete []*ngmodels.AlertRule
+func validateQueries(ctx context.Context, groupChanges *store.GroupDelta, validator ConditionValidator, user identity.Requester) error {
+	if len(groupChanges.New) > 0 {
+		for _, rule := range groupChanges.New {
+			err := validator.Validate(eval.NewContext(ctx, user), rule.GetEvalCondition())
+			if err != nil {
+				return fmt.Errorf("%w '%s': %s", ngmodels.ErrAlertRuleFailedValidation, rule.Title, err.Error())
+			}
+		}
+	}
+	if len(groupChanges.Update) > 0 {
+		for _, upd := range groupChanges.Update {
+			if !shouldValidate(upd) {
+				continue
+			}
+			err := validator.Validate(eval.NewContext(ctx, user), upd.New.GetEvalCondition())
+			if err != nil {
+				return fmt.Errorf("%w '%s' (UID: %s): %s", ngmodels.ErrAlertRuleFailedValidation, upd.New.Title, upd.New.UID, err.Error())
+			}
+		}
+	}
+	return nil
 }
 
-func (c *changes) isEmpty() bool {
-	return len(c.Update)+len(c.New)+len(c.Delete) == 0
+// shouldValidate returns true if the rule is not paused and there are changes in the rule that are not ignored
+func shouldValidate(delta store.RuleDelta) bool {
+	for _, diff := range delta.Diff {
+		if !slices.Contains(ignoreFieldsForValidate[:], diff.Path) {
+			return true
+		}
+	}
+
+	// TODO: consider also checking if rule will be paused after the update
+	return false
 }
 
-// calculateChanges calculates the difference between rules in the group in the database and the submitted rules. If a submitted rule has UID it tries to find it in the database (in other groups).
-// returns a list of rules that need to be added, updated and deleted. Deleted considered rules in the database that belong to the group but do not exist in the list of submitted rules.
-func calculateChanges(ctx context.Context, ruleStore store.RuleStore, orgId int64, namespace *models.Folder, ruleGroupName string, submittedRules []*ngmodels.AlertRule) (*changes, error) {
-	q := &ngmodels.ListAlertRulesQuery{
-		OrgID:         orgId,
-		NamespaceUIDs: []string{namespace.Uid},
-		RuleGroup:     ruleGroupName,
+// getAuthorizedRuleByUid fetches the rule by uid and checks whether the user is authorized to read it.
+// Returns rule identified by provided UID or ErrAuthorization if user is not authorized to access the rule.
+func (srv RulerSrv) getAuthorizedRuleByUid(ctx context.Context, c *contextmodel.ReqContext, ruleUID string) (ngmodels.AlertRule, error) {
+	q := ngmodels.GetAlertRuleByUIDQuery{
+		UID:   ruleUID,
+		OrgID: c.GetOrgID(),
 	}
-	if err := ruleStore.ListAlertRules(ctx, q); err != nil {
-		return nil, fmt.Errorf("failed to query database for rules in the group %s: %w", ruleGroupName, err)
+	var err error
+	rule, err := srv.store.GetAlertRuleByUID(ctx, &q)
+	if err != nil {
+		return ngmodels.AlertRule{}, err
 	}
-	existingGroupRules := q.Result
+	if err := srv.authz.AuthorizeAccessInFolder(ctx, c.SignedInUser, rule); err != nil {
+		return ngmodels.AlertRule{}, err
+	}
+	return *rule, nil
+}
 
-	existingGroupRulesUIDs := make(map[string]*ngmodels.AlertRule, len(existingGroupRules))
-	for _, r := range existingGroupRules {
-		existingGroupRulesUIDs[r.UID] = r
+// getAuthorizedRuleGroup fetches rules that belong to the specified models.AlertRuleGroupKey and validate user's authorization.
+// Returns models.RuleGroup if authorization passed or ErrAuthorization if user is not authorized to access the rule.
+func (srv RulerSrv) getAuthorizedRuleGroup(ctx context.Context, c *contextmodel.ReqContext, ruleGroupKey ngmodels.AlertRuleGroupKey) (ngmodels.RulesGroup, error) {
+	q := ngmodels.ListAlertRulesQuery{
+		OrgID:         ruleGroupKey.OrgID,
+		NamespaceUIDs: []string{ruleGroupKey.NamespaceUID},
+		RuleGroups:    []string{ruleGroupKey.RuleGroup},
+	}
+	rules, err := srv.store.ListAlertRules(ctx, &q)
+	if err != nil {
+		return nil, err
+	}
+	if err := srv.authz.AuthorizeAccessToRuleGroup(ctx, c.SignedInUser, rules); err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+type authorizedRuleGroupQuery struct {
+	User          identity.Requester
+	NamespaceUIDs []string
+	DashboardUID  string
+	PanelID       int64
+}
+
+// searchAuthorizedAlertRules fetches rules according to the filters, groups them by models.AlertRuleGroupKey and filters out groups that the current user is not authorized to access.
+// Returns groups that user is authorized to access, and total count of groups returned by query
+func (srv RulerSrv) searchAuthorizedAlertRules(ctx context.Context, q authorizedRuleGroupQuery) (map[ngmodels.AlertRuleGroupKey]ngmodels.RulesGroup, int, error) {
+	query := ngmodels.ListAlertRulesQuery{
+		OrgID:         q.User.GetOrgID(),
+		NamespaceUIDs: q.NamespaceUIDs,
+		DashboardUID:  q.DashboardUID,
+		PanelID:       q.PanelID,
+	}
+	rules, err := srv.store.ListAlertRules(ctx, &query)
+	if err != nil {
+		return nil, 0, err
 	}
 
-	var toAdd, toDelete []*ngmodels.AlertRule
-	var toUpdate []ruleUpdate
-	for _, r := range submittedRules {
-		var existing *ngmodels.AlertRule = nil
+	byGroupKey := ngmodels.GroupByAlertRuleGroupKey(rules)
+	totalGroups := len(byGroupKey)
+	for groupKey, rulesGroup := range byGroupKey {
+		if ok, err := srv.authz.HasAccessToRuleGroup(ctx, q.User, rulesGroup); !ok || err != nil {
+			if err != nil {
+				return nil, 0, err
+			}
+			delete(byGroupKey, groupKey)
+		}
+	}
+	return byGroupKey, totalGroups, nil
+}
 
-		if r.UID != "" {
-			if existingGroupRule, ok := existingGroupRulesUIDs[r.UID]; ok {
-				existing = existingGroupRule
-				// remove the rule from existingGroupRulesUIDs
-				delete(existingGroupRulesUIDs, r.UID)
-			} else {
-				// Rule can be from other group or namespace
-				q := &ngmodels.GetAlertRuleByUIDQuery{OrgID: orgId, UID: r.UID}
-				if err := ruleStore.GetAlertRuleByUID(ctx, q); err != nil || q.Result == nil {
-					// if rule has UID then it is considered an update. Therefore, fail if there is no rule to update
-					if errors.Is(err, ngmodels.ErrAlertRuleNotFound) || q.Result == nil && err == nil {
-						return nil, fmt.Errorf("failed to update rule with UID %s because %w", r.UID, ngmodels.ErrAlertRuleNotFound)
-					}
-					return nil, fmt.Errorf("failed to query database for an alert rule with UID %s: %w", r.UID, err)
+// RouteUpdateNamespaceRules updates all alert rules in a namespace.
+func (srv RulerSrv) RouteUpdateNamespaceRules(c *contextmodel.ReqContext, body apimodels.UpdateNamespaceRulesRequest, namespaceUID string) response.Response {
+	if body == (apimodels.UpdateNamespaceRulesRequest{}) {
+		return ErrResp(http.StatusBadRequest, errors.New("missing request body"), "")
+	}
+
+	namespace, err := srv.store.GetNamespaceByUID(c.Req.Context(), namespaceUID, c.GetOrgID(), c.SignedInUser)
+	if err != nil {
+		return toNamespaceErrorResponse(err)
+	}
+
+	ruleGroups, _, err := srv.searchAuthorizedAlertRules(c.Req.Context(), authorizedRuleGroupQuery{
+		User:          c.SignedInUser,
+		NamespaceUIDs: []string{namespace.UID},
+	})
+	if err != nil {
+		return errorToResponse(err)
+	}
+
+	if len(ruleGroups) == 0 {
+		return response.JSON(http.StatusAccepted, apimodels.UpdateNamespaceRulesResponse{
+			Message: "no rules to update in namespace",
+		})
+	}
+
+	err = srv.xactManager.InTransaction(c.Req.Context(), func(ctx context.Context) error {
+		for groupKey, rules := range ruleGroups {
+			rulesToUpdate := make([]*ngmodels.AlertRuleWithOptionals, 0, len(rules))
+
+			for _, rule := range rules {
+				r := ngmodels.AlertRuleWithOptionals{
+					AlertRule:         *rule,
+					HasPause:          true,
+					HasEditorSettings: true,
 				}
-				existing = q.Result
+				if body.IsPaused != nil {
+					paused := *body.IsPaused
+					r.IsPaused = paused
+				}
+
+				rulesToUpdate = append(rulesToUpdate, &r)
+			}
+			_, _, err := srv.performUpdateAlertRules(ctx, c, groupKey, rulesToUpdate, false)
+			if errors.Is(err, errProvisionedResource) {
+				continue
+			}
+			if err != nil {
+				return err
 			}
 		}
 
-		if existing == nil {
-			toAdd = append(toAdd, r)
-			continue
-		}
+		return nil
+	})
 
-		ngmodels.PatchPartialAlertRule(existing, r)
-
-		diff := existing.Diff(r, alertRuleFieldsToIgnoreInDiff...)
-		if len(diff) == 0 {
-			continue
-		}
-
-		toUpdate = append(toUpdate, ruleUpdate{
-			Existing: existing,
-			New:      r,
-			Diff:     diff,
-		})
-		continue
+	if err != nil {
+		return errorToResponse(err)
 	}
 
-	for _, rule := range existingGroupRulesUIDs {
-		toDelete = append(toDelete, rule)
-	}
-
-	return &changes{
-		New:    toAdd,
-		Delete: toDelete,
-		Update: toUpdate,
-	}, nil
+	return response.JSON(http.StatusAccepted, apimodels.UpdateNamespaceRulesResponse{
+		Message: "rules updated successfully",
+	})
 }
 
-// alertRuleFieldsToIgnoreInDiff contains fields that the AlertRule.Diff should ignore
-var alertRuleFieldsToIgnoreInDiff = []string{"ID", "Version", "Updated"}
+// getUserUIDmaping returns a UserUID->UserInfo mapping from the UpdatedBy users in the RulesGroup
+func (srv RulerSrv) getUserUIDmapping(ctx context.Context, rules []*ngmodels.AlertRule) map[ngmodels.UserUID]*apimodels.UserInfo {
+	mapping := map[ngmodels.UserUID]*apimodels.UserInfo{
+		ngmodels.AlertingUserUID: {
+			UID: string(ngmodels.AlertingUserUID),
+		},
+		ngmodels.FileProvisioningUserUID: {
+			UID: string(ngmodels.FileProvisioningUserUID),
+		},
+	}
+	userUIDs := []string{}
+	for _, rule := range rules {
+		if rule == nil {
+			continue
+		}
+
+		if rule.UpdatedBy == nil {
+			continue
+		}
+
+		if _, ok := mapping[*rule.UpdatedBy]; ok {
+			// one of the system identifiers
+			continue
+		}
+
+		userUIDs = append(userUIDs, string(*rule.UpdatedBy))
+	}
+
+	if len(userUIDs) == 0 {
+		return mapping
+	}
+
+	users, err := srv.userService.ListByIdOrUID(ctx, userUIDs, []int64{})
+	if err != nil {
+		srv.log.FromContext(ctx).Warn("Failed to list users by uid. Defaulting to empty names", "uids", userUIDs, "error", err)
+		return mapping
+	}
+
+	for _, user := range users {
+		mapping[ngmodels.UserUID(user.UID)] = &apimodels.UserInfo{
+			UID:  user.UID,
+			Name: user.NameOrFallback(),
+		}
+	}
+
+	return mapping
+}
+
+func getUserFromMapping(mapping map[ngmodels.UserUID]*apimodels.UserInfo, userUID *ngmodels.UserUID) *apimodels.UserInfo {
+	if userUID == nil {
+		return nil
+	}
+
+	u, ok := mapping[*userUID]
+	if ok {
+		return u
+	}
+
+	// if user is not found or we get an error building the mapping, return empty name by default
+	return &apimodels.UserInfo{UID: string(*userUID)}
+}
+
+func getPanelIDFromQuery(v url.Values) (int64, error) {
+	if s := strings.TrimSpace(v.Get("panel_id")); s != "" {
+		return strconv.ParseInt(s, 10, 64)
+	}
+	return 0, nil
+}

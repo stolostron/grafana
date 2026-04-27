@@ -3,7 +3,10 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": "-- Grafana --",
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -21,10 +24,12 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 2,
+  "id": 93,
   "links": [],
   "liveNow": false,
   "panels": [
     {
+      "datasource": { "type": "grafana-testdata-datasource" },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -44,10 +49,7 @@
             },
             "lineInterpolation": "linear",
             "lineStyle": {
-              "dash": [
-                10,
-                10
-              ],
+              "dash": [10, 10],
               "fill": "dash"
             },
             "lineWidth": 1,
@@ -101,10 +103,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    0,
-                    20
-                  ],
+                  "dash": [0, 20],
                   "fill": "dot"
                 }
               }
@@ -169,6 +168,7 @@
       "type": "candlestick"
     },
     {
+      "datasource": { "type": "grafana-testdata-datasource" },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -254,6 +254,7 @@
       "type": "candlestick"
     },
     {
+      "datasource": { "type": "grafana-testdata-datasource" },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -339,6 +340,7 @@
       "type": "candlestick"
     },
     {
+      "datasource": { "type": "grafana-testdata-datasource" },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -458,13 +460,8 @@
     }
   ],
   "refresh": false,
-  "schemaVersion": 33,
-  "style": "dark",
-  "tags": [
-    "gdev",
-    "panel-tests",
-    "graph-ng"
-  ],
+  "schemaVersion": 36,
+  "tags": ["gdev", "panel-tests", "graph-ng"],
   "templating": {
     "list": []
   },
@@ -476,6 +473,6 @@
   "timezone": "",
   "title": "Candlestick",
   "uid": "MP-Di9F7k",
-  "version": 2,
+  "version": 1,
   "weekStart": ""
 }

@@ -1,6 +1,7 @@
 import { isEqual } from 'lodash';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
 import { AlignedData, Range } from 'uplot';
+
 import {
   compareDataFrameStructures,
   DataFrame,
@@ -9,6 +10,7 @@ import {
   FieldSparkline,
   FieldType,
   getFieldColorModeForField,
+  nullToValue,
 } from '@grafana/data';
 import {
   AxisPlacement,
@@ -19,12 +21,12 @@ import {
   ScaleOrientation,
 } from '@grafana/schema';
 
-import { Themeable2 } from '../../types';
+import { Themeable2 } from '../../types/theme';
 import { UPlotChart } from '../uPlot/Plot';
 import { UPlotConfigBuilder } from '../uPlot/config/UPlotConfigBuilder';
 import { preparePlotData2, getStackingGroups } from '../uPlot/utils';
 
-import { preparePlotFrame } from './utils';
+import { getYRange, preparePlotFrame } from './utils';
 
 export interface SparklineProps extends Themeable2 {
   width: number;
@@ -43,8 +45,10 @@ const defaultConfig: GraphFieldConfig = {
   drawStyle: GraphDrawStyle.Line,
   showPoints: VisibilityMode.Auto,
   axisPlacement: AxisPlacement.Hidden,
+  pointSize: 2,
 };
 
+/** @internal */
 export class Sparkline extends PureComponent<SparklineProps, State> {
   constructor(props: SparklineProps) {
     super(props);
@@ -59,7 +63,8 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
   }
 
   static getDerivedStateFromProps(props: SparklineProps, state: State) {
-    const frame = preparePlotFrame(props.sparkline, props.config);
+    const _frame = preparePlotFrame(props.sparkline, props.config);
+    const frame = nullToValue(_frame);
     if (!frame) {
       return { ...state };
     }
@@ -81,7 +86,12 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
     let rebuildConfig = false;
 
     if (prevProps.sparkline !== this.props.sparkline) {
-      rebuildConfig = !compareDataFrameStructures(this.state.alignedDataFrame, prevState.alignedDataFrame);
+      const isStructureChanged = !compareDataFrameStructures(this.state.alignedDataFrame, prevState.alignedDataFrame);
+      const isRangeChanged = !isEqual(
+        alignedDataFrame.fields[1].state?.range,
+        prevState.alignedDataFrame.fields[1].state?.range
+      );
+      rebuildConfig = isStructureChanged || isRangeChanged;
     } else {
       rebuildConfig = !isEqual(prevProps.config, this.props.config);
     }
@@ -91,22 +101,8 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
     }
   }
 
-  getYRange(field: Field) {
-    let { min, max } = this.state.alignedDataFrame.fields[1].state?.range!;
-
-    if (min === max) {
-      if (min === 0) {
-        max = 100;
-      } else {
-        min = 0;
-        max! *= 2;
-      }
-    }
-
-    return [
-      Math.max(min!, field.config.min ?? -Infinity),
-      Math.min(max!, field.config.max ?? Infinity),
-    ] as Range.MinMax;
+  getYRange(field: Field): Range.MinMax {
+    return getYRange(field, this.state.alignedDataFrame);
   }
 
   prepareConfig(data: DataFrame) {
@@ -133,7 +129,7 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
             return [sparkline.timeRange.from.valueOf(), sparkline.timeRange.to.valueOf()];
           }
           const vals = sparkline.x.values;
-          return [vals.get(0), vals.get(vals.length - 1)];
+          return [vals[0], vals[vals.length - 1]];
         }
         return [0, sparkline.y.values.length - 1];
       },
@@ -147,7 +143,7 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
 
     for (let i = 0; i < data.fields.length; i++) {
       const field = data.fields[i];
-      const config = field.config as FieldConfig<GraphFieldConfig>;
+      const config: FieldConfig<GraphFieldConfig> = field.config;
       const customConfig: GraphFieldConfig = {
         ...defaultConfig,
         ...config.custom,
@@ -180,6 +176,8 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
         pxAlign: false,
         scaleKey,
         theme,
+        colorMode,
+        thresholds: config.thresholds,
         drawStyle: customConfig.drawStyle!,
         lineColor: customConfig.lineColor ?? seriesColor,
         lineWidth: customConfig.lineWidth,
@@ -187,7 +185,10 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
         showPoints: pointsMode,
         pointSize: customConfig.pointSize,
         fillOpacity: customConfig.fillOpacity,
-        fillColor: customConfig.fillColor ?? seriesColor,
+        fillColor: customConfig.fillColor,
+        lineStyle: customConfig.lineStyle,
+        gradientMode: customConfig.gradientMode,
+        spanNulls: customConfig.spanNulls,
       });
     }
 
@@ -196,9 +197,7 @@ export class Sparkline extends PureComponent<SparklineProps, State> {
 
   render() {
     const { data, configBuilder } = this.state;
-    const { width, height, sparkline } = this.props;
-    return (
-      <UPlotChart data={data} config={configBuilder} width={width} height={height} timeRange={sparkline.timeRange!} />
-    );
+    const { width, height } = this.props;
+    return <UPlotChart data={data} config={configBuilder} width={width} height={height} />;
   }
 }

@@ -1,8 +1,9 @@
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
 import { connect, ConnectedProps } from 'react-redux';
 
+import { t } from '@grafana/i18n';
 import { Button, ClipboardButton } from '@grafana/ui';
-import { Invitee } from 'app/types';
+import { Invitee } from 'app/types/user';
 
 import { revokeInvite } from './state/actions';
 
@@ -26,13 +27,19 @@ class InviteeRow extends PureComponent<Props> {
         <td>{invitee.email}</td>
         <td>{invitee.name}</td>
         <td className="text-right">
-          <ClipboardButton variant="secondary" size="sm" getText={() => invitee.url}>
+          <ClipboardButton icon="copy" variant="secondary" size="sm" getText={() => invitee.url}>
             Copy Invite
           </ClipboardButton>
           &nbsp;
         </td>
         <td>
-          <Button variant="destructive" size="sm" icon="times" onClick={() => revokeInvite(invitee.code)} />
+          <Button
+            variant="destructive"
+            size="sm"
+            icon="times"
+            onClick={() => revokeInvite(invitee.code)}
+            aria-label={t('invites.invitee-row.aria-label-revoke-invite', 'Revoke invite')}
+          />
         </td>
       </tr>
     );

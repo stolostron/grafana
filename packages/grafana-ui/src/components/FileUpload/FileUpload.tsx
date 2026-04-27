@@ -1,16 +1,18 @@
 import { css, cx } from '@emotion/css';
-import React, { FC, FormEvent, useCallback, useState } from 'react';
+import { FormEvent, useCallback, useState } from 'react';
+import * as React from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { GrafanaTheme2 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
+import { t } from '@grafana/i18n';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { getFocusStyles } from '../../themes/mixins';
 import { ComponentSize } from '../../types/size';
 import { trimFileName } from '../../utils/file';
-import { getButtonStyles } from '../Button';
-import { Icon } from '../index';
+import { getButtonStyles } from '../Button/Button';
+import { Icon } from '../Icon/Icon';
 
 export interface Props {
   /** Callback function to handle uploaded file  */
@@ -21,15 +23,18 @@ export interface Props {
   className?: string;
   /** Button size */
   size?: ComponentSize;
+  /** Show the file name */
+  showFileName?: boolean;
 }
 
-export const FileUpload: FC<Props> = ({
+export const FileUpload = ({
   onFileUpload,
   className,
   children = 'Upload file',
   accept = '*',
   size = 'md',
-}) => {
+  showFileName,
+}: React.PropsWithChildren<Props>) => {
   const style = useStyles2(getStyles(size));
   const [fileName, setFileName] = useState('');
   const id = uuidv4();
@@ -56,14 +61,14 @@ export const FileUpload: FC<Props> = ({
         accept={accept}
         data-testid={selectors.components.FileUpload.inputField}
       />
-      <label role="button" htmlFor={id} className={cx(style.labelWrapper, className)}>
+      <label htmlFor={id} className={cx(style.labelWrapper, className)}>
         <Icon name="upload" className={style.icon} />
         {children}
       </label>
 
-      {fileName && (
+      {showFileName && fileName && (
         <span
-          aria-label="File name"
+          aria-label={t('grafana-ui.file-upload.file-name', 'File name')}
           className={style.fileName}
           data-testid={selectors.components.FileUpload.fileNameSpan}
         >

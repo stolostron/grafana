@@ -1,8 +1,6 @@
-import React from 'react';
-
 import { NavModelItem } from '@grafana/data';
 
-import { IconName } from '../../types';
+import { IconName } from '../../types/icon';
 import { Tab } from '../Tabs/Tab';
 import { TabsBar } from '../Tabs/TabsBar';
 
@@ -23,7 +21,7 @@ interface Props {
   onChangeTab(tab: ModalTab): void;
 }
 
-export const ModalTabsHeader: React.FC<Props> = ({ icon, title, tabs, activeTab, onChangeTab }) => {
+export const ModalTabsHeader = ({ icon, title, tabs, activeTab, onChangeTab }: Props) => {
   return (
     <ModalHeader icon={icon} title={title}>
       <TabsBar hideBorder={true}>

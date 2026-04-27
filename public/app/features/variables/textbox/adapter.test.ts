@@ -1,6 +1,7 @@
+import { VariableHide } from '@grafana/data';
+
 import { variableAdapters } from '../adapters';
 import { textboxBuilder } from '../shared/testing/builders';
-import { VariableHide } from '../types';
 
 import { createTextBoxVariableAdapter } from './adapter';
 
@@ -30,7 +31,6 @@ describe('createTextBoxVariableAdapter', () => {
           current: { selected: false, text: 'original', value: 'original' },
           options: [{ selected: false, text: 'original', value: 'original' }],
           type: 'textbox',
-          label: null,
           hide: VariableHide.dontHide,
           skipUrlSync: false,
           error: null,
@@ -61,7 +61,6 @@ describe('createTextBoxVariableAdapter', () => {
           current: { selected: true, text: 'query', value: 'query' },
           options: [{ selected: false, text: 'query', value: 'query' }],
           type: 'textbox',
-          label: null,
           hide: VariableHide.dontHide,
           skipUrlSync: false,
           error: null,

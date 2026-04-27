@@ -1,15 +1,48 @@
-import React from 'react';
+import { Meta, StoryFn } from '@storybook/react';
 
-import { QueryField } from '@grafana/ui';
+import { TypeaheadInput } from '../../types/completion';
 
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { QueryField, QueryFieldProps } from './QueryField';
 
-export default {
-  title: 'Data Source/QueryField',
+const meta: Meta<typeof QueryField> = {
+  title: 'Inputs/Deprecated/QueryField',
   component: QueryField,
-  decorators: [withCenteredStory],
+  parameters: {
+    controls: {
+      exclude: [
+        'onTypeahead',
+        'onChange',
+        'onBlur',
+        'onClick',
+        'onRunQuery',
+        'onRichValueChange',
+        'onWillApplySuggestion',
+        'portalOrigin',
+        'additionalPlugins',
+        'cleanText',
+        'syntax',
+        'syntaxLoaded',
+      ],
+    },
+    // TODO fix a11y issue in story and remove this
+    a11y: { test: 'off' },
+  },
+  argTypes: {
+    query: {
+      control: 'text',
+    },
+  },
 };
 
-export const basic = () => {
-  return <QueryField portalOrigin="mock-origin" query="" />;
+export const Basic: StoryFn<typeof QueryField> = (args: Omit<QueryFieldProps, 'theme'>) => <QueryField {...args} />;
+
+Basic.args = {
+  onTypeahead: async (_input: TypeaheadInput) => ({
+    suggestions: [],
+  }),
+  query: 'Query text',
+  placeholder: 'Placeholder text',
+  disabled: false,
 };
+
+export default meta;

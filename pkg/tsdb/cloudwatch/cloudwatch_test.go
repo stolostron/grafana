@@ -2,33 +2,36 @@ package cloudwatch
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	awsrequest "github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	"github.com/aws/aws-sdk-go/service/cloudwatch/cloudwatchiface"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs/cloudwatchlogsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	cloudwatchlogstypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
+
 	"github.com/google/go-cmp/cmp"
+	"github.com/grafana/grafana-aws-sdk/pkg/awsauth"
 	"github.com/grafana/grafana-aws-sdk/pkg/awsds"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
-	"github.com/grafana/grafana/pkg/infra/httpclient"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/proxy"
+	"github.com/grafana/grafana/pkg/tsdb/cloudwatch/features"
+	"github.com/grafana/grafana/pkg/tsdb/cloudwatch/mocks"
+	"github.com/grafana/grafana/pkg/tsdb/cloudwatch/models"
+	"github.com/grafana/grafana/pkg/tsdb/cloudwatch/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewInstanceSettings(t *testing.T) {
+	ctxDuration := 10 * time.Minute
 	tests := []struct {
 		name       string
 		settings   backend.DataSourceInstanceSettings
-		expectedDS datasourceInfo
+		settingCtx context.Context
+		expectedDS *DataSource
 		Err        require.ErrorAssertionFunc
 	}{
 		{
@@ -48,16 +51,36 @@ func TestNewInstanceSettings(t *testing.T) {
 					"secretKey": "secret",
 				},
 			},
-			expectedDS: datasourceInfo{
-				profile:       "foo",
-				region:        "us-east2",
-				assumeRoleARN: "role",
-				externalID:    "id",
-				endpoint:      "bar",
-				namespace:     "ns",
-				authType:      awsds.AuthTypeKeys,
-				accessKey:     "A123",
-				secretKey:     "secret",
+			settingCtx: backend.WithGrafanaConfig(context.Background(), backend.NewGrafanaCfg(map[string]string{
+				awsds.AllowedAuthProvidersEnvVarKeyName:  "foo , bar,baz",
+				awsds.AssumeRoleEnabledEnvVarKeyName:     "false",
+				awsds.SessionDurationEnvVarKeyName:       "10m",
+				awsds.GrafanaAssumeRoleExternalIdKeyName: "mock_id",
+				awsds.ListMetricsPageLimitKeyName:        "50",
+				proxy.PluginSecureSocksProxyEnabled:      "true",
+			})),
+			expectedDS: &DataSource{
+				Settings: models.CloudWatchSettings{
+					AWSDatasourceSettings: awsds.AWSDatasourceSettings{
+						Profile:       "foo",
+						Region:        "us-east2",
+						AssumeRoleARN: "role",
+						ExternalID:    "id",
+						Endpoint:      "bar",
+						AuthType:      awsds.AuthTypeKeys,
+						AccessKey:     "A123",
+						SecretKey:     "secret",
+					},
+					Namespace: "ns",
+					GrafanaSettings: awsds.AuthSettings{
+						AllowedAuthProviders:      []string{"foo", "bar", "baz"},
+						AssumeRoleEnabled:         false,
+						SessionDuration:           &ctxDuration,
+						ExternalID:                "mock_id",
+						ListMetricsPageLimit:      50,
+						SecureSocksDSProxyEnabled: true,
+					},
+				},
 			},
 			Err: require.NoError,
 		},
@@ -65,23 +88,23 @@ func TestNewInstanceSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := NewInstanceSettings(httpclient.NewProvider())
-			model, err := f(tt.settings)
+			instance, err := NewDatasource(tt.settingCtx, tt.settings)
+			ds := instance.(*DataSource)
 			tt.Err(t, err)
-			datasourceComparer := cmp.Comparer(func(d1 datasourceInfo, d2 datasourceInfo) bool {
-				return d1.profile == d2.profile &&
-					d1.region == d2.region &&
-					d1.authType == d2.authType &&
-					d1.assumeRoleARN == d2.assumeRoleARN &&
-					d1.externalID == d2.externalID &&
-					d1.namespace == d2.namespace &&
-					d1.endpoint == d2.endpoint &&
-					d1.accessKey == d2.accessKey &&
-					d1.secretKey == d2.secretKey &&
-					d1.datasourceID == d2.datasourceID
+			assert.Equal(t, tt.expectedDS.Settings.GrafanaSettings, ds.Settings.GrafanaSettings)
+			datasourceComparer := cmp.Comparer(func(d1 *DataSource, d2 *DataSource) bool {
+				return d1.Settings.Profile == d2.Settings.Profile &&
+					d1.Settings.Region == d2.Settings.Region &&
+					d1.Settings.AuthType == d2.Settings.AuthType &&
+					d1.Settings.AssumeRoleARN == d2.Settings.AssumeRoleARN &&
+					d1.Settings.ExternalID == d2.Settings.ExternalID &&
+					d1.Settings.Namespace == d2.Settings.Namespace &&
+					d1.Settings.Endpoint == d2.Settings.Endpoint &&
+					d1.Settings.AccessKey == d2.Settings.AccessKey &&
+					d1.Settings.SecretKey == d2.Settings.SecretKey
 			})
-			if !cmp.Equal(model.(datasourceInfo), tt.expectedDS, datasourceComparer) {
-				t.Errorf("Unexpected result. Expecting\n%v \nGot:\n%v", model, tt.expectedDS)
+			if !cmp.Equal(instance.(*DataSource), tt.expectedDS, datasourceComparer) {
+				t.Errorf("Unexpected result. Expecting\n%v \nGot:\n%v", instance, tt.expectedDS)
 			}
 		})
 	}
@@ -90,29 +113,29 @@ func TestNewInstanceSettings(t *testing.T) {
 func Test_CheckHealth(t *testing.T) {
 	origNewCWClient := NewCWClient
 	origNewCWLogsClient := NewCWLogsClient
+	origNewLogsAPI := NewLogsAPI
+
 	t.Cleanup(func() {
 		NewCWClient = origNewCWClient
 		NewCWLogsClient = origNewCWLogsClient
+		NewLogsAPI = origNewLogsAPI
 	})
 
 	var client fakeCheckHealthClient
-	NewCWClient = func(sess *session.Session) cloudwatchiface.CloudWatchAPI {
+	NewCWClient = func(aws.Config) models.CWClient {
 		return client
 	}
-	NewCWLogsClient = func(sess *session.Session) cloudwatchlogsiface.CloudWatchLogsAPI {
+	NewLogsAPI = func(aws.Config) models.CloudWatchLogsAPIProvider {
 		return client
 	}
 
 	t.Run("successfully query metrics and logs", func(t *testing.T) {
 		client = fakeCheckHealthClient{}
-		im := datasource.NewInstanceManager(func(s backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-			return datasourceInfo{}, nil
+		ds := newTestDatasource(func(ds *DataSource) {
+			ds.Settings.Region = "us-east-1"
 		})
-		executor := newExecutor(im, newTestConfig(), &fakeSessionCache{})
-
-		resp, err := executor.CheckHealth(context.Background(), &backend.CheckHealthRequest{
-			PluginContext: backend.PluginContext{DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{}},
-		})
+		resp, err := ds.CheckHealth(context.Background(), &backend.CheckHealthRequest{
+			PluginContext: backend.PluginContext{DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{}}})
 
 		assert.NoError(t, err)
 		assert.Equal(t, &backend.CheckHealthResult{
@@ -122,17 +145,15 @@ func Test_CheckHealth(t *testing.T) {
 	})
 
 	t.Run("successfully queries metrics, fails during logs query", func(t *testing.T) {
-		client = fakeCheckHealthClient{
-			describeLogGroupsWithContext: func(ctx aws.Context, input *cloudwatchlogs.DescribeLogGroupsInput,
-				options ...awsrequest.Option) (*cloudwatchlogs.DescribeLogGroupsOutput, error) {
-				return nil, fmt.Errorf("some logs query error")
-			}}
-		im := datasource.NewInstanceManager(func(s backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-			return datasourceInfo{}, nil
+		ds := newTestDatasource(func(ds *DataSource) {
+			ds.Settings.Region = "us-east-1"
 		})
-		executor := newExecutor(im, newTestConfig(), &fakeSessionCache{})
-
-		resp, err := executor.CheckHealth(context.Background(), &backend.CheckHealthRequest{
+		client = fakeCheckHealthClient{
+			describeLogGroupsFunction: func(context.Context, *cloudwatchlogs.DescribeLogGroupsInput, ...func(*cloudwatchlogs.Options)) (*cloudwatchlogs.DescribeLogGroupsOutput, error) {
+				return nil, fmt.Errorf("some logs query error")
+			},
+		}
+		resp, err := ds.CheckHealth(context.Background(), &backend.CheckHealthRequest{
 			PluginContext: backend.PluginContext{DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{}},
 		})
 
@@ -144,16 +165,15 @@ func Test_CheckHealth(t *testing.T) {
 	})
 
 	t.Run("successfully queries logs, fails during metrics query", func(t *testing.T) {
-		client = fakeCheckHealthClient{
-			listMetricsPages: func(input *cloudwatch.ListMetricsInput, fn func(*cloudwatch.ListMetricsOutput, bool) bool) error {
-				return fmt.Errorf("some list metrics error")
-			}}
-		im := datasource.NewInstanceManager(func(s backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-			return datasourceInfo{}, nil
+		ds := newTestDatasource(func(ds *DataSource) {
+			ds.Settings.Region = "us-east-1"
+			ds.Settings.GrafanaSettings.ListMetricsPageLimit = 1
 		})
-		executor := newExecutor(im, newTestConfig(), &fakeSessionCache{})
-
-		resp, err := executor.CheckHealth(context.Background(), &backend.CheckHealthRequest{
+		client = fakeCheckHealthClient{
+			listMetricsFunction: func(context.Context, *cloudwatch.ListMetricsInput, ...func(*cloudwatch.Options)) (*cloudwatch.ListMetricsOutput, error) {
+				return nil, fmt.Errorf("some list metrics error")
+			}}
+		resp, err := ds.CheckHealth(context.Background(), &backend.CheckHealthRequest{
 			PluginContext: backend.PluginContext{DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{}},
 		})
 
@@ -166,84 +186,101 @@ func Test_CheckHealth(t *testing.T) {
 
 	t.Run("fail to get clients", func(t *testing.T) {
 		client = fakeCheckHealthClient{}
-		im := datasource.NewInstanceManager(func(s backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-			return datasourceInfo{}, nil
+		ds := newTestDatasource(func(ds *DataSource) {
+			ds.AWSConfigProvider = awsauth.NewFakeConfigProvider(true)
+			ds.Settings.Region = "us-east-1"
 		})
-		executor := newExecutor(im, newTestConfig(), &fakeSessionCache{getSession: func(c awsds.SessionConfig) (*session.Session, error) {
-			return nil, fmt.Errorf("some sessions error")
-		}})
-
-		resp, err := executor.CheckHealth(context.Background(), &backend.CheckHealthRequest{
+		resp, err := ds.CheckHealth(context.Background(), &backend.CheckHealthRequest{
 			PluginContext: backend.PluginContext{DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{}},
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, &backend.CheckHealthResult{
 			Status:  backend.HealthStatusError,
-			Message: "1. CloudWatch metrics query failed: some sessions error\n2. CloudWatch logs query failed: some sessions error",
+			Message: "1. CloudWatch metrics query failed: LoadDefaultConfig failed\n2. CloudWatch logs query failed: LoadDefaultConfig failed",
 		}, resp)
 	})
 }
-func Test_executeLogAlertQuery(t *testing.T) {
-	origNewCWClient := NewCWClient
-	t.Cleanup(func() {
-		NewCWClient = origNewCWClient
+
+func TestGetAWSConfig_passes_authSettings(t *testing.T) {
+	// TODO: update this for the new auth structure, or remove it
+	t.Skip()
+	ctxDuration := 15 * time.Minute
+	expectedSettings := awsds.AuthSettings{
+		AllowedAuthProviders:      []string{"foo", "bar", "baz"},
+		AssumeRoleEnabled:         false,
+		SessionDuration:           &ctxDuration,
+		ExternalID:                "mock_id",
+		ListMetricsPageLimit:      50,
+		SecureSocksDSProxyEnabled: true,
+	}
+	ds := newTestDatasource(func(ds *DataSource) {
+		ds.Settings.Region = "us-east-1"
+		ds.Settings.GrafanaSettings = expectedSettings
 	})
 
-	var cli fakeCWLogsClient
-	NewCWLogsClient = func(sess *session.Session) cloudwatchlogsiface.CloudWatchLogsAPI {
-		return &cli
+	_, err := ds.getAWSConfig(context.Background(), "us-east-1")
+	require.NoError(t, err)
+}
+
+func TestQuery_ResourceRequest_DescribeLogGroups_with_CrossAccountQuerying(t *testing.T) {
+	sender := &mockedCallResourceResponseSenderForOauth{}
+	origNewMetricsAPI := NewCWClient
+	origNewOAMAPI := NewOAMAPI
+	origNewLogsAPI := NewLogsAPI
+	origNewEC2API := NewEC2API
+	NewCWClient = func(aws.Config) models.CWClient { return nil }
+	NewOAMAPI = func(aws.Config) models.OAMAPIProvider { return nil }
+	NewEC2API = func(aws.Config) models.EC2APIProvider { return nil }
+	t.Cleanup(func() {
+		NewOAMAPI = origNewOAMAPI
+		NewCWClient = origNewMetricsAPI
+		NewLogsAPI = origNewLogsAPI
+		NewEC2API = origNewEC2API
+	})
+
+	var logsApi mocks.LogsAPI
+	NewLogsAPI = func(aws.Config) models.CloudWatchLogsAPIProvider {
+		return &logsApi
 	}
 
-	t.Run("getCWLogsClient is called with region from input JSON", func(t *testing.T) {
-		cli = fakeCWLogsClient{queryResults: cloudwatchlogs.GetQueryResultsOutput{Status: aws.String("Complete")}}
-		im := datasource.NewInstanceManager(func(s backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-			return datasourceInfo{}, nil
-		})
-		sess := fakeSessionCache{}
-		executor := newExecutor(im, newTestConfig(), &sess)
-
-		_, err := executor.QueryData(context.Background(), &backend.QueryDataRequest{
-			Headers:       map[string]string{"FromAlert": "some value"},
-			PluginContext: backend.PluginContext{DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{}},
-			Queries: []backend.DataQuery{
-				{
-					TimeRange: backend.TimeRange{From: time.Unix(0, 0), To: time.Unix(1, 0)},
-					JSON: json.RawMessage(`{
-						"queryMode":    "Logs",
-						"region": "some region"
-					}`),
-				},
+	t.Run("maps log group api response to resource response of log-groups", func(t *testing.T) {
+		logsApi = mocks.LogsAPI{}
+		logsApi.On("DescribeLogGroups", mock.Anything).Return(&cloudwatchlogs.DescribeLogGroupsOutput{
+			LogGroups: []cloudwatchlogstypes.LogGroup{
+				{Arn: aws.String("arn:aws:logs:us-east-1:111:log-group:group_a"), LogGroupName: aws.String("group_a")},
 			},
-		})
-
-		assert.NoError(t, err)
-		assert.Equal(t, []string{"some region"}, sess.calledRegions)
-	})
-
-	t.Run("getCWLogsClient is called with region from instance manager when region is default", func(t *testing.T) {
-		cli = fakeCWLogsClient{queryResults: cloudwatchlogs.GetQueryResultsOutput{Status: aws.String("Complete")}}
-		im := datasource.NewInstanceManager(func(s backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-			return datasourceInfo{region: "instance manager's region"}, nil
-		})
-		sess := fakeSessionCache{}
-
-		executor := newExecutor(im, newTestConfig(), &sess)
-		_, err := executor.QueryData(context.Background(), &backend.QueryDataRequest{
-			Headers:       map[string]string{"FromAlert": "some value"},
-			PluginContext: backend.PluginContext{DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{}},
-			Queries: []backend.DataQuery{
-				{
-					TimeRange: backend.TimeRange{From: time.Unix(0, 0), To: time.Unix(1, 0)},
-					JSON: json.RawMessage(`{
-						"queryMode":    "Logs",
-						"region": "default"
-					}`),
-				},
+		}, nil)
+		req := &backend.CallResourceRequest{
+			Method: "GET",
+			Path:   `/log-groups?logGroupPattern=some-pattern&accountId=some-account-id`,
+			PluginContext: backend.PluginContext{
+				DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{ID: 0},
+				PluginID:                   "cloudwatch",
 			},
-		})
+		}
 
+		ds := newTestDatasource()
+
+		err := ds.CallResource(contextWithFeaturesEnabled(features.FlagCloudWatchCrossAccountQuerying), req, sender)
 		assert.NoError(t, err)
-		assert.Equal(t, []string{"instance manager's region"}, sess.calledRegions)
+
+		assert.JSONEq(t, `[
+		   {
+			  "accountId":"111",
+			  "value":{
+				 "arn":"arn:aws:logs:us-east-1:111:log-group:group_a",
+				 "name":"group_a"
+			  }
+		   }
+		]`, string(sender.Response.Body))
+
+		logsApi.AssertCalled(t, "DescribeLogGroups",
+			&cloudwatchlogs.DescribeLogGroupsInput{
+				AccountIdentifiers:    []string{"some-account-id"},
+				IncludeLinkedAccounts: utils.Pointer(true),
+				Limit:                 aws.Int32(50),
+				LogGroupNamePrefix:    utils.Pointer("some-pattern"),
+			})
 	})
 }

@@ -3,7 +3,7 @@ import { forEach, sortBy } from 'lodash';
 import { SelectableValue } from '@grafana/data';
 
 import { FuncDefs, FuncInstance, ParamDef } from '../gfunc';
-import { GraphiteSegment } from '../types';
+import { GraphiteQuery, GraphiteQueryType, GraphiteSegment } from '../types';
 
 import { EditableParam } from './FunctionParamEditor';
 
@@ -22,7 +22,7 @@ export function mapSegmentsToSelectables(segments: GraphiteSegment[]): Array<Sel
 }
 
 export function mapFuncDefsToSelectables(funcDefs: FuncDefs): Array<SelectableValue<string>> {
-  const categories: any = {};
+  const categories: Record<string, SelectableValue<string>> = {};
 
   forEach(funcDefs, (funcDef) => {
     if (!funcDef.category) {
@@ -77,4 +77,15 @@ export function mapFuncInstanceToParams(func: FuncInstance): EditableParam[] {
   }
 
   return params;
+}
+
+export function convertToGraphiteQueryObject(query: string | GraphiteQuery): GraphiteQuery {
+  if (typeof query === 'string') {
+    return {
+      refId: 'A',
+      target: query,
+      queryType: GraphiteQueryType.Default.toString(),
+    };
+  }
+  return query;
 }

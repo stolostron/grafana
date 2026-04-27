@@ -1,12 +1,14 @@
 import { DataSourceSettings, PluginType, PluginInclude, NavModel, NavModelItem } from '@grafana/data';
+import { t } from '@grafana/i18n';
 import { featureEnabled } from '@grafana/runtime';
 import { ProBadge } from 'app/core/components/Upgrade/ProBadge';
 import config from 'app/core/config';
 import { contextSrv } from 'app/core/core';
-import { AccessControlAction } from 'app/types';
+import { highlightTrial } from 'app/features/admin/utils';
+import { AccessControlAction } from 'app/types/accessControl';
+import icnDatasourceSvg from 'img/icn-datasource.svg';
 
-import { highlightTrial } from '../../admin/utils';
-import { GenericDataSourcePlugin } from '../settings/PluginSettings';
+import { GenericDataSourcePlugin } from '../types';
 
 const loadingDSType = 'Loading';
 
@@ -16,16 +18,14 @@ export function buildNavModel(dataSource: DataSourceSettings, plugin: GenericDat
   const navModel: NavModelItem = {
     img: pluginMeta.info.logos.large,
     id: 'datasource-' + dataSource.uid,
-    subTitle: `Type: ${pluginMeta.name}`,
     url: '',
     text: dataSource.name,
-    breadcrumbs: [{ title: 'Data Sources', url: 'datasources' }],
     children: [
       {
         active: false,
         icon: 'sliders-v-alt',
         id: `datasource-settings-${dataSource.uid}`,
-        text: 'Settings',
+        text: t('datasources.build-nav-model.nav-model.text.settings', 'Settings'),
         url: `datasources/edit/${dataSource.uid}/`,
       },
     ],
@@ -48,7 +48,7 @@ export function buildNavModel(dataSource: DataSourceSettings, plugin: GenericDat
       active: false,
       icon: 'apps',
       id: `datasource-dashboards-${dataSource.uid}`,
-      text: 'Dashboards',
+      text: t('datasources.build-nav-model.text.dashboards', 'Dashboards'),
       url: `datasources/edit/${dataSource.uid}/dashboards`,
     });
   }
@@ -60,7 +60,7 @@ export function buildNavModel(dataSource: DataSourceSettings, plugin: GenericDat
     active: false,
     icon: 'lock',
     id: `datasource-permissions-${dataSource.uid}`,
-    text: 'Permissions',
+    text: t('datasources.build-nav-model.ds-permissions.text.permissions', 'Permissions'),
     url: `datasources/edit/${dataSource.uid}/permissions`,
   };
 
@@ -68,8 +68,8 @@ export function buildNavModel(dataSource: DataSourceSettings, plugin: GenericDat
     dsPermissions.tabSuffix = () => ProBadge({ experimentId: permissionsExperimentId, eventVariant: 'trial' });
   }
 
-  if (featureEnabled('dspermissions')) {
-    if (contextSrv.hasPermission(AccessControlAction.DataSourcesPermissionsRead)) {
+  if (featureEnabled('dspermissions.enforcement')) {
+    if (contextSrv.hasPermissionInMetadata(AccessControlAction.DataSourcesPermissionsRead, dataSource)) {
       navModel.children!.push(dsPermissions);
     }
   } else if (highlightsEnabled && !isLoadingNav) {
@@ -80,27 +80,31 @@ export function buildNavModel(dataSource: DataSourceSettings, plugin: GenericDat
     });
   }
 
-  const analyticsExperimentId = 'feature-highlights-data-source-insights-badge';
-  const analytics: NavModelItem = {
-    active: false,
-    icon: 'info-circle',
-    id: `datasource-insights-${dataSource.uid}`,
-    text: 'Insights',
-    url: `datasources/edit/${dataSource.uid}/insights`,
-  };
+  if (config.analytics?.enabled) {
+    const analyticsExperimentId = 'feature-highlights-data-source-insights-badge';
+    const analytics: NavModelItem = {
+      active: false,
+      icon: 'info-circle',
+      id: `datasource-insights-${dataSource.uid}`,
+      text: t('datasources.build-nav-model.analytics.text.insights', 'Insights'),
+      url: `datasources/edit/${dataSource.uid}/insights`,
+    };
 
-  if (highlightTrial() && !isLoadingNav) {
-    analytics.tabSuffix = () => ProBadge({ experimentId: analyticsExperimentId, eventVariant: 'trial' });
-  }
+    if (highlightTrial() && !isLoadingNav) {
+      analytics.tabSuffix = () => ProBadge({ experimentId: analyticsExperimentId, eventVariant: 'trial' });
+    }
 
-  if (featureEnabled('analytics')) {
-    navModel.children!.push(analytics);
-  } else if (highlightsEnabled && !isLoadingNav) {
-    navModel.children!.push({
-      ...analytics,
-      url: analytics.url + '/upgrade',
-      tabSuffix: () => ProBadge({ experimentId: analyticsExperimentId }),
-    });
+    if (featureEnabled('analytics')) {
+      if (contextSrv.hasPermission(AccessControlAction.DataSourcesInsightsRead)) {
+        navModel.children!.push(analytics);
+      }
+    } else if (highlightsEnabled && !isLoadingNav) {
+      navModel.children!.push({
+        ...analytics,
+        url: analytics.url + '/upgrade',
+        tabSuffix: () => ProBadge({ experimentId: analyticsExperimentId }),
+      });
+    }
   }
 
   const cachingExperimentId = 'feature-highlights-query-caching-badge';
@@ -109,7 +113,7 @@ export function buildNavModel(dataSource: DataSourceSettings, plugin: GenericDat
     active: false,
     icon: 'database',
     id: `datasource-cache-${dataSource.uid}`,
-    text: 'Cache',
+    text: t('datasources.build-nav-model.caching.text.cache', 'Cache'),
     url: `datasources/edit/${dataSource.uid}/cache`,
     hideFromTabs: !pluginMeta.isBackend || !config.caching.enabled,
   };
@@ -119,7 +123,9 @@ export function buildNavModel(dataSource: DataSourceSettings, plugin: GenericDat
   }
 
   if (featureEnabled('caching')) {
-    navModel.children!.push(caching);
+    if (contextSrv.hasPermissionInMetadata(AccessControlAction.DataSourcesCachingRead, dataSource)) {
+      navModel.children!.push(caching);
+    }
   } else if (highlightsEnabled && !isLoadingNav) {
     navModel.children!.push({
       ...caching,
@@ -154,7 +160,6 @@ export function getDataSourceLoadingNav(pageName: string): NavModel {
       access: '',
       basicAuth: false,
       basicAuthUser: '',
-      basicAuthPassword: '',
       withCredentials: false,
       database: '',
       id: 1,
@@ -163,11 +168,10 @@ export function getDataSourceLoadingNav(pageName: string): NavModel {
       jsonData: { authType: 'credentials', defaultRegion: 'eu-west-2' },
       name: 'Loading',
       orgId: 1,
-      password: '',
       readOnly: false,
       type: loadingDSType,
       typeName: loadingDSType,
-      typeLogoUrl: 'public/img/icn-datasource.svg',
+      typeLogoUrl: icnDatasourceSvg,
       url: '',
       user: '',
       secureJsonFields: {},

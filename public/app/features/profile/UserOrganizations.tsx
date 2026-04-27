@@ -1,9 +1,9 @@
-import { Trans } from '@lingui/macro';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
 
 import { selectors } from '@grafana/e2e-selectors';
-import { Button, LoadingPlaceholder } from '@grafana/ui';
-import { UserDTO, UserOrg } from 'app/types';
+import { Trans, t } from '@grafana/i18n';
+import { Button, LoadingPlaceholder, ScrollContainer } from '@grafana/ui';
+import { UserDTO, UserOrg } from 'app/types/user';
 
 export interface Props {
   user: UserDTO | null;
@@ -17,7 +17,11 @@ export class UserOrganizations extends PureComponent<Props> {
     const { isLoading, orgs, user } = this.props;
 
     if (isLoading) {
-      return <LoadingPlaceholder text="Loading organizations..." />;
+      return (
+        <LoadingPlaceholder
+          text={t('profile.user-organizations.text-loading-organizations', 'Loading organizations...')}
+        />
+      );
     }
 
     if (orgs.length === 0) {
@@ -27,18 +31,18 @@ export class UserOrganizations extends PureComponent<Props> {
     return (
       <div>
         <h3 className="page-sub-heading">
-          <Trans id="user-orgs.title">Organizations</Trans>
+          <Trans i18nKey="user-orgs.title">Organizations</Trans>
         </h3>
 
-        <div className="gf-form-group">
+        <ScrollContainer overflowY="visible" overflowX="auto" width="100%">
           <table className="filter-table form-inline" data-testid={selectors.components.UserProfile.orgsTable}>
             <thead>
               <tr>
                 <th>
-                  <Trans id="user-orgs.name-column">Name</Trans>
+                  <Trans i18nKey="user-orgs.name-column">Name</Trans>
                 </th>
                 <th>
-                  <Trans id="user-orgs.role-column">Role</Trans>
+                  <Trans i18nKey="user-orgs.role-column">Role</Trans>
                 </th>
                 <th />
               </tr>
@@ -52,7 +56,7 @@ export class UserOrganizations extends PureComponent<Props> {
                     <td className="text-right">
                       {org.orgId === user?.orgId ? (
                         <Button variant="secondary" size="sm" disabled>
-                          <Trans id="user-orgs.current-org-button">Current</Trans>
+                          <Trans i18nKey="user-orgs.current-org-button">Current</Trans>
                         </Button>
                       ) : (
                         <Button
@@ -62,7 +66,7 @@ export class UserOrganizations extends PureComponent<Props> {
                             this.props.setUserOrg(org);
                           }}
                         >
-                          <Trans id="user-orgs.select-org-button">Select organisation</Trans>
+                          <Trans i18nKey="user-orgs.select-org-button">Select organisation</Trans>
                         </Button>
                       )}
                     </td>
@@ -71,7 +75,7 @@ export class UserOrganizations extends PureComponent<Props> {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollContainer>
       </div>
     );
   }

@@ -1,7 +1,11 @@
-import React from 'react';
+import * as React from 'react';
 
 import { PluginMeta } from '@grafana/data';
+import { Trans } from '@grafana/i18n';
+import { reportInteraction } from '@grafana/runtime';
 import { Button } from '@grafana/ui';
+import { contextSrv } from 'app/core/core';
+import { AccessControlAction } from 'app/types/accessControl';
 
 import { updatePluginSettings } from '../../api';
 import { usePluginConfig } from '../../hooks/usePluginConfig';
@@ -17,17 +21,34 @@ export function GetStartedWithApp({ plugin }: Props): React.ReactElement | null 
   if (!pluginConfig) {
     return null;
   }
+  // Enforce RBAC
+  if (!contextSrv.hasPermission(AccessControlAction.PluginsWrite)) {
+    return null;
+  }
 
-  const { enabled, jsonData } = pluginConfig?.meta;
+  const { enabled, autoEnabled, jsonData } = pluginConfig?.meta;
 
-  const enable = () =>
+  const enable = () => {
+    reportInteraction('plugins_detail_enable_clicked', {
+      path: window.location.pathname,
+      plugin_id: plugin.id,
+      creator_team: 'grafana_plugins_catalog',
+      schema_version: '1.0.0',
+    });
     updatePluginSettingsAndReload(plugin.id, {
       enabled: true,
       pinned: true,
       jsonData,
     });
+  };
 
   const disable = () => {
+    reportInteraction('plugins_detail_disable_clicked', {
+      path: window.location.pathname,
+      plugin_id: plugin.id,
+      creator_team: 'grafana_plugins_catalog',
+      schema_version: '1.0.0',
+    });
     updatePluginSettingsAndReload(plugin.id, {
       enabled: false,
       pinned: false,
@@ -39,13 +60,13 @@ export function GetStartedWithApp({ plugin }: Props): React.ReactElement | null 
     <>
       {!enabled && (
         <Button variant="primary" onClick={enable}>
-          Enable
+          <Trans i18nKey="plugins.get-started-with-app.enable">Enable</Trans>
         </Button>
       )}
 
-      {enabled && (
+      {enabled && !autoEnabled && (
         <Button variant="destructive" onClick={disable}>
-          Disable
+          <Trans i18nKey="plugins.get-started-with-app.disable">Disable</Trans>
         </Button>
       )}
     </>

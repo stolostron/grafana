@@ -1,21 +1,29 @@
-import React from 'react';
-import { RouteComponentProps } from 'react-router-dom';
+import { Location } from 'history';
+import { ComponentType } from 'react';
 
 import { UrlQueryMap } from '@grafana/data';
 
-export interface GrafanaRouteComponentProps<T = {}, Q = UrlQueryMap> extends RouteComponentProps<T> {
+export interface GrafanaRouteComponentProps<T extends {} = {}, Q = UrlQueryMap> {
   route: RouteDescriptor;
   queryParams: Q;
+  location: Location;
 }
 
-export type GrafanaRouteComponent<T = any> = React.ComponentType<GrafanaRouteComponentProps<T>>;
+export type GrafanaRouteComponent<T extends {} = any> = ComponentType<GrafanaRouteComponentProps<T>>;
 
 export interface RouteDescriptor {
   path: string;
-  component: GrafanaRouteComponent<any>;
+  component: GrafanaRouteComponent;
   roles?: () => string[];
   pageClass?: string;
   /** Can be used like an id for the route if the same component is used by many routes */
   routeName?: string;
-  exact?: boolean;
+  chromeless?: boolean;
+  sensitive?: boolean;
+
+  /**
+   * Allow the route to be access by anonymous users.
+   * Currently only used if the `multiTenantFrontend` feature toggle is enabled.
+   */
+  allowAnonymous?: boolean;
 }

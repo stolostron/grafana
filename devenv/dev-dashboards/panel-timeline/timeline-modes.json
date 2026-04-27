@@ -3,7 +3,10 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": "-- Grafana --",
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -19,11 +22,14 @@
     ]
   },
   "editable": true,
+  "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 329,
+  "id": 78,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
+      "datasource": { "type": "grafana-testdata-datasource" },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -31,7 +37,8 @@
           },
           "custom": {
             "fillOpacity": 70,
-            "lineWidth": 1
+            "lineWidth": 1,
+            "spanNulls": false
           },
           "mappings": [],
           "thresholds": {
@@ -82,26 +89,11 @@
           },
           "lines": 10,
           "points": [
-            [
-              0,
-              1616551651000
-            ],
-            [
-              1,
-              1616556554000
-            ],
-            [
-              2,
-              1616559873000
-            ],
-            [
-              0,
-              1616561077000
-            ],
-            [
-              3,
-              1616563090000
-            ]
+            [0, 1616551651000],
+            [1, 1616556554000],
+            [2, 1616559873000],
+            [0, 1616561077000],
+            [3, 1616563090000]
           ],
           "pulseWave": {
             "offCount": 3,
@@ -130,22 +122,10 @@
           "hide": false,
           "lines": 10,
           "points": [
-            [
-              4,
-              1616555060000
-            ],
-            [
-              5,
-              1616560081000
-            ],
-            [
-              4,
-              1616562217000
-            ],
-            [
-              5,
-              1616565458000
-            ]
+            [4, 1616555060000],
+            [5, 1616560081000],
+            [4, 1616562217000],
+            [5, 1616565458000]
           ],
           "pulseWave": {
             "offCount": 3,
@@ -167,31 +147,13 @@
         },
         {
           "points": [
-            [
-              4,
-              1616557148000
-            ],
-            [
-              1616558756000
-            ],
-            [
-              4,
-              1616561658000
-            ],
-            [
-              1616562446000
-            ],
-            [
-              4,
-              1616564104000
-            ],
-            [
-              1616564548000
-            ],
-            [
-              4,
-              1616564871000
-            ]
+            [4, 1616557148000],
+            [1616558756000],
+            [4, 1616561658000],
+            [1616562446000],
+            [4, 1616564104000],
+            [1616564548000],
+            [4, 1616564871000]
           ],
           "refId": "C",
           "scenarioId": "manual_entry"
@@ -201,6 +163,7 @@
       "type": "state-timeline"
     },
     {
+      "datasource": { "type": "grafana-testdata-datasource" },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -208,7 +171,8 @@
           },
           "custom": {
             "fillOpacity": 70,
-            "lineWidth": 1
+            "lineWidth": 1,
+            "spanNulls": false
           },
           "mappings": [],
           "thresholds": {
@@ -273,6 +237,7 @@
       "type": "state-timeline"
     },
     {
+      "datasource": { "type": "grafana-testdata-datasource" },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -361,13 +326,8 @@
     }
   ],
   "refresh": false,
-  "schemaVersion": 33,
-  "style": "dark",
-  "tags": [
-    "gdev",
-    "panel-tests",
-    "graph-ng"
-  ],
+  "schemaVersion": 36,
+  "tags": ["gdev", "panel-tests", "graph-ng"],
   "templating": {
     "list": []
   },
@@ -379,5 +339,6 @@
   "timezone": "utc",
   "title": "Timeline Modes",
   "uid": "mIJjFy8Gz",
-  "version": 13
+  "version": 6,
+  "weekStart": ""
 }

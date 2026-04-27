@@ -1,17 +1,16 @@
-import { Story } from '@storybook/react';
-import React, { useState } from 'react';
-
-import { TabsBar, Tab, TabContent, Counter as TabCounter } from '@grafana/ui';
+import { Meta, StoryFn } from '@storybook/react';
+import { useState } from 'react';
 
 import { DashboardStoryCanvas } from '../../utils/storybook/DashboardStoryCanvas';
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 
-import { CounterProps } from './Counter';
+import { CounterProps, Counter as TabCounter } from './Counter';
+import { Tab } from './Tab';
+import { TabContent } from './TabContent';
+import { TabsBar } from './TabsBar';
 import mdx from './TabsBar.mdx';
 
-export default {
-  title: 'Layout/Tabs',
-  decorators: [withCenteredStory],
+const meta: Meta = {
+  title: 'Navigation/Tabs',
   parameters: {
     docs: {
       page: mdx,
@@ -25,7 +24,7 @@ const tabs = [
   { label: '3rd child', key: 'third', active: false },
 ];
 
-export const Simple = () => {
+export const Simple: StoryFn = () => {
   const [state, updateState] = useState(tabs);
   return (
     <DashboardStoryCanvas>
@@ -51,10 +50,45 @@ export const Simple = () => {
   );
 };
 
-export const Counter: Story<CounterProps> = (args) => {
+export const Counter: StoryFn<CounterProps> = (args) => {
   return <TabCounter {...args} />;
 };
 
 Counter.args = {
   value: 10,
 };
+
+export const WithDisabled: StoryFn = () => {
+  const [state, updateState] = useState([
+    { label: 'Enabled Tab', key: 'first', active: true },
+    { label: 'Disabled Tab', key: 'second', active: false, disabled: true },
+    { label: 'Another Tab', key: 'third', active: false },
+  ]);
+
+  return (
+    <DashboardStoryCanvas>
+      <TabsBar>
+        {state.map((tab, index) => {
+          return (
+            <Tab
+              key={index}
+              label={tab.label}
+              active={tab.active}
+              disabled={tab.disabled}
+              onChangeTab={() =>
+                !tab.disabled && updateState(state.map((tab, idx) => ({ ...tab, active: idx === index })))
+              }
+            />
+          );
+        })}
+      </TabsBar>
+      <TabContent>
+        {state[0].active && <div>First tab content</div>}
+        {state[1].active && <div>Second tab content (disabled)</div>}
+        {state[2].active && <div>Third tab content</div>}
+      </TabContent>
+    </DashboardStoryCanvas>
+  );
+};
+
+export default meta;

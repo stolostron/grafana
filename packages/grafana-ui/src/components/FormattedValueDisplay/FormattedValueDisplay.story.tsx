@@ -1,14 +1,11 @@
-import React from 'react';
-
-import { withCenteredStory } from '@grafana/ui/src/utils/storybook/withCenteredStory';
+import { Meta } from '@storybook/react';
 
 import { FormattedValueDisplay } from './FormattedValueDisplay';
 import mdx from './FormattedValueDisplay.mdx';
 
-export default {
-  title: 'Visualizations/FormattedValueDisplay',
+const meta: Meta<typeof FormattedValueDisplay> = {
+  title: 'Plugins/FormattedValueDisplay',
   component: FormattedValueDisplay,
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
@@ -19,3 +16,5 @@ export default {
 export const basic = () => {
   return <FormattedValueDisplay value={{ text: 'Test value' }} style={{ fontSize: 12 }} />;
 };
+
+export default meta;

@@ -1,21 +1,24 @@
-import { Story, Meta } from '@storybook/react';
-import React, { FC, useEffect, useState } from 'react';
+import { StoryFn, Meta } from '@storybook/react';
+import { FC, useEffect, useState } from 'react';
 
-import { DisplayValue, getColorForTheme, GrafanaTheme } from '@grafana/data';
+import { DisplayValue, GrafanaTheme2 } from '@grafana/data';
 import { LegendDisplayMode, LegendPlacement } from '@grafana/schema';
-import { useTheme, VizLegend } from '@grafana/ui';
 
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { useTheme2 } from '../../themes/ThemeContext';
 
+import { VizLegend } from './VizLegend';
 import { VizLegendItem } from './types';
 
-export default {
-  title: 'Visualizations/VizLegend',
+const meta: Meta = {
+  title: 'Plugins/VizLegend',
   component: VizLegend,
-  decorators: [withCenteredStory],
   args: {
     containerWidth: '100%',
     seriesCount: 5,
+  },
+  parameters: {
+    // TODO fix a11y issue in story and remove this
+    a11y: { test: 'off' },
   },
   argTypes: {
     containerWidth: {
@@ -32,7 +35,7 @@ export default {
       },
     },
   },
-} as Meta;
+};
 
 interface LegendStoryDemoProps {
   name: string;
@@ -43,7 +46,7 @@ interface LegendStoryDemoProps {
 }
 
 const LegendStoryDemo: FC<LegendStoryDemoProps> = ({ displayMode, seriesCount, name, placement, stats }) => {
-  const theme = useTheme();
+  const theme = useTheme2();
   const [items, setItems] = useState<VizLegendItem[]>(generateLegendItems(seriesCount, theme, stats));
 
   useEffect(() => {
@@ -76,7 +79,7 @@ const LegendStoryDemo: FC<LegendStoryDemoProps> = ({ displayMode, seriesCount, n
   );
 };
 
-export const WithNoValues: Story = ({ containerWidth, seriesCount }) => {
+export const WithNoValues: StoryFn = ({ containerWidth, seriesCount }) => {
   return (
     <div style={{ width: containerWidth }}>
       <LegendStoryDemo
@@ -101,7 +104,7 @@ export const WithNoValues: Story = ({ containerWidth, seriesCount }) => {
   );
 };
 
-export const WithValues: Story = ({ containerWidth, seriesCount }) => {
+export const WithValues: StoryFn = ({ containerWidth, seriesCount }) => {
   const stats: DisplayValue[] = [
     {
       title: 'Min',
@@ -149,12 +152,12 @@ export const WithValues: Story = ({ containerWidth, seriesCount }) => {
 
 function generateLegendItems(
   numberOfSeries: number,
-  theme: GrafanaTheme,
+  theme: GrafanaTheme2,
   statsToDisplay?: DisplayValue[]
 ): VizLegendItem[] {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
   const colors = ['green', 'blue', 'red', 'purple', 'orange', 'dark-green', 'yellow', 'light-blue'].map((c) =>
-    getColorForTheme(c, theme)
+    theme.visualization.getColorByName(c)
   );
 
   return [...new Array(numberOfSeries)].map((item, i) => {
@@ -166,3 +169,5 @@ function generateLegendItems(
     };
   });
 }
+
+export default meta;

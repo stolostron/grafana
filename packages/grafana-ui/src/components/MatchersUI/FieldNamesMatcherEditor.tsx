@@ -1,6 +1,7 @@
-import React, { memo, useCallback } from 'react';
+import { memo, useCallback } from 'react';
 
 import { FieldMatcherID, fieldMatchers, SelectableValue, ByNamesMatcherOptions } from '@grafana/data';
+import { t } from '@grafana/i18n';
 
 import { Input } from '../Input/Input';
 import { MultiSelect } from '../Select/Select';
@@ -39,16 +40,16 @@ export const FieldNamesMatcherEditor = memo<MatcherUIProps<ByNamesMatcherOptions
     return <Input value={displayNames} readOnly={true} disabled={true} prefix={prefix} />;
   }
 
-  return <MultiSelect menuShouldPortal value={options.names} options={selectOptions} onChange={onChange} />;
+  return <MultiSelect value={options.names} options={selectOptions} onChange={onChange} />;
 });
 FieldNamesMatcherEditor.displayName = 'FieldNameMatcherEditor';
 
-export const fieldNamesMatcherItem: FieldMatcherUIRegistryItem<ByNamesMatcherOptions> = {
+export const getFieldNamesMatcherItem: () => FieldMatcherUIRegistryItem<ByNamesMatcherOptions> = () => ({
   id: FieldMatcherID.byNames,
   component: FieldNamesMatcherEditor,
   matcher: fieldMatchers.get(FieldMatcherID.byNames),
-  name: 'Fields with name',
-  description: 'Set properties for a specific field',
+  name: t('grafana-ui.matchers-ui.name-fields-with-name', 'Fields with name'),
+  description: t('grafana-ui.matchers-ui.description-fields-with-name', 'Set properties for a specific field'),
   optionsToLabel: (options) => (options.names ?? []).join(', '),
   excludeFromPicker: true,
-};
+});

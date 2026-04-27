@@ -1,5 +1,5 @@
 import { isNumber } from 'lodash';
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
 
 import {
   DisplayValueAlignmentFactors,
@@ -10,21 +10,15 @@ import {
   NumericRange,
   PanelProps,
 } from '@grafana/data';
-import { findNumericFieldMinMax } from '@grafana/data/src/field/fieldOverrides';
-import {
-  BigValue,
-  BigValueGraphMode,
-  DataLinksContextMenu,
-  VizRepeater,
-  VizRepeaterRenderValueProps,
-  BigValueTextMode,
-} from '@grafana/ui';
-import { DataLinksContextMenuApi } from '@grafana/ui/src/components/DataLinks/DataLinksContextMenu';
+import { findNumericFieldMinMax } from '@grafana/data/internal';
+import { BigValueTextMode, BigValueGraphMode } from '@grafana/schema';
+import { BigValue, DataLinksContextMenu, VizRepeater, VizRepeaterRenderValueProps } from '@grafana/ui';
+import { DataLinksContextMenuApi } from '@grafana/ui/internal';
 import { config } from 'app/core/config';
 
-import { StatPanelOptions } from './types';
+import { Options } from './panelcfg.gen';
 
-export class StatPanel extends PureComponent<PanelProps<StatPanelOptions>> {
+export class StatPanel extends PureComponent<PanelProps<Options>> {
   renderComponent = (
     valueProps: VizRepeaterRenderValueProps<FieldDisplay, DisplayValueAlignmentFactors>,
     menuProps: DataLinksContextMenuApi
@@ -53,6 +47,8 @@ export class StatPanel extends PureComponent<PanelProps<StatPanelOptions>> {
         theme={config.theme2}
         onClick={openMenu}
         className={targetClassName}
+        disableWideLayout={!options.wideLayout}
+        percentChangeColorMode={options.percentChangeColorMode}
       />
     );
   };
@@ -74,7 +70,7 @@ export class StatPanel extends PureComponent<PanelProps<StatPanelOptions>> {
 
     if (hasLinks && getLinks) {
       return (
-        <DataLinksContextMenu links={getLinks} config={value.field}>
+        <DataLinksContextMenu links={getLinks}>
           {(api) => {
             return this.renderComponent(valueProps, api);
           }}
@@ -117,6 +113,7 @@ export class StatPanel extends PureComponent<PanelProps<StatPanelOptions>> {
       theme: config.theme2,
       data: data.series,
       sparkline: options.graphMode !== BigValueGraphMode.None,
+      percentChange: options.showPercentChange,
       timeZone,
     });
   };

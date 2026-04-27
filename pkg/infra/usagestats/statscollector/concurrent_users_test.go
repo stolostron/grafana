@@ -8,22 +8,36 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/grafana/pkg/setting"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/grafana/pkg/services/sqlstore"
+	"github.com/grafana/grafana/pkg/infra/db"
+	"github.com/grafana/grafana/pkg/services/dashboards"
+	"github.com/grafana/grafana/pkg/services/featuremgmt"
+	"github.com/grafana/grafana/pkg/services/folder/foldertest"
+	"github.com/grafana/grafana/pkg/services/org/orgtest"
+	"github.com/grafana/grafana/pkg/services/stats/statsimpl"
+	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/tests/testsuite"
 	"github.com/grafana/grafana/pkg/util"
+	"github.com/grafana/grafana/pkg/util/testutil"
 )
 
-func TestConcurrentUsersMetrics(t *testing.T) {
-	sqlStore := sqlstore.InitTestDB(t)
-	s := createService(t, setting.NewCfg(), sqlStore)
+// run tests with cleanup
+func TestMain(m *testing.M) {
+	testsuite.Run(m)
+}
+
+func TestIntegrationConcurrentUsersMetrics(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
+	sqlStore, cfg := db.InitTestDBWithCfg(t)
+	statsService := statsimpl.ProvideService(&setting.Cfg{}, sqlStore, &dashboards.FakeDashboardService{}, &foldertest.FakeService{}, &orgtest.FakeOrgService{}, featuremgmt.WithFeatures())
+	s := createService(t, cfg, sqlStore, statsService)
 
 	createConcurrentTokens(t, sqlStore)
 
-	stats, err := s.collect(context.Background())
+	stats, err := s.collectConcurrentUsers(context.Background())
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(1), stats["stats.auth_token_per_user_le_3"])
@@ -34,9 +48,12 @@ func TestConcurrentUsersMetrics(t *testing.T) {
 	assert.Equal(t, int32(6), stats["stats.auth_token_per_user_le_inf"])
 }
 
-func TestConcurrentUsersStats(t *testing.T) {
-	sqlStore := sqlstore.InitTestDB(t)
-	s := createService(t, setting.NewCfg(), sqlStore)
+func TestIntegrationConcurrentUsersStats(t *testing.T) {
+	testutil.SkipIntegrationTestInShortMode(t)
+
+	sqlStore, cfg := db.InitTestDBWithCfg(t)
+	statsService := statsimpl.ProvideService(&setting.Cfg{}, sqlStore, &dashboards.FakeDashboardService{}, &foldertest.FakeService{}, &orgtest.FakeOrgService{}, featuremgmt.WithFeatures())
+	s := createService(t, cfg, sqlStore, statsService)
 
 	createConcurrentTokens(t, sqlStore)
 
@@ -82,7 +99,7 @@ func TestConcurrentUsersStats(t *testing.T) {
 	assert.Equal(t, expectedResult, actualResult)
 }
 
-func createConcurrentTokens(t *testing.T, sqlStore sqlstore.Store) {
+func createConcurrentTokens(t *testing.T, sqlStore db.DB) {
 	t.Helper()
 	for u := 1; u <= 6; u++ {
 		for tkn := 1; tkn <= u*3; tkn++ {
@@ -91,7 +108,7 @@ func createConcurrentTokens(t *testing.T, sqlStore sqlstore.Store) {
 	}
 }
 
-func createToken(t *testing.T, uID int, sqlStore sqlstore.Store) {
+func createToken(t *testing.T, uID int, sqlStore db.DB) {
 	t.Helper()
 	token, err := util.RandomHex(16)
 	require.NoError(t, err)
@@ -115,7 +132,7 @@ func createToken(t *testing.T, uID int, sqlStore sqlstore.Store) {
 		AuthTokenSeen: false,
 	}
 
-	err = sqlStore.WithDbSession(context.Background(), func(dbSession *sqlstore.DBSession) error {
+	err = sqlStore.WithDbSession(context.Background(), func(dbSession *db.Session) error {
 		_, err = dbSession.Insert(&userAuthToken)
 		return err
 	})

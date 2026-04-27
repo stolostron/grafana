@@ -1,14 +1,13 @@
-import React from 'react';
-
 import { SelectableValue } from '@grafana/data';
 import { InlineSegmentGroup, Segment, SegmentAsync } from '@grafana/ui';
 
+import { BucketAggregationType, BucketAggregation } from '../../../dataquery.gen';
 import { useFields } from '../../../hooks/useFields';
 import { useDispatch } from '../../../hooks/useStatelessReducer';
 import { segmentStyles } from '../styles';
 
 import { SettingsEditor } from './SettingsEditor';
-import { BucketAggregation, BucketAggregationType, isBucketAggregationWithField } from './aggregations';
+import { isBucketAggregationWithField } from './aggregations';
 import { changeBucketAggregationField, changeBucketAggregationType } from './state/actions';
 import { bucketAggregationConfig } from './utils';
 

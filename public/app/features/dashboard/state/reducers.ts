@@ -1,9 +1,9 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { PanelPlugin } from '@grafana/data';
-import { AngularComponent } from '@grafana/runtime';
-import { processAclItems } from 'app/core/utils/acl';
-import { DashboardAclDTO, DashboardInitError, DashboardInitPhase, DashboardState } from 'app/types';
+import { t } from '@grafana/i18n';
+import { defaultDashboard } from '@grafana/schema';
+import { DashboardInitError, DashboardInitPhase, DashboardState } from 'app/types/dashboard';
 
 import { DashboardModel } from './DashboardModel';
 import { PanelModel } from './PanelModel';
@@ -11,17 +11,14 @@ import { PanelModel } from './PanelModel';
 export const initialState: DashboardState = {
   initPhase: DashboardInitPhase.NotStarted,
   getModel: () => null,
-  permissions: [],
   initError: null,
+  initialDatasource: undefined,
 };
 
 const dashboardSlice = createSlice({
   name: 'dashboard',
   initialState,
   reducers: {
-    loadDashboardPermissions: (state, action: PayloadAction<DashboardAclDTO[]>) => {
-      state.permissions = processAclItems(action.payload);
-    },
     dashboardInitFetching: (state) => {
       state.initPhase = DashboardInitPhase.Fetching;
     },
@@ -36,7 +33,13 @@ const dashboardSlice = createSlice({
       state.initPhase = DashboardInitPhase.Failed;
       state.initError = action.payload;
       state.getModel = () => {
-        return new DashboardModel({ title: 'Dashboard init failed' }, { canSave: false, canEdit: false });
+        return new DashboardModel(
+          {
+            ...defaultDashboard,
+            title: t('dashboard.dashboard-slice.title.dashboard-init-failed', 'Dashboard init failed'),
+          },
+          { canSave: false, canEdit: false }
+        );
       };
     },
     cleanUpDashboard: (state) => {
@@ -47,6 +50,9 @@ const dashboardSlice = createSlice({
     addPanel: (state, action: PayloadAction<PanelModel>) => {
       //state.panels[action.payload.id] = { pluginId: action.payload.type };
     },
+    setInitialDatasource: (state, action: PayloadAction<string | undefined>) => {
+      state.initialDatasource = action.payload;
+    },
   },
 });
 
@@ -55,24 +61,19 @@ export interface PanelModelAndPluginReadyPayload {
   plugin: PanelPlugin;
 }
 
-export interface SetPanelAngularComponentPayload {
-  panelId: number;
-  angularComponent: AngularComponent | null;
-}
-
 export interface SetPanelInstanceStatePayload {
   panelId: number;
-  value: any;
+  value: unknown;
 }
 
 export const {
-  loadDashboardPermissions,
   dashboardInitFetching,
   dashboardInitFailed,
   dashboardInitCompleted,
   dashboardInitServices,
   cleanUpDashboard,
   addPanel,
+  setInitialDatasource,
 } = dashboardSlice.actions;
 
 export const dashboardReducer = dashboardSlice.reducer;

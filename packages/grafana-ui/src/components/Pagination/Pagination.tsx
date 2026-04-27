@@ -1,8 +1,10 @@
-import { css } from '@emotion/css';
-import React, { useMemo } from 'react';
+import { css, cx } from '@emotion/css';
+import { useMemo } from 'react';
 
-import { useStyles2 } from '../../themes';
-import { Button, ButtonVariant } from '../Button';
+import { t } from '@grafana/i18n';
+
+import { useStyles2 } from '../../themes/ThemeContext';
+import { Button, ButtonVariant } from '../Button/Button';
 import { Icon } from '../Icon/Icon';
 
 export interface Props {
@@ -16,15 +18,17 @@ export interface Props {
   hideWhenSinglePage?: boolean;
   /** Small version only shows the current page and the navigation buttons. */
   showSmallVersion?: boolean;
+  className?: string;
 }
 
-export const Pagination: React.FC<Props> = ({
+export const Pagination = ({
   currentPage,
   numberOfPages,
   onNavigate,
   hideWhenSinglePage,
   showSmallVersion,
-}) => {
+  className,
+}: Props) => {
   const styles = useStyles2(getStyles);
   const pageLengthToCondense = showSmallVersion ? 1 : 8;
 
@@ -80,7 +84,7 @@ export const Pagination: React.FC<Props> = ({
           // Renders and ellipsis to represent condensed pages
           pagesToRender.push(
             <li key={page} className={styles.item}>
-              <Icon className={styles.ellipsis} name="ellipsis-v" />
+              <Icon className={styles.ellipsis} name="ellipsis-v" data-testid="pagination-ellipsis-icon" />
             </li>
           );
         }
@@ -95,12 +99,15 @@ export const Pagination: React.FC<Props> = ({
     return null;
   }
 
+  const previousPageLabel = t('grafana-ui.pagination.previous-page', 'previous page');
+  const nextPageLabel = t('grafana-ui.pagination.next-page', 'next page');
+
   return (
-    <div className={styles.container}>
+    <div className={cx(styles.container, className)} role="navigation">
       <ol>
         <li className={styles.item}>
           <Button
-            aria-label="previous"
+            aria-label={previousPageLabel}
             size="sm"
             variant="secondary"
             onClick={() => onNavigate(currentPage - 1)}
@@ -112,7 +119,7 @@ export const Pagination: React.FC<Props> = ({
         {pageButtons}
         <li className={styles.item}>
           <Button
-            aria-label="next"
+            aria-label={nextPageLabel}
             size="sm"
             variant="secondary"
             onClick={() => onNavigate(currentPage + 1)}
@@ -128,16 +135,16 @@ export const Pagination: React.FC<Props> = ({
 
 const getStyles = () => {
   return {
-    container: css`
-      float: right;
-    `,
-    item: css`
-      display: inline-block;
-      padding-left: 10px;
-      margin-bottom: 5px;
-    `,
-    ellipsis: css`
-      transform: rotate(90deg);
-    `,
+    container: css({
+      float: 'right',
+    }),
+    item: css({
+      display: 'inline-block',
+      paddingLeft: '10px',
+      marginBottom: '5px',
+    }),
+    ellipsis: css({
+      transform: 'rotate(90deg)',
+    }),
   };
 };

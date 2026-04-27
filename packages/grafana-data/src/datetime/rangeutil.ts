@@ -1,9 +1,10 @@
-import { each, has } from 'lodash';
+import { formatDateRange } from '@grafana/i18n';
 
 import { RawTimeRange, TimeRange, TimeZone, IntervalValues, RelativeTimeRange, TimeOption } from '../types/time';
+import { getFeatureToggle } from '../utils/featureToggles';
 
 import * as dateMath from './datemath';
-import { timeZoneAbbrevation, dateTimeFormat, dateTimeFormatTimeAgo } from './formatter';
+import { timeZoneAbbrevation, dateTimeFormat, dateTimeFormatTimeAgo, toIANATimezone } from './formatter';
 import { isDateTime, DateTime, dateTime } from './moment_wrapper';
 import { dateTimeParse } from './parser';
 
@@ -17,7 +18,7 @@ const spans: { [key: string]: { display: string; section?: number } } = {
   y: { display: 'year' },
 };
 
-const rangeOptions: TimeOption[] = [
+const BASE_RANGE_OPTIONS: TimeOption[] = [
   { from: 'now/d', to: 'now/d', display: 'Today' },
   { from: 'now/d', to: 'now', display: 'Today so far' },
   { from: 'now/w', to: 'now/w', display: 'This week' },
@@ -66,7 +67,7 @@ const rangeOptions: TimeOption[] = [
   { from: 'now/fy', to: 'now/fy', display: 'This fiscal year' },
 ];
 
-const hiddenRangeOptions: TimeOption[] = [
+const HIDDEN_RANGE_OPTIONS: TimeOption[] = [
   { from: 'now', to: 'now+1m', display: 'Next minute' },
   { from: 'now', to: 'now+5m', display: 'Next 5 minutes' },
   { from: 'now', to: 'now+15m', display: 'Next 15 minutes' },
@@ -86,13 +87,11 @@ const hiddenRangeOptions: TimeOption[] = [
   { from: 'now', to: 'now+5y', display: 'Next 5 years' },
 ];
 
-const rangeIndex: any = {};
-each(rangeOptions, (frame: any) => {
-  rangeIndex[frame.from + ' to ' + frame.to] = frame;
-});
-each(hiddenRangeOptions, (frame: any) => {
-  rangeIndex[frame.from + ' to ' + frame.to] = frame;
-});
+const STANDARD_RANGE_OPTIONS = BASE_RANGE_OPTIONS.concat(HIDDEN_RANGE_OPTIONS);
+
+function findRangeInOptions(range: RawTimeRange, options: TimeOption[]) {
+  return options.find((option) => option.from === range.from && option.to === range.to);
+}
 
 // handles expressions like
 // 5m
@@ -100,21 +99,21 @@ each(hiddenRangeOptions, (frame: any) => {
 // now/d to now
 // now/d
 // if no to <expr> then to now is assumed
-export function describeTextRange(expr: any) {
+export function describeTextRange(expr: string): TimeOption {
   const isLast = expr.indexOf('+') !== 0;
   if (expr.indexOf('now') === -1) {
     expr = (isLast ? 'now-' : 'now') + expr;
   }
 
-  let opt = rangeIndex[expr + ' to now'];
+  let opt = findRangeInOptions({ from: expr, to: 'now' }, STANDARD_RANGE_OPTIONS);
   if (opt) {
     return opt;
   }
 
   if (isLast) {
-    opt = { from: expr, to: 'now' };
+    opt = { from: expr, to: 'now', display: '' };
   } else {
-    opt = { from: 'now', to: expr };
+    opt = { from: 'now', to: expr, display: '' };
   }
 
   const parts = /^now([-+])(\d+)(\w)/.exec(expr);
@@ -138,20 +137,29 @@ export function describeTextRange(expr: any) {
   return opt;
 }
 
+// TODO: Should we keep these format presets somewhere common?
+const rangeFormatShort: Intl.DateTimeFormatOptions = {
+  dateStyle: 'short',
+  timeStyle: 'short',
+};
+
+const rangeFormatFull: Intl.DateTimeFormatOptions = {
+  dateStyle: 'short',
+  timeStyle: 'medium',
+};
+
 /**
  * Use this function to get a properly formatted string representation of a {@link @grafana/data:RawTimeRange | range}.
  *
- * @example
- * ```
- * // Prints "2":
- * console.log(add(1,1));
- * ```
  * @category TimeUtils
  * @param range - a time range (usually specified by the TimePicker)
+ * @param timeZone - optional time zone.
+ * @param quickRanges - optional dashboard's custom quick ranges to pick range names from.
  * @alpha
  */
-export function describeTimeRange(range: RawTimeRange, timeZone?: TimeZone): string {
-  const option = rangeIndex[range.from.toString() + ' to ' + range.to.toString()];
+export function describeTimeRange(range: RawTimeRange, timeZone?: TimeZone, quickRanges?: TimeOption[]): string {
+  const rangeOptions = quickRanges ? quickRanges.concat(STANDARD_RANGE_OPTIONS) : STANDARD_RANGE_OPTIONS;
+  const option = findRangeInOptions(range, rangeOptions);
 
   if (option) {
     return option.display;
@@ -160,9 +168,25 @@ export function describeTimeRange(range: RawTimeRange, timeZone?: TimeZone): str
   const options = { timeZone };
 
   if (isDateTime(range.from) && isDateTime(range.to)) {
-    return dateTimeFormat(range.from, options) + ' to ' + dateTimeFormat(range.to, options);
+    const fromDate = range.from.toDate();
+    const toDate = range.to.toDate();
+
+    if (!getFeatureToggle('localeFormatPreference')) {
+      return dateTimeFormat(range.from, options) + ' to ' + dateTimeFormat(range.to, options);
+    }
+
+    const hasSeconds = fromDate.getSeconds() !== 0 || toDate.getSeconds() !== 0;
+    const intlFormat = hasSeconds ? rangeFormatFull : rangeFormatShort;
+    const intlFormatOptions = {
+      ...intlFormat,
+      timeZone: timeZone ? toIANATimezone(timeZone) : undefined,
+    };
+
+    return formatDateRange(fromDate, toDate, intlFormatOptions);
   }
 
+  // TODO: We could update these to all use Intl APIs.
+  // Could we use formatRangeToParts and replace the 'other side' with the ago formatting?
   if (isDateTime(range.from)) {
     const parsed = dateMath.parse(range.to, true, 'utc');
     return parsed ? dateTimeFormat(range.from, options) + ' to ' + dateTimeFormatTimeAgo(parsed, options) : '';
@@ -198,20 +222,28 @@ export const describeTimeRangeAbbreviation = (range: TimeRange, timeZone?: TimeZ
   return parsed ? timeZoneAbbrevation(parsed, { timeZone }) : '';
 };
 
-export const convertRawToRange = (raw: RawTimeRange, timeZone?: TimeZone, fiscalYearStartMonth?: number): TimeRange => {
-  const from = dateTimeParse(raw.from, { roundUp: false, timeZone, fiscalYearStartMonth });
-  const to = dateTimeParse(raw.to, { roundUp: true, timeZone, fiscalYearStartMonth });
+export const convertRawToRange = (
+  raw: RawTimeRange,
+  timeZone?: TimeZone,
+  fiscalYearStartMonth?: number,
+  format?: string
+): TimeRange => {
+  const from = dateTimeParse(raw.from, { roundUp: false, timeZone, fiscalYearStartMonth, format });
+  const to = dateTimeParse(raw.to, { roundUp: true, timeZone, fiscalYearStartMonth, format });
 
-  if (dateMath.isMathString(raw.from) || dateMath.isMathString(raw.to)) {
-    return { from, to, raw };
-  }
-
-  return { from, to, raw: { from, to } };
+  return {
+    from,
+    to,
+    raw: {
+      from: dateMath.isMathString(raw.from) ? raw.from : from,
+      to: dateMath.isMathString(raw.to) ? raw.to : to,
+    },
+  };
 };
 
-function isRelativeTime(v: DateTime | string) {
+export function isRelativeTime(v: DateTime | string) {
   if (typeof v === 'string') {
-    return (v as string).indexOf('now') >= 0;
+    return v.indexOf('now') >= 0;
   }
   return false;
 }
@@ -291,9 +323,9 @@ export function calculateInterval(range: TimeRange, resolution: number, lowLimit
   };
 }
 
-const interval_regex = /(-?\d+(?:\.\d+)?)(ms|[Mwdhmsy])/;
+const interval_regex = /^(-?\d+(?:\.\d+)?)(ms|[Mwdhmsy])/;
 // histogram & trends
-const intervals_in_seconds = {
+const intervals_in_seconds: Record<string, number> = {
   y: 31536000,
   M: 2592000,
   w: 604800,
@@ -315,15 +347,24 @@ export function describeInterval(str: string) {
   }
 
   const matches = str.match(interval_regex);
-  if (!matches || !has(intervals_in_seconds, matches[2])) {
+  if (!matches) {
     throw new Error(
       `Invalid interval string, has to be either unit-less or end with one of the following units: "${Object.keys(
         intervals_in_seconds
       ).join(', ')}"`
     );
   }
+
+  const sec = intervals_in_seconds[matches[2]];
+  if (sec === undefined) {
+    // this can never happen, because above we
+    // already made sure the key is correct,
+    // but we handle it to be safe.
+    throw new Error('describeInterval failed: invalid interval string');
+  }
+
   return {
-    sec: (intervals_in_seconds as any)[matches[2]] as number,
+    sec,
     type: matches[2],
     count: parseInt(matches[1], 10),
   };
@@ -341,6 +382,9 @@ export function intervalToMs(str: string): number {
 
 export function roundInterval(interval: number) {
   switch (true) {
+    // 0.01s
+    case interval < 10:
+      return 1; // 0.001s
     // 0.015s
     case interval < 15:
       return 10; // 0.01s
@@ -392,7 +436,7 @@ export function roundInterval(interval: number) {
     // 12.5m
     case interval < 750000:
       return 600000; // 10m
-    // 12.5m
+    // 17.5m
     case interval < 1050000:
       return 900000; // 15m
     // 25m
@@ -459,5 +503,16 @@ export function relativeToTimeRange(relativeTimeRange: RelativeTimeRange, now: D
     from,
     to,
     raw: { from, to },
+  };
+}
+
+/**
+ * @internal
+ * Returns a RawTimeRange that has been converted so that from and to are strings
+ */
+export function formatRawTimeRange(range: RawTimeRange): RawTimeRange {
+  return {
+    from: isDateTime(range.from) ? range.from.toISOString() : range.from,
+    to: isDateTime(range.to) ? range.to.toISOString() : range.to,
   };
 }

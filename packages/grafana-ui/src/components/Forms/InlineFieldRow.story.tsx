@@ -1,4 +1,4 @@
-import React from 'react';
+import { Meta } from '@storybook/react';
 
 import { Input } from '../Input/Input';
 
@@ -6,7 +6,7 @@ import { InlineField } from './InlineField';
 import { InlineFieldRow } from './InlineFieldRow';
 import mdx from './InlineFieldRow.mdx';
 
-export default {
+const meta: Meta<typeof InlineFieldRow> = {
   title: 'Forms/InlineFieldRow',
   component: InlineFieldRow,
   parameters: {
@@ -41,3 +41,5 @@ export const single = () => {
     </div>
   );
 };
+
+export default meta;

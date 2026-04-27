@@ -1,7 +1,9 @@
-import React, { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 
 import { FieldMatcherID, fieldMatchers, SelectableValue, FieldType, DataFrame } from '@grafana/data';
+import { t } from '@grafana/i18n';
 
+import { getFieldTypeIconName } from '../../types/icon';
 import { Select } from '../Select/Select';
 
 import { MatcherUIProps, FieldMatcherUIRegistryItem } from './types';
@@ -19,23 +21,54 @@ export const FieldTypeMatcherEditor = memo<MatcherUIProps<string>>((props) => {
   );
 
   const selectedOption = selectOptions.find((v) => v.value === options);
-  return <Select inputId={id} value={selectedOption} options={selectOptions} onChange={onChange} menuShouldPortal />;
+  return <Select inputId={id} value={selectedOption} options={selectOptions} onChange={onChange} />;
 });
 FieldTypeMatcherEditor.displayName = 'FieldTypeMatcherEditor';
 
-const allTypes: Array<SelectableValue<FieldType>> = [
-  { value: FieldType.number, label: 'Numeric' },
-  { value: FieldType.string, label: 'String' },
-  { value: FieldType.time, label: 'Time' },
-  { value: FieldType.boolean, label: 'Boolean' },
-  { value: FieldType.trace, label: 'Traces' },
-  { value: FieldType.other, label: 'Other' },
+// Select options for all field types.
+// This is not eported to the published package, but used internally
+export const getAllFieldTypeIconOptions: () => Array<SelectableValue<FieldType>> = () => [
+  {
+    value: FieldType.number,
+    label: t('grafana-ui.matchers-ui.get-all-field-type-icon-options.label-number', 'Number'),
+    icon: getFieldTypeIconName(FieldType.number),
+  },
+  {
+    value: FieldType.string,
+    label: t('grafana-ui.matchers-ui.get-all-field-type-icon-options.label-string', 'String'),
+    icon: getFieldTypeIconName(FieldType.string),
+  },
+  {
+    value: FieldType.time,
+    label: t('grafana-ui.matchers-ui.get-all-field-type-icon-options.label-time', 'Time'),
+    icon: getFieldTypeIconName(FieldType.time),
+  },
+  {
+    value: FieldType.boolean,
+    label: t('grafana-ui.matchers-ui.get-all-field-type-icon-options.label-boolean', 'Boolean'),
+    icon: getFieldTypeIconName(FieldType.boolean),
+  },
+  {
+    value: FieldType.trace,
+    label: t('grafana-ui.matchers-ui.get-all-field-type-icon-options.label-traces', 'Traces'),
+    icon: getFieldTypeIconName(FieldType.trace),
+  },
+  {
+    value: FieldType.enum,
+    label: t('grafana-ui.matchers-ui.get-all-field-type-icon-options.label-enum', 'Enum'),
+    icon: getFieldTypeIconName(FieldType.enum),
+  },
+  {
+    value: FieldType.other,
+    label: t('grafana-ui.matchers-ui.get-all-field-type-icon-options.label-other', 'Other'),
+    icon: getFieldTypeIconName(FieldType.other),
+  },
 ];
 
 const useFieldCounts = (data: DataFrame[]): Map<FieldType, number> => {
   return useMemo(() => {
     const counts: Map<FieldType, number> = new Map();
-    for (const t of allTypes) {
+    for (const t of getAllFieldTypeIconOptions()) {
       counts.set(t.value!, 0);
     }
     for (const frame of data) {
@@ -56,7 +89,7 @@ const useSelectOptions = (counts: Map<string, number>, opt?: string): Array<Sele
   return useMemo(() => {
     let found = false;
     const options: Array<SelectableValue<string>> = [];
-    for (const t of allTypes) {
+    for (const t of getAllFieldTypeIconOptions()) {
       const count = counts.get(t.value!);
       const match = opt === t.value;
       if (count || match) {
@@ -79,11 +112,14 @@ const useSelectOptions = (counts: Map<string, number>, opt?: string): Array<Sele
   }, [counts, opt]);
 };
 
-export const fieldTypeMatcherItem: FieldMatcherUIRegistryItem<string> = {
+export const getFieldTypeMatcherItem: () => FieldMatcherUIRegistryItem<string> = () => ({
   id: FieldMatcherID.byType,
   component: FieldTypeMatcherEditor,
   matcher: fieldMatchers.get(FieldMatcherID.byType),
-  name: 'Fields with type',
-  description: 'Set properties for fields of a specific type (number, string, boolean)',
+  name: t('grafana-ui.matchers-ui.name-fields-with-type', 'Fields with type'),
+  description: t(
+    'grafana-ui.matchers-ui.description-fields-with-type',
+    'Set properties for fields of a specific type (number, string, boolean)'
+  ),
   optionsToLabel: (options) => options,
-};
+});

@@ -1,6 +1,7 @@
-import React, { FC, useState } from 'react';
+import { useState } from 'react';
 
 import { intervalToAbbreviatedDurationString } from '@grafana/data';
+import { Trans } from '@grafana/i18n';
 import { AlertmanagerAlert } from 'app/plugins/datasource/alertmanager/types';
 
 import { AlertLabels } from '../AlertLabels';
@@ -13,7 +14,7 @@ interface Props {
   className?: string;
 }
 
-export const SilencedAlertsTableRow: FC<Props> = ({ alert, className }) => {
+export const SilencedAlertsTableRow = ({ alert, className }: Props) => {
   const [isCollapsed, setIsCollapsed] = useState(true);
 
   const duration = intervalToAbbreviatedDurationString({
@@ -35,14 +36,16 @@ export const SilencedAlertsTableRow: FC<Props> = ({ alert, className }) => {
         <td>
           <AmAlertStateTag state={alert.status.state} />
         </td>
-        <td>for {duration} seconds</td>
+        <td>
+          <Trans i18nKey="alerting.silenced-alerts-table-row.silenced-for">for {{ duration }}</Trans>
+        </td>
         <td>{alertName}</td>
       </tr>
       {!isCollapsed && (
         <tr className={className}>
-          <td></td>
+          <td />
           <td colSpan={5}>
-            <AlertLabels labels={alert.labels} />
+            <AlertLabels labels={alert.labels} size="sm" />
           </td>
         </tr>
       )}

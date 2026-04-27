@@ -1,6 +1,5 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
 
 import { defaultIntervals } from '@grafana/ui';
 
@@ -51,11 +50,11 @@ describe('AutoRefreshIntervals', () => {
   });
 
   describe('when input loses focus and intervals are valid', () => {
-    it('then onRefreshIntervalChange should be called', () => {
+    it('then onRefreshIntervalChange should be called', async () => {
       const { props } = setupTestContext({ validateIntervalsFunc: () => null });
 
-      userEvent.type(screen.getByRole('textbox'), ',30s');
-      userEvent.tab();
+      await userEvent.type(screen.getByRole('textbox'), ',30s');
+      await userEvent.tab();
 
       expect(screen.getByRole('textbox')).toHaveValue('1s,5s,10s,30s');
       expect(props.onRefreshIntervalChange).toHaveBeenCalledTimes(1);
@@ -64,11 +63,11 @@ describe('AutoRefreshIntervals', () => {
   });
 
   describe('when input loses focus and intervals are invalid', () => {
-    it('then onRefreshIntervalChange should not be called', () => {
+    it('then onRefreshIntervalChange should not be called', async () => {
       const { props } = setupTestContext({ validateIntervalsFunc: () => 'Not valid' });
 
-      userEvent.type(screen.getByRole('textbox'), ',30q');
-      userEvent.tab();
+      await userEvent.type(screen.getByRole('textbox'), ',30q');
+      await userEvent.tab();
 
       expect(screen.getByRole('textbox')).toHaveValue('1s,5s,10s,30q');
       expect(props.onRefreshIntervalChange).toHaveBeenCalledTimes(0);
@@ -76,14 +75,14 @@ describe('AutoRefreshIntervals', () => {
   });
 
   describe('when input loses focus and previous intervals were invalid', () => {
-    it('then onRefreshIntervalChange should be called', () => {
+    it('then onRefreshIntervalChange should be called', async () => {
       const validateIntervalsFunc = jest.fn().mockReturnValueOnce('Not valid').mockReturnValue(null);
       const { props } = setupTestContext({ validateIntervalsFunc });
 
-      userEvent.type(screen.getByRole('textbox'), ',30q');
-      userEvent.tab();
-      userEvent.type(screen.getByRole('textbox'), '{backspace}s');
-      userEvent.tab();
+      await userEvent.type(screen.getByRole('textbox'), ',30q');
+      await userEvent.tab();
+      await userEvent.type(screen.getByRole('textbox'), '{backspace}s');
+      await userEvent.tab();
 
       expect(screen.getByRole('textbox')).toHaveValue('1s,5s,10s,30s');
       expect(props.onRefreshIntervalChange).toHaveBeenCalledTimes(1);
@@ -99,8 +98,8 @@ describe('getValidIntervals', () => {
       const dependencies = {
         getTimeSrv: () =>
           ({
-            getValidIntervals: (intervals: any) => intervals,
-          } as unknown as TimeSrv),
+            getValidIntervals: (intervals: string[]) => intervals,
+          }) as unknown as TimeSrv,
       };
 
       const result = getValidIntervals(emptyIntervals, dependencies);
@@ -115,8 +114,8 @@ describe('getValidIntervals', () => {
       const dependencies = {
         getTimeSrv: () =>
           ({
-            getValidIntervals: (intervals: any) => intervals,
-          } as unknown as TimeSrv),
+            getValidIntervals: (intervals: string[]) => intervals,
+          }) as unknown as TimeSrv,
       };
 
       const result = getValidIntervals(duplicateIntervals, dependencies);
@@ -131,8 +130,8 @@ describe('getValidIntervals', () => {
       const dependencies = {
         getTimeSrv: () =>
           ({
-            getValidIntervals: (intervals: any) => intervals,
-          } as unknown as TimeSrv),
+            getValidIntervals: (intervals: string[]) => intervals,
+          }) as unknown as TimeSrv,
       };
 
       const result = getValidIntervals(duplicateIntervals, dependencies);
@@ -148,8 +147,8 @@ describe('validateIntervals', () => {
       const dependencies = {
         getTimeSrv: () =>
           ({
-            getValidIntervals: (intervals: any) => intervals,
-          } as unknown as TimeSrv),
+            getValidIntervals: (intervals: string[]) => intervals,
+          }) as unknown as TimeSrv,
       };
 
       const result = validateIntervals(defaultIntervals, dependencies);
@@ -166,7 +165,7 @@ describe('validateIntervals', () => {
             getValidIntervals: () => {
               throw new Error('Some error');
             },
-          } as unknown as TimeSrv),
+          }) as unknown as TimeSrv,
       };
 
       const result = validateIntervals(defaultIntervals, dependencies);

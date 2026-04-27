@@ -1,6 +1,6 @@
-import React, { createElement } from 'react';
+import { createElement } from 'react';
 
-import { HighlightPart } from '../../types';
+import { HighlightPart } from '../../types/completion';
 
 interface Props {
   text: string;
@@ -27,7 +27,7 @@ function getStartIndices(parts: HighlightPart[], length: number): number[] {
   return indices;
 }
 
-export const PartialHighlighter: React.FC<Props> = (props: Props) => {
+export const PartialHighlighter = (props: Props) => {
   let { highlightParts, text, highlightClassName } = props;
 
   if (!highlightParts?.length) {

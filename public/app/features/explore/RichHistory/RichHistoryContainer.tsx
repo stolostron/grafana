@@ -1,81 +1,118 @@
-import React, { useEffect, useState } from 'react';
+// Libraries
+import { useEffect, useState } from 'react';
 import { connect, ConnectedProps } from 'react-redux';
 
-import { RICH_HISTORY_SETTING_KEYS } from 'app/core/history/richHistoryLocalStorageUtils';
-import store from 'app/core/store';
-import { ExploreItemState, StoreState } from 'app/types';
-import { ExploreId } from 'app/types/explore';
+import { Trans } from '@grafana/i18n';
+import { config, reportInteraction } from '@grafana/runtime';
+import { useTheme2 } from '@grafana/ui';
+// Types
+import { StoreState } from 'app/types/store';
 
-import { ExploreDrawer } from '../ExploreDrawer';
-import { deleteRichHistory, loadRichHistory } from '../state/history';
+// Components, enums
+import { useQueriesDrawerContext } from '../QueriesDrawer/QueriesDrawerContext';
+import {
+  deleteRichHistory,
+  initRichHistory,
+  loadRichHistory,
+  loadMoreRichHistory,
+  clearRichHistoryResults,
+  updateHistorySettings,
+  updateHistorySearchFilters,
+} from '../state/history';
 
-import { RichHistory, Tabs } from './RichHistory';
+import { RichHistory } from './RichHistory';
 
-function mapStateToProps(state: StoreState, { exploreId }: { exploreId: ExploreId }) {
+//Actions
+
+function mapStateToProps(state: StoreState) {
   const explore = state.explore;
-  // @ts-ignore
-  const item: ExploreItemState = explore[exploreId];
-  const { datasourceInstance } = item;
-  const firstTab = store.getBool(RICH_HISTORY_SETTING_KEYS.starredTabAsFirstTab, false)
-    ? Tabs.Starred
-    : Tabs.RichHistory;
-  const { richHistory } = item;
+  const richHistorySearchFilters = explore.richHistorySearchFilters;
+  const { richHistorySettings, richHistory, richHistoryTotal } = explore;
+
   return {
     richHistory,
-    firstTab,
-    activeDatasourceInstance: datasourceInstance?.name,
+    richHistoryTotal,
+    richHistorySettings,
+    richHistorySearchFilters,
   };
 }
 
 const mapDispatchToProps = {
+  initRichHistory,
   loadRichHistory,
+  loadMoreRichHistory,
+  clearRichHistoryResults,
+  updateHistorySettings,
+  updateHistorySearchFilters,
   deleteRichHistory,
 };
 
 const connector = connect(mapStateToProps, mapDispatchToProps);
 
 interface OwnProps {
-  width: number;
-  exploreId: ExploreId;
   onClose: () => void;
 }
 export type Props = ConnectedProps<typeof connector> & OwnProps;
 
 export function RichHistoryContainer(props: Props) {
-  const [height, setHeight] = useState(400);
+  const theme = useTheme2();
 
   const {
     richHistory,
-    width,
-    firstTab,
-    activeDatasourceInstance,
-    exploreId,
+    richHistoryTotal,
     deleteRichHistory,
+    initRichHistory,
     loadRichHistory,
+    loadMoreRichHistory,
+    clearRichHistoryResults,
+    richHistorySettings,
+    updateHistorySettings,
+    richHistorySearchFilters,
+    updateHistorySearchFilters,
     onClose,
   } = props;
 
   useEffect(() => {
-    loadRichHistory(exploreId);
-  }, [loadRichHistory, exploreId]);
+    initRichHistory();
+  }, [initRichHistory]);
+
+  const { selectedTab } = useQueriesDrawerContext();
+  const [tracked, setTracked] = useState(false);
+
+  useEffect(() => {
+    if (!tracked) {
+      setTracked(true);
+      reportInteraction('grafana_explore_query_history_opened', {
+        queryHistoryEnabled: config.queryHistoryEnabled,
+        selectedTab,
+      });
+    }
+  }, [tracked, selectedTab]);
+
+  if (!richHistorySettings) {
+    return (
+      <span>
+        <Trans i18nKey="explore.rich-history-container.loading">Loading...</Trans>
+      </span>
+    );
+  }
 
   return (
-    <ExploreDrawer
-      width={width}
-      onResize={(_e, _dir, ref) => {
-        setHeight(Number(ref.style.height.slice(0, -2)));
-      }}
-    >
-      <RichHistory
-        richHistory={richHistory}
-        firstTab={firstTab}
-        activeDatasourceInstance={activeDatasourceInstance}
-        exploreId={exploreId}
-        deleteRichHistory={deleteRichHistory}
-        onClose={onClose}
-        height={height}
-      />
-    </ExploreDrawer>
+    <RichHistory
+      richHistory={richHistory}
+      richHistoryTotal={richHistoryTotal}
+      firstTab={selectedTab}
+      onClose={onClose}
+      height={theme.components.horizontalDrawer.defaultHeight}
+      deleteRichHistory={deleteRichHistory}
+      richHistorySettings={richHistorySettings}
+      richHistorySearchFilters={richHistorySearchFilters}
+      updateHistorySettings={updateHistorySettings}
+      updateHistorySearchFilters={updateHistorySearchFilters}
+      loadRichHistory={loadRichHistory}
+      loadMoreRichHistory={loadMoreRichHistory}
+      clearRichHistoryResults={clearRichHistoryResults}
+    />
   );
 }
 

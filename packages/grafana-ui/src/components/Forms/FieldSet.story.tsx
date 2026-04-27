@@ -1,43 +1,54 @@
-import React from 'react';
+import { Meta, StoryFn } from '@storybook/react';
+import { useId } from 'react';
 
-import { Input, Form, FieldSet, Field } from '@grafana/ui';
+import { Button } from '../Button/Button';
+import { Input } from '../Input/Input';
 
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-import { Button } from '../Button';
-
+import { Field } from './Field';
+import { FieldSet, Props } from './FieldSet';
 import mdx from './FieldSet.mdx';
+import { Form } from './Form';
 
-export default {
+const meta: Meta<typeof FieldSet> = {
   title: 'Forms/FieldSet',
   component: FieldSet,
-  decorators: [withCenteredStory],
+  args: {
+    label: 'Default label',
+  },
   parameters: {
     docs: {
       page: mdx,
     },
+    controls: {
+      exclude: ['children'],
+    },
+  },
+  argTypes: {
+    label: { control: 'text' },
   },
 };
 
-export const basic = () => {
+export const Basic: StoryFn<typeof FieldSet> = (args: Props) => {
+  const nameId = useId();
+  const emailId = useId();
+  const colorId = useId();
+  const fontSizeId = useId();
   return (
     <Form onSubmit={() => console.log('Submit')}>
       {() => (
         <>
-          <FieldSet label="Details">
+          <FieldSet {...args}>
             <Field label="Name">
-              <Input name="name" />
+              <Input name="name" id={nameId} />
             </Field>
             <Field label="Email">
-              <Input name="email" />
+              <Input name="email" id={emailId} />
             </Field>
-          </FieldSet>
-
-          <FieldSet label="Preferences">
             <Field label="Color">
-              <Input name="color" />
+              <Input name="color" id={colorId} />
             </Field>
             <Field label="Font size">
-              <Input name="fontsize" />
+              <Input name="fontsize" id={fontSizeId} />
             </Field>
           </FieldSet>
           <Button variant="primary">Save</Button>
@@ -46,3 +57,5 @@ export const basic = () => {
     </Form>
   );
 };
+
+export default meta;

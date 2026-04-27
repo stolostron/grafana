@@ -1,5 +1,5 @@
 import { toLower, isEmpty, isString } from 'lodash';
-import React, { useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 
 import {
   SelectableValue,
@@ -10,6 +10,7 @@ import {
   TimeZone,
   InternalTimeZones,
 } from '@grafana/data';
+import { t } from '@grafana/i18n';
 
 import { Select } from '../Select/Select';
 
@@ -26,9 +27,11 @@ export interface Props {
   includeInternal?: boolean | InternalTimeZones[];
   disabled?: boolean;
   inputId?: string;
+  menuShouldPortal?: boolean;
+  openMenuOnFocus?: boolean;
 }
 
-export const TimeZonePicker: React.FC<Props> = (props) => {
+export const TimeZonePicker = (props: Props) => {
   const {
     onChange,
     width,
@@ -38,6 +41,8 @@ export const TimeZonePicker: React.FC<Props> = (props) => {
     includeInternal = false,
     disabled = false,
     inputId,
+    menuShouldPortal = true,
+    openMenuOnFocus = true,
   } = props;
   const groupedTimeZones = useTimeZones(includeInternal);
   const selected = useSelectedTimeZone(groupedTimeZones, value);
@@ -58,9 +63,10 @@ export const TimeZonePicker: React.FC<Props> = (props) => {
     <Select
       inputId={inputId}
       value={selected}
-      placeholder="Type to search (country, city, abbreviation)"
+      placeholder={t('time-picker.zone.select-search-input', 'Type to search (country, city, abbreviation)')}
       autoFocus={autoFocus}
-      openMenuOnFocus={true}
+      menuShouldPortal={menuShouldPortal}
+      openMenuOnFocus={openMenuOnFocus}
       width={width}
       filterOption={filterBySearchIndex}
       options={groupedTimeZones}
@@ -68,7 +74,7 @@ export const TimeZonePicker: React.FC<Props> = (props) => {
       onBlur={onBlur}
       components={{ Option: TimeZoneOption, Group: TimeZoneGroup }}
       disabled={disabled}
-      aria-label={'Time zone picker'}
+      aria-label={t('time-picker.zone.select-aria-label', 'Time zone picker')}
     />
   );
 };
@@ -80,28 +86,33 @@ interface SelectableZoneGroup extends SelectableValue<string> {
 const useTimeZones = (includeInternal: boolean | InternalTimeZones[]): SelectableZoneGroup[] => {
   const now = Date.now();
 
-  const timeZoneGroups = getTimeZoneGroups(includeInternal).map((group: GroupedTimeZones) => {
-    const options = group.zones.reduce((options: SelectableZone[], zone) => {
-      const info = getTimeZoneInfo(zone, now);
+  const timeZoneGroups = useMemo(() => {
+    return getTimeZoneGroups(includeInternal).map((group: GroupedTimeZones) => {
+      const options = group.zones.reduce((options: SelectableZone[], zone) => {
+        const info = getTimeZoneInfo(zone, now);
 
-      if (!info) {
+        if (!info) {
+          return options;
+        }
+
+        const name = info.name.replace(/_/g, ' ');
+
+        options.push({
+          label: name,
+          value: info.zone,
+          searchIndex: getSearchIndex(name, info, now),
+        });
+
         return options;
-      }
+      }, []);
 
-      options.push({
-        label: info.name,
-        value: info.zone,
-        searchIndex: getSearchIndex(info, now),
-      });
+      return {
+        label: group.name,
+        options,
+      };
+    });
+  }, [includeInternal, now]);
 
-      return options;
-    }, []);
-
-    return {
-      label: group.name,
-      options,
-    };
-  });
   return timeZoneGroups;
 };
 
@@ -153,12 +164,16 @@ const useFilterBySearchIndex = () => {
   }, []);
 };
 
-const getSearchIndex = (info: TimeZoneInfo, timestamp: number): string => {
+const getSearchIndex = (label: string, info: TimeZoneInfo, timestamp: number): string => {
   const parts: string[] = [
-    toLower(info.name),
+    toLower(info.zone),
     toLower(info.abbreviation),
     toLower(formatUtcOffset(timestamp, info.zone)),
   ];
+
+  if (label !== info.zone) {
+    parts.push(toLower(label));
+  }
 
   for (const country of info.countries) {
     parts.push(toLower(country.name));

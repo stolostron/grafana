@@ -1,21 +1,19 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 
 import { FieldNamePickerConfigSettings, SelectableValue, StandardEditorProps } from '@grafana/data';
+import { t } from '@grafana/i18n';
 
 import { Select } from '../Select/Select';
 
 import { useFieldDisplayNames, useSelectOptions, frameHasName } from './utils';
 
-// Pick a field name out of the fulds
-export const FieldNamePicker: React.FC<StandardEditorProps<string, FieldNamePickerConfigSettings>> = ({
-  value,
-  onChange,
-  context,
-  item,
-}) => {
+type Props = StandardEditorProps<string, FieldNamePickerConfigSettings>;
+
+// Pick a field name out of the fields
+export const FieldNamePicker = ({ value, onChange, context, item, id }: Props) => {
   const settings: FieldNamePickerConfigSettings = item.settings ?? {};
   const names = useFieldDisplayNames(context.data, settings?.filter);
-  const selectOptions = useSelectOptions(names, value);
+  const selectOptions = useSelectOptions(names, value, undefined, undefined, settings.baseNameMode);
 
   const onSelectChange = useCallback(
     (selection?: SelectableValue<string>) => {
@@ -31,14 +29,16 @@ export const FieldNamePicker: React.FC<StandardEditorProps<string, FieldNamePick
   return (
     <>
       <Select
-        menuShouldPortal
+        inputId={id}
         value={selectedOption}
-        placeholder={settings.placeholderText ?? 'Select field'}
+        placeholder={
+          settings.placeholderText ?? t('grafana-ui.matchers-ui.field-name-picker.placeholder', 'Select field')
+        }
         options={selectOptions}
         onChange={onSelectChange}
         noOptionsMessage={settings.noFieldsMessage}
         width={settings.width}
-        isClearable={true}
+        isClearable={settings.isClearable !== false}
       />
     </>
   );

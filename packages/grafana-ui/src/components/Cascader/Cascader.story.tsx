@@ -1,11 +1,9 @@
-import { Story, Meta } from '@storybook/react';
-import React from 'react';
+import { StoryFn, Meta } from '@storybook/react';
+import { useId, useState } from 'react';
 
-import { Cascader } from '@grafana/ui';
+import { Field } from '../Forms/Field';
 
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
-import { CascaderOption, CascaderProps } from './Cascader';
+import { Cascader, CascaderOption } from './Cascader';
 import mdx from './Cascader.mdx';
 
 const onSelect = (val: string) => console.log(val);
@@ -34,10 +32,9 @@ const options = [
   },
 ];
 
-export default {
-  title: 'Forms/Cascader',
+const meta: Meta<typeof Cascader> = {
+  title: 'Inputs/Cascader',
   component: Cascader,
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
@@ -62,9 +59,16 @@ export default {
   argTypes: {
     width: { control: { type: 'range', min: 0, max: 70 } },
   },
-} as Meta;
+};
 
-const Template: Story<CascaderProps> = (args) => <Cascader {...args} />;
+const Template: StoryFn<typeof Cascader> = (args) => {
+  const id = useId();
+  return (
+    <Field label="Cascader field">
+      <Cascader {...args} id={id} />
+    </Field>
+  );
+};
 
 export const Simple = Template.bind({});
 Simple.args = {
@@ -90,14 +94,21 @@ WithDisplayAllSelectedLevels.args = {
 };
 
 export const WithOptionsStateUpdate = () => {
-  const [updatedOptions, setOptions] = React.useState<CascaderOption[]>([
+  const [updatedOptions, setOptions] = useState<CascaderOption[]>([
     {
       label: 'Initial state option',
       value: 'initial',
     },
   ]);
+  const id = useId();
 
   setTimeout(() => setOptions(options), 2000);
 
-  return <Cascader options={updatedOptions} onSelect={onSelect} />;
+  return (
+    <Field label="Cascader field with updated options">
+      <Cascader options={updatedOptions} onSelect={onSelect} id={id} />
+    </Field>
+  );
 };
+
+export default meta;

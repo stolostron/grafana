@@ -1,6 +1,5 @@
-import React, { FC } from 'react';
-
 import { SelectableValue } from '@grafana/data';
+import { t } from '@grafana/i18n';
 import { Button, Icon, InlineField, InlineFieldRow } from '@grafana/ui';
 
 import { ClassicCondition, ExpressionQuery } from '../types';
@@ -14,7 +13,7 @@ interface Props {
   onChange: (query: ExpressionQuery) => void;
 }
 
-export const ClassicConditions: FC<Props> = ({ onChange, query, refIds }) => {
+export const ClassicConditions = ({ onChange, query, refIds }: Props) => {
   const onConditionChange = (condition: ClassicCondition, index: number) => {
     if (query.conditions) {
       onChange({
@@ -26,9 +25,12 @@ export const ClassicConditions: FC<Props> = ({ onChange, query, refIds }) => {
 
   const onAddCondition = () => {
     if (query.conditions) {
+      const lastParams = query.conditions.at(-1)?.query?.params ?? [];
+      const newCondition: ClassicCondition = { ...defaultCondition, query: { params: lastParams } };
+
       onChange({
         ...query,
-        conditions: query.conditions.length > 0 ? [...query.conditions, defaultCondition] : [defaultCondition],
+        conditions: query.conditions.length > 0 ? [...query.conditions, newCondition] : [newCondition],
       });
     }
   };
@@ -59,7 +61,7 @@ export const ClassicConditions: FC<Props> = ({ onChange, query, refIds }) => {
   return (
     <div>
       <InlineFieldRow>
-        <InlineField label="Conditions" labelWidth={14}>
+        <InlineField label={t('expressions.classic-conditions.label-conditions', 'Conditions')} labelWidth={14}>
           <div>
             {query.conditions?.map((condition, index) => {
               if (!condition) {

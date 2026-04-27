@@ -1,15 +1,12 @@
 import { action } from '@storybook/addon-actions';
-import React from 'react';
-
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { Meta } from '@storybook/react';
 
 import { ClickOutsideWrapper } from './ClickOutsideWrapper';
 import mdx from './ClickOutsideWrapper.mdx';
 
-export default {
-  title: 'Layout/ClickOutsideWrapper',
+const meta: Meta<typeof ClickOutsideWrapper> = {
+  title: 'Utilities/ClickOutsideWrapper',
   component: ClickOutsideWrapper,
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
@@ -19,8 +16,15 @@ export default {
 
 export const basic = () => {
   return (
-    <ClickOutsideWrapper onClick={action('Clicked outside')}>
-      <div style={{ width: '300px', border: '1px solid grey', padding: '20px' }}>Container</div>
+    <ClickOutsideWrapper
+      onClick={() => {
+        action('Clicked outside!')();
+        window.alert('Clicked outside!');
+      }}
+    >
+      <div style={{ width: '300px', border: '1px solid grey', padding: '20px' }}>Click outside this box!</div>
     </ClickOutsideWrapper>
   );
 };
+
+export default meta;

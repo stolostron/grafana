@@ -1,19 +1,19 @@
 package rendering
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/plugins"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
 type dummyPluginManager struct{}
 
-func (d *dummyPluginManager) Renderer() *plugins.Plugin {
-	return nil
+func (d *dummyPluginManager) Renderer(_ context.Context) (Plugin, bool) {
+	return nil, false
 }
 
 var dummyRendererUrl = "http://dummyurl.com"
@@ -121,9 +121,9 @@ func TestCapabilities(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs.Cfg.RendererUrl = tt.rendererUrl
+			rs.Cfg.RendererServerUrl = tt.rendererUrl
 			rs.version = tt.rendererVersion
-			res, err := rs.HasCapability(tt.capabilityName)
+			res, err := rs.HasCapability(context.Background(), tt.capabilityName)
 
 			if tt.expectedError == nil {
 				require.NoError(t, err)

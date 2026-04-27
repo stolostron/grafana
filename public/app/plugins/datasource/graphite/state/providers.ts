@@ -96,7 +96,9 @@ async function getAltSegments(
       return altSegments;
     }
   } catch (err) {
-    handleMetricsAutoCompleteError(state, err);
+    if (err instanceof Error) {
+      handleMetricsAutoCompleteError(state, err);
+    }
   }
 
   return [];
@@ -133,7 +135,9 @@ async function getTags(state: GraphiteQueryEditorState, index: number, tagPrefix
     altTags.splice(0, 0, state.removeTagValue);
     return altTags;
   } catch (err) {
-    handleTagsAutoCompleteError(state, err);
+    if (err instanceof Error) {
+      handleTagsAutoCompleteError(state, err);
+    }
   }
 
   return [];
@@ -164,11 +168,13 @@ async function getTagsAsSegments(state: GraphiteQueryEditorState, tagPrefix: str
         value: val.text,
         type: 'tag',
         expandable: false,
-      };
+      } as const;
     });
   } catch (err) {
     tagsAsSegments = [];
-    handleTagsAutoCompleteError(state, err);
+    if (err instanceof Error) {
+      handleTagsAutoCompleteError(state, err);
+    }
   }
 
   return tagsAsSegments;
@@ -193,6 +199,7 @@ async function getTagValues(
   const tagExpressions = state.queryModel.renderTagExpressions(index);
   const tagKey = tag.key;
   const values = await state.datasource.getTagValuesAutoComplete(tagExpressions, tagKey, valuePrefix, {
+    range: state.range,
     limit: MAX_SUGGESTIONS,
   });
   const altValues = map(values, 'text');

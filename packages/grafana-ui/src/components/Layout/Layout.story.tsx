@@ -1,19 +1,15 @@
-import { Story, Meta } from '@storybook/react';
-import React from 'react';
+import { StoryFn, Meta } from '@storybook/react';
 
-import { Button, VerticalGroup, HorizontalGroup } from '@grafana/ui';
-
-import { withCenteredStory, withHorizontallyCenteredStory } from '../../utils/storybook/withCenteredStory';
 import { withStoryContainer } from '../../utils/storybook/withStoryContainer';
+import { Button } from '../Button/Button';
 
-import { Layout, LayoutProps } from './Layout';
+import { HorizontalGroup, Layout, LayoutProps, VerticalGroup } from './Layout';
 import mdx from './Layout.mdx';
 
-export default {
-  title: 'Layout/Groups',
+const meta: Meta = {
+  title: 'Layout/Deprecated/Groups',
   component: Layout,
-  decorators: [withStoryContainer, withCenteredStory, withHorizontallyCenteredStory],
-  subcomponents: { HorizontalGroup, VerticalGroup },
+  decorators: [withStoryContainer],
   parameters: {
     docs: {
       page: mdx,
@@ -54,22 +50,26 @@ export default {
       },
     },
   },
-} as Meta;
+};
 
-export const Horizontal: Story<LayoutProps> = (args) => {
+export default meta;
+
+export const Horizontal: StoryFn<LayoutProps> = (args) => {
   return (
     <HorizontalGroup {...args}>
+      <Button variant="secondary">Cancel</Button>
+      <Button variant="destructive">Delete</Button>
       <Button>Save</Button>
-      <Button>Cancel</Button>
     </HorizontalGroup>
   );
 };
 
-export const Vertical: Story<LayoutProps> = (args) => {
+export const Vertical: StoryFn<LayoutProps> = (args) => {
   return (
     <VerticalGroup {...args}>
+      <Button variant="secondary">Cancel</Button>
+      <Button variant="destructive">Delete</Button>
       <Button>Save</Button>
-      <Button>Cancel</Button>
     </VerticalGroup>
   );
 };

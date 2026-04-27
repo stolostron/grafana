@@ -1,12 +1,14 @@
 import { css, cx } from '@emotion/css';
 import { uniqueId } from 'lodash';
-import React, { FC, ReactNode, useRef, useState } from 'react';
+import { ReactNode, useRef, useState } from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { Icon, Spinner } from '..';
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { getFocusStyles } from '../../themes/mixins';
+import { Icon } from '../Icon/Icon';
+import { Spinner } from '../Spinner/Spinner';
 
 export interface Props {
   label: ReactNode;
@@ -18,9 +20,12 @@ export interface Props {
   contentClassName?: string;
   loading?: boolean;
   labelId?: string;
+  headerDataTestId?: string;
+  contentDataTestId?: string;
+  unmountContentWhenClosed?: boolean;
 }
 
-export const CollapsableSection: FC<Props> = ({
+export const CollapsableSection = ({
   label,
   isOpen,
   onToggle,
@@ -29,9 +34,15 @@ export const CollapsableSection: FC<Props> = ({
   children,
   labelId,
   loading = false,
-}) => {
-  const [open, toggleOpen] = useState<boolean>(isOpen);
+  headerDataTestId,
+  contentDataTestId,
+  unmountContentWhenClosed = true,
+}: Props) => {
+  const [internalOpenState, toggleInternalOpenState] = useState<boolean>(isOpen);
   const styles = useStyles2(collapsableSectionStyles);
+
+  const isControlled = isOpen !== undefined && onToggle !== undefined;
+  const isSectionOpen = isControlled ? isOpen : internalOpenState;
 
   const onClick = (e: React.MouseEvent) => {
     if (e.target instanceof HTMLElement && e.target.tagName === 'A') {
@@ -41,39 +52,54 @@ export const CollapsableSection: FC<Props> = ({
     e.preventDefault();
     e.stopPropagation();
 
-    onToggle?.(!open);
-    toggleOpen(!open);
+    onToggle?.(!isOpen);
+
+    if (!isControlled) {
+      toggleInternalOpenState(!internalOpenState);
+    }
   };
   const { current: id } = useRef(uniqueId());
 
   const buttonLabelId = labelId ?? `collapse-label-${id}`;
 
+  const content = (
+    <div
+      id={`collapse-content-${id}`}
+      className={cx(styles.content, contentClassName, {
+        [styles.contentHidden]: !unmountContentWhenClosed && !isSectionOpen,
+      })}
+      data-testid={contentDataTestId}
+    >
+      {children}
+    </div>
+  );
+
   return (
     <>
+      {/* disabling the a11y rules here as the button handles keyboard interactions */}
+      {/* this is just to provide a better experience for mouse users */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div onClick={onClick} className={cx(styles.header, className)}>
         <button
+          type="button"
           id={`collapse-button-${id}`}
           className={styles.button}
           onClick={onClick}
-          aria-expanded={open && !loading}
+          aria-expanded={isSectionOpen && !loading}
           aria-controls={`collapse-content-${id}`}
           aria-labelledby={buttonLabelId}
         >
           {loading ? (
             <Spinner className={styles.spinner} />
           ) : (
-            <Icon name={open ? 'angle-up' : 'angle-down'} className={styles.icon} />
+            <Icon name={isSectionOpen ? 'angle-up' : 'angle-down'} className={styles.icon} />
           )}
         </button>
-        <div className={styles.label} id={`collapse-label-${id}`}>
+        <div className={styles.label} id={`collapse-label-${id}`} data-testid={headerDataTestId}>
           {label}
         </div>
       </div>
-      {open && (
-        <div id={`collapse-content-${id}`} className={cx(styles.content, contentClassName)}>
-          {children}
-        </div>
-      )}
+      {unmountContentWhenClosed ? isSectionOpen && content : content}
     </>
   );
 };
@@ -105,12 +131,17 @@ const collapsableSectionStyles = (theme: GrafanaTheme2) => ({
   content: css({
     padding: `${theme.spacing(2)} 0`,
   }),
+  contentHidden: css({
+    display: 'none',
+  }),
   spinner: css({
     display: 'flex',
     alignItems: 'center',
-    width: theme.v1.spacing.md,
+    width: theme.spacing(2),
   }),
   label: css({
     display: 'flex',
+    fontWeight: theme.typography.fontWeightMedium,
+    color: theme.colors.text.maxContrast,
   }),
 });

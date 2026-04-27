@@ -1,45 +1,44 @@
-import { Meta, Story } from '@storybook/react';
-import React from 'react';
+import { Meta, StoryFn } from '@storybook/react';
 
-import { RangeSlider } from '@grafana/ui';
+import { RangeSlider } from './RangeSlider';
 
-import { RangeSliderProps } from './types';
-
-export default {
-  title: 'Forms/Slider/Range',
+const meta: Meta<typeof RangeSlider> = {
+  title: 'Inputs/RangeSlider',
   component: RangeSlider,
   parameters: {
     controls: {
       exclude: ['tooltipAlwaysVisible'],
     },
+    // TODO fix a11y issue in story and remove this
+    a11y: { test: 'off' },
   },
   argTypes: {
-    isStep: { name: 'step' },
     orientation: { control: { type: 'select', options: ['horizontal', 'vertical'] } },
+    step: { control: { type: 'number', min: 1 } },
   },
-} as Meta;
+  args: {
+    min: 0,
+    max: 100,
+    orientation: 'horizontal',
+    reverse: false,
+    step: undefined,
+  },
+};
 
-interface StoryProps extends Partial<RangeSliderProps> {
-  isStep: boolean;
-}
-
-export const Basic: Story<StoryProps> = (args) => {
+export const Basic: StoryFn<typeof RangeSlider> = (args) => {
   return (
     <div style={{ width: '200px', height: '200px' }}>
-      <RangeSlider
-        step={args.isStep ? 10 : undefined}
-        value={[10, 20]}
-        min={args.min as number}
-        max={args.max as number}
-        {...args}
-      />
+      <RangeSlider {...args} value={[10, 62]} />
     </div>
   );
 };
-Basic.args = {
-  min: 0,
-  max: 100,
-  isStep: false,
-  orientation: 'horizontal',
-  reverse: false,
+
+export const Vertical: StoryFn<typeof RangeSlider> = (args) => {
+  return (
+    <div style={{ width: '200px', height: '200px' }}>
+      <RangeSlider {...args} value={[10, 62]} orientation="vertical" />
+    </div>
+  );
 };
+
+export default meta;

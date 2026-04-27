@@ -1,9 +1,10 @@
 import { css, cx } from '@emotion/css';
-import React, { HTMLAttributes, SFC } from 'react';
+import { HTMLAttributes } from 'react';
+import * as React from 'react';
 
-import { GrafanaTheme } from '@grafana/data';
+import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { Spinner } from '../Spinner/Spinner';
 
 /**
@@ -16,8 +17,8 @@ export interface LoadingPlaceholderProps extends HTMLAttributes<HTMLDivElement> 
 /**
  * @public
  */
-export const LoadingPlaceholder: SFC<LoadingPlaceholderProps> = ({ text, className, ...rest }) => {
-  const styles = useStyles(getStyles);
+export const LoadingPlaceholder = ({ text, className, ...rest }: LoadingPlaceholderProps) => {
+  const styles = useStyles2(getStyles);
   return (
     <div className={cx(styles.container, className)} {...rest}>
       {text} <Spinner inline={true} />
@@ -25,10 +26,10 @@ export const LoadingPlaceholder: SFC<LoadingPlaceholderProps> = ({ text, classNa
   );
 };
 
-const getStyles = (theme: GrafanaTheme) => {
+const getStyles = (theme: GrafanaTheme2) => {
   return {
-    container: css`
-      margin-bottom: ${theme.spacing.xl};
-    `,
+    container: css({
+      marginBottom: theme.spacing(4),
+    }),
   };
 };

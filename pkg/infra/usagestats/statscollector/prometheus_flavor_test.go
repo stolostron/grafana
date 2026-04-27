@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/grafana/pkg/models"
-	"github.com/grafana/grafana/pkg/services/sqlstore/mockstore"
+	"github.com/grafana/grafana/pkg/infra/db/dbtest"
+	"github.com/grafana/grafana/pkg/services/datasources"
+	"github.com/grafana/grafana/pkg/services/stats/statstest"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
@@ -32,47 +32,85 @@ func TestDetectPrometheusVariant(t *testing.T) {
 	}))
 	t.Cleanup(cortex.Close)
 
-	sqlStore := mockstore.NewSQLStoreMock()
+	// Amazon Prometheus is Cortex-like
+	amazonPrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(amazonPrometheus.Close)
+
+	// Azure Prometheus is Cortex-like
+	azurePrometheus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(azurePrometheus.Close)
+
+	sqlStore := dbtest.NewFakeDB()
+	statsService := statstest.NewFakeService()
 	s := createService(
 		t,
 		setting.NewCfg(),
 		sqlStore,
-		withDatasources(mockDatasourceService{datasources: []*models.DataSource{
+		statsService,
+		withDatasources(mockDatasourceService{datasources: []*datasources.DataSource{
 			{
-				Id:      1,
-				OrgId:   1,
+				ID:      1,
+				UID:     "vanilla",
+				OrgID:   1,
 				Version: 1,
 				Name:    "Vanilla",
 				Type:    "prometheus",
 				Access:  "proxy",
-				Url:     vanilla.URL,
+				URL:     vanilla.URL,
 			},
 			{
-				Id:      2,
-				OrgId:   1,
+				ID:      2,
+				UID:     "mimir",
+				OrgID:   1,
 				Version: 1,
 				Name:    "Mimir",
 				Type:    "prometheus",
 				Access:  "proxy",
-				Url:     mimir.URL,
+				URL:     mimir.URL,
 			},
 			{
-				Id:      3,
-				OrgId:   1,
+				ID:      3,
+				UID:     "another-mimir",
+				OrgID:   1,
 				Version: 1,
 				Name:    "Another Mimir",
 				Type:    "prometheus",
 				Access:  "proxy",
-				Url:     mimir.URL,
+				URL:     mimir.URL,
 			},
 			{
-				Id:      4,
-				OrgId:   1,
+				ID:      4,
+				UID:     "cortex",
+				OrgID:   1,
 				Version: 1,
 				Name:    "Cortex",
 				Type:    "prometheus",
 				Access:  "proxy",
-				Url:     cortex.URL,
+				URL:     cortex.URL,
+			},
+			{
+				ID:      5,
+				UID:     "amazon-prometheus",
+				OrgID:   1,
+				Version: 1,
+				Name:    "Amazon Prometheus",
+				Type:    "prometheus",
+				Access:  "proxy",
+				URL:     amazonPrometheus.URL,
+			},
+			{
+				ID:      6,
+				UID:     "azure-prometheus",
+				OrgID:   1,
+				Version: 1,
+				Name:    "Azure Prometheus",
+				Type:    "prometheus",
+				Access:  "proxy",
+				URL:     azurePrometheus.URL,
 			},
 		}}),
 	)
@@ -82,5 +120,5 @@ func TestDetectPrometheusVariant(t *testing.T) {
 
 	assert.Equal(t, int64(2), flavors["mimir"])
 	assert.Equal(t, int64(1), flavors["vanilla"])
-	assert.Equal(t, int64(1), flavors["cortex-like"])
+	assert.Equal(t, int64(3), flavors["cortex-like"])
 }

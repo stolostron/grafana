@@ -1,38 +1,38 @@
-import React, { FC, useEffect, useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useMemo, useState } from 'react';
 
-import { LoadingPlaceholder } from '@grafana/ui';
+import { Trans, t } from '@grafana/i18n';
+import { locationService } from '@grafana/runtime';
+import { Alert, LoadingPlaceholder } from '@grafana/ui';
 import {
-  AlertManagerCortexConfig,
+  useCreateContactPoint,
+  useUpdateContactPoint,
+} from 'app/features/alerting/unified/components/contact-points/useContactPoints';
+import { showManageContactPointPermissions } from 'app/features/alerting/unified/components/contact-points/utils';
+import { GRAFANA_RULES_SOURCE_NAME } from 'app/features/alerting/unified/utils/datasource';
+import { canEditEntity, canModifyProtectedEntity } from 'app/features/alerting/unified/utils/k8s/utils';
+import {
+  GrafanaManagedContactPoint,
   GrafanaManagedReceiverConfig,
-  Receiver,
   TestReceiversAlert,
 } from 'app/plugins/datasource/alertmanager/types';
+import { useDispatch } from 'app/types/store';
 
-import { useUnifiedAlertingSelector } from '../../../hooks/useUnifiedAlertingSelector';
-import {
-  fetchGrafanaNotifiersAction,
-  testReceiversAction,
-  updateAlertManagerConfigAction,
-} from '../../../state/actions';
+import { alertmanagerApi } from '../../../api/alertmanagerApi';
+import { testReceiversAction } from '../../../state/actions';
 import { GrafanaChannelValues, ReceiverFormValues } from '../../../types/receiver-form';
-import { GRAFANA_RULES_SOURCE_NAME } from '../../../utils/datasource';
 import {
   formChannelValuesToGrafanaChannelConfig,
   formValuesToGrafanaReceiver,
   grafanaReceiverToFormValues,
-  updateConfigWithReceiver,
 } from '../../../utils/receiver-form';
+import { ProvisionedResource, ProvisioningAlert } from '../../Provisioning';
+import { ReceiverTypes } from '../grafanaAppReceivers/onCall/onCall';
+import { useOnCallIntegration } from '../grafanaAppReceivers/onCall/useOnCallIntegration';
 
 import { GrafanaCommonChannelSettings } from './GrafanaCommonChannelSettings';
 import { ReceiverForm } from './ReceiverForm';
 import { TestContactPointModal } from './TestContactPointModal';
-
-interface Props {
-  alertManagerSourceName: string;
-  config: AlertManagerCortexConfig;
-  existing?: Receiver;
-}
+import { Notifier } from './notifiers';
 
 const defaultChannelValues: GrafanaChannelValues = Object.freeze({
   __id: '',
@@ -43,40 +43,72 @@ const defaultChannelValues: GrafanaChannelValues = Object.freeze({
   type: 'email',
 });
 
-export const GrafanaReceiverForm: FC<Props> = ({ existing, alertManagerSourceName, config }) => {
-  const grafanaNotifiers = useUnifiedAlertingSelector((state) => state.grafanaNotifiers);
-  const [testChannelValues, setTestChannelValues] = useState<GrafanaChannelValues>();
+interface Props {
+  contactPoint?: GrafanaManagedContactPoint;
+  readOnly?: boolean;
+  editMode?: boolean;
+}
 
+const { useGrafanaNotifiersQuery } = alertmanagerApi;
+
+export const GrafanaReceiverForm = ({ contactPoint, readOnly = false, editMode }: Props) => {
   const dispatch = useDispatch();
+  const [createContactPoint] = useCreateContactPoint({
+    alertmanager: GRAFANA_RULES_SOURCE_NAME,
+  });
+  const [updateContactPoint] = useUpdateContactPoint({
+    alertmanager: GRAFANA_RULES_SOURCE_NAME,
+  });
 
-  useEffect(() => {
-    if (!(grafanaNotifiers.result || grafanaNotifiers.loading)) {
-      dispatch(fetchGrafanaNotifiersAction());
-    }
-  }, [grafanaNotifiers, dispatch]);
+  const {
+    onCallNotifierMeta,
+    extendOnCallNotifierFeatures,
+    extendOnCallReceivers,
+    onCallFormValidators,
+    isLoadingOnCallIntegration,
+    hasOnCallError,
+  } = useOnCallIntegration();
+
+  const { data: grafanaNotifiers = [], isLoading: isLoadingNotifiers } = useGrafanaNotifiersQuery();
+
+  const [testChannelValues, setTestChannelValues] = useState<GrafanaChannelValues>();
 
   // transform receiver DTO to form values
   const [existingValue, id2original] = useMemo((): [
     ReceiverFormValues<GrafanaChannelValues> | undefined,
-    Record<string, GrafanaManagedReceiverConfig>
+    Record<string, GrafanaManagedReceiverConfig>,
   ] => {
-    if (!existing || !grafanaNotifiers.result) {
+    if (!contactPoint || isLoadingNotifiers || isLoadingOnCallIntegration) {
       return [undefined, {}];
     }
-    return grafanaReceiverToFormValues(existing, grafanaNotifiers.result!);
-  }, [existing, grafanaNotifiers.result]);
 
-  const onSubmit = (values: ReceiverFormValues<GrafanaChannelValues>) => {
+    return grafanaReceiverToFormValues(extendOnCallReceivers(contactPoint));
+  }, [contactPoint, isLoadingNotifiers, extendOnCallReceivers, isLoadingOnCallIntegration]);
+
+  const onSubmit = async (values: ReceiverFormValues<GrafanaChannelValues>) => {
     const newReceiver = formValuesToGrafanaReceiver(values, id2original, defaultChannelValues);
-    dispatch(
-      updateAlertManagerConfigAction({
-        newConfig: updateConfigWithReceiver(config, newReceiver, existing?.name),
-        oldConfig: config,
-        alertManagerSourceName: GRAFANA_RULES_SOURCE_NAME,
-        successMessage: existing ? 'Contact point updated.' : 'Contact point created',
-        redirectPath: '/alerting/notifications',
-      })
-    );
+
+    try {
+      if (editMode) {
+        if (contactPoint && contactPoint.id) {
+          await updateContactPoint.execute({
+            contactPoint: newReceiver,
+            id: contactPoint.id,
+            resourceVersion: contactPoint?.metadata?.resourceVersion,
+          });
+        } else if (contactPoint) {
+          await updateContactPoint.execute({
+            contactPoint: newReceiver,
+            originalName: contactPoint.name,
+          });
+        }
+      } else {
+        await createContactPoint.execute({ contactPoint: newReceiver });
+      }
+      locationService.push('/alerting/notifications');
+    } catch (error) {
+      // React form validation will handle this for us
+    }
   };
 
   const onTestChannel = (values: GrafanaChannelValues) => {
@@ -89,7 +121,7 @@ export const GrafanaReceiverForm: FC<Props> = ({ existing, alertManagerSourceNam
       const chan = formChannelValuesToGrafanaChannelConfig(testChannelValues, defaultChannelValues, 'test', existing);
 
       const payload = {
-        alertManagerSourceName,
+        alertManagerSourceName: GRAFANA_RULES_SOURCE_NAME,
         receivers: [
           {
             name: 'test',
@@ -103,33 +135,71 @@ export const GrafanaReceiverForm: FC<Props> = ({ existing, alertManagerSourceNam
     }
   };
 
-  const takenReceiverNames = useMemo(
-    () => config.alertmanager_config.receivers?.map(({ name }) => name).filter((name) => name !== existing?.name) ?? [],
-    [config, existing]
-  );
+  // If there is no contact point it means we're creating a new one, so scoped permissions doesn't exist yet
+  const hasScopedEditPermissions = contactPoint ? canEditEntity(contactPoint) : true;
+  const hasScopedEditProtectedPermissions = contactPoint ? canModifyProtectedEntity(contactPoint) : true;
+  const isEditable = !readOnly && hasScopedEditPermissions && !contactPoint?.provisioned;
+  const isTestable = !readOnly;
+  const canEditProtectedFields = editMode ? hasScopedEditProtectedPermissions : true;
 
-  if (grafanaNotifiers.result) {
+  if (isLoadingNotifiers || isLoadingOnCallIntegration) {
     return (
-      <>
-        <ReceiverForm<GrafanaChannelValues>
-          config={config}
-          onSubmit={onSubmit}
-          initialValues={existingValue}
-          onTestChannel={onTestChannel}
-          notifiers={grafanaNotifiers.result}
-          alertManagerSourceName={alertManagerSourceName}
-          defaultItem={defaultChannelValues}
-          takenReceiverNames={takenReceiverNames}
-          commonSettingsComponent={GrafanaCommonChannelSettings}
-        />
-        <TestContactPointModal
-          onDismiss={() => setTestChannelValues(undefined)}
-          isOpen={!!testChannelValues}
-          onTest={(alert) => testNotification(alert)}
-        />
-      </>
+      <LoadingPlaceholder text={t('alerting.grafana-receiver-form.text-loading-notifiers', 'Loading notifiers...')} />
     );
-  } else {
-    return <LoadingPlaceholder text="Loading notifiers..." />;
   }
+
+  const notifiers: Notifier[] = grafanaNotifiers.map((n) => {
+    if (n.type === ReceiverTypes.OnCall) {
+      return {
+        dto: extendOnCallNotifierFeatures(n),
+        meta: onCallNotifierMeta,
+      };
+    }
+
+    return { dto: n };
+  });
+
+  return (
+    <>
+      {hasOnCallError && (
+        <Alert
+          severity="error"
+          title={t(
+            'alerting.grafana-receiver-form.title-loading-on-call-integration-failed',
+            'Loading OnCall integration failed'
+          )}
+        >
+          <Trans i18nKey="alerting.grafana-receiver-form.body-loading-on-call-integration-failed">
+            Grafana OnCall plugin has been enabled in your Grafana instances but it is not reachable. Please check the
+            plugin configuration
+          </Trans>
+        </Alert>
+      )}
+
+      {contactPoint?.provisioned && <ProvisioningAlert resource={ProvisionedResource.ContactPoint} />}
+
+      <ReceiverForm<GrafanaChannelValues>
+        contactPointId={contactPoint?.id}
+        isEditable={isEditable}
+        isTestable={isTestable}
+        onSubmit={onSubmit}
+        initialValues={existingValue}
+        onTestChannel={onTestChannel}
+        notifiers={notifiers}
+        alertManagerSourceName={GRAFANA_RULES_SOURCE_NAME}
+        defaultItem={{ ...defaultChannelValues }}
+        commonSettingsComponent={GrafanaCommonChannelSettings}
+        customValidators={{ [ReceiverTypes.OnCall]: onCallFormValidators }}
+        canManagePermissions={
+          editMode && contactPoint && showManageContactPointPermissions(GRAFANA_RULES_SOURCE_NAME, contactPoint)
+        }
+        canEditProtectedFields={canEditProtectedFields}
+      />
+      <TestContactPointModal
+        onDismiss={() => setTestChannelValues(undefined)}
+        isOpen={!!testChannelValues}
+        onTest={(alert) => testNotification(alert)}
+      />
+    </>
+  );
 };

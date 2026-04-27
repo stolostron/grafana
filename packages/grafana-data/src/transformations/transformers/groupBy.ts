@@ -1,14 +1,16 @@
 import { map } from 'rxjs/operators';
 
-import { MutableField } from '../../dataframe/MutableDataFrame';
-import { guessFieldTypeForField } from '../../dataframe/processDataFrame';
 import { getFieldDisplayName } from '../../field/fieldState';
-import { DataFrame, Field, FieldType } from '../../types/dataFrame';
-import { DataTransformerInfo } from '../../types/transformations';
-import { ArrayVector } from '../../vector/ArrayVector';
-import { reduceField, ReducerID } from '../fieldReducer';
+import { DataFrame, Field } from '../../types/dataFrame';
+import { DataTransformerInfo, TransformationApplicabilityLevels } from '../../types/transformations';
+import { getFieldTypeForReducer, reduceField, ReducerID } from '../fieldReducer';
+import { getFieldMatcher } from '../matchers';
+import { FieldMatcherID } from '../matchers/ids';
 
 import { DataTransformerID } from './ids';
+import { findMaxFields } from './utils';
+
+const MINIMUM_FIELDS_REQUIRED = 1;
 
 export enum GroupByOperationID {
   aggregate = 'aggregate',
@@ -24,90 +26,74 @@ export interface GroupByTransformerOptions {
   fields: Record<string, GroupByFieldOptions>;
 }
 
+interface FieldMap {
+  [key: string]: Field;
+}
+
 export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> = {
   id: DataTransformerID.groupBy,
   name: 'Group by',
-  description: 'Group the data by a field values then process calculations for each group',
+  description: 'Group the data by a field values then process calculations for each group.',
   defaultOptions: {
     fields: {},
   },
+  isApplicable: (data: DataFrame[]) => {
+    // Group by needs at least two fields
+    // a field to group on and a field to aggregate
+    // We make sure that at least one frame has at
+    // least two fields
+    const maxFields = findMaxFields(data);
 
+    return maxFields >= MINIMUM_FIELDS_REQUIRED
+      ? TransformationApplicabilityLevels.Applicable
+      : TransformationApplicabilityLevels.NotApplicable;
+  },
+  isApplicableDescription: (data: DataFrame[]) => {
+    const maxFields = findMaxFields(data);
+    return `The Group by transformation requires a series with at least ${MINIMUM_FIELDS_REQUIRED} fields to work. The maximum number of fields found on a series is ${maxFields}`;
+  },
   /**
-   * Return a modified copy of the series.  If the transform is not or should not
+   * Return a modified copy of the series. If the transform is not or should not
    * be applied, just return the input series
    */
   operator: (options) => (source) =>
     source.pipe(
       map((data) => {
-        const hasValidConfig = Object.keys(options.fields).find(
-          (name) => options.fields[name].operation === GroupByOperationID.groupBy
-        );
+        const groupByFieldNames: string[] = [];
 
-        if (!hasValidConfig) {
+        for (const [k, v] of Object.entries(options.fields)) {
+          if (v.operation === GroupByOperationID.groupBy) {
+            groupByFieldNames.push(k);
+          }
+        }
+
+        if (groupByFieldNames.length === 0) {
           return data;
         }
+
+        const matcher = getFieldMatcher({
+          id: FieldMatcherID.byNames,
+          options: { names: groupByFieldNames },
+        });
 
         const processed: DataFrame[] = [];
 
         for (const frame of data) {
-          const groupByFields: Field[] = [];
+          // Create a list of fields to group on
+          // If there are none we skip the rest
 
-          for (const field of frame.fields) {
-            if (shouldGroupOnField(field, options)) {
-              groupByFields.push(field);
-            }
-          }
+          const groupByFields: Field[] = frame.fields.filter((field) => matcher(field, frame, data));
 
           if (groupByFields.length === 0) {
-            continue; // No group by field in this frame, ignore the frame
+            continue;
           }
 
           // Group the values by fields and groups so we can get all values for a
           // group for a given field.
-          const valuesByGroupKey = new Map<string, Record<string, MutableField>>();
-          for (let rowIndex = 0; rowIndex < frame.length; rowIndex++) {
-            const groupKey = String(groupByFields.map((field) => field.values.get(rowIndex)));
-            const valuesByField = valuesByGroupKey.get(groupKey) ?? {};
+          const valuesByGroupKey = groupValuesByKey(frame, groupByFields);
 
-            if (!valuesByGroupKey.has(groupKey)) {
-              valuesByGroupKey.set(groupKey, valuesByField);
-            }
-
-            for (let field of frame.fields) {
-              const fieldName = getFieldDisplayName(field);
-
-              if (!valuesByField[fieldName]) {
-                valuesByField[fieldName] = {
-                  name: fieldName,
-                  type: field.type,
-                  config: { ...field.config },
-                  values: new ArrayVector(),
-                };
-              }
-
-              valuesByField[fieldName].values.add(field.values.get(rowIndex));
-            }
-          }
-
-          const fields: Field[] = [];
-
-          for (const field of groupByFields) {
-            const values = new ArrayVector();
-            const fieldName = getFieldDisplayName(field);
-
-            valuesByGroupKey.forEach((value) => {
-              values.add(value[fieldName].values.get(0));
-            });
-
-            fields.push({
-              name: field.name,
-              type: field.type,
-              config: {
-                ...field.config,
-              },
-              values: values,
-            });
-          }
+          // Add the grouped fields to the resulting fields of the transformation
+          const fields: Field[] = createGroupedFields(groupByFields, valuesByGroupKey);
 
           // Then for each calculations configured, compute and add a new field (column)
           for (const field of frame.fields) {
@@ -117,7 +103,7 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
 
             const fieldName = getFieldDisplayName(field);
             const aggregations = options.fields[fieldName].aggregations;
-            const valuesByAggregation: Record<string, any[]> = {};
+            const valuesByAggregation: Record<string, unknown[]> = {};
 
             valuesByGroupKey.forEach((value) => {
               const fieldWithValuesForGroup = value[fieldName];
@@ -137,17 +123,17 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
             for (const aggregation of aggregations) {
               const aggregationField: Field = {
                 name: `${fieldName} (${aggregation})`,
-                values: new ArrayVector(valuesByAggregation[aggregation]),
-                type: FieldType.other,
+                values: valuesByAggregation[aggregation] ?? [],
+                type: getFieldTypeForReducer(aggregation, field.type),
                 config: {},
               };
 
-              aggregationField.type = detectFieldType(aggregation, field, aggregationField);
               fields.push(aggregationField);
             }
           }
 
           processed.push({
+            refId: frame.refId,
             fields,
             length: valuesByGroupKey.size,
           });
@@ -158,30 +144,89 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
     ),
 };
 
-const shouldGroupOnField = (field: Field, options: GroupByTransformerOptions): boolean => {
+// exported for test
+export const shouldCalculateField = (field: Field, options: GroupByTransformerOptions): boolean => {
   const fieldName = getFieldDisplayName(field);
-  return options?.fields[fieldName]?.operation === GroupByOperationID.groupBy;
-};
+  const { operation, aggregations = [] } = options.fields[fieldName] ?? {};
 
-const shouldCalculateField = (field: Field, options: GroupByTransformerOptions): boolean => {
-  const fieldName = getFieldDisplayName(field);
-  return (
-    options?.fields[fieldName]?.operation === GroupByOperationID.aggregate &&
-    Array.isArray(options?.fields[fieldName].aggregations) &&
-    options?.fields[fieldName].aggregations.length > 0
-  );
-};
-
-const detectFieldType = (aggregation: string, sourceField: Field, targetField: Field): FieldType => {
-  switch (aggregation) {
-    case ReducerID.allIsNull:
-      return FieldType.boolean;
-    case ReducerID.last:
-    case ReducerID.lastNotNull:
-    case ReducerID.first:
-    case ReducerID.firstNotNull:
-      return sourceField.type;
-    default:
-      return guessFieldTypeForField(targetField) ?? FieldType.string;
+  if (!Array.isArray(aggregations)) {
+    return false;
+  } else if (operation === GroupByOperationID.aggregate) {
+    return aggregations.length > 0;
+  } else if (operation === GroupByOperationID.groupBy) {
+    return aggregations.length === 1 && aggregations[0] === ReducerID.count;
+  } else {
+    return false;
   }
 };
+
+/**
+ * Groups values together by key. This will create a mapping of strings
+ * to _FieldMaps_ that will then be used to group values on.
+ *
+ * @param frame
+ *  The dataframe containing the data to group.
+ * @param groupByFields
+ *  An array of fields to group on.
+ */
+export function groupValuesByKey(frame: DataFrame, groupByFields: Field[]) {
+  const valuesByGroupKey = new Map<string, FieldMap>();
+
+  for (let rowIndex = 0; rowIndex < frame.length; rowIndex++) {
+    const groupKey = String(groupByFields.map((field) => field.values[rowIndex]));
+    const valuesByField = valuesByGroupKey.get(groupKey) ?? {};
+
+    if (!valuesByGroupKey.has(groupKey)) {
+      valuesByGroupKey.set(groupKey, valuesByField);
+    }
+
+    for (let field of frame.fields) {
+      const fieldName = getFieldDisplayName(field);
+
+      if (!valuesByField[fieldName]) {
+        valuesByField[fieldName] = {
+          name: fieldName,
+          type: field.type,
+          config: { ...field.config },
+          values: [],
+        };
+      }
+
+      valuesByField[fieldName].values.push(field.values[rowIndex]);
+    }
+  }
+
+  return valuesByGroupKey;
+}
+
+/**
+ * Create new fields which will be used to display grouped values.
+ *
+ * @param groupByFields
+ * @param valuesByGroupKey
+ * @returns
+ *  Returns an array of fields that have been grouped.
+ */
+export function createGroupedFields(groupByFields: Field[], valuesByGroupKey: Map<string, FieldMap>): Field[] {
+  const fields: Field[] = [];
+
+  for (const field of groupByFields) {
+    const values: unknown[] = [];
+    const fieldName = getFieldDisplayName(field);
+
+    valuesByGroupKey.forEach((value) => {
+      values.push(value[fieldName].values[0]);
+    });
+
+    fields.push({
+      name: field.name,
+      type: field.type,
+      config: {
+        ...field.config,
+      },
+      values,
+    });
+  }
+
+  return fields;
+}

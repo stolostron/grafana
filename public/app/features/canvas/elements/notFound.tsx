@@ -1,24 +1,27 @@
-import React, { PureComponent } from 'react';
+import { PureComponent } from 'react';
+
+import { Trans } from '@grafana/i18n';
 
 import { CanvasElementItem, CanvasElementProps } from '../element';
 
-interface NotFoundConfig {
-  orig?: any;
-}
-
-class NotFoundDisplay extends PureComponent<CanvasElementProps<NotFoundConfig>> {
+class NotFoundDisplay extends PureComponent<CanvasElementProps> {
   render() {
     const { config } = this.props;
     return (
       <div>
-        <h3>NOT FOUND:</h3>
-        <pre>{JSON.stringify(config, null, 2)}</pre>
+        <Trans
+          i18nKey="canvas.not-found-display.not-found"
+          components={{ config: <pre>{JSON.stringify(config, null, 2)}</pre> }}
+        >
+          <h3>Not found: </h3>
+          {'<config />'}
+        </Trans>
       </div>
     );
   }
 }
 
-export const notFoundItem: CanvasElementItem<NotFoundConfig> = {
+export const notFoundItem: CanvasElementItem = {
   id: 'not-found',
   name: 'Not found',
   description: 'Display when element type is not found in the registry',

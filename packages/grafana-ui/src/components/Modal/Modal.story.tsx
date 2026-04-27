@@ -1,20 +1,19 @@
 import { css, cx } from '@emotion/css';
-import { Story, Meta } from '@storybook/react';
+import { StoryFn, Meta } from '@storybook/react';
 import { oneLineTrim } from 'common-tags';
-import React, { useState } from 'react';
+import { useState } from 'react';
 
-import { Button, Modal, ModalTabsHeader, TabContent } from '@grafana/ui';
+import { getAvailableIcons } from '../../types/icon';
+import { Button } from '../Button/Button';
+import { TabContent } from '../Tabs/TabContent';
 
-import { getAvailableIcons } from '../../types';
-import { UseState } from '../../utils/storybook/UseState';
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
+import { Modal } from './Modal';
 import mdx from './Modal.mdx';
+import { ModalTabsHeader } from './ModalTabsHeader';
 
-export default {
+const meta: Meta = {
   title: 'Overlays/Modal',
   component: Modal,
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
@@ -22,6 +21,8 @@ export default {
     controls: {
       exclude: ['className', 'contentClassName', 'onDismiss', 'onClickBackdrop'],
     },
+    // TODO fix a11y issue in story and remove this
+    a11y: { test: 'off' },
   },
   args: {
     body: oneLineTrim(`Id incididunt do pariatur qui labore. Sint culpa irure cillum et ullamco proident. Deserunt ipsum velit dolore est enim proident dolore consectetur. Et cillum tempor pariatur et. Est tempor cillum ad id nulla. Cillum ut proident
@@ -47,15 +48,17 @@ export default {
       },
     },
   },
-} as Meta;
+};
 
-export const Basic: Story = ({ body, title, ...args }) => {
+export const Basic: StoryFn = ({ body, title, ...args }) => {
   return (
     <Modal title={title} {...args}>
       {body}
       <Modal.ButtonRow>
+        <Button variant="secondary" fill="outline">
+          Cancel
+        </Button>
         <Button>Button1</Button>
-        <Button variant="secondary">Cancel</Button>
       </Modal.ButtonRow>
     </Modal>
   );
@@ -74,7 +77,7 @@ const tabs = [
   { label: '3rd child', value: 'third', active: false },
 ];
 
-export const WithTabs: Story = (args) => {
+export const WithTabs: StoryFn = (args) => {
   const [activeTab, setActiveTab] = useState('first');
   const modalHeader = (
     <ModalTabsHeader
@@ -88,21 +91,15 @@ export const WithTabs: Story = (args) => {
     />
   );
   return (
-    <UseState initialState={tabs}>
-      {(state, updateState) => {
-        return (
-          <div>
-            <Modal title={modalHeader} isOpen={true}>
-              <TabContent>
-                {activeTab === state[0].value && <div>{args.body}</div>}
-                {activeTab === state[1].value && <div>Second tab content</div>}
-                {activeTab === state[2].value && <div>Third tab content</div>}
-              </TabContent>
-            </Modal>
-          </div>
-        );
-      }}
-    </UseState>
+    <div>
+      <Modal title={modalHeader} isOpen={true}>
+        <TabContent>
+          {activeTab === tabs[0].value && <div>{args.body}</div>}
+          {activeTab === tabs[1].value && <div>Second tab content</div>}
+          {activeTab === tabs[2].value && <div>Third tab content</div>}
+        </TabContent>
+      </Modal>
+    </div>
   );
 };
 WithTabs.args = {
@@ -110,11 +107,11 @@ WithTabs.args = {
   icon: 'cog',
 };
 
-export const UsingContentClassName: Story = ({ title, body, ...args }) => {
+export const UsingContentClassName: StoryFn = ({ title, body, ...args }) => {
   const override = {
-    modalContent: css`
-      background-color: darkorange;
-    `,
+    modalContent: css({
+      backgroundColor: 'darkorange',
+    }),
   };
   return (
     <Modal title={title} {...args} contentClassName={cx(override.modalContent)}>
@@ -129,3 +126,5 @@ UsingContentClassName.args = {
   closeOnEscape: false,
   iconTooltip: 'icon tooltip',
 };
+
+export default meta;

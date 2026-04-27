@@ -1,9 +1,9 @@
 import { css } from '@emotion/css';
-import React from 'react';
+import * as React from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 
-import { useStyles2 } from '../../themes';
+import { useStyles2 } from '../../themes/ThemeContext';
 import { InlineFieldRow } from '../Forms/InlineFieldRow';
 import { InlineLabel } from '../Forms/InlineLabel';
 
@@ -46,11 +46,11 @@ export const SegmentSection = ({
 };
 
 const getStyles = (theme: GrafanaTheme2) => ({
-  label: css`
-    color: ${theme.colors.primary.text};
-  `,
-  fill: css`
-    flex-grow: 1;
-    margin-bottom: ${theme.spacing(0.5)};
-  `,
+  label: css({
+    color: theme.colors.primary.text,
+  }),
+  fill: css({
+    flexGrow: 1,
+    marginBottom: theme.spacing(0.5),
+  }),
 });

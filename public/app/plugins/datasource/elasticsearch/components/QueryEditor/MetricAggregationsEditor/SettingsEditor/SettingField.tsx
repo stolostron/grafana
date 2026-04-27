@@ -1,12 +1,15 @@
 import { uniqueId } from 'lodash';
-import React, { ComponentProps, useState } from 'react';
+import { ComponentProps, useState } from 'react';
 
-import { InlineField, Input } from '@grafana/ui';
-import { getScriptValue } from 'app/plugins/datasource/elasticsearch/utils';
+import { InlineField, Input, TextArea } from '@grafana/ui';
+import {
+  MetricAggregationWithSettings,
+  MetricAggregationWithInlineScript,
+} from 'app/plugins/datasource/elasticsearch/dataquery.gen';
 
 import { useDispatch } from '../../../../hooks/useStatelessReducer';
+import { getScriptValue } from '../../../../utils';
 import { SettingKeyOf } from '../../../types';
-import { MetricAggregationWithInlineScript, MetricAggregationWithSettings } from '../aggregations';
 import { changeMetricSetting } from '../state/actions';
 
 interface Props<T extends MetricAggregationWithSettings, K extends SettingKeyOf<T>> {
@@ -15,6 +18,7 @@ interface Props<T extends MetricAggregationWithSettings, K extends SettingKeyOf<
   metric: T;
   placeholder?: ComponentProps<typeof Input>['placeholder'];
   tooltip?: ComponentProps<typeof InlineField>['tooltip'];
+  inputType?: 'input' | 'textarea';
 }
 
 export function SettingField<T extends MetricAggregationWithSettings, K extends SettingKeyOf<T>>({
@@ -23,6 +27,7 @@ export function SettingField<T extends MetricAggregationWithSettings, K extends 
   metric,
   placeholder,
   tooltip,
+  inputType = 'input',
 }: Props<T, K>) {
   const dispatch = useDispatch();
   const [id] = useState(uniqueId(`es-field-id-`));
@@ -36,12 +41,21 @@ export function SettingField<T extends MetricAggregationWithSettings, K extends 
 
   return (
     <InlineField label={label} labelWidth={16} tooltip={tooltip}>
-      <Input
-        id={id}
-        placeholder={placeholder}
-        onBlur={(e) => dispatch(changeMetricSetting({ metric, settingName, newValue: e.target.value }))}
-        defaultValue={defaultValue}
-      />
+      {inputType === 'textarea' ? (
+        <TextArea
+          id={id}
+          placeholder={placeholder}
+          onBlur={(e) => dispatch(changeMetricSetting({ metric, settingName, newValue: e.target.value }))}
+          defaultValue={defaultValue}
+        />
+      ) : (
+        <Input
+          id={id}
+          placeholder={placeholder}
+          onBlur={(e) => dispatch(changeMetricSetting({ metric, settingName, newValue: e.target.value }))}
+          defaultValue={defaultValue}
+        />
+      )}
     </InlineField>
   );
 }

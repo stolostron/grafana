@@ -1,30 +1,32 @@
-import { Meta, Story } from '@storybook/react';
-import React from 'react';
+import { Meta, StoryFn } from '@storybook/react';
 
-import { FileDropzone, FileDropzoneProps } from '@grafana/ui';
-
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
+import { FileDropzone } from './FileDropzone';
 import mdx from './FileDropzone.mdx';
 
-export default {
-  title: 'Forms/FileDropzone',
+const meta: Meta<typeof FileDropzone> = {
+  title: 'Inputs/FileDropzone',
   component: FileDropzone,
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
     },
+    // TODO fix a11y issue in story and remove this
+    a11y: { test: 'off' },
   },
-  argTypes: {
-    onLoad: { action: 'onLoad' },
-  },
-} as Meta;
-
-export const Basic: Story<FileDropzoneProps> = (args) => {
-  return <FileDropzone {...args} />;
 };
 
-export const WithCustomFileList: Story<FileDropzoneProps> = () => {
-  return <FileDropzone fileListRenderer={(file) => <div>Custom rendered item {file.file.name}</div>} />;
+const Template: StoryFn<typeof FileDropzone> = (args) => <FileDropzone {...args} />;
+
+export const Basic = Template.bind({});
+
+export const WithCustomFileList = Template.bind({});
+WithCustomFileList.args = {
+  fileListRenderer: (file) => <div>Custom rendered item {file.file.name}</div>,
 };
+
+export const OnlyAcceptingCertainFiles = Template.bind({});
+OnlyAcceptingCertainFiles.args = {
+  options: { accept: { 'application/json': ['.json'] } },
+};
+
+export default meta;

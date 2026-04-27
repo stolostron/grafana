@@ -1,5 +1,5 @@
 import { css, cx } from '@emotion/css';
-import React, { ReactNode } from 'react';
+import { forwardRef, ReactNode } from 'react';
 
 import { GrafanaTheme2 } from '@grafana/data';
 import { getInputStyles, Icon, IconName, useStyles2, getSelectStyles } from '@grafana/ui';
@@ -8,15 +8,17 @@ export interface Props {
   children: ReactNode;
   iconName?: IconName;
 }
-export const ValueContainer = ({ children, iconName }: Props) => {
+export const ValueContainer = forwardRef<HTMLDivElement, Props>(({ children, iconName }, ref) => {
   const styles = useStyles2(getStyles);
   return (
-    <div className={styles.container}>
+    <div className={styles.container} ref={ref}>
       {iconName && <Icon name={iconName} size="xs" />}
       {children}
     </div>
   );
-};
+});
+
+ValueContainer.displayName = 'ValueContainer';
 
 const getStyles = (theme: GrafanaTheme2) => {
   const { prefix } = getInputStyles({ theme });
@@ -25,14 +27,14 @@ const getStyles = (theme: GrafanaTheme2) => {
     container: cx(
       prefix,
       multiValueContainer,
-      css`
-        position: relative;
-        padding: ${theme.spacing(0.5, 1, 0.5, 1)};
+      css({
+        position: 'relative',
+        padding: theme.spacing(0.5, 1, 0.5, 1),
 
-        svg {
-          margin-right: ${theme.spacing(0.5)};
-        }
-      `
+        svg: {
+          marginRight: theme.spacing(0.5),
+        },
+      })
     ),
   };
 };
