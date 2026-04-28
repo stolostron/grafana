@@ -40,6 +40,11 @@ spec:
     value: '{"type": "gomod", "path": "."}'
   - name: build-source-image
     value: "true"
+  taskRunSpecs:
+    - pipelineTaskName: build-source-image
+      computeResources:
+        limits:
+          memory: 4Gi
   pipelineRef:
     resolver: git
     params:

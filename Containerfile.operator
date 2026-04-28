@@ -1,22 +1,37 @@
-# Copyright Contributors to the Open Cluster Management project
-# Licensed under the Apache License 2.0
-
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.21 AS builder
+# Golang build container
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.25 AS builder
 
 WORKDIR $GOPATH/src/github.com/grafana/grafana
-ENV GOFLAGS="-mod=mod"
 
-COPY .git/ ./.git/
+ARG COMMIT_SHA="5b85c4c2fcf5d32d4f68aaef345c53096359b2f1"
+ARG BUILD_BRANCH=""
+ARG GO_BUILD_TAGS="oss"
+ARG WIRE_TAGS="oss"
+ENV COMMIT_SHA=${COMMIT_SHA}
+
+# This appears to be needed in Grafana 11.6.1 to build on Konflux
+# to avoid vendor issues. Should attempt to remove it in the future
+ENV GOFLAGS="-mod=readonly"
+
 COPY go.mod go.sum embed.go Makefile build.go package.json ./
-COPY cue cue/
+COPY kinds kinds
+COPY kindsv2 kindsv2
+COPY local local
 COPY packages/grafana-schema packages/grafana-schema/
 COPY public/app/plugins public/app/plugins/
+COPY public/api-merged.json public/api-merged.json
 COPY pkg pkg/
 COPY scripts scripts/
 COPY cue.mod cue.mod/
-COPY .bingo .bingo
+COPY conf conf
+COPY go.* ./
+COPY apps apps
+COPY .citools .citools
 
-RUN go mod verify
+# Apply custom patches
+COPY stolostron-patches stolostron-patches
+RUN git apply ./stolostron-patches/*
+
 RUN go run build.go -build-tags=strictfipsruntime build
 
 # Need to copy the generated binaries to a non-platform specific location to handle
@@ -24,7 +39,7 @@ RUN go run build.go -build-tags=strictfipsruntime build
 RUN cp ./bin/linux-$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
-FROM registry.access.redhat.com/ubi9/ubi:latest
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 ARG VCS_REF
 ARG VCS_URL
@@ -47,7 +62,7 @@ LABEL org.label-schema.vendor="Red Hat" \
     org.label-schema.vcs-url=$VCS_URL \
     org.label-schema.license="Red Hat Advanced Cluster Management for Kubernetes EULA" \
     org.label-schema.schema-version="1.0" \
-    name="$IMAGE_NAME" \
+    name="rhacm2/acm-grafana-rhel9" \
     maintainer="$IMAGE_MAINTAINER" \
     version="$IMAGE_VERSION" \
     release="$IMAGE_RELEASE" \
@@ -56,7 +71,6 @@ LABEL org.label-schema.vendor="Red Hat" \
     io.k8s.display-name="$IMAGE_DISPLAY_NAME" \
     io.k8s.description="$IMAGE_DESCRIPTION" \
     io.openshift.tags="$IMAGE_OPENSHIFT_TAGS"
-
 
 ARG GF_UID="472"
 ARG GF_GID="472"
@@ -74,9 +88,6 @@ WORKDIR $GF_PATHS_HOME
 COPY conf ./conf
 
 RUN mkdir -p "$GF_PATHS_HOME/.aws" && \
-    # addgroup -S -g $GF_GID grafana && \
-    # adduser -S -u $GF_UID -G grafana grafana && \
-    # Note: the openshift base image does not include the addgroup and adduser commands so we have to use useradd/groupadd
     groupadd --system -g $GF_GID grafana && \
     useradd --system -u $GF_UID -g grafana grafana && \
     mkdir -p "$GF_PATHS_PROVISIONING/datasources" \
@@ -90,8 +101,7 @@ RUN mkdir -p "$GF_PATHS_HOME/.aws" && \
     chown -R grafana:grafana "$GF_PATHS_DATA" "$GF_PATHS_HOME/.aws" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING" && \
     chmod -R 777 "$GF_PATHS_DATA" "$GF_PATHS_HOME/.aws" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING"
 
-# Note: the openshift build requires a name to reference the build container in the '--from' option instead of using the index '0' as is done upstream
-COPY --from=builder /usr/bin/grafana-server /usr/bin/grafana-cli ./bin/
+COPY --from=builder /usr/bin/grafana* ./bin/
 COPY public ./public
 COPY tools ./tools
 
@@ -101,3 +111,4 @@ COPY ./packaging/docker/run.sh /run.sh
 
 USER grafana
 ENTRYPOINT [ "/run.sh" ]
+
