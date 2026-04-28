@@ -1,0 +1,157 @@
+From 6e6b7bcd641ccbbe5d3d8dd99b5422d94a7aec5d Mon Sep 17 00:00:00 2001
+From: Jacob Baungard Hansen <jacobbaungard@redhat.com>
+Date: Fri, 26 Sep 2025 10:58:20 +0200
+Subject: [PATCH] Forward headers from auth proxy to datasource
+
+Signed-off-by: Jacob Baungard Hansen <jacobbaungard@redhat.com>
+---
+ pkg/services/datasources/models.go            |  12 +++
+ .../forward_headers_middleware.go             | 100 ++++++++++++++++++
+ .../pluginsintegration/pluginsintegration.go  |   1 +
+ 3 files changed, 113 insertions(+)
+ create mode 100644 pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
+
+diff --git a/pkg/services/datasources/models.go b/pkg/services/datasources/models.go
+index 329d936dedb..05c8caf4fd9 100644
+--- a/pkg/services/datasources/models.go
++++ b/pkg/services/datasources/models.go
+@@ -147,6 +147,18 @@ func (ds DataSource) AllowedCookies() []string {
+ 	return []string{}
+ }
+ 
++// AllowedCookies parses the jsondata.keepCookies and returns a list of
++// allowed cookies, otherwise an empty list.
++func (ds DataSource) ForwardHeaders() []string {
++	if ds.JsonData != nil {
++		if forwardHeaders := ds.JsonData.Get("forwardHeaders"); forwardHeaders != nil {
++			return forwardHeaders.MustStringArray()
++		}
++	}
++
++	return []string{}
++}
++
+ // ----------------------
+ // COMMANDS
+ 
+diff --git a/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go b/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
+new file mode 100644
+index 00000000000..d567fc2d588
+--- /dev/null
++++ b/pkg/services/pluginsintegration/clientmiddleware/forward_headers_middleware.go
+@@ -0,0 +1,100 @@
++package clientmiddleware
++
++import (
++	"context"
++	"net/http"
++
++	"github.com/grafana/grafana-plugin-sdk-go/backend"
++
++	"github.com/grafana/grafana/pkg/components/simplejson"
++	"github.com/grafana/grafana/pkg/infra/log"
++	"github.com/grafana/grafana/pkg/services/contexthandler"
++	"github.com/grafana/grafana/pkg/services/datasources"
++)
++
++// NewForwardHeadersMiddleware creates a new plugins.ClientMiddleware
++// will forward any ensure configured headers are forwarded
++func NewForwardHeadersMiddleware() backend.HandlerMiddleware {
++	return backend.HandlerMiddlewareFunc(func(next backend.Handler) backend.Handler {
++		return &ForwardHeadersMiddleware{
++			BaseHandler: backend.NewBaseHandler(next),
++			log: log.New("Forward Headers Middleware"),
++		}
++	})
++}
++
++type ForwardHeadersMiddleware struct {
++	backend.BaseHandler
++	log log.Logger
++}
++
++func (m *ForwardHeadersMiddleware) forwardHeaders(ctx context.Context, pCtx backend.PluginContext, h backend.ForwardHTTPHeaders) {
++	reqCtx := contexthandler.FromContext(ctx)
++	// if no HTTP request context skip middleware
++	if h == nil || reqCtx == nil || reqCtx.Req == nil || reqCtx.SignedInUser == nil {
++		return
++	}
++
++	if pCtx.DataSourceInstanceSettings != nil {
++		settings := pCtx.DataSourceInstanceSettings
++		jsonDataBytes, err := simplejson.NewJson(settings.JSONData)
++		if err != nil {
++			return
++		}
++
++		ds := &datasources.DataSource{
++			ID:       settings.ID,
++			OrgID:    pCtx.OrgID,
++			JsonData: jsonDataBytes,
++			Updated:  settings.Updated,
++		}
++
++		headersToFoward := ds.ForwardHeaders()
++		if len(headersToFoward) == 0 {
++			m.log.Warn("No headers to forward")
++			return
++		}
++
++		var req *http.Request
++		if reqCtx != nil {
++			req = reqCtx.Req
++		}
++		for _, k := range headersToFoward {
++			if _, ok := req.Header[k]; ok {
++				m.log.Debug("Fowarding header: ", "header", k)
++				h.SetHTTPHeader(k, req.Header.Get(k))
++			}
++		}
++	}
++
++}
++
++func (m *ForwardHeadersMiddleware) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
++	if req == nil {
++		return m.BaseHandler.QueryData(ctx, req)
++	}
++
++	m.forwardHeaders(ctx, req.PluginContext, req)
++
++	return m.BaseHandler.QueryData(ctx, req)
++}
++
++func (m *ForwardHeadersMiddleware) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
++	if req == nil {
++		return m.BaseHandler.CallResource(ctx, req, sender)
++	}
++
++	m.forwardHeaders(ctx, req.PluginContext, req)
++
++	return m.BaseHandler.CallResource(ctx, req, sender)
++}
++
++func (m *ForwardHeadersMiddleware) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
++	if req == nil {
++		return m.BaseHandler.CheckHealth(ctx, req)
++	}
++
++	m.forwardHeaders(ctx, req.PluginContext, req)
++
++	return m.BaseHandler.CheckHealth(ctx, req)
++}
+diff --git a/pkg/services/pluginsintegration/pluginsintegration.go b/pkg/services/pluginsintegration/pluginsintegration.go
+index 73d39b06321..1aa821ebea0 100644
+--- a/pkg/services/pluginsintegration/pluginsintegration.go
++++ b/pkg/services/pluginsintegration/pluginsintegration.go
+@@ -198,6 +198,7 @@ func CreateMiddlewares(cfg *setting.Cfg, oAuthTokenService oauthtoken.OAuthToken
+ 	middlewares = append(middlewares,
+ 		clientmiddleware.NewTracingHeaderMiddleware(),
+ 		clientmiddleware.NewClearAuthHeadersMiddleware(),
++		clientmiddleware.NewForwardHeadersMiddleware(),
+ 		clientmiddleware.NewOAuthTokenMiddleware(oAuthTokenService),
+ 		clientmiddleware.NewCookiesMiddleware(skipCookiesNames),
+ 		clientmiddleware.NewCachingMiddlewareWithFeatureManager(cachingService, features),
+-- 
+2.51.0
+
