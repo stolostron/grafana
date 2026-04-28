@@ -1,0 +1,117 @@
+{
+  "3399.b25afd31a187e30b0090.js": {
+    "src": "public/build/3399.b25afd31a187e30b0090.js",
+    "integrity": "sha384-1EQhme2gW6EPLLYcenczowwnbnKFxxUcPrPvsXWy/Ge0RwQ63O8DzVYSN5Xpldg0 sha512-xouxZu/f6sO5cEDQQsH8PUewoT3YWC+LmuJ/znDg1F7iMYE4tHqT32YeDhDIX91Og8CdhLcAdpjAppkb9VVR0g=="
+  },
+  "4438.02465a25ca15416600aa.js": {
+    "src": "public/build/4438.02465a25ca15416600aa.js",
+    "integrity": "sha384-mwLieZz7G7vGSXF33bRT9bCKcF/z/4CxGceAGu5O3U+R6BUKopcfZ5haSNS4o88b sha512-7Y90gQmijB8hWMY4yhVBo4mZuB43MAtpiIegvH5FzO5yTivI2YTagkx1ORIKwygoyY6cKGcvFEkF9JQmp+6xYw=="
+  },
+  "5923.b00ce115488258cc774e.js": {
+    "src": "public/build/5923.b00ce115488258cc774e.js",
+    "integrity": "sha384-xGfx5Q9lvQj1XtH+S0ZKdZST5jJEd6JEUSHNhP6q/R5QEdTbTWCLuks0ok9aoPj8 sha512-rqwlu+QEl5quYPv/ODlpnW1fzyfyxpUAFVqNVCJrHSFsUdyh5qVXnXan6RyAvmut6kb0dauG90Z2buAfEtTrlg=="
+  },
+  "6029.ced17922ce65e4fd1ef9.js": {
+    "src": "public/build/6029.ced17922ce65e4fd1ef9.js",
+    "integrity": "sha384-JFKmMsxbiWWsyc90S4v48hYBOOBw+7j0H9xBOdb4l4CSrSkzELZQAF3nuNx1sQMb sha512-uv1WA9iy7mpB5/zOTt6xdG87uZXNWC1xtGnt0NJJGbZFcO0vyKlivHiU/TWiHCEgovnPuKd7BukeobX2ptJQhg=="
+  },
+  "758.565b31de30fd78e03746.js": {
+    "src": "public/build/758.565b31de30fd78e03746.js",
+    "integrity": "sha384-H00jG/YP4ffb5ieklrF2UKHOiCJYM8ODWteT4AAU0gcr8sFV91dqNWClbwNuQcpU sha512-5s05lblQvza/UURe6ZaD9vGgDl4NN2O0Urb05NF06SgbyG3gk/mwYM1jbA1YQHIEnhL/9QSqHA1GapvcEWc4CQ=="
+  },
+  "9414.efe786ccd31d8152a327.js": {
+    "src": "public/build/9414.efe786ccd31d8152a327.js",
+    "integrity": "sha384-liMK1uUYgY6xR3/MERS0LTfySEcmFExttBmJo8Lqm/jBSPrH/HhCYga3P2FHY7Fp sha512-oyXqLPO6xbhvF2/ZH9M4l8mqEp+Ro3df/VgM5Awpze6WCPLh93LkvX0r7nXoBWGd3+/qk9J0HHSz4EG/UxA9zQ=="
+  },
+  "app.css": {
+    "src": "public/build/grafana.app.1f6473bb54b1e1647be8.css",
+    "integrity": "sha384-dfbC2tTYjeW7/ml0CcHzJoSMlJMtNI1aruKmoypJ+BRvvSnuBT0U5wjnaXwfKkxu sha512-1QKL7DOg0FUJTfOgJv6/XffTqmLZKLsvX/4BuxuZ+SC4p23i0D/zGNto4M6WlwaseSKLJRVVXdNn0GEb7V6XEw=="
+  },
+  "app.js": {
+    "src": "public/build/app.42fdc394d66edeaff995.js",
+    "integrity": "sha384-IeWVXNrKPJkjy4KZoThoNmVC3QGo9QIKYY3nY7wNCKmiwajGvmLgO3BwsR4Ous6q sha512-WxM/Z9bmU1B9JFL2JIud8d72/tYHAxM7tG507s6OvKcaDaU14t++pS1zU2eIGa4k4li7K5kvGYxSMWfN0/9ewQ=="
+  },
+  "dark.css": {
+    "src": "public/build/grafana.dark.23c5425b7a9e1580d499.css",
+    "integrity": "sha384-DITHLWhSlqtkEnv4huQhd2p49ZN8XCps2egTAnHn8Z7PrTl1w/1w6VAFCrZnHiPh sha512-cmcTe82e8BIiaAu2940l8lGdGdoinRlvz2Hb3Kpl20HTnrHddr5Q45jIfUzGWnBOcVdN5vL5uLpdxrCn2FQcbA=="
+  },
+  "dark.js": {
+    "src": "public/build/dark.8606c52556ad6e73d34c.js",
+    "integrity": "sha384-IBqvzBhJ3NcJWDMAaYtP3MKwhcGmt9N12A5Io3vhiSQ8hhmNuTlSDBgTK57JvE+I sha512-+YvbjQw8XhF3i2f7Y4OAanQtxZsOY25LNmHG2jXZBXmyJwfE4Sk673BvefSqQa4BcFNqHm1xPRkQ342ypc/26g=="
+  },
+  "light.css": {
+    "src": "public/build/grafana.light.303347f04b1c5140c769.css",
+    "integrity": "sha384-utg8gKxy+WYuxi+V52nRxwS0Tyfbr0TX3KzzLjksjdl53eqHLWvgTvKQ1Gf4Hjti sha512-bDMT5SsK6Ml/YKhPLeuIfTdoBhFityBO2pNBlFjlGa38uytwtIUJEO/NwDrvusQeigBu1NEk7JkT0avyzjw0Hg=="
+  },
+  "light.js": {
+    "src": "public/build/light.b24f789983b0ee2b9094.js",
+    "integrity": "sha384-k1X5MqgfSb4c4L2gpxSFBxlaHpLahv2G/67eMIeWWYYHHdb8osiW+GAH5XE8RD77 sha512-30zdWV5yaRDXkxNH9BBqgx2RE1DvWMVvp7pGoXX40GqityHdOUVuk7mUqWAHMf6gpRzTb777LfInY5hnbYtlAQ=="
+  },
+  "runtime.js": {
+    "src": "public/build/runtime.3460fff95cc287b5ad8a.js",
+    "integrity": "sha384-6Av41u2RqF2JgGKu/UWZWRphn2Hf00JckZTTccK/N3xybchMVvnH18hUdg8Krn6l sha512-3bzsjd4RH6+Dwd71AnZul6IyDdlh/9axpBkyUFKt6dyLLjlBDzbeg9NusTz9elGsQYLM9D0iwpZnYqSjpBZTag=="
+  },
+  "swagger.css": {
+    "src": "public/build/grafana.swagger.d0a2da197b9827204ac1.css",
+    "integrity": "sha384-WCNS9FySedugIyb8fkjUCt0U2ZQWKifCFICWKaBB/1X1roVDZiilm+hPnmFyt35H sha512-InI1FqWH/FNfgMiG9BCcL+2MIiBDQVc9nq7A5Ik4LFbbEhQ11exrTCBjOV6c35XvLVho87+z0uVbh4UbgkHxBA=="
+  },
+  "swagger.js": {
+    "src": "public/build/swagger.9c0487ad4890b1551ddc.js",
+    "integrity": "sha384-jrFPKAqZpG0SuMO/5pH1afpJHcbD6GasgVBi++q/0zisUY2pTa4UNXdyCYW8bade sha512-m+Lcaabqqiwxs9fKaOFBSHlOwlR8Y2R108RKi7ZtBgGtv22r+4ZhphZZT1QF4P+0nY0glN5MPhuBynwTgn6baA=="
+  },
+  "entrypoints": {
+    "app": {
+      "assets": {
+        "js": [
+          "public/build/runtime.3460fff95cc287b5ad8a.js",
+          "public/build/6029.ced17922ce65e4fd1ef9.js",
+          "public/build/758.565b31de30fd78e03746.js",
+          "public/build/3399.b25afd31a187e30b0090.js",
+          "public/build/5923.b00ce115488258cc774e.js",
+          "public/build/9414.efe786ccd31d8152a327.js",
+          "public/build/app.42fdc394d66edeaff995.js"
+        ],
+        "css": [
+          "public/build/grafana.app.1f6473bb54b1e1647be8.css"
+        ]
+      }
+    },
+    "swagger": {
+      "assets": {
+        "js": [
+          "public/build/runtime.3460fff95cc287b5ad8a.js",
+          "public/build/6029.ced17922ce65e4fd1ef9.js",
+          "public/build/758.565b31de30fd78e03746.js",
+          "public/build/4438.02465a25ca15416600aa.js",
+          "public/build/5923.b00ce115488258cc774e.js",
+          "public/build/swagger.9c0487ad4890b1551ddc.js"
+        ],
+        "css": [
+          "public/build/grafana.swagger.d0a2da197b9827204ac1.css"
+        ]
+      }
+    },
+    "dark": {
+      "assets": {
+        "js": [
+          "public/build/runtime.3460fff95cc287b5ad8a.js",
+          "public/build/dark.8606c52556ad6e73d34c.js"
+        ],
+        "css": [
+          "public/build/grafana.dark.23c5425b7a9e1580d499.css"
+        ]
+      }
+    },
+    "light": {
+      "assets": {
+        "js": [
+          "public/build/runtime.3460fff95cc287b5ad8a.js",
+          "public/build/light.b24f789983b0ee2b9094.js"
+        ],
+        "css": [
+          "public/build/grafana.light.303347f04b1c5140c769.css"
+        ]
+      }
+    }
+  }
+}
