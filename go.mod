@@ -634,6 +634,7 @@ require (
 )
 
 require (
+	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207 // indirect
 	github.com/google/gnostic v0.7.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 )
