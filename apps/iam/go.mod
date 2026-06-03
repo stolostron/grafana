@@ -1,6 +1,6 @@
 module github.com/grafana/grafana/apps/iam
 
-go 1.25.7
+go 1.25.9
 
 replace github.com/grafana/grafana => ../../
 
