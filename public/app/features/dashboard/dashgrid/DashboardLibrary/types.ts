@@ -1,21 +1,22 @@
-import { DashboardJson } from 'app/features/manage-dashboards/types';
+import { type DashboardJson } from 'app/features/manage-dashboards/types';
+import { type PluginDashboard } from 'app/types/plugins';
 
 export interface Link {
   rel: string;
   href: string;
 }
 
-export interface Screenshot {
+interface Screenshot {
   links: Link[];
 }
 
-export interface LogoImage {
+interface LogoImage {
   content: string;
   filename: string;
   type: string;
 }
 
-export interface Logo {
+interface Logo {
   small?: LogoImage;
   large?: LogoImage;
 }
@@ -46,4 +47,12 @@ export interface GnetDashboardsResponse {
   page: number;
   pages: number;
   items: GnetDashboard[];
+}
+
+/**
+ * Type guard to check if a dashboard is a GnetDashboard (community dashboard).
+ * PluginDashboard has fields like importedRevision, importedUri, path that GnetDashboard doesn't have.
+ */
+export function isGnetDashboard(dashboard: PluginDashboard | GnetDashboard): dashboard is GnetDashboard {
+  return !('importedRevision' in dashboard || 'importedUri' in dashboard || 'path' in dashboard);
 }

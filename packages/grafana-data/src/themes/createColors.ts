@@ -3,11 +3,12 @@ import { z } from 'zod';
 
 import { alpha, darken, emphasize, getContrastRatio, lighten } from './colorManipulator';
 import { palette } from './palette';
-import { DeepRequired, ThemeRichColor, ThemeRichColorInputSchema } from './types';
+import { resolvePaletteRefs } from './palette_new';
+import { type DeepRequired, type ThemeRichColor, ThemeRichColorInputSchema } from './types';
 
 const ThemeColorsModeSchema = z.enum(['light', 'dark']);
 /** @internal */
-export type ThemeColorsMode = z.infer<typeof ThemeColorsModeSchema>;
+type ThemeColorsMode = z.infer<typeof ThemeColorsModeSchema>;
 
 const createThemeColorsBaseSchema = <TColor>(color: TColor) =>
   z
@@ -16,6 +17,8 @@ const createThemeColorsBaseSchema = <TColor>(color: TColor) =>
 
       primary: color,
       secondary: color,
+      tertiary: color,
+      accent: color,
       info: color,
       error: color,
       success: color,
@@ -31,8 +34,10 @@ const createThemeColorsBaseSchema = <TColor>(color: TColor) =>
       }),
 
       background: z.object({
-        /** Dashboard and body background */
+        /** Body background */
         canvas: z.string().optional(),
+        /** Page container background */
+        page: z.string().optional(),
         /** Primary content pane background (panels etc) */
         primary: z.string().optional(),
         /** Cards and elements that need to stand out on the primary background */
@@ -77,6 +82,7 @@ const createThemeColorsBaseSchema = <TColor>(color: TColor) =>
         disabledOpacity: z.number().optional(),
       }),
 
+      scrollbar: z.string().optional(),
       hoverFactor: z.number(),
       contrastThreshold: z.number(),
       tonalOffset: z.number(),
@@ -85,21 +91,21 @@ const createThemeColorsBaseSchema = <TColor>(color: TColor) =>
 
 // Need to override the zod type to include the generic properly
 /** @internal */
-export type ThemeColorsBase<TColor> = DeepRequired<
+type ThemeColorsBase<TColor> = DeepRequired<
   Omit<
     z.infer<ReturnType<typeof createThemeColorsBaseSchema>>,
-    'primary' | 'secondary' | 'info' | 'error' | 'success' | 'warning'
+    'primary' | 'secondary' | 'tertiary' | 'info' | 'error' | 'success' | 'warning'
   >
 > & {
   primary: TColor;
   secondary: TColor;
+  tertiary: TColor;
+  accent: TColor;
   info: TColor;
   error: TColor;
   success: TColor;
   warning: TColor;
 };
-
-export interface ThemeHoverStrengh {}
 
 /** @beta */
 export interface ThemeColors extends ThemeColorsBase<ThemeRichColor> {
@@ -121,9 +127,9 @@ class DarkColors implements ThemeColorsBase<Partial<ThemeRichColor>> {
   whiteBase = '204, 204, 220';
 
   border = {
-    weak: `rgba(${this.whiteBase}, 0.12)`,
-    medium: `rgba(${this.whiteBase}, 0.2)`,
-    strong: `rgba(${this.whiteBase}, 0.30)`,
+    weak: `rgb(54, 57, 64)`,
+    medium: `rgb(68, 70, 78)`,
+    strong: `rgb(85, 87, 96)`,
   };
 
   text = {
@@ -141,13 +147,20 @@ class DarkColors implements ThemeColorsBase<Partial<ThemeRichColor>> {
   };
 
   secondary = {
-    main: `rgba(${this.whiteBase}, 0.10)`,
-    shade: `rgba(${this.whiteBase}, 0.14)`,
+    main: palette.gray20,
+    shade: palette.gray25,
     transparent: `rgba(${this.whiteBase}, 0.08)`,
     text: this.text.primary,
     contrastText: `rgb(${this.whiteBase})`,
     border: `rgba(${this.whiteBase}, 0.08)`,
   };
+
+  tertiary = {
+    main: palette.purpleDarkMain,
+    text: palette.purpleDarkText,
+  };
+
+  accent = this.primary;
 
   info = this.primary;
 
@@ -168,6 +181,7 @@ class DarkColors implements ThemeColorsBase<Partial<ThemeRichColor>> {
 
   background = {
     canvas: palette.gray05,
+    page: palette.gray10,
     primary: palette.gray10,
     secondary: palette.gray15,
     elevated: palette.gray15,
@@ -188,6 +202,8 @@ class DarkColors implements ThemeColorsBase<Partial<ThemeRichColor>> {
     brandHorizontal: 'linear-gradient(270deg, #F55F3E 0%, #FF8833 100%)',
     brandVertical: 'linear-gradient(0.01deg, #F55F3E 0.01%, #FF8833 99.99%)',
   };
+
+  scrollbar = `rgba(${this.whiteBase}, 0.3)`;
 
   contrastThreshold = 3;
   hoverFactor = 0.03;
@@ -214,19 +230,26 @@ class LightColors implements ThemeColorsBase<Partial<ThemeRichColor>> {
   };
 
   border = {
-    weak: `rgba(${this.blackBase}, 0.12)`,
-    medium: `rgba(${this.blackBase}, 0.3)`,
-    strong: `rgba(${this.blackBase}, 0.4)`,
+    weak: `rgb(229, 229, 230)`,
+    medium: `rgb(189, 191, 192)`,
+    strong: `rgb(167, 169, 171)`,
   };
 
   secondary = {
-    main: `rgba(${this.blackBase}, 0.08)`,
-    shade: `rgba(${this.blackBase}, 0.15)`,
+    main: palette.gray90,
+    shade: palette.gray85,
     transparent: `rgba(${this.blackBase}, 0.08)`,
     contrastText: `rgba(${this.blackBase},  1)`,
     text: this.text.primary,
     border: this.border.weak,
   };
+
+  tertiary = {
+    main: palette.purpleLightMain,
+    text: palette.purpleLightText,
+  };
+
+  accent = this.primary;
 
   info = {
     main: palette.blueLightMain,
@@ -250,9 +273,10 @@ class LightColors implements ThemeColorsBase<Partial<ThemeRichColor>> {
   };
 
   background = {
-    canvas: palette.gray90,
+    canvas: palette.gray100,
+    page: palette.white,
     primary: palette.white,
-    secondary: palette.gray100,
+    secondary: palette.gray95,
     elevated: palette.white,
   };
 
@@ -272,18 +296,23 @@ class LightColors implements ThemeColorsBase<Partial<ThemeRichColor>> {
     brandVertical: 'linear-gradient(0.01deg, #F53E4C -31.2%, #FF8833 113.07%)',
   };
 
+  scrollbar = `rgba(${this.blackBase}, 0.3)`;
+
   contrastThreshold = 3;
   hoverFactor = 0.03;
   tonalOffset = 0.2;
 }
 
 export function createColors(colors: ThemeColorsInput): ThemeColors {
+  colors = resolvePaletteRefs(colors);
   const dark = new DarkColors();
   const light = new LightColors();
   const base = (colors.mode ?? 'dark') === 'dark' ? dark : light;
   const {
     primary = base.primary,
     secondary = base.secondary,
+    tertiary = base.tertiary,
+    accent = base.accent,
     info = base.info,
     warning = base.warning,
     success = base.success,
@@ -334,6 +363,8 @@ export function createColors(colors: ThemeColorsInput): ThemeColors {
       ...base,
       primary: getRichColor({ color: primary, name: 'primary' }),
       secondary: getRichColor({ color: secondary, name: 'secondary' }),
+      tertiary: getRichColor({ color: tertiary, name: 'tertiary' }),
+      accent: getRichColor({ color: accent, name: 'accent' }),
       info: getRichColor({ color: info, name: 'info' }),
       error: getRichColor({ color: error, name: 'error' }),
       success: getRichColor({ color: success, name: 'success' }),
@@ -347,8 +378,7 @@ export function createColors(colors: ThemeColorsInput): ThemeColors {
   );
 }
 
-type RichColorNames = 'primary' | 'secondary' | 'info' | 'error' | 'success' | 'warning';
-
+type RichColorNames = 'primary' | 'secondary' | 'tertiary' | 'accent' | 'info' | 'error' | 'success' | 'warning';
 interface GetRichColorProps {
   color: Partial<ThemeRichColor>;
   name: RichColorNames;

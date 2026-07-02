@@ -1,15 +1,14 @@
 import { css } from '@emotion/css';
-import { MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { GrafanaTheme2 } from '@grafana/data';
+import { type GrafanaTheme2 } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 import { Trans } from '@grafana/i18n';
-import { config } from '@grafana/runtime';
-import { SceneVariable, VariableValueOption, VariableValueOptionProperties } from '@grafana/scenes';
+import { type SceneVariable, type VariableValueOption, type VariableValueOptionProperties } from '@grafana/scenes';
 import { Button, InlineFieldRow, InlineLabel, InteractiveTable, Text, useStyles2 } from '@grafana/ui';
 import { ALL_VARIABLE_VALUE } from 'app/features/variables/constants';
 
-interface VariableValuesPreviewProps {
+export interface VariableValuesPreviewProps {
   options: VariableValueOption[];
   staticOptions: VariableValueOption[];
 }
@@ -58,20 +57,27 @@ export const useGetPropertiesFromOptions = (
     const staticValues = new Set(staticOptions?.map((s) => s.value) ?? []);
     const queryOption = options.find((o) => o.value !== ALL_VARIABLE_VALUE && !staticValues.has(o.value));
     const flattened = flattenProperties(queryOption?.properties);
-    const keys = Object.keys(flattened).filter((p) => !['text', 'value'].includes(p));
-    return ['text', 'value', ...keys];
+    const keys = Object.keys(flattened).filter((p) => !['value', 'text'].includes(p));
+    return ['value', 'text', ...keys];
   }, [options, staticOptions]);
 
 export const VariableValuesPreview = ({ options, staticOptions }: VariableValuesPreviewProps) => {
   const styles = useStyles2(getStyles);
   const properties = useGetPropertiesFromOptions(options, staticOptions);
   const hasOptions = options.length > 0;
-  const displayMultiPropsPreview = config.featureToggles.multiPropsVariables && hasOptions && properties.length > 2;
+  const displayMultiPropsPreview = hasOptions && properties.length > 2;
 
   return (
     <div className={styles.previewContainer} style={{ gap: '8px' }}>
       <Text variant="bodySmall" weight="medium">
-        <Trans i18nKey="dashboard-scene.variable-values-preview.preview-of-values" values={{ count: options.length }}>
+        <Trans
+          i18nKey="dashboard-scene.variable-values-preview.preview-of-values"
+          values={{ count: options.length }}
+          tOptions={{
+            defaultValue_one: 'Preview of values ({{count}})',
+            defaultValue_other: 'Preview of values ({{count}})',
+          }}
+        >
           Preview of values ({'{{count}}'})
         </Trans>
         {hasOptions && displayMultiPropsPreview && (
@@ -110,19 +116,21 @@ function VariableValuesWithPropsPreview({
   }, [options, properties]);
 
   return (
-    <InteractiveTable
-      className={styles.table}
-      columns={columns}
-      data={data}
-      getRowId={(r) => String(r.value)}
-      pageSize={8}
-    />
+    <div data-testid={selectors.pages.Dashboard.Settings.Variables.Edit.CustomVariable.previewTable}>
+      <InteractiveTable
+        className={styles.table}
+        columns={columns}
+        data={data}
+        getRowId={(r) => JSON.stringify(r)}
+        pageSize={8}
+      />
+    </div>
   );
 }
 const sanitizeKey = (key: string) => key.replace(/\./g, '__dot__');
 const unsanitizeKey = (key: string) => key.replace(/__dot__/g, '.');
 
-export function VariableValuesWithoutPropsPreview({ options }: { options: VariableValueOption[] }) {
+function VariableValuesWithoutPropsPreview({ options }: { options: VariableValueOption[] }) {
   const styles = useStyles2(getStyles);
   const [previewLimit, setPreviewLimit] = useState(20);
   const [previewOptions, setPreviewOptions] = useState<VariableValueOption[]>([]);

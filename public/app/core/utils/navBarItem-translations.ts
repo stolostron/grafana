@@ -83,6 +83,10 @@ export function getNavTitle(navId: string | undefined) {
       return t('nav.alerting-silences.title', 'Silences');
     case 'groups':
       return t('nav.alerting-groups.title', 'Active notifications');
+    case 'alert-alerts':
+      return t('nav.alerting-alerts.title', 'Alert activity');
+    case 'alert-activity':
+      return t('nav.alerting-activity.title', 'Alert activity');
     case 'alerting-admin':
       return t('nav.alerting-admin.title', 'Settings');
     case 'alerts/recently-deleted':
@@ -163,6 +167,8 @@ export function getNavTitle(navId: string | undefined) {
       return t('nav.frontend-app.title', 'Frontend');
     case 'plugin-page-grafana-synthetic-monitoring-app':
       return t('nav.synthetics.title', 'Synthetics');
+    case 'plugin-page-grafana-agentictesting-app':
+      return t('nav.agentic-testing.title', 'Agentic testing');
     case 'help':
       return t('nav.help.title', 'Help');
     case 'profile/settings':
@@ -247,6 +253,10 @@ export function getNavSubTitle(navId: string | undefined) {
       return t('nav.alerting-silences.subtitle', 'Stop notifications from one or more alerting rules');
     case 'groups':
       return t('nav.alerting-groups.subtitle', 'See grouped alerts with active notifications');
+    case 'alert-alerts':
+      return t('nav.alerting-alerts.subtitle', 'Visualize active and pending alerts');
+    case 'alert-activity':
+      return t('nav.alerting-activity.subtitle', 'View alerts and active notifications');
     case 'alerts/recently-deleted':
       return t('nav.alerts-recently-deleted.subtitle', 'See recently deleted alert rules');
     case 'datasources':
@@ -263,8 +273,6 @@ export function getNavSubTitle(navId: string | undefined) {
       return t('nav.org-settings.subtitle', 'Manage preferences across an organization');
     case 'serviceaccounts':
       return t('nav.service-accounts.subtitle', 'Use service accounts to run automated workloads in Grafana');
-    case 'groupsync':
-      return t('nav.groupsync.subtitle', 'Manage mappings of Identity Provider groups to Grafana Roles');
     case 'global-users':
       return t('nav.global-users.subtitle', 'Manage users in Grafana');
     case 'global-orgs':

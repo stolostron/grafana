@@ -8,6 +8,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/client-go/rest"
 
+	"github.com/grafana/grafana/pkg/plugins/pluginscdn"
+	"github.com/grafana/grafana/pkg/services/featuremgmt"
+	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginconfig"
 	settingservice "github.com/grafana/grafana/pkg/services/setting"
 	"github.com/grafana/grafana/pkg/setting"
 )
@@ -24,12 +27,18 @@ import (
 //
 // [settings_service]
 // url =
+// qps =
+// burst =
+// cache_ttl =
 //
 // Returns nil if not configured (this is not an error condition). Errors returned should
 // be considered critical.
 func setupSettingsService(cfg *setting.Cfg, promRegister prometheus.Registerer) (settingservice.Service, error) {
 	settingsSec := cfg.SectionWithEnvOverrides("settings_service")
 	settingsServiceURL := settingsSec.Key("url").String()
+	settingsServiceQPS := float32(settingsSec.Key("qps").MustFloat64(0))
+	settingsServiceBurst := settingsSec.Key("burst").MustInt(0)
+	settingsServiceCacheTTL := settingsSec.Key("cache_ttl").MustDuration(0)
 	if settingsServiceURL == "" {
 		// If settings service URL is not configured, return nil *without* error
 		return nil, nil
@@ -63,6 +72,9 @@ func setupSettingsService(cfg *setting.Cfg, promRegister prometheus.Registerer) 
 		URL:                 settingsServiceURL,
 		TokenExchangeClient: tokenClient,
 		TLSClientConfig:     tlsConfig,
+		QPS:                 settingsServiceQPS,
+		Burst:               settingsServiceBurst,
+		CacheTTL:            settingsServiceCacheTTL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create settings service client: %w", err)
@@ -76,4 +88,16 @@ func setupSettingsService(cfg *setting.Cfg, promRegister prometheus.Registerer) 
 	}
 
 	return settingsService, nil
+}
+
+// setupPluginsCDNService initializes the plugins CDN service from the global
+// configuration. The frontend service uses it to expose the plugins CDN base
+// URL in the frontend settings.
+func setupPluginsCDNService(cfg *setting.Cfg, features featuremgmt.FeatureToggles) (*pluginscdn.Service, error) {
+	pluginManagementCfg, err := pluginconfig.ProvidePluginManagementConfig(cfg, setting.ProvideProvider(cfg), features)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create plugin management config: %w", err)
+	}
+
+	return pluginscdn.ProvideService(pluginManagementCfg), nil
 }

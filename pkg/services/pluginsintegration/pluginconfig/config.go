@@ -23,7 +23,7 @@ func ProvidePluginManagementConfig(cfg *setting.Cfg, settingProvider setting.Pro
 
 	return config.NewPluginManagementCfg(
 		settingProvider.KeyValue("", "app_mode").MustBool(cfg.Env == setting.Dev),
-		cfg.PluginsPath,
+		cfg.PluginsPaths,
 		extractPluginSettings(settingProvider),
 		allowedUnsigned,
 		cfg.PluginsCDNURLTemplate,
@@ -36,7 +36,7 @@ func ProvidePluginManagementConfig(cfg *setting.Cfg, settingProvider setting.Pro
 		cfg.GrafanaComAPIURL,
 		cfg.DisablePlugins,
 		cfg.ForwardHostEnvVars,
-		cfg.GrafanaComSSOAPIToken,
+		cfg.GrafanaComProxyAPIToken,
 	), nil
 }
 

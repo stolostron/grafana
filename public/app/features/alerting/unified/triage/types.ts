@@ -3,7 +3,10 @@ export type Filter = [key: string, operator: '=' | '=!', value: string];
 
 export type WorkbenchRow = GenericGroupedRow | AlertRuleRow;
 
-export type TimelineEntry = [timestamp: number, state: 'firing' | 'pending'];
+export interface InstanceCounts {
+  firing: number;
+  pending: number;
+}
 
 export interface AlertRuleRow {
   type: 'alertRule';
@@ -12,6 +15,7 @@ export interface AlertRuleRow {
     folder: string;
     ruleUID: string;
   };
+  instanceCounts: InstanceCounts;
 }
 
 export interface GenericGroupedRow {
@@ -21,6 +25,7 @@ export interface GenericGroupedRow {
     value: LabelValue;
   };
   rows: WorkbenchRow[];
+  instanceCounts: InstanceCounts;
 }
 
 export type LabelValue = string | typeof EmptyLabelValue;

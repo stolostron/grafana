@@ -1,11 +1,28 @@
 import { OFREPWebProvider } from '@openfeature/ofrep-web-provider';
-import { OpenFeature } from '@openfeature/react-sdk';
-
-import { FeatureToggles } from '@grafana/data';
+import { OpenFeature, ProviderEvents, NOOP_PROVIDER, type EventDetails } from '@openfeature/react-sdk';
 
 import { config } from '../../config';
+import { logError } from '../../utils/logging';
 
-export type FeatureFlagName = keyof FeatureToggles;
+// Ensure the module augmentation is pulled in
+import './openfeature-types.gen.d.ts';
+
+function checkDefaultProvider(event?: EventDetails) {
+  if (event?.domain) {
+    return;
+  }
+
+  // Warn plugin developers if we've detected OpenFeature's default provider has been changed,
+  //  as plugins should always be using a domain when setting a provider to avoid conflicts.
+  if (OpenFeature.getProvider() !== NOOP_PROVIDER) {
+    const err = new Error(
+      'OpenFeature default domain provider has been unexpectedly changed. This may be caused by a plugin that is incorrectly using the default domain.',
+      { cause: OpenFeature.getProvider() }
+    );
+    console.error(err);
+    logError(err);
+  }
+}
 
 // The domain creates the unique instance of the OpenFeature client for Grafana core,
 // with its own evaluation context and provider.
@@ -14,15 +31,19 @@ export type FeatureFlagName = keyof FeatureToggles;
 //
 // If changing this, you MUST also update the same constant in packages/grafana-test-utils/src/utilities/featureFlags.ts
 // to ensure tests work correctly.
-export const GRAFANA_CORE_OPEN_FEATURE_DOMAIN = 'internal-grafana-core';
+const GRAFANA_CORE_OPEN_FEATURE_DOMAIN = 'internal-grafana-core';
 
 export async function initOpenFeature() {
+  OpenFeature.addHandler(ProviderEvents.Ready, checkDefaultProvider);
+  OpenFeature.addHandler(ProviderEvents.Error, checkDefaultProvider);
+
   const subPath = config.appSubUrl || '';
   const baseUrl = `${subPath}/apis/features.grafana.app/v0alpha1/namespaces/${config.namespace}`;
 
   const ofProvider = new OFREPWebProvider({
     baseUrl: baseUrl,
-    pollInterval: -1, // disable polling
+    disableVisibilityRefresh: true, // Do not refresh
+    cacheMode: 'disabled', // Do not write to localStorage
     timeoutMs: 5_000,
   });
 

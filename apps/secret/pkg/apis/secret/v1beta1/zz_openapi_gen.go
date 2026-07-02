@@ -1,6 +1,7 @@
 package v1beta1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	common "k8s.io/kube-openapi/pkg/common"
 	spec "k8s.io/kube-openapi/pkg/validation/spec"
 	ptr "k8s.io/utils/ptr"
@@ -46,7 +47,7 @@ func schema_pkg_apis_secret_v1beta1_Keeper(ref common.ReferenceCallback) common.
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"),
+							Ref:     ref(metav1.ObjectMeta{}.OpenAPIModelName()),
 						},
 					},
 					"spec": {
@@ -67,7 +68,7 @@ func schema_pkg_apis_secret_v1beta1_Keeper(ref common.ReferenceCallback) common.
 			},
 		},
 		Dependencies: []string{
-			KeeperSpec{}.OpenAPIModelName(), KeeperStatus{}.OpenAPIModelName(), "io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"},
+			KeeperSpec{}.OpenAPIModelName(), KeeperStatus{}.OpenAPIModelName(), metav1.ObjectMeta{}.OpenAPIModelName()},
 	}
 }
 
@@ -116,6 +117,12 @@ func schema_pkg_apis_secret_v1beta1_KeeperAWSConfig(ref common.ReferenceCallback
 							Ref: ref(KeeperAWSAssumeRole{}.OpenAPIModelName()),
 						},
 					},
+					"kmsKeyId": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
 				Required: []string{"region"},
 			},
@@ -148,7 +155,7 @@ func schema_pkg_apis_secret_v1beta1_KeeperList(ref common.ReferenceCallback) com
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"),
+							Ref:     ref(metav1.ListMeta{}.OpenAPIModelName()),
 						},
 					},
 					"items": {
@@ -169,7 +176,7 @@ func schema_pkg_apis_secret_v1beta1_KeeperList(ref common.ReferenceCallback) com
 			},
 		},
 		Dependencies: []string{
-			Keeper{}.OpenAPIModelName(), "io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"},
+			Keeper{}.OpenAPIModelName(), metav1.ListMeta{}.OpenAPIModelName()},
 	}
 }
 
@@ -215,6 +222,14 @@ func schema_pkg_apis_secret_v1beta1_KeeperStatus(ref common.ReferenceCallback) c
 			SchemaProps: spec.SchemaProps{
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
+					"active": {
+						SchemaProps: spec.SchemaProps{
+							Description: "True when the keeper is the current active keeper",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"operatorStates": {
 						SchemaProps: spec.SchemaProps{
 							Description: "operatorStates is a map of operator ID to operator state evaluations. Any operator which consumes this kind SHOULD add its state evaluation information to this field.",
@@ -246,6 +261,7 @@ func schema_pkg_apis_secret_v1beta1_KeeperStatus(ref common.ReferenceCallback) c
 						},
 					},
 				},
+				Required: []string{"active"},
 			},
 		},
 		Dependencies: []string{
@@ -327,7 +343,7 @@ func schema_pkg_apis_secret_v1beta1_SecureValue(ref common.ReferenceCallback) co
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"),
+							Ref:     ref(metav1.ObjectMeta{}.OpenAPIModelName()),
 						},
 					},
 					"spec": {
@@ -348,7 +364,7 @@ func schema_pkg_apis_secret_v1beta1_SecureValue(ref common.ReferenceCallback) co
 			},
 		},
 		Dependencies: []string{
-			SecureValueSpec{}.OpenAPIModelName(), SecureValueStatus{}.OpenAPIModelName(), "io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"},
+			SecureValueSpec{}.OpenAPIModelName(), SecureValueStatus{}.OpenAPIModelName(), metav1.ObjectMeta{}.OpenAPIModelName()},
 	}
 }
 
@@ -375,7 +391,7 @@ func schema_pkg_apis_secret_v1beta1_SecureValueList(ref common.ReferenceCallback
 					"metadata": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"),
+							Ref:     ref(metav1.ListMeta{}.OpenAPIModelName()),
 						},
 					},
 					"items": {
@@ -396,7 +412,7 @@ func schema_pkg_apis_secret_v1beta1_SecureValueList(ref common.ReferenceCallback
 			},
 		},
 		Dependencies: []string{
-			SecureValue{}.OpenAPIModelName(), "io.k8s.apimachinery.pkg.apis.meta.v1.ListMeta"},
+			SecureValue{}.OpenAPIModelName(), metav1.ListMeta{}.OpenAPIModelName()},
 	}
 }
 
