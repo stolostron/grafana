@@ -85,11 +85,11 @@ func TestSanitizeLabelSet(t *testing.T) {
 				"test_alert": "43",
 				"test+alert": "44",
 			},
-			expectedResult: labels.Labels{
-				labels.Label{Name: "test_alert", Value: "44"},
-				labels.Label{Name: "test_alert_ed6237", Value: "42"},
-				labels.Label{Name: "test_alert_a67b5e", Value: "43"},
-			},
+			expectedResult: labels.FromStrings(
+				"test_alert", "44",
+				"test_alert_a67b5e", "43",
+				"test_alert_ed6237", "42",
+			),
 		},
 		{
 			desc: "If sanitize fails for a label, skip it",
@@ -98,10 +98,10 @@ func TestSanitizeLabelSet(t *testing.T) {
 				"   \t\n\v\n\f   ": "43",
 				"test+alert":       "44",
 			},
-			expectedResult: labels.Labels{
-				labels.Label{Name: "test_alert", Value: "44"},
-				labels.Label{Name: "test_alert_ed6237", Value: "42"},
-			},
+			expectedResult: labels.FromStrings(
+				"test_alert", "44",
+				"test_alert_ed6237", "42",
+			),
 		},
 	}
 

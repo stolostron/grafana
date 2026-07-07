@@ -134,7 +134,8 @@ func (d *PyroscopeDatasource) labelNames(ctx context.Context, req *backend.CallR
 	start, _ := strconv.ParseInt(query.Get("start"), 10, 64)
 	end, _ := strconv.ParseInt(query.Get("end"), 10, 64)
 	labelSelector := query.Get("query")
-	matchers, err := parser.ParseMetricSelector(labelSelector)
+	p := parser.NewParser(parser.Options{})
+	matchers, err := p.ParseMetricSelector(labelSelector)
 	if err != nil {
 		return backend.DownstreamErrorf("failed parsing label selector: %w. function: %s", err, logEntrypoint())
 	}

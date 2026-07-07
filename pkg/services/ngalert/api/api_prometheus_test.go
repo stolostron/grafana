@@ -394,6 +394,7 @@ func TestRouteGetRuleStatuses(t *testing.T) {
 				"totalsFiltered": {
 					"normal": 1
 				},
+				"annotations": {},
 				"labels": {
 					"__a_private_label_on_the_rule__": "a_value"
 				},
@@ -500,6 +501,7 @@ func TestRouteGetRuleStatuses(t *testing.T) {
 				"totalsFiltered": {
 					"normal": 1
 				},
+				"annotations": {},
 				"labels": {
 					"__a_private_label_on_the_rule__": "a_value"
 				},
@@ -588,6 +590,7 @@ func TestRouteGetRuleStatuses(t *testing.T) {
 				"totalsFiltered": {
 					"normal": 1
 				},
+				"annotations": {},
 				"labels": {
 					"__a_private_label_on_the_rule__": "a_value",
 					"__alert_rule_uid__": "RuleUID"
@@ -654,6 +657,7 @@ func TestRouteGetRuleStatuses(t *testing.T) {
 				"totalsFiltered": {
 					"normal": 1
 				},
+				"annotations": {},
 				"labels": {
 					"__a_private_label_on_the_rule__": "a_value"
 				},
