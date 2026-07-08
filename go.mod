@@ -7,7 +7,7 @@ require (
 	buf.build/gen/go/parca-dev/parca/connectrpc/go v1.18.1-20250703125925-3f0fcf4bff96.1 // @grafana/observability-traces-and-profiling
 	buf.build/gen/go/parca-dev/parca/protocolbuffers/go v1.36.2-20250703125925-3f0fcf4bff96.1 // @grafana/observability-traces-and-profiling
 	cloud.google.com/go/kms v1.26.0 // @grafana/grafana-backend-group
-	cloud.google.com/go/storage v1.57.0 // @grafana/grafana-backend-group
+	cloud.google.com/go/storage v1.59.2 // @grafana/grafana-backend-group
 	connectrpc.com/connect v1.19.1 // @grafana/observability-traces-and-profiling
 	cuelang.org/go v0.11.1 // indirect; @grafana/grafana-as-code
 	dario.cat/mergo v1.0.2 // @grafana/grafana-app-platform-squad
@@ -195,9 +195,9 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0 // indirect; @grafana/grafana-operator-experience-squad
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // @grafana/grafana-backend-group
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0 // @grafana/grafana-backend-group
-	go.opentelemetry.io/otel/log v0.19.0 // indirect; @grafana/grafana-operator-experience-squad
+	go.opentelemetry.io/otel/log v0.20.0 // indirect; @grafana/grafana-operator-experience-squad
 	go.opentelemetry.io/otel/sdk v1.44.0 // @grafana/grafana-backend-group
-	go.opentelemetry.io/otel/sdk/log v0.19.0 // indirect; @grafana/grafana-operator-experience-squad
+	go.opentelemetry.io/otel/sdk/log v0.20.0 // indirect; @grafana/grafana-operator-experience-squad
 	go.opentelemetry.io/otel/trace v1.44.0 // @grafana/grafana-backend-group
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect; @grafana/grafana-operator-experience-squad
 	go.uber.org/atomic v1.11.0 // @grafana/alerting-backend
@@ -341,7 +341,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.84 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.28 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.28 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.29 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
@@ -455,7 +454,6 @@ require (
 	github.com/google/go-github/v73 v73.0.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
-	github.com/gophercloud/gophercloud/v2 v2.12.0 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/grafana/jsonparser v0.0.0-20241004153430-023329977675 // indirect
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
@@ -624,7 +622,6 @@ require (
 	go.etcd.io/etcd/api/v3 v3.6.7 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.7 // indirect
 	go.etcd.io/etcd/client/v3 v3.6.7 // indirect
-	go.mongodb.org/mongo-driver v1.17.6 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/featuregate v1.59.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.128.0 // indirect
@@ -689,8 +686,11 @@ require (
 )
 
 require (
+	github.com/creack/pty v1.1.24 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
+	github.com/prometheus/client_golang/exp v0.0.0-20260518105423-c9d5bc4c50a9 // indirect
 	github.com/sony/gobreaker/v2 v2.3.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.153.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/kms v0.35.0 // indirect
 	modernc.org/libc v1.70.0 // indirect
