@@ -1,0 +1,112 @@
+name: Fork PR Tests
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend tests (${{ matrix.shard }}/${{ matrix.total }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        total: [16]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+      - name: Install dependencies
+        run: yarn install --immutable
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
+          CYPRESS_INSTALL_BINARY: 0
+      - name: Typecheck
+        if: matrix.shard == 1
+        run: yarn typecheck
+      - name: Lint
+        if: matrix.shard == 1
+        run: yarn lint
+      - name: Unit tests
+        run: yarn test:ci --workerIdleMemoryLimit=1024MB
+        env:
+          TEST_SHARD: ${{ matrix.shard }}
+          TEST_SHARD_TOTAL: ${{ matrix.total }}
+          TEST_MAX_WORKERS: 1
+          NODE_OPTIONS: '--max-old-space-size=6144'
+
+  backend:
+    name: Backend tests (${{ matrix.shard }}/${{ matrix.total }})
+    runs-on: ubuntu-latest-8-cores
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+        total: [2]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Setup Go
+        uses: actions/setup-go@v6.0.0
+        with:
+          go-version-file: go.mod
+      - name: Lint
+        if: matrix.shard == 1
+        run: make lint-go-diff
+      - name: Unit tests
+        run: make test-go-unit
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ matrix.total }}
+      - name: Integration tests (SQLite)
+        run: make test-go-integration
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ matrix.total }}
+          CGO_ENABLED: 0
+
+  e2e:
+    name: E2E smoke tests
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest-8-cores
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+      - name: Setup Go
+        uses: actions/setup-go@v6.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install dependencies
+        run: yarn install --immutable
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
+          CYPRESS_INSTALL_BINARY: 0
+      - name: Install Playwright browsers
+        run: yarn playwright install --with-deps chromium
+      - name: Build backend
+        run: make build-go
+        env:
+          CGO_ENABLED: 0
+      - name: Build frontend
+        run: yarn build
+      - name: Run E2E acceptance tests
+        run: yarn e2e:acceptance
+        env:
+          ARCH: linux-amd64
