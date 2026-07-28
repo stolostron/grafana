@@ -671,6 +671,9 @@ exclude github.com/testcontainers/testcontainers-go v0.38.0
 replace (
 	github.com/google/gnostic-models => github.com/google/gnostic-models v0.7.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // breaks k8s.io/apiserver on v0.63.0
+	go.opentelemetry.io/otel/exporters/stdout/stdoutlog => go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.12.2 // dagger.io/dagger@v0.18.8 requires the pre-v0.13 otel/sdk/log Processor interface
+	go.opentelemetry.io/otel/log => go.opentelemetry.io/otel/log v0.12.2 // dagger.io/dagger@v0.18.8 requires the pre-v0.13 otel/sdk/log Processor interface
+	go.opentelemetry.io/otel/sdk/log => go.opentelemetry.io/otel/sdk/log v0.12.2 // dagger.io/dagger@v0.18.8 requires the pre-v0.13 otel/sdk/log Processor interface
 	k8s.io/api => k8s.io/api v0.33.3
 	k8s.io/apimachinery => k8s.io/apimachinery v0.33.3
 	k8s.io/apiserver => k8s.io/apiserver v0.33.3
