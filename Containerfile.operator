@@ -32,11 +32,11 @@ COPY .citools .citools
 COPY stolostron-patches stolostron-patches
 RUN git apply ./stolostron-patches/*
 
-RUN CGO_ENABLED=1 go run build.go -cgo-enabled=1 -build-tags=strictfipsruntime build
+RUN CGO_ENABLED=1 GO_BUILD_TAGS=strictfipsruntime make build-go
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
-RUN cp ./bin/linux-$(go env GOARCH)/grafana* /usr/bin/
+RUN cp ./bin/$(go env GOOS)/$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
