@@ -139,10 +139,6 @@ func (f *FakePyroscopeConnectClient) AnalyzeQuery(ctx context.Context, c *connec
 	panic("implement me")
 }
 
-func (f *FakePyroscopeConnectClient) SelectHeatmap(ctx context.Context, c *connect.Request[querierv1.SelectHeatmapRequest]) (*connect.Response[querierv1.SelectHeatmapResponse], error) {
-	panic("implement me")
-}
-
 func (f *FakePyroscopeConnectClient) GetProfileStats(ctx context.Context, c *connect.Request[typesv1.GetProfileStatsRequest]) (*connect.Response[typesv1.GetProfileStatsResponse], error) {
 	panic("implement me")
 }
