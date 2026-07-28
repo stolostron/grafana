@@ -8,7 +8,7 @@ ARG BUILD_BRANCH=""
 ARG GO_BUILD_TAGS="oss"
 ARG WIRE_TAGS="oss"
 
-COPY go.mod go.sum embed.go Makefile build.go package.json ./
+COPY go.mod go.sum embed.go Makefile package.json ./
 COPY kinds kinds
 COPY kindsv2 kindsv2
 COPY local local
