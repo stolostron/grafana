@@ -27,14 +27,23 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
+      - name: Setup Go
+        uses: actions/setup-go@v6.0.0
+        with:
+          go-version-file: go.mod
       - name: Install dependencies
         run: yarn install --immutable
         env:
           PUPPETEER_SKIP_DOWNLOAD: true
           CYPRESS_INSTALL_BINARY: 0
+      - name: Generate golden migration fixtures
+        run: make generate-golden-files
+        working-directory: apps/dashboard
       - name: Typecheck
         if: matrix.shard == 1
         run: yarn typecheck
+        env:
+          NODE_OPTIONS: '--max-old-space-size=6144'
       - name: Lint
         if: matrix.shard == 1
         run: yarn lint
