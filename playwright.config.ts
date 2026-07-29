@@ -25,6 +25,10 @@ export const baseConfig: PlaywrightTestConfig<PluginOptions, {}> = {
   /* Retry on CI only */
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 4 : undefined,
+  // Disabled: our shallow, credential-less CI checkout can't fetch the PR base commit,
+  // and Playwright's git-diff fallback has been known to hang/crash with
+  // `RangeError: Invalid string length` when that fetch doesn't complete cleanly.
+  captureGitInfo: { commit: false, diff: false },
   reporter: [
     ['html'], // pretty
     ['./e2e-playwright/utils/axe-a11y/reporter.ts'], // accessibility reporter
