@@ -21,7 +21,12 @@ permissions:
 
 jobs:
   govulncheck:
-    runs-on: ubuntu-x64-large
+    # ubuntu-x64-large is a custom/larger-runner label that GitHub won't dispatch to
+    # workflows triggered by a pull_request from a fork, so jobs on it just queue
+    # forever until auto-cancelled. ubuntu-latest-8-cores is a GitHub-hosted runner
+    # that does run for fork PRs (same tier already used by the `backend` job in
+    # fork-pr-tests.yml), and gives enough headroom to scan every go.work module.
+    runs-on: ubuntu-latest-8-cores
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:

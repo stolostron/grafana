@@ -63,6 +63,11 @@ export default defineConfig<PluginOptions>({
       url: DEFAULT_URL,
       stdout: 'pipe',
       stderr: 'pipe',
+      // Default is 60s, which can be too tight for a cold build of the E2E test plugins
+      // plus a fresh Grafana server boot in CI. start-server also redirects Grafana's own
+      // logs to scripts/grafana-server/server.log instead of stdout, so a timeout here
+      // otherwise fails silently with no console output to explain why.
+      timeout: 180_000,
     },
   }),
   projects: [

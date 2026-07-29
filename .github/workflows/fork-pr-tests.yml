@@ -119,3 +119,15 @@ jobs:
         run: yarn e2e:acceptance
         env:
           ARCH: linux-amd64
+          # e2e-playwright/start-server redirects the real Grafana server logs to
+          # scripts/grafana-server/server.log instead of stdout, so a webServer startup
+          # failure/timeout otherwise shows up as silent output. This surfaces Playwright's
+          # own webServer lifecycle logging (spawn, readiness polling, timeout) in the job log.
+          DEBUG: pw:webserver
+      - name: Upload Grafana server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grafana-server-log
+          path: scripts/grafana-server/server.log
+          if-no-files-found: ignore
