@@ -118,7 +118,13 @@ jobs:
       - name: Run E2E acceptance tests
         run: yarn e2e:acceptance
         env:
-          ARCH: linux-amd64
+          # No ARCH override: scripts/grafana-server/variables defaults ARCH to empty, which
+          # makes start-server launch the flat ./bin/grafana binary that `make build-go`
+          # always produces for the native platform. Setting ARCH=linux-amd64 (dash-joined)
+          # made it look for bin/linux-amd64/grafana, but the build only ever creates the
+          # slash-joined bin/linux/amd64/grafana plus the flat bin/grafana copy - so the
+          # dash-joined path never exists and Grafana silently failed to start (connection
+          # refused on :3001 until the webServer timeout hit).
           # e2e-playwright/start-server redirects the real Grafana server logs to
           # scripts/grafana-server/server.log instead of stdout, so a webServer startup
           # failure/timeout otherwise shows up as silent output. This surfaces Playwright's
