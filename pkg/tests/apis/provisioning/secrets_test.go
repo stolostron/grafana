@@ -84,11 +84,13 @@ func TestIntegrationProvisioning_InlineSecrets(t *testing.T) {
 			err = helper.Repositories.Resource.Delete(ctx, obj.GetName(), metav1.DeleteOptions{})
 			require.NoError(t, err, "failed to delete repository")
 
-			// Finalizers will be running async... so we need to wait until it is actually removed
+			// Finalizers will be running async... so we need to wait until it is actually removed.
+			// 60s/100ms matches upstream's common.WaitTimeoutDefault/WaitIntervalDefault
+			// (grafana/grafana#123336), since the shared helper package isn't backported here.
 			require.Eventually(t, func() bool {
 				_, err := helper.Repositories.Resource.Get(ctx, obj.GetName(), metav1.GetOptions{})
 				return apierrors.IsNotFound(err)
-			}, time.Second*15, time.Millisecond*300, "should be removed")
+			}, time.Second*60, time.Millisecond*100, "should be removed")
 
 			// now check that we can no longer decrypt the requested values
 			results, err := decryptService.Decrypt(ctx, "provisioning.grafana.app", obj.GetNamespace(), created...)
