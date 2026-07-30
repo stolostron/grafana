@@ -13,12 +13,12 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	ringclient "github.com/grafana/dskit/ring/client"
+	"github.com/grafana/dskit/services"
 	"github.com/grafana/grafana/pkg/storage/unified"
 	"github.com/grafana/grafana/pkg/storage/unified/resourcepb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/urfave/cli/v2"
-
-	"github.com/grafana/dskit/services"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/grafana/grafana/pkg/api"
 	"github.com/grafana/grafana/pkg/infra/log"
@@ -26,14 +26,29 @@ import (
 	"github.com/grafana/grafana/pkg/modules"
 	"github.com/grafana/grafana/pkg/services/apiserver/standalone"
 	"github.com/grafana/grafana/pkg/services/authz"
+	zStore "github.com/grafana/grafana/pkg/services/authz/zanzana/store"
 	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/frontend"
+	"github.com/grafana/grafana/pkg/services/grpcserver"
 	"github.com/grafana/grafana/pkg/services/hooks"
 	"github.com/grafana/grafana/pkg/services/licensing"
 	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/storage/unified/resource"
+	"github.com/grafana/grafana/pkg/storage/unified/search/builders"
+	"github.com/grafana/grafana/pkg/storage/unified/search/embed/embedder"
+	embedderprovider "github.com/grafana/grafana/pkg/storage/unified/search/embed/embedder/provider"
+	"github.com/grafana/grafana/pkg/storage/unified/search/vector"
 	"github.com/grafana/grafana/pkg/storage/unified/sql"
+	"go.opentelemetry.io/otel"
 )
+
+// SearchSupport bundles the document builder supplier with the dashboard
+// stats instance it was built from, so both can be shared by the
+// storage-server module.
+type SearchSupport struct {
+	DocBuilders    resource.DocumentBuilderSupplier
+	DashboardStats builders.DashboardStats
+}
 
 // NewModule returns an instance of a ModuleServer, responsible for managing
 // dskit modules (services).
@@ -43,6 +58,7 @@ func NewModule(opts Options,
 	cfg *setting.Cfg,
 	storageMetrics *resource.StorageMetrics,
 	indexMetrics *resource.BleveIndexMetrics,
+	vectorMetrics *resource.VectorMetrics,
 	reg prometheus.Registerer,
 	promGatherer prometheus.Gatherer,
 	tracer tracing.Tracer, // Ensures tracing is initialized
@@ -50,8 +66,10 @@ func NewModule(opts Options,
 	moduleRegisterer ModuleRegisterer,
 	storageBackend resource.StorageBackend, // Ensures unified storage backend is initialized
 	hooksService *hooks.HooksService,
+	storeProvider zStore.StoreProvider,
+	reconcileCRDs []schema.GroupVersionResource,
 ) (*ModuleServer, error) {
-	s, err := newModuleServer(opts, apiOpts, features, cfg, storageMetrics, indexMetrics, reg, promGatherer, license, moduleRegisterer, storageBackend, hooksService)
+	s, err := newModuleServer(opts, apiOpts, features, cfg, storageMetrics, indexMetrics, vectorMetrics, reg, promGatherer, tracer, license, moduleRegisterer, storageBackend, hooksService, storeProvider, reconcileCRDs)
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +87,16 @@ func newModuleServer(opts Options,
 	cfg *setting.Cfg,
 	storageMetrics *resource.StorageMetrics,
 	indexMetrics *resource.BleveIndexMetrics,
+	vectorMetrics *resource.VectorMetrics,
 	reg prometheus.Registerer,
 	promGatherer prometheus.Gatherer,
+	tracer tracing.Tracer,
 	license licensing.Licensing,
 	moduleRegisterer ModuleRegisterer,
 	storageBackend resource.StorageBackend,
 	hooksService *hooks.HooksService,
+	storeProvider zStore.StoreProvider,
+	reconcileCRDs []schema.GroupVersionResource,
 ) (*ModuleServer, error) {
 	rootCtx, shutdownFn := context.WithCancel(context.Background())
 
@@ -99,13 +121,18 @@ func newModuleServer(opts Options,
 		buildBranch:      opts.BuildBranch,
 		storageMetrics:   storageMetrics,
 		indexMetrics:     indexMetrics,
+		vectorMetrics:    vectorMetrics,
 		promGatherer:     promGatherer,
 		registerer:       reg,
+		tracer:           tracer,
 		license:          license,
 		moduleRegisterer: moduleRegisterer,
 		storageBackend:   storageBackend,
 		hooksService:     hooksService,
 		searchClient:     searchClient,
+		healthNotifier:   NewHealthNotifier(),
+		storeProvider:    storeProvider,
+		reconcileCRDs:    reconcileCRDs,
 	}
 
 	return s, nil
@@ -128,9 +155,12 @@ type ModuleServer struct {
 	isInitialized    bool
 	mtx              sync.Mutex
 	storageBackend   resource.StorageBackend
+	vectorBackend    vector.VectorBackend
+	embedder         *embedder.Embedder
 	searchClient     resourcepb.ResourceIndexClient
 	storageMetrics   *resource.StorageMetrics
 	indexMetrics     *resource.BleveIndexMetrics
+	vectorMetrics    *resource.VectorMetrics
 	license          licensing.Licensing
 
 	pidFile     string
@@ -140,15 +170,34 @@ type ModuleServer struct {
 
 	promGatherer prometheus.Gatherer
 	registerer   prometheus.Registerer
+	tracer       tracing.Tracer
 
 	MemberlistKVConfig         kv.Config
 	httpServerRouter           *mux.Router
 	searchServerRing           *ring.Ring
 	searchServerRingClientPool *ringclient.Pool
 
+	// grpcService a shared gRPC service/server used by modules to register their gRPC endpoints.
+	grpcService *grpcserver.DSKitService
+
 	// moduleRegisterer allows registration of modules provided by other builds (e.g. enterprise).
 	moduleRegisterer ModuleRegisterer
 	hooksService     *hooks.HooksService
+
+	// storeProvider creates OpenFGA datastores for the Zanzana server.
+	storeProvider zStore.StoreProvider
+
+	// reconcileCRDs is the list of namespaced CRDs the MT reconciler translates
+	// into Zanzana tuples when running as a standalone zanzana-server module.
+	reconcileCRDs []schema.GroupVersionResource
+
+	// healthNotifier is shared between the InstrumentationServer and the OperatorServer
+	// so that operators can signal readiness to the /readyz endpoint.
+	healthNotifier *HealthNotifier
+
+	// StorageServiceOptions allows injecting extra sql.ServiceOption values into the
+	// StorageServer and SearchServer module registrations. This is intended for tests.
+	StorageServiceOptions []sql.ServiceOption
 }
 
 // init initializes the server and its services.
@@ -190,9 +239,56 @@ func (s *ModuleServer) Run() error {
 		return s.initInstrumentationServer()
 	})
 
+	m.RegisterInvisibleModule(modules.GRPCServer, func() (services.Service, error) {
+		var err error
+		s.grpcService, err = grpcserver.ProvideDSKitService(s.cfg, otel.Tracer("grpc-server"), s.registerer, modules.GRPCServer)
+		if err != nil {
+			return nil, err
+		}
+		return s.grpcService, nil
+	})
+
+	m.RegisterInvisibleModule(modules.UnifiedBackend, func() (services.Service, error) {
+		if s.storageBackend == nil {
+			// If storage server not being used, disable GC, pruner, and RV manager
+			disableStorageServices := !m.IsModuleEnabled(modules.StorageServer)
+			eDB, err := sql.ProvideResourceDB(s.cfg, nil)
+			if err != nil {
+				return nil, err
+			}
+			kvStore, err := sql.ProvideKV(s.cfg, eDB)
+			if err != nil {
+				return nil, err
+			}
+			s.storageBackend, err = sql.NewStorageBackend(s.cfg, eDB, s.registerer, s.storageMetrics, disableStorageServices, kvStore, nil)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if backendService, ok := s.storageBackend.(services.Service); ok {
+			return backendService, nil
+		}
+		return services.NewIdleService(nil, nil).WithName(modules.UnifiedBackend), nil
+	})
+
+	m.RegisterInvisibleModule(modules.UnifiedVectorBackend, s.initUnifiedVectorBackend(m.IsModuleEnabled(modules.StorageServer)))
+
 	m.RegisterModule(modules.MemberlistKV, s.initMemberlistKV)
 	m.RegisterModule(modules.SearchServerRing, s.initSearchServerRing)
-	m.RegisterModule(modules.SearchServerDistributor, s.initSearchServerDistributor)
+	m.RegisterModule(modules.SearchServerDistributor, func() (services.Service, error) {
+		svc, err := resource.ProvideSearchDistributorServer(otel.Tracer("index-server-distributor"), s.cfg, s.searchServerRing, s.searchServerRingClientPool, s.grpcService)
+		if err != nil {
+			return nil, err
+		}
+		s.grpcService.Health.Register(
+			grpcserver.HealthProbeFunc(func(ctx context.Context) (bool, error) {
+				return svc.State() == services.Running, nil
+			}),
+			resourcepb.ResourceIndex_ServiceDesc.ServiceName,
+			resourcepb.ManagedObjectIndex_ServiceDesc.ServiceName,
+		)
+		return svc, nil
+	})
 
 	m.RegisterModule(modules.Core, func() (services.Service, error) {
 		return NewService(s.cfg, s.opts, s.apiOpts)
@@ -208,27 +304,88 @@ func (s *ModuleServer) Run() error {
 	//}
 
 	m.RegisterModule(modules.StorageServer, func() (services.Service, error) {
+		// Only set docBuilders and indexMetrics if enable_search is true
+		var docBuilders resource.DocumentBuilderSupplier
+		var dashboardStats builders.DashboardStats
+		var indexMetrics *resource.BleveIndexMetrics
 		if s.cfg.EnableSearch {
 			s.log.Warn("Support for 'enable_search' config with 'storage-server' target is deprecated and will be removed in a future release. Please use the 'search-server' target instead.")
-			docBuilders, err := InitializeDocumentBuilders(s.cfg)
+			// The document builders and the vector backfiller share one
+			// stats instance; building them from one graph also avoids
+			// registering the sprinkles metrics twice.
+			support, err := InitializeSearchSupport(s.cfg, s.features, s.tracer, s.registerer)
 			if err != nil {
 				return nil, err
 			}
-			return sql.ProvideUnifiedStorageGrpcService(s.cfg, s.features, nil, s.log, s.registerer, docBuilders, s.storageMetrics, s.indexMetrics, s.searchServerRing, s.MemberlistKVConfig, s.httpServerRouter, s.storageBackend, s.searchClient)
+			docBuilders = support.DocBuilders
+			dashboardStats = support.DashboardStats
+			indexMetrics = s.indexMetrics
+		} else if s.cfg.VectorIndexingEnabled {
+			// The vector backfiller views filter needs dashboard stats.
+			var err error
+			dashboardStats, err = InitializeDashboardStats(s.cfg, s.features, s.tracer, s.registerer)
+			if err != nil {
+				return nil, err
+			}
 		}
-		return sql.ProvideUnifiedStorageGrpcService(s.cfg, s.features, nil, s.log, s.registerer, nil, s.storageMetrics, nil, s.searchServerRing, s.MemberlistKVConfig, s.httpServerRouter, s.storageBackend, s.searchClient)
-	})
-
-	m.RegisterModule(modules.SearchServer, func() (services.Service, error) {
-		docBuilders, err := InitializeDocumentBuilders(s.cfg)
+		serviceOptions := s.StorageServiceOptions
+		if dashboardStats != nil {
+			serviceOptions = append(serviceOptions, sql.WithDashboardStats(dashboardStats))
+		}
+		svc, err := sql.ProvideUnifiedStorageGrpcService(s.cfg, s.features, s.log, s.registerer, docBuilders, s.storageMetrics, indexMetrics, s.vectorMetrics, s.searchServerRing, s.MemberlistKVConfig, s.httpServerRouter, s.storageBackend, s.vectorBackend, s.embedder, s.searchClient, s.grpcService, serviceOptions...)
 		if err != nil {
 			return nil, err
 		}
-		return sql.ProvideSearchGRPCService(s.cfg, s.features, nil, s.log, s.registerer, docBuilders, s.indexMetrics, s.searchServerRing, s.MemberlistKVConfig, s.httpServerRouter, s.storageBackend)
+		probe, ok := svc.(grpcserver.HealthProbe)
+		s.grpcService.Health.Register(grpcserver.HealthProbeFunc(func(ctx context.Context) (bool, error) {
+			if svc.State() != services.Running {
+				return false, nil
+			}
+			if ok {
+				return probe.CheckHealth(ctx)
+			}
+			return true, nil
+		}),
+			resourcepb.ResourceStore_ServiceDesc.ServiceName,
+			resourcepb.ResourceIndex_ServiceDesc.ServiceName,
+			resourcepb.ManagedObjectIndex_ServiceDesc.ServiceName,
+			resourcepb.BlobStore_ServiceDesc.ServiceName,
+			resourcepb.BulkStore_ServiceDesc.ServiceName,
+			resourcepb.Diagnostics_ServiceDesc.ServiceName,
+			resourcepb.Quotas_ServiceDesc.ServiceName,
+		)
+
+		return svc, nil
+	})
+
+	m.RegisterModule(modules.SearchServer, func() (services.Service, error) {
+		support, err := InitializeSearchSupport(s.cfg, s.features, s.tracer, s.registerer)
+		if err != nil {
+			return nil, err
+		}
+		svc, err := sql.ProvideSearchGRPCService(s.cfg, s.features, s.log, s.registerer, support.DocBuilders, s.indexMetrics, s.vectorMetrics, s.searchServerRing, s.MemberlistKVConfig, s.httpServerRouter, s.storageBackend, s.vectorBackend, s.embedder, s.grpcService, s.StorageServiceOptions...)
+		if err != nil {
+			return nil, err
+		}
+		probe, ok := svc.(grpcserver.HealthProbe)
+		s.grpcService.Health.Register(grpcserver.HealthProbeFunc(func(ctx context.Context) (bool, error) {
+			if svc.State() != services.Running {
+				return false, nil
+			}
+			if ok {
+				return probe.CheckHealth(ctx)
+			}
+			return true, nil
+		}),
+			resourcepb.ResourceIndex_ServiceDesc.ServiceName,
+			resourcepb.ManagedObjectIndex_ServiceDesc.ServiceName,
+			resourcepb.Diagnostics_ServiceDesc.ServiceName,
+		)
+		return svc, nil
 	})
 
 	m.RegisterModule(modules.ZanzanaServer, func() (services.Service, error) {
-		return authz.ProvideZanzanaService(s.cfg, s.features, s.registerer)
+		return authz.ProvideZanzanaService(s.cfg, s.features, s.registerer, s.storeProvider, s.reconcileCRDs)
 	})
 
 	m.RegisterModule(modules.FrontendServer, func() (services.Service, error) {
@@ -243,6 +400,28 @@ func (s *ModuleServer) Run() error {
 	s.moduleRegisterer.RegisterModules(m)
 
 	return m.Run(s.context)
+}
+
+// initUnifiedVectorBackend constructs the shared vector backend + embedder
+// values that StorageServer and SearchServer modules consume.
+func (s *ModuleServer) initUnifiedVectorBackend(storageServerEnabled bool) func() (services.Service, error) {
+	return func() (services.Service, error) {
+		if s.vectorBackend == nil {
+			vb, err := vector.InitVectorBackend(s.context, s.cfg, storageServerEnabled)
+			if err != nil {
+				return nil, err
+			}
+			s.vectorBackend = vb
+		}
+		if s.embedder == nil {
+			e, err := embedderprovider.ProvideEmbedder(s.cfg, s.vectorMetrics)
+			if err != nil {
+				return nil, err
+			}
+			s.embedder = e
+		}
+		return services.NewIdleService(nil, nil).WithName(modules.UnifiedVectorBackend), nil
+	}
 }
 
 func (s *ModuleServer) initOperatorServer() (services.Service, error) {
@@ -264,11 +443,12 @@ func (s *ModuleServer) initOperatorServer() (services.Service, error) {
 							Commit:      s.commit,
 							BuildBranch: s.buildBranch,
 						},
-						CLIContext: cliContext,
-						Config:     s.cfg,
-						Registerer: s.registerer,
+						CLIContext:     cliContext,
+						Config:         s.cfg,
+						Registerer:     s.registerer,
+						HealthNotifier: s.healthNotifier,
 					}
-					return op.RunFunc(deps)
+					return op.RunFunc(ctx, deps)
 				},
 				nil,
 			).WithName("operator"), nil

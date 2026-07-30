@@ -1,19 +1,22 @@
 import { css, cx } from '@emotion/css';
+import { useBooleanFlagValue } from '@openfeature/react-sdk';
 import classNames from 'classnames';
 import { Resizable } from 're-resizable';
-import { PropsWithChildren, useEffect } from 'react';
+import { type PropsWithChildren, useEffect } from 'react';
 
-import { GrafanaTheme2, store } from '@grafana/data';
+import { type GrafanaTheme2, store } from '@grafana/data';
 import { Trans } from '@grafana/i18n';
 import { locationSearchToObject, locationService, useScopes } from '@grafana/runtime';
+import { useFlagGrafanaVisualDesignRefresh } from '@grafana/runtime/internal';
 import { ErrorBoundaryAlert, floatingUtils, getDragStyles, LinkButton, useStyles2 } from '@grafana/ui';
+import { SplashScreenModal } from 'app/core/components/SplashScreenModal/SplashScreenModal';
 import { useGrafana } from 'app/core/context/GrafanaContext';
 import { useMediaQueryMinWidth } from 'app/core/hooks/useMediaQueryMinWidth';
 import { CommandPalette } from 'app/features/commandPalette/CommandPalette';
 import { ScopesDashboards } from 'app/features/scopes/dashboards/ScopesDashboards';
 
 import { AppChromeMenu } from './AppChromeMenu';
-import { AppChromeService, DOCKED_LOCAL_STORAGE_KEY } from './AppChromeService';
+import { type AppChromeService, DOCKED_LOCAL_STORAGE_KEY } from './AppChromeService';
 import {
   ExtensionSidebar,
   MAX_EXTENSION_SIDEBAR_WIDTH,
@@ -30,6 +33,7 @@ export interface Props extends PropsWithChildren<{}> {}
 
 export function AppChrome({ children }: Props) {
   const { chrome } = useGrafana();
+  const visualRefreshEnabled = useFlagGrafanaVisualDesignRefresh();
   const {
     isOpen: isExtensionSidebarOpen,
     extensionSidebarWidth,
@@ -37,6 +41,7 @@ export function AppChrome({ children }: Props) {
   } = useExtensionSidebarContext();
   const state = chrome.useState();
   const scopes = useScopes();
+  const isSplashScreenEnabled = useBooleanFlagValue('splashScreen', false);
 
   const menuDockedAndOpen = !state.chromeless && state.megaMenuDocked && state.megaMenuOpen;
   const isScopesDashboardsOpen = Boolean(
@@ -44,7 +49,7 @@ export function AppChrome({ children }: Props) {
   );
 
   const headerLevels = useChromeHeaderLevels();
-  const styles = useStyles2(getStyles, headerLevels, getChromeHeaderLevelHeight());
+  const styles = useStyles2(getStyles, headerLevels, getChromeHeaderLevelHeight(), visualRefreshEnabled);
   const contentSizeStyles = useStyles2(getContentSizeStyles, extensionSidebarWidth);
   const dragStyles = useStyles2(getDragStyles);
 
@@ -92,7 +97,14 @@ export function AppChrome({ children }: Props) {
     >
       {!state.chromeless && (
         <>
-          <LinkButton className={styles.skipLink} href="#pageContent">
+          <LinkButton
+            className={styles.skipLink}
+            href="#pageContent"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('pageContent')?.focus();
+            }}
+          >
             <Trans i18nKey="app-chrome.skip-content-button">Skip to main content</Trans>
           </LinkButton>
           {menuDockedAndOpen && (
@@ -133,6 +145,7 @@ export function AppChrome({ children }: Props) {
               [contentSizeStyles.contentWidth]: !state.chromeless && isExtensionSidebarOpen,
             })}
             id="pageContent"
+            tabIndex={-1}
           >
             {children}
           </main>
@@ -153,6 +166,7 @@ export function AppChrome({ children }: Props) {
       </div>
       {!state.chromeless && !state.megaMenuDocked && <AppChromeMenu />}
       {!state.chromeless && <CommandPalette />}
+      {!state.chromeless && isSplashScreenEnabled && <SplashScreenModal />}
       {shouldShowReturnToPrevious && state.returnToPrevious && (
         <ReturnToPrevious href={state.returnToPrevious.href} title={state.returnToPrevious.title} />
       )}
@@ -184,7 +198,7 @@ function useResponsiveDockedMegaMenu(chrome: AppChromeService) {
   }, [isLargeScreen, chrome, dockedMenuLocalStorageState]);
 }
 
-const getStyles = (theme: GrafanaTheme2, headerLevels: number, headerHeight: number) => {
+const getStyles = (theme: GrafanaTheme2, headerLevels: number, headerHeight: number, visualRefreshEnabled: boolean) => {
   return {
     content: css({
       label: 'page-content',
@@ -202,8 +216,8 @@ const getStyles = (theme: GrafanaTheme2, headerLevels: number, headerHeight: num
       paddingTop: 0,
     }),
     dockedMegaMenu: css({
-      background: theme.colors.background.primary,
-      borderRight: `1px solid ${theme.colors.border.weak}`,
+      background: visualRefreshEnabled ? theme.colors.background.canvas : theme.colors.background.primary,
+      borderRight: visualRefreshEnabled ? undefined : `1px solid ${theme.colors.border.weak}`,
       display: 'none',
       height: '100%',
       position: 'fixed',
@@ -230,7 +244,7 @@ const getStyles = (theme: GrafanaTheme2, headerLevels: number, headerHeight: num
       zIndex: theme.zIndex.navbarFixed,
       left: 0,
       right: 0,
-      background: theme.colors.background.primary,
+      background: visualRefreshEnabled ? theme.colors.background.canvas : theme.colors.background.primary,
       flexDirection: 'column',
     }),
     topNavMenuDocked: css({

@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -86,7 +87,8 @@ type localRepository struct {
 	resolver *LocalFolderResolver
 
 	// validated path that can be read if not empty
-	path string
+	path     string
+	maxBytes atomic.Int64
 }
 
 func NewRepository(config *provisioning.Repository, resolver *LocalFolderResolver) *localRepository {
@@ -169,6 +171,12 @@ func (r *localRepository) Read(ctx context.Context, filePath string, ref string)
 		}, nil
 	}
 
+	if max := r.maxBytes.Load(); max > 0 && info.Size() > max {
+		return nil, apierrors.NewRequestEntityTooLargeError(
+			fmt.Sprintf("file %q is %d bytes; max allowed is %d bytes", filePath, info.Size(), max),
+		)
+	}
+
 	//nolint:gosec
 	data, err := os.ReadFile(actualPath)
 	if err != nil {
@@ -188,6 +196,10 @@ func (r *localRepository) Read(ctx context.Context, filePath string, ref string)
 			Time: info.ModTime(),
 		},
 	}, nil
+}
+
+func (r *localRepository) WithMaxFileSize(maxBytes int64) {
+	r.maxBytes.Store(maxBytes)
 }
 
 // ReadResource implements provisioning.Repository.
@@ -335,12 +347,21 @@ func (r *localRepository) Delete(ctx context.Context, path string, ref string, c
 
 	fullPath := safepath.Join(r.path, path)
 
+	var err error
 	if safepath.IsDir(path) {
 		// if it is a folder, delete all of its contents
-		return os.RemoveAll(fullPath)
+		err = os.RemoveAll(fullPath)
+	} else {
+		err = os.Remove(fullPath)
+	}
+	if err != nil {
+		if os.IsNotExist(err) {
+			return repository.ErrFileNotFound
+		}
+		return err
 	}
 
-	return os.Remove(fullPath)
+	return nil
 }
 
 func (r *localRepository) Move(ctx context.Context, oldPath, newPath, ref, comment string) error {

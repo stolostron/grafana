@@ -1,5 +1,5 @@
 # Golang build container
-FROM registry.ci.openshift.org/stolostron/builder:go1.25-linux AS builder
+FROM registry.ci.openshift.org/stolostron/builder:go1.26-linux AS builder
 
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 
@@ -8,9 +8,8 @@ ARG BUILD_BRANCH=""
 ARG GO_BUILD_TAGS="oss"
 ARG WIRE_TAGS="oss"
 
-COPY go.mod go.sum embed.go Makefile build.go package.json ./
+COPY go.mod go.sum embed.go Makefile package.json ./
 COPY kinds kinds
-COPY kindsv2 kindsv2
 COPY local local
 COPY packages/grafana-schema packages/grafana-schema/
 COPY public/app/plugins public/app/plugins/
@@ -32,7 +31,7 @@ RUN make build-go
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
-RUN cp $GOPATH/src/github.com/grafana/grafana/bin/linux-$(go env GOARCH)/grafana* /usr/bin/
+RUN cp $GOPATH/src/github.com/grafana/grafana/bin/$(go env GOOS)/$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
 FROM registry.access.redhat.com/ubi9/ubi:latest

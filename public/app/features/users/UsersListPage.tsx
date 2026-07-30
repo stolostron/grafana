@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { connect, ConnectedProps } from 'react-redux';
+import { connect, type ConnectedProps } from 'react-redux';
 
-import { OrgRole, renderMarkdown } from '@grafana/data';
+import { type OrgRole, renderMarkdown } from '@grafana/data';
+import { config } from '@grafana/runtime';
 import { Alert } from '@grafana/ui';
 import { Page } from 'app/core/components/Page/Page';
 import { contextSrv } from 'app/core/services/context_srv';
-import { StoreState } from 'app/types/store';
-import { OrgUser } from 'app/types/user';
+import { type StoreState } from 'app/types/store';
+import { type OrgUser } from 'app/types/user';
 
 import { OrgUsersTable } from '../admin/Users/OrgUsersTable';
 import InviteesTable from '../invites/InviteesTable';
@@ -26,7 +27,6 @@ function mapStateToProps(state: StoreState) {
     totalPages: state.users.totalPages,
     perPage: state.users.perPage,
     invitees: selectInvitesMatchingQuery(state.invites, searchQuery),
-    externalUserMngInfo: state.users.externalUserMngInfo,
     isLoading: state.users.isLoading,
     rolesLoading: state.users.rolesLoading,
   };
@@ -45,16 +45,11 @@ const connector = connect(mapStateToProps, mapDispatchToProps);
 
 export type Props = ConnectedProps<typeof connector>;
 
-export interface State {
-  showInvites: boolean;
-}
-
 export const UsersListPageUnconnected = ({
   users,
   page,
   totalPages,
   invitees,
-  externalUserMngInfo,
   isLoading,
   rolesLoading,
   loadUsers,
@@ -65,7 +60,7 @@ export const UsersListPageUnconnected = ({
   changeSort,
 }: Props) => {
   const [showInvites, setShowInvites] = useState(false);
-  const externalUserMngInfoHtml = externalUserMngInfo ? renderMarkdown(externalUserMngInfo) : '';
+  const externalUserMngInfoHtml = config.externalUserMngInfo ? renderMarkdown(config.externalUserMngInfo) : '';
 
   useEffect(() => {
     loadUsers();
@@ -121,11 +116,3 @@ export const UsersListPageUnconnected = ({
 };
 
 export const UsersListPageContent = connector(UsersListPageUnconnected);
-
-export default function UsersListPage() {
-  return (
-    <Page navId="users">
-      <UsersListPageContent />
-    </Page>
-  );
-}

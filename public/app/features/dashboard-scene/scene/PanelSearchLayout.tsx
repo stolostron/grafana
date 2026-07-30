@@ -2,12 +2,13 @@ import { css } from '@emotion/css';
 import classNames from 'classnames';
 import { useMemo } from 'react';
 
-import { GrafanaTheme2 } from '@grafana/data';
-import { VizPanel, sceneGraph } from '@grafana/scenes';
+import { type GrafanaTheme2 } from '@grafana/data';
+import { type VizPanel, sceneGraph } from '@grafana/scenes';
 import { useStyles2 } from '@grafana/ui';
 
-import { DashboardScene } from './DashboardScene';
-import { SoloPanelContextProvider } from './SoloPanelContext';
+import { SoloPanelContextProvider } from '../solo/SoloPanelContext';
+
+import { type DashboardScene } from './DashboardScene';
 
 export interface Props {
   dashboard: DashboardScene;

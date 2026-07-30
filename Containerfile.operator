@@ -1,5 +1,5 @@
 # Golang build container
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.25 AS builder
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.26 AS builder
 
 WORKDIR $GOPATH/src/github.com/grafana/grafana
 
@@ -13,9 +13,8 @@ ENV COMMIT_SHA=${COMMIT_SHA}
 # to avoid vendor issues. Should attempt to remove it in the future
 ENV GOFLAGS="-mod=readonly"
 
-COPY go.mod go.sum embed.go Makefile build.go package.json ./
+COPY go.mod go.sum embed.go Makefile package.json ./
 COPY kinds kinds
-COPY kindsv2 kindsv2
 COPY local local
 COPY packages/grafana-schema packages/grafana-schema/
 COPY public/app/plugins public/app/plugins/
@@ -32,11 +31,11 @@ COPY .citools .citools
 COPY stolostron-patches stolostron-patches
 RUN git apply ./stolostron-patches/*
 
-RUN CGO_ENABLED=1 go run build.go -cgo-enabled=1 -build-tags=strictfipsruntime build
+RUN CGO_ENABLED=1 GO_BUILD_TAGS=strictfipsruntime make build-go
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
-RUN cp ./bin/linux-$(go env GOARCH)/grafana* /usr/bin/
+RUN cp ./bin/$(go env GOOS)/$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest

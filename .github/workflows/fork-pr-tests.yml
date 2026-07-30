@@ -27,14 +27,23 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
+      - name: Setup Go
+        uses: actions/setup-go@v6.0.0
+        with:
+          go-version-file: go.mod
       - name: Install dependencies
         run: yarn install --immutable
         env:
           PUPPETEER_SKIP_DOWNLOAD: true
           CYPRESS_INSTALL_BINARY: 0
+      - name: Generate golden migration fixtures
+        run: make generate-golden-files
+        working-directory: apps/dashboard
       - name: Typecheck
         if: matrix.shard == 1
         run: yarn typecheck
+        env:
+          NODE_OPTIONS: '--max-old-space-size=6144'
       - name: Lint
         if: matrix.shard == 1
         run: yarn lint
@@ -109,4 +118,22 @@ jobs:
       - name: Run E2E acceptance tests
         run: yarn e2e:acceptance
         env:
-          ARCH: linux-amd64
+          # No ARCH override: scripts/grafana-server/variables defaults ARCH to empty, which
+          # makes start-server launch the flat ./bin/grafana binary that `make build-go`
+          # always produces for the native platform. Setting ARCH=linux-amd64 (dash-joined)
+          # made it look for bin/linux-amd64/grafana, but the build only ever creates the
+          # slash-joined bin/linux/amd64/grafana plus the flat bin/grafana copy - so the
+          # dash-joined path never exists and Grafana silently failed to start (connection
+          # refused on :3001 until the webServer timeout hit).
+          # e2e-playwright/start-server redirects the real Grafana server logs to
+          # scripts/grafana-server/server.log instead of stdout, so a webServer startup
+          # failure/timeout otherwise shows up as silent output. This surfaces Playwright's
+          # own webServer lifecycle logging (spawn, readiness polling, timeout) in the job log.
+          DEBUG: pw:webserver
+      - name: Upload Grafana server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grafana-server-log
+          path: scripts/grafana-server/server.log
+          if-no-files-found: ignore

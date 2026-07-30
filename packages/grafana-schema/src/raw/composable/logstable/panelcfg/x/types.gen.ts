@@ -12,24 +12,29 @@
 
 import * as common from '@grafana/schema';
 
-export const pluginVersion = "12.4.0";
+export const pluginVersion = "13.1.0";
 
 export interface Options {
+  allowDownload?: boolean;
   buildLinkToLogLine?: unknown;
   displayedFields?: Array<string>;
+  enableLogDetails?: boolean;
   fieldSelectorWidth?: number;
-  setDisplayedFields?: unknown;
+  isLabelFilterActive?: unknown;
+  logDetailsWidth?: number;
+  permalinkedLogId?: string;
   showControls?: boolean;
   showCopyLogLink?: boolean;
-  showInspectLogLine?: boolean;
   sortOrder?: common.LogsSortOrder;
+  wrapText?: boolean;
 }
 
 export const defaultOptions: Partial<Options> = {
   displayedFields: [],
+  enableLogDetails: true,
   fieldSelectorWidth: 220,
+  logDetailsWidth: 400,
   showControls: true,
   showCopyLogLink: false,
-  showInspectLogLine: true,
   sortOrder: common.LogsSortOrder.Descending,
 };

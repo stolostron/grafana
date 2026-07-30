@@ -20,8 +20,15 @@ func NewKeeperstatusOperatorState() *KeeperstatusOperatorState {
 	return &KeeperstatusOperatorState{}
 }
 
+// OpenAPIModelName returns the OpenAPI model name for KeeperstatusOperatorState.
+func (KeeperstatusOperatorState) OpenAPIModelName() string {
+	return "com.github.grafana.grafana.apps.secret.pkg.apis.secret.v1beta1.KeeperstatusOperatorState"
+}
+
 // +k8s:openapi-gen=true
 type KeeperStatus struct {
+	// True when the keeper is the current active keeper
+	Active bool `json:"active"`
 	// operatorStates is a map of operator ID to operator state evaluations.
 	// Any operator which consumes this kind SHOULD add its state evaluation information to this field.
 	OperatorStates map[string]KeeperstatusOperatorState `json:"operatorStates,omitempty"`
@@ -34,6 +41,11 @@ func NewKeeperStatus() *KeeperStatus {
 	return &KeeperStatus{}
 }
 
+// OpenAPIModelName returns the OpenAPI model name for KeeperStatus.
+func (KeeperStatus) OpenAPIModelName() string {
+	return "com.github.grafana.grafana.apps.secret.pkg.apis.secret.v1beta1.KeeperStatus"
+}
+
 // +k8s:openapi-gen=true
 type KeeperStatusOperatorStateState string
 
@@ -43,9 +55,7 @@ const (
 	KeeperStatusOperatorStateStateFailed     KeeperStatusOperatorStateState = "failed"
 )
 
-func (KeeperstatusOperatorState) OpenAPIModelName() string {
-	return "com.github.grafana.grafana.apps.secret.pkg.apis.secret.v1beta1.KeeperstatusOperatorState"
-}
-func (KeeperStatus) OpenAPIModelName() string {
-	return "com.github.grafana.grafana.apps.secret.pkg.apis.secret.v1beta1.KeeperStatus"
+// OpenAPIModelName returns the OpenAPI model name for KeeperStatusOperatorStateState.
+func (KeeperStatusOperatorStateState) OpenAPIModelName() string {
+	return "com.github.grafana.grafana.apps.secret.pkg.apis.secret.v1beta1.KeeperStatusOperatorStateState"
 }

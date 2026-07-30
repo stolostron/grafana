@@ -1,15 +1,19 @@
-import { RefObject, useCallback } from 'react';
+import { type RefObject, useCallback } from 'react';
 
 import { CoreApp } from '@grafana/data';
 import { Stack } from '@grafana/ui';
 
 import { Actions } from '../../Actions';
-import { QUERY_EDITOR_TYPE_CONFIG } from '../../constants';
+import { ConfirmationStyle } from '../../DeleteConfirm';
+import { queryToActionItem, transformationToActionItem } from '../../actionItem';
+import { QueryEditorType } from '../../constants';
 import { useActionsContext, useQueryEditorUIContext } from '../QueryEditorContext';
 
-import { ActionsMenu } from './ActionsMenu';
+import { ExperimentalFeedbackButton } from './ExperimentalFeedbackButton';
 import { PluginActions } from './PluginActions';
+import { QueryActionsMenu } from './QueryActionsMenu';
 import { SaveButton } from './SaveButton';
+import { TransformationActionButtons } from './TransformationActionButtons';
 import { WarningBadges } from './WarningBadges';
 
 interface HeaderActionsProps {
@@ -21,6 +25,8 @@ interface HeaderActionsProps {
  *
  * @remarks
  * Manages actions (hide, delete) for the currently selected query or transformation.
+ * Delete confirmation behavior is configured per type in getQueryEditorTypeConfig and
+ * handled by the Actions component.
  * Child components like WarningBadges, SaveButton, and ActionsMenu determine their
  * own visibility by reading from QueryEditorUIContext.
  */
@@ -44,8 +50,19 @@ export function HeaderActions({ containerRef }: HeaderActionsProps) {
     }
   }, [selectedQuery, selectedTransformation, deleteQuery, deleteTransformation]);
 
-  const isHidden = selectedQuery?.hide || selectedTransformation?.transformConfig?.disabled || false;
-  const typeLabel = QUERY_EDITOR_TYPE_CONFIG[cardType].getLabel();
+  if (cardType === QueryEditorType.Alert) {
+    return null;
+  }
+
+  const item = selectedQuery
+    ? queryToActionItem(selectedQuery, { type: cardType })
+    : selectedTransformation
+      ? transformationToActionItem(selectedTransformation)
+      : null;
+
+  if (!item) {
+    return null;
+  }
 
   return (
     <Stack gap={1} alignItems="center">
@@ -54,12 +71,18 @@ export function HeaderActions({ containerRef }: HeaderActionsProps) {
       <PluginActions app={CoreApp.PanelEditor} />
       <Actions
         contentHeader={true}
-        isHidden={isHidden}
+        confirmStyle={ConfirmationStyle.full}
+        item={item}
         onDelete={onDelete}
         onToggleHide={onToggleHide}
-        typeLabel={typeLabel}
+        order={{
+          delete: 2,
+          hide: 1,
+          duplicate: 0,
+        }}
       />
-      <ActionsMenu app={CoreApp.PanelEditor} />
+      <ExperimentalFeedbackButton />
+      {cardType === QueryEditorType.Transformation ? <TransformationActionButtons /> : <QueryActionsMenu />}
     </Stack>
   );
 }

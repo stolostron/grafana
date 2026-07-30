@@ -81,6 +81,13 @@ Timestamps will line up evenly on timeStepSeconds (For example, 60 seconds means
 	})
 
 	s.registerScenario(&Scenario{
+		ID:          kinds.TestDataQueryTypeFlakyQuery,
+		Name:        "Flaky Query",
+		StringInput: "5s",
+		handler:     s.handleFlakyQueryScenario,
+	})
+
+	s.registerScenario(&Scenario{
 		ID:      kinds.TestDataQueryTypeNoDataPoints,
 		Name:    "No Data Points",
 		handler: s.handleClientSideScenario,
@@ -461,6 +468,49 @@ func (s *Service) handleRandomWalkSlowScenario(ctx context.Context, req *backend
 	return resp, nil
 }
 
+func (s *Service) handleFlakyQueryScenario(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+	resp := backend.NewQueryDataResponse()
+
+	shouldError := false
+	if len(req.Queries) > 0 {
+		if model, err := GetJSONModel(req.Queries[0].JSON); err == nil && model.ErrorProbability > 0 {
+			if rand.Float64()*100 < model.ErrorProbability {
+				shouldError = true
+			}
+		}
+	}
+
+	for _, q := range req.Queries {
+		model, err := GetJSONModel(q.JSON)
+		if err != nil {
+			continue
+		}
+
+		stringInput := model.StringInput
+		parsedInterval, _ := time.ParseDuration(stringInput)
+		time.Sleep(parsedInterval)
+
+		if shouldError {
+			status := backend.Status(model.ErrorStatusCode)
+			if status == 0 {
+				status = backend.StatusBadRequest
+			}
+			src := backend.ErrorSourcePlugin
+			if model.ErrorSource == kinds.ErrorSourceDownstream {
+				src = backend.ErrorSourceDownstream
+			}
+			resp.Responses[q.RefID] = backend.ErrDataResponseWithSource(status, src, model.ErrorMessage)
+			continue
+		}
+
+		respD := resp.Responses[q.RefID]
+		respD.Frames = append(respD.Frames, RandomWalk(q, model, 0))
+		resp.Responses[q.RefID] = respD
+	}
+
+	return resp, nil
+}
+
 func (s *Service) handleRandomWalkTableScenario(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	resp := backend.NewQueryDataResponse()
 
@@ -636,10 +686,14 @@ func (s *Service) handleLogsScenario(ctx context.Context, req *backend.QueryData
 		}
 
 		lines := model.Lines
+		if lines > 10000 {
+			lines = 10000
+		}
 		includeLevelColumn := model.LevelColumn
 
 		logLevelGenerator := newRandomStringProvider([]string{
 			"emerg",
+			"emergency",
 			"alert",
 			"crit",
 			"critical",
@@ -850,7 +904,7 @@ func (s *Service) handleErrorWithSourceScenario(ctx context.Context, req *backen
 }
 
 func RandomWalk(query backend.DataQuery, model kinds.TestDataQuery, index int) *data.Frame {
-	rand := rand.New(rand.NewSource(time.Now().UnixNano() + int64(index)))
+	rand := rand.New(rand.NewSource(query.TimeRange.From.UnixNano() + query.TimeRange.To.UnixNano() + int64(index)))
 	timeWalkerMs := query.TimeRange.From.UnixNano() / int64(time.Millisecond)
 	to := query.TimeRange.To.UnixNano() / int64(time.Millisecond)
 	startValue := model.StartValue
@@ -951,7 +1005,11 @@ func randomWalkTable(query backend.DataQuery, model kinds.TestDataQuery) *data.F
 	var info strings.Builder
 	state := data.EnumItemIndex(0)
 
-	for i := int64(0); i < query.MaxDataPoints && timeWalkerMs < to; i++ {
+	maxDataPoints := query.MaxDataPoints
+	if maxDataPoints > 10000 {
+		maxDataPoints = 10000
+	}
+	for i := int64(0); i < maxDataPoints && timeWalkerMs < to; i++ {
 		delta := rand.Float64() - 0.5
 		walker += delta
 

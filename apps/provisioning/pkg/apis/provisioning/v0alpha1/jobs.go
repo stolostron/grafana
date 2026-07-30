@@ -60,6 +60,23 @@ const (
 
 	// JobActionMove moves files in the remote repository
 	JobActionMove JobAction = "move"
+
+	// JobActionFixFolderMetadata is a placeholder job that will eventually regenerate folder metadata files.
+	// Currently a no-op to unblock frontend development.
+	JobActionFixFolderMetadata JobAction = "fixFolderMetadata"
+
+	// JobActionReleaseResources removes ownership annotations from all resources
+	// managed by a repository that no longer exists or is stuck in Terminating state.
+	// Resources remain in Grafana but become unmanaged.
+	// This action has inverted validation: it is only allowed when the repository
+	// does not exist or has a DeletionTimestamp set.
+	JobActionReleaseResources JobAction = "releaseResources"
+
+	// JobActionDeleteResources deletes all resources managed by a repository
+	// that no longer exists or is stuck in Terminating state.
+	// This action has inverted validation: it is only allowed when the repository
+	// does not exist or has a DeletionTimestamp set.
+	JobActionDeleteResources JobAction = "deleteResources"
 )
 
 // +enum
@@ -87,11 +104,18 @@ func (j JobState) Finished() bool {
 }
 
 type JobSpec struct {
-	Action JobAction `json:"action,omitempty"`
+	Action JobAction `json:"action"`
 
 	// The the repository reference (for now also in labels)
 	// This value is required, but will be popuplated from the job making the request
 	Repository string `json:"repository,omitempty"`
+
+	// Commit message for this job. Applies to job actions that produce
+	// commits (delete, move, migrate, push, fixFolderMetadata).
+	// When empty, the backend falls back to the action-specific message
+	// field (ExportJobOptions.Message, MigrateJobOptions.Message) for
+	// backwards compatibility, then to a built-in default.
+	Message string `json:"message,omitempty"`
 
 	// Pull request options
 	PullRequest *PullRequestJobOptions `json:"pr,omitempty"`
@@ -110,6 +134,9 @@ type JobSpec struct {
 
 	// Move when the action is `move`
 	Move *MoveJobOptions `json:"move,omitempty"`
+
+	// Options when the action is `fix-folder-metadata`
+	FixFolderMetadata *FixFolderMetadataJobOptions `json:"fixFolderMetadata,omitempty"`
 }
 
 func (JobSpec) OpenAPIModelName() string {
@@ -144,7 +171,9 @@ func (SyncJobOptions) OpenAPIModelName() string {
 }
 
 type ExportJobOptions struct {
-	// Message to use when committing the changes in a single commit
+	// Message to use when committing the changes in a single commit.
+	// Deprecated: set JobSpec.Message instead. This field is kept for
+	// backwards compatibility and is only used when JobSpec.Message is empty.
 	Message string `json:"message,omitempty"`
 
 	// The source folder (or empty) to export
@@ -157,6 +186,19 @@ type ExportJobOptions struct {
 	// FIXME: we should validate this in admission hooks
 	// Prefix in target file system
 	Path string `json:"path,omitempty"`
+
+	// Resources to export. When empty, every unmanaged resource in the namespace
+	// is exported (legacy behavior). When non-empty, only the listed resources
+	// are exported — the folder hierarchy is still emitted so parent paths resolve.
+	// Currently only unmanaged Dashboards are supported.
+	Resources []ResourceRef `json:"resources,omitempty"`
+
+	// GenerateNewFolderIDs writes a freshly generated identifier into each
+	// exported folder's metadata (_folder.json) instead of preserving the
+	// existing folder UID. Use this to produce a portable export that creates
+	// new folders on a subsequent sync rather than taking over the originals.
+	// Has no effect when folder metadata is not written.
+	GenerateNewFolderIDs bool `json:"generateNewFolderIDs,omitempty"`
 }
 
 func (ExportJobOptions) OpenAPIModelName() string {
@@ -164,8 +206,24 @@ func (ExportJobOptions) OpenAPIModelName() string {
 }
 
 type MigrateJobOptions struct {
-	// Message to use when committing the changes in a single commit
+	// Message to use when committing the changes in a single commit.
+	// Deprecated: set JobSpec.Message instead. This field is kept for
+	// backwards compatibility and is only used when JobSpec.Message is empty.
 	Message string `json:"message,omitempty"`
+
+	// Resources to migrate. When empty, every unmanaged resource in the namespace
+	// is migrated (legacy behavior). When non-empty, only the listed resources
+	// are exported to the repository — the folder hierarchy is still emitted so
+	// parent paths resolve, and the subsequent pull phase only takes ownership
+	// of those resources.
+	// Currently only unmanaged Dashboards are supported.
+	Resources []ResourceRef `json:"resources,omitempty"`
+
+	// GenerateNewFolderIDs writes a freshly generated identifier into each
+	// exported folder's metadata (_folder.json) instead of preserving the
+	// existing folder UID. The subsequent pull creates new folders rather than
+	// taking over the originals. Has no effect when folder metadata is not written.
+	GenerateNewFolderIDs bool `json:"generateNewFolderIDs,omitempty"`
 }
 
 func (MigrateJobOptions) OpenAPIModelName() string {
@@ -232,6 +290,15 @@ func (MoveJobOptions) OpenAPIModelName() string {
 	return OpenAPIPrefix + "MoveJobOptions"
 }
 
+type FixFolderMetadataJobOptions struct {
+	// Ref to the branch to create the commit on (uses repository's default branch if not specified)
+	Ref string `json:"ref,omitempty"`
+}
+
+func (FixFolderMetadataJobOptions) OpenAPIModelName() string {
+	return OpenAPIPrefix + "FixFolderMetadataJobOptions"
+}
+
 // The job status
 type JobStatus struct {
 	State    JobState `json:"state,omitempty"`
@@ -255,15 +322,22 @@ func (JobStatus) OpenAPIModelName() string {
 	return OpenAPIPrefix + "JobStatus"
 }
 
-// Convert a JOB to a
+// ToSyncStatus converts a job status to a sync status, which will be put in the repository status.
 func (in JobStatus) ToSyncStatus(jobId string) SyncStatus {
-	return SyncStatus{
+	s := SyncStatus{
 		JobID:    jobId,
 		State:    in.State,
 		Started:  in.Started,
 		Finished: in.Finished,
-		Message:  in.Errors,
 	}
+
+	if len(in.Errors) > 0 {
+		s.Message = in.Errors
+	} else if len(in.Warnings) > 0 {
+		s.Message = in.Warnings
+	}
+
+	return s
 }
 
 type JobResourceSummary struct {

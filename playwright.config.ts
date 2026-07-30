@@ -1,7 +1,7 @@
-import { defineConfig, devices, PlaywrightTestConfig, Project } from '@playwright/test';
+import { defineConfig, devices, type PlaywrightTestConfig, type Project } from '@playwright/test';
 import path, { dirname } from 'path';
 
-import { PluginOptions } from '@grafana/plugin-e2e';
+import { type PluginOptions } from '@grafana/plugin-e2e';
 
 export const testDirRoot = 'e2e-playwright';
 const pluginDirRoot = path.join(testDirRoot, 'plugin-e2e');
@@ -23,11 +23,15 @@ export function withAuth(project: Project): Project {
 export const baseConfig: PlaywrightTestConfig<PluginOptions, {}> = {
   fullyParallel: true,
   /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 4 : undefined,
+  // Disabled: our shallow, credential-less CI checkout can't fetch the PR base commit,
+  // and Playwright's git-diff fallback has been known to hang/crash with
+  // `RangeError: Invalid string length` when that fetch doesn't complete cleanly.
+  captureGitInfo: { commit: false, diff: false },
   reporter: [
     ['html'], // pretty
+    ['./e2e-playwright/utils/axe-a11y/reporter.ts'], // accessibility reporter
   ],
   expect: {
     timeout: 10_000,
@@ -43,6 +47,11 @@ export const baseConfig: PlaywrightTestConfig<PluginOptions, {}> = {
     screenshot: 'only-on-failure',
     permissions: ['clipboard-read', 'clipboard-write'],
     provisioningRootDir: path.join(process.cwd(), process.env.PROV_DIR ?? 'conf/provisioning'),
+    // Preserve legacy dashboard layout behavior in E2E unless a test overrides this (shallow merge on
+    // `featureToggles` would otherwise drop toggles when a spec sets only a subset).
+    featureToggles: {
+      dashboardNewLayouts: false,
+    },
   },
 };
 
@@ -54,6 +63,11 @@ export default defineConfig<PluginOptions>({
       url: DEFAULT_URL,
       stdout: 'pipe',
       stderr: 'pipe',
+      // Default is 60s, which can be too tight for a cold build of the E2E test plugins
+      // plus a fresh Grafana server boot in CI. start-server also redirects Grafana's own
+      // logs to scripts/grafana-server/server.log instead of stdout, so a timeout here
+      // otherwise fails silently with no console output to explain why.
+      timeout: 180_000,
     },
   }),
   projects: [
@@ -91,10 +105,6 @@ export default defineConfig<PluginOptions>({
       },
       dependencies: ['createUserAndAuthenticate'],
     },
-    withAuth({
-      name: 'elasticsearch',
-      testDir: path.join(pluginDirRoot, '/elasticsearch'),
-    }),
     withAuth({
       name: 'mysql',
       testDir: path.join(pluginDirRoot, '/mysql'),
@@ -146,10 +156,6 @@ export default defineConfig<PluginOptions>({
     withAuth({
       name: 'canvas',
       testDir: path.join(testDirRoot, '/canvas'),
-    }),
-    withAuth({
-      name: 'zipkin',
-      testDir: path.join(pluginDirRoot, '/zipkin'),
     }),
     {
       name: 'unauthenticated',

@@ -15,12 +15,13 @@ diff --git a/pkg/services/datasources/models.go b/pkg/services/datasources/model
 index 329d936dedb..05c8caf4fd9 100644
 --- a/pkg/services/datasources/models.go
 +++ b/pkg/services/datasources/models.go
-@@ -147,6 +147,18 @@ func (ds DataSource) AllowedCookies() []string {
- 	return []string{}
+@@ -154,6 +154,18 @@ func GetTeamHTTPHeaders(jsonData *simplejson.Json) (*TeamHTTPHeaders, error) {
+ 
+ 	return teamHTTPHeaders, nil
  }
-
-+// AllowedCookies parses the jsondata.keepCookies and returns a list of
-+// allowed cookies, otherwise an empty list.
+ 
++// ForwardHeaders parses the jsondata.forwardHeaders and returns a list of
++// headers that should be forwarded, otherwise an empty list.
 +func (ds DataSource) ForwardHeaders() []string {
 +	if ds.JsonData != nil {
 +		if forwardHeaders := ds.JsonData.Get("forwardHeaders"); forwardHeaders != nil {

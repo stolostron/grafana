@@ -4,16 +4,24 @@ package v0alpha1
 
 // +k8s:openapi-gen=true
 type GetSearchTeamsTeamHit struct {
-	Name        string `json:"name"`
-	Title       string `json:"title"`
-	Email       string `json:"email"`
-	Provisioned bool   `json:"provisioned"`
-	ExternalUID string `json:"externalUID"`
+	Name          string          `json:"name"`
+	Title         string          `json:"title"`
+	Email         string          `json:"email"`
+	Provisioned   bool            `json:"provisioned"`
+	ExternalUID   string          `json:"externalUID"`
+	InternalId    *int64          `json:"internalId,omitempty"`
+	MemberCount   *int64          `json:"memberCount,omitempty"`
+	AccessControl map[string]bool `json:"accessControl,omitempty"`
 }
 
 // NewGetSearchTeamsTeamHit creates a new GetSearchTeamsTeamHit object.
 func NewGetSearchTeamsTeamHit() *GetSearchTeamsTeamHit {
 	return &GetSearchTeamsTeamHit{}
+}
+
+// OpenAPIModelName returns the OpenAPI model name for GetSearchTeamsTeamHit.
+func (GetSearchTeamsTeamHit) OpenAPIModelName() string {
+	return "com.github.grafana.grafana.apps.iam.pkg.apis.iam.v0alpha1.GetSearchTeamsTeamHit"
 }
 
 // +k8s:openapi-gen=true
@@ -31,9 +39,8 @@ func NewGetSearchTeamsBody() *GetSearchTeamsBody {
 		Hits: []GetSearchTeamsTeamHit{},
 	}
 }
-func (GetSearchTeamsTeamHit) OpenAPIModelName() string {
-	return "com.github.grafana.grafana.apps.iam.pkg.apis.iam.v0alpha1.GetSearchTeamsTeamHit"
-}
+
+// OpenAPIModelName returns the OpenAPI model name for GetSearchTeamsBody.
 func (GetSearchTeamsBody) OpenAPIModelName() string {
 	return "com.github.grafana.grafana.apps.iam.pkg.apis.iam.v0alpha1.GetSearchTeamsBody"
 }

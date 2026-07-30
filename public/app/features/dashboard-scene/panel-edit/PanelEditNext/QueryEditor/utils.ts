@@ -1,16 +1,44 @@
-import { DataTransformerConfig } from '@grafana/data';
-import { CustomTransformerDefinition } from '@grafana/scenes';
-import { DataQuery } from '@grafana/schema';
+import {
+  type AlertState,
+  type DataTransformerConfig,
+  type GrafanaTheme2,
+  type ScopedVars,
+  TransformerCategory,
+} from '@grafana/data';
+import { t } from '@grafana/i18n';
+import { type CustomTransformerDefinition, SafeSerializableSceneObject, type VizPanel } from '@grafana/scenes';
+import { type DataQuery } from '@grafana/schema';
 import { isExpressionQuery } from 'app/features/expressions/guards';
 
-import { QueryEditorType } from '../constants';
+import { getAlertStateColor, getQueryEditorTypeConfig, QueryEditorType } from '../constants';
 
-import { Transformation } from './types';
+import { type PendingExpression, type PendingTransformation } from './QueryEditorContext';
+import { type AlertRule, type Transformation } from './types';
 
-export function getEditorType(card: DataQuery | Transformation | null): QueryEditorType {
+export function getPanelScopedVars(panel: VizPanel): ScopedVars {
+  return { __sceneObject: new SafeSerializableSceneObject(panel) };
+}
+
+export function getEditorType(
+  card: DataQuery | Transformation | AlertRule | null,
+  pendingExpression?: PendingExpression | null,
+  pendingTransformation?: PendingTransformation | null
+): QueryEditorType {
+  if (pendingExpression) {
+    return QueryEditorType.Expression;
+  }
+
+  if (pendingTransformation) {
+    return QueryEditorType.Transformation;
+  }
+
   if (!card) {
     // Default to query type if no card is provided
     return QueryEditorType.Query;
+  }
+
+  if ('alertId' in card) {
+    return QueryEditorType.Alert;
   }
 
   if ('transformId' in card) {
@@ -24,7 +52,7 @@ export function getEditorType(card: DataQuery | Transformation | null): QueryEdi
   return QueryEditorType.Query;
 }
 
-export function isDataTransformerConfig(
+function isDataTransformerConfig(
   transformation: DataTransformerConfig | DataQuery | CustomTransformerDefinition | null
 ): transformation is DataTransformerConfig {
   return transformation !== null && 'id' in transformation && !('refId' in transformation);
@@ -44,4 +72,72 @@ export const filterDataTransformerConfigs = (
 
 export function getTransformId(transformConfigId: string, index: number): string {
   return `${transformConfigId}-${index}`;
+}
+
+/**
+ * Gets the border color for a query editor card based on its type.
+ * For alerts, uses dynamic state-based color; otherwise uses static config color.
+ *
+ * @param theme - Grafana theme object
+ * @param editorType - The type of editor (Query, Expression, Transformation, Alert)
+ * @param alertState - Optional alert state (only used when editorType is Alert)
+ * @returns The border color string
+ */
+export function getEditorBorderColor({
+  theme,
+  editorType,
+  alertState,
+  isError,
+}: {
+  theme: GrafanaTheme2;
+  editorType: QueryEditorType;
+  alertState?: AlertState | null;
+  isError?: boolean;
+}): string {
+  if (isError) {
+    return theme.colors.error.border;
+  }
+
+  if (editorType === QueryEditorType.Alert && alertState) {
+    return getAlertStateColor(theme, alertState);
+  }
+
+  const typeConfig = getQueryEditorTypeConfig(theme);
+  return typeConfig[editorType].color;
+}
+
+export function getHiddenMaskStyles(theme: GrafanaTheme2) {
+  return {
+    opacity: theme.isDark ? 0.6 : 0.7,
+    filter: 'grayscale(0.8)',
+  };
+}
+
+export interface TransformerCategoryOption {
+  slug: TransformerCategory;
+  label: string;
+}
+
+export function getTransformerCategories(): TransformerCategoryOption[] {
+  return [
+    { slug: TransformerCategory.Combine, label: t('transformers.utils.get-categories-labels.combine', 'Combine') },
+    {
+      slug: TransformerCategory.CalculateNewFields,
+      label: t('transformers.utils.get-categories-labels.calculate-new-fields', 'Calculate new fields'),
+    },
+    {
+      slug: TransformerCategory.CreateNewVisualization,
+      label: t('transformers.utils.get-categories-labels.create-new-visualization', 'Create new visualization'),
+    },
+    { slug: TransformerCategory.Filter, label: t('transformers.utils.get-categories-labels.filter', 'Filter') },
+    {
+      slug: TransformerCategory.PerformSpatialOperations,
+      label: t('transformers.utils.get-categories-labels.perform-spatial-operations', 'Perform spatial operations'),
+    },
+    { slug: TransformerCategory.Reformat, label: t('transformers.utils.get-categories-labels.reformat', 'Reformat') },
+    {
+      slug: TransformerCategory.ReorderAndRename,
+      label: t('transformers.utils.get-categories-labels.reorder-and-rename', 'Reorder and rename'),
+    },
+  ];
 }
