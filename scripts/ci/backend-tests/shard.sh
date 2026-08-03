@@ -101,6 +101,26 @@ if [[ $n -gt $m ]]; then
 fi
 if [[ ${#dirs[@]} -eq 0 ]]; then
     readarray -t dirs <<< "$(find . -type f -name 'go.mod' -exec dirname '{}' ';' | awk '{ print $1 "/..."; }')"
+    # pkg/build pulls in dagger.io/dagger@v0.18.8, which requires a pre-v0.13
+    # otel/sdk/log Processor interface that conflicts with the otel/sdk/log
+    # version resolved elsewhere in this module. That breaks `go test`
+    # compilation for pkg/build/a11y, all of pkg/build/daggerbuild/..., and
+    # the CLI entrypoints that call into them (e.g. pkg/build/cmd,
+    # pkg/build/e2e). Replace the blanket "./pkg/build/..." entry with an
+    # explicit list of the pkg/build packages that don't depend on
+    # dagger.io/dagger, so those packages still get built/tested.
+    SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+    filtered_dirs=()
+    for d in "${dirs[@]}"; do
+        if [[ "$d" == "./pkg/build/..." ]]; then
+            while IFS= read -r safe_pkg; do
+                filtered_dirs+=("$safe_pkg")
+            done < <("${SCRIPT_DIR}/../../go-workspace/pkg-build-non-dagger-packages.sh")
+        else
+            filtered_dirs+=("$d")
+        fi
+    done
+    dirs=("${filtered_dirs[@]}")
 fi
 # If dirs is just ("-"), read from stdin instead.
 if [[ ${#dirs[@]} -eq 1 && "${dirs[0]}" == "-" ]]; then

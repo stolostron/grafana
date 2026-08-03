@@ -85,6 +85,8 @@ func (u *Uploader) Upload(ctx context.Context, imageDiskPath string) (string, er
 	var client gcsifaces.StorageClient
 	if u.KeyFile != "" {
 		u.log.Debug("Creating Google credentials from JSON")
+		// Matches upstream suppression, see https://github.com/grafana/grafana/commit/435312f953b3d3ad21fcd96f599f9e9ec153448f
+		//nolint:staticcheck // SA1019: google.CredentialsFromJSON is deprecated: This function is deprecated because of a potential security risk
 		creds, err := google.CredentialsFromJSON(ctx, keyData, scope)
 		if err != nil {
 			return "", err
