@@ -1109,6 +1109,7 @@ github.com/influxdata/telegraf v1.37.2/go.mod h1:dq+24HZKWxGo5ttW03SZug03UlFfpxh
 github.com/invopop/jsonschema v0.13.0/go.mod h1:ffZ5Km5SWWRAIN6wbDXItl95euhFz2uON45H2qjYt+0=
 github.com/iris-contrib/schema v0.0.6 h1:CPSBLyx2e91H2yJzPuhGuifVRnZBBJ3pCOMbOvPZaTw=
 github.com/iris-contrib/schema v0.0.6/go.mod h1:iYszG0IOsuIsfzjymw1kMzTL8YQcCWlm65f3wX8J5iA=
+github.com/iskorotkov/avro/v2 v2.33.1/go.mod h1:yNyfWEaSvNBFk7FtQHUxMGO9YZzsCxxNqnzDKzzRCaY=
 github.com/jackc/puddle v1.3.0 h1:eHK/5clGOatcjX3oWGBO/MpxpbHzSwud5EWTSCI+MX0=
 github.com/jaegertracing/jaeger v1.67.0/go.mod h1:tE/FEQfybCSdUbBgel51YaCSkc58O+Njih8oTl6j8vw=
 github.com/jaegertracing/jaeger-idl v0.5.0/go.mod h1:ON90zFo9eoyXrt9F/KN8YeF3zxcnujaisMweFY/rg5k=
