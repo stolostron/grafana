@@ -62,10 +62,7 @@ func Test_instantQueryMarshaling(t *testing.T) {
 						T: 12000, // loses some precision during marshaling
 						V: 10.5,
 					},
-					Metric: []labels.Label{{
-						Name:  "__name__",
-						Value: "apiserver_request:burnrate1d",
-					}},
+					Metric: labels.FromStrings("__name__", "apiserver_request:burnrate1d"),
 				},
 			},
 		},
