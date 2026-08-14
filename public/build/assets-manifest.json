@@ -19,9 +19,9 @@
     "src": "public/build/758.565b31de30fd78e03746.js",
     "integrity": "sha384-H00jG/YP4ffb5ieklrF2UKHOiCJYM8ODWteT4AAU0gcr8sFV91dqNWClbwNuQcpU sha512-5s05lblQvza/UURe6ZaD9vGgDl4NN2O0Urb05NF06SgbyG3gk/mwYM1jbA1YQHIEnhL/9QSqHA1GapvcEWc4CQ=="
   },
-  "9414.efe786ccd31d8152a327.js": {
-    "src": "public/build/9414.efe786ccd31d8152a327.js",
-    "integrity": "sha384-liMK1uUYgY6xR3/MERS0LTfySEcmFExttBmJo8Lqm/jBSPrH/HhCYga3P2FHY7Fp sha512-oyXqLPO6xbhvF2/ZH9M4l8mqEp+Ro3df/VgM5Awpze6WCPLh93LkvX0r7nXoBWGd3+/qk9J0HHSz4EG/UxA9zQ=="
+  "9414.6d91254e8a82e4f991c2.js": {
+    "src": "public/build/9414.6d91254e8a82e4f991c2.js",
+    "integrity": "sha384-mOhcvJq2Qct8ZcWVmMDvqCujt/14Da7tG869N1FQZta2xBQuielxK2tPAP9GTBRA sha512-toMMXE5WTJ8P2IzrBBNPqG8RbJsE5PQQWeKPB3pWRz9/FaosMqj9r8lgwHx4/Pig+kHYNqXYeGgVaruhDsBFxQ=="
   },
   "app.css": {
     "src": "public/build/grafana.app.1f6473bb54b1e1647be8.css",
@@ -68,7 +68,7 @@
           "public/build/758.565b31de30fd78e03746.js",
           "public/build/3399.b25afd31a187e30b0090.js",
           "public/build/5923.b00ce115488258cc774e.js",
-          "public/build/9414.efe786ccd31d8152a327.js",
+          "public/build/9414.6d91254e8a82e4f991c2.js",
           "public/build/app.42fdc394d66edeaff995.js"
         ],
         "css": [
