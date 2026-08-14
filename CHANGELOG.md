@@ -1,3 +1,40 @@
+<!-- 12.2.8 START -->
+
+# 12.2.8 (2026-03-25)
+
+### Bug fixes
+
+- **Security:** Fixes CVE-2026-27876
+- **Security:** Fixes CVE-2026-27877
+- **Security:** Fixes CVE-2026-28375
+- **Security:** Fixes CVE-2026-27879
+- **Security:** Fixes CVE-2026-27880
+- **Security:** Fixes CVE-2026-27876
+
+<!-- 12.2.8 END -->
+<!-- 12.2.7 START -->
+
+# 12.2.7 (2026-03-09)
+
+### Features and enhancements
+
+- **Go:** Update to 1.25.8 [#119696](https://github.com/grafana/grafana/pull/119696), [@macabu](https://github.com/macabu)
+- **Rendering:** Add support for custom CA certs in Image Renderer [#118911](https://github.com/grafana/grafana/pull/118911), [@mrevutskyi](https://github.com/mrevutskyi)
+
+### Bug fixes
+
+- **Dashboards:** Fix start parameter in list versions API for K8s backend [#119398](https://github.com/grafana/grafana/pull/119398), [@MissingRoberto](https://github.com/MissingRoberto)
+
+<!-- 12.2.7 END -->
+<!-- 12.2.6 START -->
+
+# 12.2.6 (2026-02-24)
+
+### Bug fixes
+
+- **Dashboard Export:** Fix datasource variable templating in dashboard export [#118324](https://github.com/grafana/grafana/pull/118324), [@kristinademeshchik](https://github.com/kristinademeshchik)
+
+<!-- 12.2.6 END -->
 <!-- 12.2.5 START -->
 
 # 12.2.5 (2026-02-12)
