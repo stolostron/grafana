@@ -15,9 +15,9 @@
     "src": "public/build/6029.ced17922ce65e4fd1ef9.js",
     "integrity": "sha384-JFKmMsxbiWWsyc90S4v48hYBOOBw+7j0H9xBOdb4l4CSrSkzELZQAF3nuNx1sQMb sha512-uv1WA9iy7mpB5/zOTt6xdG87uZXNWC1xtGnt0NJJGbZFcO0vyKlivHiU/TWiHCEgovnPuKd7BukeobX2ptJQhg=="
   },
-  "8060.9d431517d175281e1800.js": {
-    "src": "public/build/8060.9d431517d175281e1800.js",
-    "integrity": "sha384-BAPEWBMuiz7nOpdt8Z0svMjuFnQ6HoxQTI4tD61neJb7CuhckkjUU4PQquRLpomD sha512-o7EopKsxhkRLwvIsQUAUdrU+ndX1rGH0HkEfsqtotN940Xvbnn5O1m+eRsWM0BTyNw7uQvYNR9HJ+8/w4hKJVQ=="
+  "8060.7d637ac4b6cf988a8fd5.js": {
+    "src": "public/build/8060.7d637ac4b6cf988a8fd5.js",
+    "integrity": "sha384-CqtoTVEWJ8hw/qpDsHSfit6fK0XUlRpvdH1VNVDfPyI4QB3u/55MUT8EOlBlHwOA sha512-BGARWpaVFNenMU3lOgDDxTt8+KAU8fVNnFNliWu6+PaATpeAExPuxoRFZn+2o6QPb8rip52NoL9aO+/8lBj80A=="
   },
   "9647.c185ce97059240fa564a.js": {
     "src": "public/build/9647.c185ce97059240fa564a.js",
@@ -48,8 +48,8 @@
     "integrity": "sha384-k1X5MqgfSb4c4L2gpxSFBxlaHpLahv2G/67eMIeWWYYHHdb8osiW+GAH5XE8RD77 sha512-30zdWV5yaRDXkxNH9BBqgx2RE1DvWMVvp7pGoXX40GqityHdOUVuk7mUqWAHMf6gpRzTb777LfInY5hnbYtlAQ=="
   },
   "runtime.js": {
-    "src": "public/build/runtime.6a99715e8de1b0d4a412.js",
-    "integrity": "sha384-zhjVnbpAiaOEs4XzHYSdgAWwmDbGi42Vr1myrkVDv7sZ2Z6z3pP24JPP2WPg3uZJ sha512-WE/JTaQlFx6f84AVcjrWEZ6ypTHSogKm5P1/ZBl2ubC3TDuwwJEfWlkQN4tszIRQjih1V8/CeGK8yYm+ePgXjA=="
+    "src": "public/build/runtime.53d05df664792bede5c3.js",
+    "integrity": "sha384-uJTGEoA9/dPodLytkqR6MFKN25V+kem5jGb5pEZrqwu01hsu7F++3bloF9/Ii65J sha512-RcmDj080r2rEGkXUyJ9ZZE4P3hNsJPe844X70qgcVNLfuHIAnL993HkxYSoWVZtlA9DViKPucmv8REnW5xmD9w=="
   },
   "swagger.css": {
     "src": "public/build/grafana.swagger.d0a2da197b9827204ac1.css",
@@ -63,12 +63,12 @@
     "app": {
       "assets": {
         "js": [
-          "public/build/runtime.6a99715e8de1b0d4a412.js",
+          "public/build/runtime.53d05df664792bede5c3.js",
           "public/build/6029.ced17922ce65e4fd1ef9.js",
           "public/build/2108.1eca34080b36690d7ac7.js",
           "public/build/3644.3ccdaafb96912c4b362b.js",
           "public/build/2143.02d41cefa24d1aa658ba.js",
-          "public/build/8060.9d431517d175281e1800.js",
+          "public/build/8060.7d637ac4b6cf988a8fd5.js",
           "public/build/app.ca528ef343dca5ea9d57.js"
         ],
         "css": [
@@ -79,7 +79,7 @@
     "swagger": {
       "assets": {
         "js": [
-          "public/build/runtime.6a99715e8de1b0d4a412.js",
+          "public/build/runtime.53d05df664792bede5c3.js",
           "public/build/6029.ced17922ce65e4fd1ef9.js",
           "public/build/2108.1eca34080b36690d7ac7.js",
           "public/build/9647.c185ce97059240fa564a.js",
@@ -94,7 +94,7 @@
     "dark": {
       "assets": {
         "js": [
-          "public/build/runtime.6a99715e8de1b0d4a412.js",
+          "public/build/runtime.53d05df664792bede5c3.js",
           "public/build/dark.8606c52556ad6e73d34c.js"
         ],
         "css": [
@@ -105,7 +105,7 @@
     "light": {
       "assets": {
         "js": [
-          "public/build/runtime.6a99715e8de1b0d4a412.js",
+          "public/build/runtime.53d05df664792bede5c3.js",
           "public/build/light.b24f789983b0ee2b9094.js"
         ],
         "css": [
