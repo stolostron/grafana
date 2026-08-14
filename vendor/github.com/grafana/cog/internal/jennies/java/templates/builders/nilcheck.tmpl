@@ -1,6 +1,0 @@
-{{- define "nil_check" }}
-        {{- $path := formatAssignmentPath "this.internal" .Path }}
-		if ({{ $path }} == null) {
-			{{ $path }} = {{ .EmptyValueType|emptyValueForType }};
-		}
-{{- end }}
