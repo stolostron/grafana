@@ -1,6 +1,0 @@
-{{- define "factories" }}
-{{- $builder := .Builder }}
-{{ range $builder.Factories }}
-{{- template "factory" (dict "Builder" $builder "Factory" .) }}
-{{- end }}
-{{- end -}}
