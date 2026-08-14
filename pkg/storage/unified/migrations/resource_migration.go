@@ -79,17 +79,28 @@ func (r *MigrationRunner) Run(ctx context.Context, sess *xorm.Session, opts RunO
 			r.log.Error("Failed to get transaction from session", "error", err)
 			return fmt.Errorf("failed to get transaction: %w", err)
 		}
+		// Increase page cache to prevent cache spill during bulk inserts.
+		// When the cache spills, SQLite needs an EXCLUSIVE lock which deadlocks with the
+		// SHARED lock held by the legacy database rows cursor on another connection.
+		// Configurable via [unified_storage] migration_cache_size_kb (default: 1GB).
+		cacheKB := 1000000
+		if r.cfg.MigrationCacheSizeKB > 0 {
+			cacheKB = r.cfg.MigrationCacheSizeKB
+		}
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA cache_size = -%d", cacheKB)); err != nil {
+			r.log.Warn("Failed to set SQLite cache_size for migration", "error", err)
+		}
 		ctx = resource.ContextWithTransaction(ctx, tx.Tx)
 		r.log.Info("Stored migrator transaction in context for bulk operations (SQLite compatibility)")
 	}
 
-	for _, org := range orgs {
-		info, err := types.ParseNamespace(types.OrgNamespaceFormatter(org.ID))
-		if err != nil {
-			r.log.Error("Failed to parse organization namespace", "org_id", org.ID, "error", err)
-			return fmt.Errorf("failed to parse namespace for org %d: %w", org.ID, err)
+	if err := r.migrateAllOrgs(ctx, sess, orgs, opts); err != nil {
+		if opts.DriverName != migrator.SQLite {
+			return err
 		}
-		if err = r.MigrateOrg(ctx, sess, info, opts); err != nil {
+		r.log.Warn("SQLite migration failed, retrying with parquet buffer", "error", err)
+		ctx = resource.ContextWithParquetBuffer(ctx)
+		if err := r.migrateAllOrgs(ctx, sess, orgs, opts); err != nil {
 			return err
 		}
 	}
@@ -104,6 +115,20 @@ func (r *MigrationRunner) Run(ctx context.Context, sess *xorm.Session, opts RunO
 
 	r.log.Info("Migration completed successfully for all organizations", "org_count", len(orgs))
 
+	return nil
+}
+
+func (r *MigrationRunner) migrateAllOrgs(ctx context.Context, sess *xorm.Session, orgs []orgInfo, opts RunOptions) error {
+	for _, org := range orgs {
+		info, err := types.ParseNamespace(types.OrgNamespaceFormatter(org.ID))
+		if err != nil {
+			r.log.Error("Failed to parse organization namespace", "org_id", org.ID, "error", err)
+			return fmt.Errorf("failed to parse namespace for org %d: %w", org.ID, err)
+		}
+		if err = r.MigrateOrg(ctx, sess, info, opts); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

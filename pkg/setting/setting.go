@@ -173,6 +173,7 @@ type Cfg struct {
 	RendererDefaultImageWidth      int
 	RendererDefaultImageHeight     int
 	RendererDefaultImageScale      float64
+	RendererCACert                 string
 
 	// Security
 	DisableInitAdminCreation             bool
@@ -595,7 +596,14 @@ type Cfg struct {
 	UnifiedStorage map[string]UnifiedStorageConfig
 	// DisableDataMigrations will disable resources data migration to unified storage at startup
 	DisableDataMigrations bool
-	MaxPageSizeBytes      int
+	// MigrationCacheSizeKB sets SQLite PRAGMA cache_size during data migrations (in KB).
+	// Larger values reduce lock contention. Default: 1000000 (~1GB).
+	MigrationCacheSizeKB int
+	// MigrationParquetBuffer enables bulk migration data through a temporary Parquet file.
+	// This separates the read phase (legacy DB) from the write phase (unified storage)
+	// Default: false.
+	MigrationParquetBuffer bool
+	MaxPageSizeBytes       int
 	// IndexPath the directory where index files are stored.
 	// Note: Bleve locks index files, so mounts cannot be shared between multiple instances.
 	IndexPath                                  string
@@ -887,12 +895,22 @@ type AnnotationCleanupSettings struct {
 	MaxCount int64
 }
 
+// envNameFromIniName converts an ini-style name (section or key) to the
+// uppercased, underscore-separated form used in GF_ environment variables.
+// Dots and dashes become underscores; everything is uppercased.
+func envNameFromIniName(name string) string {
+	s := strings.ToUpper(strings.ReplaceAll(name, ".", "_"))
+	return strings.ReplaceAll(s, "-", "_")
+}
+
+// EnvSectionPrefix returns the GF_ environment variable prefix for a given
+// ini section name, e.g. "auth.google" → "GF_AUTH_GOOGLE_".
+func EnvSectionPrefix(sectionName string) string {
+	return "GF_" + envNameFromIniName(sectionName) + "_"
+}
+
 func EnvKey(sectionName string, keyName string) string {
-	sN := strings.ToUpper(strings.ReplaceAll(sectionName, ".", "_"))
-	sN = strings.ReplaceAll(sN, "-", "_")
-	kN := strings.ToUpper(strings.ReplaceAll(keyName, ".", "_"))
-	envKey := fmt.Sprintf("GF_%s_%s", sN, kN)
-	return envKey
+	return "GF_" + envNameFromIniName(sectionName) + "_" + envNameFromIniName(keyName)
 }
 
 func (cfg *Cfg) applyCommandLineDefaultProperties(props map[string]string, file *ini.File) {
@@ -1929,6 +1947,7 @@ func (cfg *Cfg) readRenderingSettings(iniFile *ini.File) {
 	cfg.RendererDefaultImageWidth = renderSec.Key("default_image_width").MustInt(1000)
 	cfg.RendererDefaultImageHeight = renderSec.Key("default_image_height").MustInt(500)
 	cfg.RendererDefaultImageScale = renderSec.Key("default_image_scale").MustFloat64(1)
+	cfg.RendererCACert = valueAsString(renderSec, "ca_cert_file_path", "")
 	cfg.ImagesDir = filepath.Join(cfg.DataPath, "png")
 	cfg.CSVsDir = filepath.Join(cfg.DataPath, "csv")
 	cfg.PDFsDir = filepath.Join(cfg.DataPath, "pdf")

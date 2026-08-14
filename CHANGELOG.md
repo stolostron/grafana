@@ -1,3 +1,60 @@
+<!-- 12.4.3 START -->
+
+# 12.4.3 (2026-04-14)
+
+### Features and enhancements
+
+- **Analytics:** Keep internal dashboard id [#121417](https://github.com/grafana/grafana/pull/121417), [@ryantxu](https://github.com/ryantxu)
+- **Go:** Update to 1.25.9 [#122095](https://github.com/grafana/grafana/pull/122095), [@macabu](https://github.com/macabu)
+- **Reporting:** Correctly apply appSubURL to report settings requests (Enterprise)
+
+### Bug fixes
+
+- **Alerting:** Document Grafana HA Alertmanager cluster metrics prefix change in Grafana 12.4 [#121481](https://github.com/grafana/grafana/pull/121481), [@alexander-akhmetov](https://github.com/alexander-akhmetov)
+
+<!-- 12.4.3 END -->
+<!-- 12.4.2 START -->
+
+# 12.4.2 (2026-03-25)
+
+### Features and enhancements
+
+- **Analytics tab:** Improve voice over accessibility (Enterprise)
+- **Dashboards a11y:** Do not open time zonemenu on focus [#120388](https://github.com/grafana/grafana/pull/120388), [@idastambuk](https://github.com/idastambuk)
+- **Dashboards:** Resolve display names by identity in version history [#120273](https://github.com/grafana/grafana/pull/120273), [@ivanortegaalba](https://github.com/ivanortegaalba)
+- **Plugins:** Forward AWS SDK credential chain env vars to external AWS plugins [#120209](https://github.com/grafana/grafana/pull/120209), [@kevinwcyu](https://github.com/kevinwcyu)
+- **Public Dashboards:** Prevent unintended CRUD operations from different orgs [#120457](https://github.com/grafana/grafana/pull/120457), [@mmandrus](https://github.com/mmandrus)
+
+### Bug fixes
+
+- **IAM:** Handle NULL team_member.external column to fix dashboard loading [#120179](https://github.com/grafana/grafana/pull/120179), [@difro](https://github.com/difro)
+- **Plugins:** Fix installer IsDisabled condition [#120568](https://github.com/grafana/grafana/pull/120568), [@andresmgot](https://github.com/andresmgot)
+- **Plugins:** Forward PLUGIN_UNIX_SOCKET_DIR to plugin processes to fix tmp dir in restricted environments [#120275](https://github.com/grafana/grafana/pull/120275), [@HarshadaGawas05](https://github.com/HarshadaGawas05)
+- **Security:** Fixes CVE-2026-27876
+- **Security:** Fixes CVE-2026-27877
+- **Security:** Fixes CVE-2026-28375
+- **Security:** Fixes CVE-2026-27879
+- **Security:** Fixes CVE-2026-27880
+- **Security:** Fixes CVE-2026-27876
+
+<!-- 12.4.2 END -->
+<!-- 12.4.1 START -->
+
+# 12.4.1 (2026-03-09)
+
+### Features and enhancements
+
+- **AccessControl:** Invalidate scope resolver cache on datasource deletion [#118741](https://github.com/grafana/grafana/pull/118741), [@mihai-turdean](https://github.com/mihai-turdean)
+- **Go:** Update to 1.25.8 [#119693](https://github.com/grafana/grafana/pull/119693), [@macabu](https://github.com/macabu)
+- **Rendering:** Add support for custom CA certs in Image Renderer [#118859](https://github.com/grafana/grafana/pull/118859), [@mrevutskyi](https://github.com/mrevutskyi)
+
+### Bug fixes
+
+- **AccessControl:** Fix test utility for datasource deletion permissions cleanup (Enterprise)
+- **Alerting:** Change scope for testing new receivers to use supported resource type. [#118495](https://github.com/grafana/grafana/pull/118495), [@yuri-tceretian](https://github.com/yuri-tceretian)
+- **Alerting:** Fix CollateAlertRuleGroup migration for MariaDB compatibility [#119028](https://github.com/grafana/grafana/pull/119028), [@alexander-akhmetov](https://github.com/alexander-akhmetov)
+
+<!-- 12.4.1 END -->
 <!-- 11.6.11 START -->
 
 # 11.6.11 (2026-02-12)
