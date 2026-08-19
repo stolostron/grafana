@@ -38,7 +38,7 @@ RUN CGO_ENABLED=1 GO_BUILD_TAGS=strictfipsruntime make build-go
 RUN cp ./bin/$(go env GOOS)/$(go env GOARCH)/grafana* /usr/bin/
 
 # Final container
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM registry.redhat.io/ubi9/ubi-minimal-pqc:latest
 
 ARG VCS_REF
 ARG VCS_URL
