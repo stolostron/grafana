@@ -14,6 +14,9 @@ import (
 	"github.com/grafana/grafana/pkg/web"
 )
 
+// maxQueryBodySize caps the size of a public dashboard query request body.
+const maxQueryBodySize = 10 * 1024 // 10 KiB
+
 // swagger:route GET /public/dashboards/{accessToken} dashboards dashboard_public viewPublicDashboard
 //
 //	Get public dashboard for view
@@ -56,6 +59,8 @@ func (api *Api) QueryPublicDashboard(c *contextmodel.ReqContext) response.Respon
 	if !validation.IsValidAccessToken(accessToken) {
 		return response.Err(ErrInvalidAccessToken.Errorf("QueryPublicDashboard: invalid access token"))
 	}
+
+	c.Req.Body = http.MaxBytesReader(c.Resp, c.Req.Body, maxQueryBodySize)
 
 	panelId, err := strconv.ParseInt(web.Params(c.Req)[":panelId"], 10, 64)
 	if err != nil {
