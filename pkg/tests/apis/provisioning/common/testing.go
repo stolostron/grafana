@@ -125,7 +125,8 @@ type ProvisioningTestHelper struct {
 
 // WithNamespace returns a new ProvisioningTestHelper scoped to the specified namespace and user.
 // This is useful for multi-org testing where you need separate helpers for different organizations.
-func (h *ProvisioningTestHelper) WithNamespace(namespace string, user apis.User) *ProvisioningTestHelper {
+func (h *ProvisioningTestHelper) WithNamespace(t *testing.T, namespace string, user apis.User) *ProvisioningTestHelper {
+	t.Helper()
 	gv := &schema.GroupVersion{Group: "provisioning.grafana.app", Version: "v0alpha1"}
 
 	return &ProvisioningTestHelper{
@@ -178,9 +179,9 @@ func (h *ProvisioningTestHelper) WithNamespace(namespace string, user apis.User)
 			Namespace: namespace,
 			GVR:       dashboardsV2beta1.DashboardResourceInfo.GroupVersionResource(),
 		}),
-		AdminREST:  user.RESTClient(nil, gv),
-		EditorREST: user.RESTClient(nil, gv),
-		ViewerREST: user.RESTClient(nil, gv),
+		AdminREST:  user.RESTClient(t, gv),
+		EditorREST: user.RESTClient(t, gv),
+		ViewerREST: user.RESTClient(t, gv),
 	}
 }
 
@@ -1110,6 +1111,36 @@ func (h *ProvisioningTestHelper) RequireRepoFolderCount(t *testing.T, repoName s
 		"expected %d folder(s) managed by repo %s", expectedCount, repoName)
 }
 
+// RequireRepoFolderCount performs the same checks as RequireRepoFolderCount, but also returns
+// the folders managed by given repository.
+func (h *ProvisioningTestHelper) RequireRepoFolderCountAndGetManaged(t *testing.T, repoName string, expectedCount int) []unstructured.Unstructured {
+	t.Helper()
+	var managed []unstructured.Unstructured
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		folders, err := h.Folders.Resource.List(t.Context(), metav1.ListOptions{})
+		if !assert.NoError(c, err, "failed to list folders") {
+			return
+		}
+
+		managed = filterManagedResources(folders.Items, repoName)
+		assert.Equal(c, expectedCount, len(managed), "unexpected number of folders managed by repo %s", repoName)
+	}, WaitTimeoutDefault, WaitIntervalDefault,
+		"expected %d folder(s) managed by repo %s", expectedCount, repoName)
+	return managed
+}
+
+// filterManagedResources returns the resources managed by repoName.
+func filterManagedResources(items []unstructured.Unstructured, repoName string) []unstructured.Unstructured {
+	var managed []unstructured.Unstructured
+	for i := range items {
+		annotations := items[i].GetAnnotations()
+		if annotations["grafana.app/managedBy"] == "repo" && annotations["grafana.app/managerId"] == repoName {
+			managed = append(managed, items[i])
+		}
+	}
+	return managed
+}
+
 // TriggerConnectionReconciliation forces the controller to re-process a connection
 // by touching its status (aging the health timestamp by 1ms). A merge patch on the
 // status subresource carries no resourceVersion, so it never conflicts with
@@ -1159,7 +1190,7 @@ func (h *ProvisioningTestHelper) WaitForHealthyRepository(t *testing.T, name str
 			return
 		}
 		errType := MustNestedString(repoStatus.Object, "status", "health", "error")
-		assert.Empty(collect, errType, "repository %s has health error: %s", name, errType)
+		assert.Empty(collect, errType, "repository %s has health error: %s - %v", name, errType, repoStatus.Object)
 		msgs := MustNestedStringSlice(repoStatus.Object, "status", "health", "message")
 		assert.Empty(collect, msgs, "repository %s has health messages: %v", name, msgs)
 		status, found := mustNestedBool(repoStatus.Object, "status", "health", "healthy")
@@ -1327,6 +1358,25 @@ func WithRepositoryTypes(types []string) GrafanaOption {
 func WithFolderAPIVersion(version string) GrafanaOption {
 	return func(opts *testinfra.GrafanaOpts) {
 		opts.ProvisioningFolderAPIVersion = version
+	}
+}
+
+// WithProvisioningWebhookRateLimitRPS sets [provisioning] webhook_rate_limit_rps,
+// enabling the per-client webhook rate limiter at the given sustained rate. The
+// limiter's burst is twice the rate. A value <= 0 leaves the limiter disabled.
+// With no trusted IP header configured the limiter keys on the TCP peer.
+func WithProvisioningWebhookRateLimitRPS(rps int) GrafanaOption {
+	return func(opts *testinfra.GrafanaOpts) {
+		opts.ProvisioningWebhookRateLimitRPS = rps
+	}
+}
+
+// WithProvisioningWebhookTrustedIPHeader sets [provisioning]
+// webhook_trusted_ip_header, naming the header whose value the rate limiter keys
+// on. When unset, the limiter keys on the real TCP peer instead.
+func WithProvisioningWebhookTrustedIPHeader(header string) GrafanaOption {
+	return func(opts *testinfra.GrafanaOpts) {
+		opts.ProvisioningWebhookTrustedIPHeader = header
 	}
 }
 
@@ -2901,7 +2951,15 @@ func RunGrafanaWithGitServer(t *testing.T, options ...GrafanaOption) *GitTestHel
 func runGrafanaWithGitServerShared(t *testing.T, options ...GrafanaOption) (*GitTestHelper, func()) {
 	t.Helper()
 
-	ctx := context.Background()
+	// Bind the container lifecycle to a non-cancellable context: the shared server
+	// must outlive the single test that happens to trigger init via sync.Once. If
+	// it inherited that test's cancellation, the context would cancel when that
+	// test finished, dropping the testcontainers reaper connection and letting Ryuk
+	// tear down the Gitea container while later tests still need it (surfacing as
+	// "No such container" on CreateUser). WithoutCancel keeps t.Context()'s values
+	// (deadline aside) while stripping cancellation. Teardown is handled by
+	// shutdown() below.
+	ctx := context.WithoutCancel(t.Context())
 	gitServer, err := gittest.NewServer(ctx, gittest.WithLogger(gittest.NewWriterLogger(os.Stderr)))
 	require.NoError(t, err, "failed to start git server")
 
