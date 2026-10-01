@@ -3,9 +3,9 @@
     "src": "public/build/1591.d4138be91a4dfc42f973.js",
     "integrity": "sha384-7Lw1IAXbV5oksrMfbecHbgzjOTLlGazrlmbT7RJxj9gX2RmxyZsqYjD022OaLDbc sha512-yxI2dnNg182GwFYjHp+IHJdBX26xD4XUf7iYN6iKuAqIR0w/Ehbc5SKhZHVKshIKwgsZbrG3Miv7DaRK454qyg=="
   },
-  "5371.b6e7825ddd07448bbc38.js": {
-    "src": "public/build/5371.b6e7825ddd07448bbc38.js",
-    "integrity": "sha384-7qmjaJsOQM4Q+hQIXhYoWAj1cp6CFv03xa8vpMH4adTwBhWMRiBxkN3J1lVpwOPe sha512-PljI+Fpf+45zWLyS/b3BZWQzOxyszgSZSW2x2vhbZb+Se0E4X+g8jCRvuiD3aQEGTKxGBMbEv5v2Ss52XGxy9Q=="
+  "5371.a62e4ca20f8d8bee0de6.js": {
+    "src": "public/build/5371.a62e4ca20f8d8bee0de6.js",
+    "integrity": "sha384-n0NJTewkTKqv9KrHzb0zfAlxpMzm78wsUvLqnbTFn90NiJQChxxUIqydAA9SLX2u sha512-CkDJuG0rw2ER+5WycN3bFxw9izOmQar1nrCWXS+N1h/iWCRgQugVDpxyPP2EkpxctKM2KM9tBwftYHpMMkYHXg=="
   },
   "5573.73bdd6de0173160d887b.js": {
     "src": "public/build/5573.73bdd6de0173160d887b.js",
@@ -15,21 +15,21 @@
     "src": "public/build/6029.ced17922ce65e4fd1ef9.js",
     "integrity": "sha384-JFKmMsxbiWWsyc90S4v48hYBOOBw+7j0H9xBOdb4l4CSrSkzELZQAF3nuNx1sQMb sha512-uv1WA9iy7mpB5/zOTt6xdG87uZXNWC1xtGnt0NJJGbZFcO0vyKlivHiU/TWiHCEgovnPuKd7BukeobX2ptJQhg=="
   },
-  "841.6ba9b3134fa50a852dd6.js": {
-    "src": "public/build/841.6ba9b3134fa50a852dd6.js",
-    "integrity": "sha384-whPS9RZtxWk2PgDQ696+jlurpqqQpeAeIlnUrOV7Btw9bCwl0AfTeg9aSO0uYBS5 sha512-JL88w5Zj465qZy/M4UerEbX2FSi0vJ2hCmoN1h45sD1LkX+mZGdP6yDcK7Oqdd4wlvymNM4DwQjVJWdRlO5nTA=="
+  "841.925b5c8b327c1f12eddd.js": {
+    "src": "public/build/841.925b5c8b327c1f12eddd.js",
+    "integrity": "sha384-FRbln4a8WBuay43wP1ZoR2twnlx1/jjZyT7YoTWzFVGpySkbS3H6WkTWfYb2/RQ6 sha512-bhyR5poCS+3NldNlDGG5iAzQdIH7EkEUJCKJqsGdVQqlSRn1VKQ6TaUrRpsiKzNqbonphY+cQjutFH1XMnHfBA=="
   },
-  "8766.e6d30cd7db47282227a1.js": {
-    "src": "public/build/8766.e6d30cd7db47282227a1.js",
-    "integrity": "sha384-OzpsnnxISLGHAI7EEgrtwTbweF+3ZF62RHfA2tOJ/1CB8k2wWWXUaD5qkZNZG6bp sha512-yvOp05ArhS2z/JQu3w/TF7mgV5AifM4zKAd7i09V4rTTQMxF2aUyZY0HY+gre/A2Z5Do5KtreZIbhrem87oOMw=="
+  "9419.09282da24ac2a3e09950.js": {
+    "src": "public/build/9419.09282da24ac2a3e09950.js",
+    "integrity": "sha384-AdaMwKX93EYF/KfoanepkiDPNL1jpMKo8K1u1TkBBx7zFnCSK5lSpWan+m8M3Iii sha512-0CFb6hg1OYL3eBPWRDQr05UFibWL5G+5B95+qyXzKdWmTSQUPZLAK8UIPMXA2QFbZVYambmjQ+s/aOpMAl0SAw=="
   },
   "app.css": {
     "src": "public/build/grafana.app.956286b013bf6a89b7b0.css",
     "integrity": "sha384-W3K8N1VngYS0kPNnjbqaUgSGeodKO6QUDmzpcanueWnHjgvJaIGI3N02rFqJLFqT sha512-BGegWiriTcC8rhVN9w+YdVUWuE7u0ZsyB/bYqUbG44sqiTbN6ga299JGi3rNOLxwHYdOuHyc0flFq3HFfN1pyg=="
   },
   "app.js": {
-    "src": "public/build/app.a85be40241f46e3b02dc.js",
-    "integrity": "sha384-CAsfONSnwonKMvwkWmn+axwGUPLPTnDfgRQ57o5d/37ahkvqJyky1W0/yTjvgekx sha512-qox8MO6ZU+YM/RmmhftGz0zw4L0mLYIch7UgoCtZmiRDvGUzBwzEWPcvnzkj6+7n8JNM3wRpkTPOXLtWzkZIFQ=="
+    "src": "public/build/app.5a4f56ea03160dc8f071.js",
+    "integrity": "sha384-o74hyqT3BQFuAevK3CQx37cUFAWDXMRjTVbYDgYyqDD1ZmrYWuHot7g1/3OjYNLg sha512-9VHKDA7/aJPtHOjryBcFGY163mBgHsEpgZ0l72Wd6uqEfTgTlu8BgxatYL9YOiSJ6EY3OT8xLG3tscw/9uK47g=="
   },
   "boot.js": {
     "src": "public/build/boot.js",
@@ -52,28 +52,28 @@
     "integrity": "sha384-zq7zdek9Z+V7I8B5uE5pBn02Mrft6qLYqQbg992Ep/BCBBYVnApcZUrKrtPQMDLC sha512-Z/JwasezVbXhD1eP45no7Y095Sn8cnX1hsoDF0g6x1rRiTn6R/cEnqMcvXFWDxScwqc0bzf+OgrVGb59TlbWPA=="
   },
   "runtime.js": {
-    "src": "public/build/runtime.7f54f522408e22f9755e.js",
-    "integrity": "sha384-5qJpFqWpPm/dHMEwPJoP7cf+QObLeF1JLtt1zxpiCvBbKfqJUL/tRB9uooaQD4z9 sha512-4zqq0aY90Zc7jwvy68rDXJqvwTB9+1L6LTL4AHbmsg4PX21ngyGeolomYh/UFkKewIXbbzlr9PquYhUtpalUrw=="
+    "src": "public/build/runtime.12e35da4396c57b30adb.js",
+    "integrity": "sha384-TUTH0c0ngID6SrDpHn7NEWgeSd6HDJHE5tBUW6GX4VM9aJuj8Ki563TNbhilh6Hy sha512-L9gzVh38NFJcziZRqrIpM/9J/IRDEMyucrLzgvgd/A6BtCD4cm2DDEReP5Pl6h7xQTNHmKu07RerJHeczVtaDA=="
   },
   "swagger.css": {
     "src": "public/build/grafana.swagger.1e30a363d4bd7a2f1229.css",
     "integrity": "sha384-E0bcmTY2ivLkH0mM5jvNYjBISo7CGSp7XVkt4D9bALKu74k750krHZDd07Wvn4Q1 sha512-hwrDXG0wgOg93RnDSHq/zS7hLlgcSyEMxOmgPity5zvwNfbpQwHEoRBrmaiwtulr6dlAb77AAQqtUc4qSYEL0w=="
   },
   "swagger.js": {
-    "src": "public/build/swagger.9a110e7d9e00e2166792.js",
-    "integrity": "sha384-A7AQBdSsy8id4AhLq0rr4oRbqGQmAYP5R1aYY7MzR5J7+9WGhp4OxbDrUta46XeG sha512-jJJQoaxj+WLdcXkeoqUxc6m/aENEr42ulsZHTDtDRLcz57R+qbU27LNcCJeTsqPlN9mkcCyItquNvH+Pr9J82g=="
+    "src": "public/build/swagger.381c2d9c8f0645d80a71.js",
+    "integrity": "sha384-uJA3g+L18e1vb7CC6UYimOmctZanKTuN58wSQrZ5HtyTA4TYuC0S8pAFUrZGVlRK sha512-DdgM80KRSatUOfs83/J6/CSKkIFLf7VM4k2rwz3PMo3hkUrBemjhATvkVkzwV0Lv5XAq95N0CYwOEVXd+8nJQg=="
   },
   "entrypoints": {
     "app": {
       "assets": {
         "js": [
-          "public/build/runtime.7f54f522408e22f9755e.js",
+          "public/build/runtime.12e35da4396c57b30adb.js",
           "public/build/6029.ced17922ce65e4fd1ef9.js",
-          "public/build/8766.e6d30cd7db47282227a1.js",
+          "public/build/9419.09282da24ac2a3e09950.js",
           "public/build/1591.d4138be91a4dfc42f973.js",
-          "public/build/5371.b6e7825ddd07448bbc38.js",
-          "public/build/841.6ba9b3134fa50a852dd6.js",
-          "public/build/app.a85be40241f46e3b02dc.js"
+          "public/build/5371.a62e4ca20f8d8bee0de6.js",
+          "public/build/841.925b5c8b327c1f12eddd.js",
+          "public/build/app.5a4f56ea03160dc8f071.js"
         ],
         "css": [
           "public/build/grafana.app.956286b013bf6a89b7b0.css"
@@ -83,12 +83,12 @@
     "swagger": {
       "assets": {
         "js": [
-          "public/build/runtime.7f54f522408e22f9755e.js",
+          "public/build/runtime.12e35da4396c57b30adb.js",
           "public/build/6029.ced17922ce65e4fd1ef9.js",
-          "public/build/8766.e6d30cd7db47282227a1.js",
+          "public/build/9419.09282da24ac2a3e09950.js",
           "public/build/5573.73bdd6de0173160d887b.js",
-          "public/build/5371.b6e7825ddd07448bbc38.js",
-          "public/build/swagger.9a110e7d9e00e2166792.js"
+          "public/build/5371.a62e4ca20f8d8bee0de6.js",
+          "public/build/swagger.381c2d9c8f0645d80a71.js"
         ],
         "css": [
           "public/build/grafana.swagger.1e30a363d4bd7a2f1229.css"
@@ -105,7 +105,7 @@
     "dark": {
       "assets": {
         "js": [
-          "public/build/runtime.7f54f522408e22f9755e.js",
+          "public/build/runtime.12e35da4396c57b30adb.js",
           "public/build/dark.723d98fc7ff48d8dc77e.js"
         ],
         "css": [
@@ -116,7 +116,7 @@
     "light": {
       "assets": {
         "js": [
-          "public/build/runtime.7f54f522408e22f9755e.js",
+          "public/build/runtime.12e35da4396c57b30adb.js",
           "public/build/light.21131b27294d6677a8af.js"
         ],
         "css": [
