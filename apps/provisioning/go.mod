@@ -12,7 +12,7 @@ require (
 	github.com/grafana/nanogit v0.0.0-20250723104447-68f58f5ecec0
 	github.com/migueleliasweb/go-github-mock v1.1.0
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/oauth2 v0.35.0
+	golang.org/x/oauth2 v0.36.0
 	k8s.io/apimachinery v0.35.0
 	k8s.io/apiserver v0.35.0
 	k8s.io/client-go v0.35.0
@@ -38,9 +38,10 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-github/v64 v64.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grafana/authlib/types v0.0.0-20250710201142-9542f2f28d43 // indirect
-	github.com/grafana/dskit v0.0.0-20250611075409-46f51e1ce914 // indirect
+	github.com/grafana/dskit v0.0.0-20250828173137-de14cf923eeb // indirect
 	github.com/grafana/grafana-app-sdk v0.40.3 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -73,9 +74,9 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/term v0.43.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
-	google.golang.org/grpc v1.80.0 // indirect
+	golang.org/x/time v0.13.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
