@@ -16,7 +16,7 @@ require (
 	golang.org/x/net v0.55.0 // indirect; @grafana/oss-big-tent @grafana/partner-datasources
 	golang.org/x/sync v0.20.0 // @grafana/alerting-backend
 	golang.org/x/text v0.37.0 // indirect; @grafana/grafana-backend-group
-	google.golang.org/grpc v1.81.1 // indirect; @grafana/plugins-platform-backend
+	google.golang.org/grpc v1.82.2 // indirect; @grafana/plugins-platform-backend
 	google.golang.org/protobuf v1.36.11 // indirect; @grafana/plugins-platform-backend
 )
 
@@ -37,7 +37,7 @@ require (
 require (
 	dagger.io/dagger v0.18.8
 	github.com/Masterminds/semver v1.5.0
-	github.com/quasilyte/go-ruleguard/dsl v0.3.22
+	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/urfave/cli/v3 v3.3.3
 )
 
