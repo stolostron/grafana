@@ -11,6 +11,22 @@ permissions:
   contents: read
 
 jobs:
+  go-work:
+    name: Ensures that go workspace is in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Setup Go
+        uses: actions/setup-go@v6.0.0
+        with:
+          go-version-file: go.mod
+      - name: Run go work sync
+        run: go work vendor && go work sync
+      - name: check diff - if this step fails, make sure to run `go work vendoor && go work sync`
+        run: git diff --exit-code
+
   frontend:
     name: Frontend tests (${{ matrix.shard }}/${{ matrix.total }})
     runs-on: ubuntu-latest
