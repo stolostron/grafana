@@ -4,8 +4,8 @@ go 1.26.6
 
 require (
 	github.com/grafana/grafana/pkg/apimachinery v0.0.0-20260118065639-60cb766a97d6
-	k8s.io/apimachinery v0.35.0
-	k8s.io/kube-openapi v0.0.0-20260127142750-a19766b6e2d4
+	k8s.io/apimachinery v0.36.1
+	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a
 )
 
 require (
@@ -43,5 +43,5 @@ require (
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )
