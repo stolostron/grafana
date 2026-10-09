@@ -45,3 +45,7 @@ replace github.com/prometheus/alertmanager => github.com/grafana/prometheus-aler
 replace github.com/crewjam/saml => github.com/grafana/saml v0.4.15-0.20240917091248-ae3bbdad8a56
 
 replace github.com/hamba/avro/v2 => github.com/iskorotkov/avro/v2 v2.33.1
+
+// Newer version of kin-openapi is incompatible with this version of Grafana
+// The update below includes a CVE fix for this version.
+replace github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch1
