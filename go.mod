@@ -632,6 +632,7 @@ require (
 	github.com/google/gnostic v0.7.1 // indirect
 	github.com/kamstrup/intmap v0.5.1 // indirect
 	github.com/sony/gobreaker/v2 v2.3.0 // indirect
+	github.com/woodsbury/decimal128 v1.3.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.43.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 )
@@ -681,3 +682,5 @@ replace (
 	sigs.k8s.io/structured-merge-diff/v4 => sigs.k8s.io/structured-merge-diff/v4 v4.7.0
 	sigs.k8s.io/yaml => sigs.k8s.io/yaml v1.5.0
 )
+
+replace github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch1
