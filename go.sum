@@ -1194,8 +1194,6 @@ github.com/gammazero/deque v0.2.1 h1:qSdsbG6pgp6nL7A0+K/B7s12mcCY/5l5SIUpMOl+dC0
 github.com/gammazero/deque v0.2.1/go.mod h1:LFroj8x4cMYCukHJDbxFCkT+r9AndaJnFMuZDV34tuU=
 github.com/gchaincl/sqlhooks v1.3.0 h1:yKPXxW9a5CjXaVf2HkQn6wn7TZARvbAOAelr3H8vK2Y=
 github.com/gchaincl/sqlhooks v1.3.0/go.mod h1:9BypXnereMT0+Ys8WGWHqzgkkOfHIhyeUCqXC24ra34=
-github.com/getkin/kin-openapi v0.133.0 h1:pJdmNohVIJ97r4AUFtEXRXwESr8b0bD721u/Tz6k8PQ=
-github.com/getkin/kin-openapi v0.133.0/go.mod h1:boAciF6cXk5FhPqe/NQeBTeenbjqU4LhWBf09ILVvWE=
 github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/globalsign/mgo v0.0.0-20180905125535-1ca0a4f7cbcb/go.mod h1:xkRDCp4j0OGD1HRkm4kmhM+pmpv3AKq5SU7GMg4oO/Q=
@@ -2442,6 +2440,8 @@ github.com/spyzhov/ajson v0.9.6 h1:iJRDaLa+GjhCDAt1yFtU/LKMtLtsNVKkxqlpvrHHlpQ=
 github.com/spyzhov/ajson v0.9.6/go.mod h1:a6oSw0MMb7Z5aD2tPoPO+jq11ETKgXUr2XktHdT8Wt8=
 github.com/stackitcloud/stackit-sdk-go/core v0.17.2 h1:jPyn+i8rkp2hM80+hOg0B/1EVRbMt778Tr5RWyK1m2E=
 github.com/stackitcloud/stackit-sdk-go/core v0.17.2/go.mod h1:8KIw3czdNJ9sdil9QQimxjR6vHjeINFrRv0iZ67wfn0=
+github.com/stolostron/kin-openapi v0.133.0-patch1 h1:MEox7JdiSylzgXzZy+M9PczaRKgtFpzKuxjeXOGEZKA=
+github.com/stolostron/kin-openapi v0.133.0-patch1/go.mod h1:boAciF6cXk5FhPqe/NQeBTeenbjqU4LhWBf09ILVvWE=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.2.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=
