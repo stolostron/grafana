@@ -36,3 +36,6 @@ replace github.com/crewjam/saml => github.com/grafana/saml v0.4.15-0.20240917091
 replace github.com/hamba/avro/v2 => github.com/iskorotkov/avro/v2 v2.33.1
 
 replace github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch1
+
+// CVE-2026-77405, CVE-2026-77411: pin amqp091-go to patched v1.13.0
+replace github.com/rabbitmq/amqp091-go => github.com/rabbitmq/amqp091-go v1.13.0
