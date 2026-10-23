@@ -707,7 +707,7 @@ replace (
 
 	// Newer version of kin-openapi is incompatible with this version of Grafana
 	// The update below includes a CVE fix for this version.
-	github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch1
+	github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch2
 
 	// lock for mysql tsdb compat
 	github.com/go-sql-driver/mysql => github.com/go-sql-driver/mysql v1.7.1
