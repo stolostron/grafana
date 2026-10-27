@@ -1,13 +1,21 @@
 approvers:
-- dislbenn
-- marcolan018
 - subbarao-meduri
-- bjoydeep
 - saswatamcode
 - philipgough
-- douglascamata
+- coleenquadros
+- thibaultmg
+- moadz
+- jacobbaungardrh
+- guidonguido
+- dbuchanaRH
+- GeorgeFrankAeillo
+- sripragnabitra
 reviewers:
-- clyang82
-- haoqing0110
-- morvencao
-- ngraham20
+- subbarao-meduri
+- saswatamcode
+- philipgough
+- coleenquadros
+- thibaultmg
+- moadz
+- jacobbaungardrh
+- sripragnabitra
