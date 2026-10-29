@@ -10,6 +10,7 @@ import (
 	"time"
 
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -33,6 +34,8 @@ func TestNewOpenFGAHttpServerHTTPMethods(t *testing.T) {
 			return &openfgav1.CreateStoreResponse{Id: storeID}, nil
 		case "/openfga.v1.OpenFGAService/GetStore":
 			return &openfgav1.GetStoreResponse{Id: storeID}, nil
+		case "/openfga.v1.OpenFGAService/ReadChanges":
+			return &openfgav1.ReadChangesResponse{}, nil
 		case "/openfga.v1.OpenFGAService/DeleteStore":
 			return &openfgav1.DeleteStoreResponse{}, nil
 		default:
@@ -53,13 +56,14 @@ func TestNewOpenFGAHttpServerHTTPMethods(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
-		name        string
-		method      string
-		path        string
-		contentType string
-		body        string
-		override    string
-		wantRPC     string
+		name                string
+		method              string
+		path                string
+		contentType         string
+		body                string
+		override            string
+		wantRPC             string
+		allowRouteRejection bool
 	}{
 		{
 			name:    "ordinary GET",
@@ -82,19 +86,20 @@ func TestNewOpenFGAHttpServerHTTPMethods(t *testing.T) {
 			wantRPC: "DeleteStore",
 		},
 		{
-			name:        "form POST cannot override DELETE",
-			method:      http.MethodPost,
-			path:        "/stores/" + storeID,
-			contentType: "application/x-www-form-urlencoded",
-			override:    http.MethodDelete,
-			wantRPC:     "GetStore",
+			name:                "form POST cannot override DELETE",
+			method:              http.MethodPost,
+			path:                "/stores/" + storeID,
+			contentType:         "application/x-www-form-urlencoded",
+			override:            http.MethodDelete,
+			wantRPC:             "GetStore",
+			allowRouteRejection: true,
 		},
 		{
 			name:        "form POST falls back to GET",
 			method:      http.MethodPost,
-			path:        "/stores/" + storeID,
+			path:        "/stores/" + storeID + "/changes",
 			contentType: "application/x-www-form-urlencoded",
-			wantRPC:     "GetStore",
+			wantRPC:     "ReadChanges",
 		},
 		{
 			name:        "form POST keeps its matching POST route",
@@ -111,7 +116,9 @@ func TestNewOpenFGAHttpServerHTTPMethods(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			request := httptest.NewRequest(testCase.method, testCase.path, strings.NewReader(testCase.body)).WithContext(ctx)
-			request.Header.Set("Content-Type", testCase.contentType)
+			if testCase.contentType != "" {
+				request.Header.Set("Content-Type", testCase.contentType)
+			}
 			if testCase.override != "" {
 				request.Header.Set("X-HTTP-Method-Override", testCase.override)
 			}
@@ -121,10 +128,17 @@ func TestNewOpenFGAHttpServerHTTPMethods(t *testing.T) {
 			select {
 			case calledMethod = <-calledMethods:
 			default:
-				t.Fatal("request did not reach the expected gRPC service")
+			}
+			assert.Equal(t, testCase.method, request.Method)
+			if testCase.override == http.MethodDelete {
+				assert.NotEqual(t, "/openfga.v1.OpenFGAService/DeleteStore", calledMethod)
+			}
+			if testCase.allowRouteRejection && recorder.Code == http.StatusNotFound {
+				require.Empty(t, calledMethod)
+				require.JSONEq(t, `{"code":"unimplemented","message":"Method Not Allowed"}`, recorder.Body.String())
+				return
 			}
 			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
-			require.Equal(t, testCase.method, request.Method)
 			require.Equal(t, "/openfga.v1.OpenFGAService/"+testCase.wantRPC, calledMethod)
 		})
 	}
