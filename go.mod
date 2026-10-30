@@ -683,4 +683,4 @@ replace (
 	sigs.k8s.io/yaml => sigs.k8s.io/yaml v1.5.0
 )
 
-replace github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch1
+replace github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch2
