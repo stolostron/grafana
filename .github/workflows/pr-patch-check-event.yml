@@ -10,19 +10,29 @@ on:
       - "release-*"
 
 permissions:
-  id-token: write
   contents: read
-  statuses: write
 
 # Since this is run on a pull request, we want to apply the patches intended for the
 # target branch onto the source branch, to verify compatibility before merging.
 jobs:
   dispatch-job:
-    uses: grafana/grafana/.github/workflows/pr-patch-check.yml@main
-    with:
-      head_ref: ${{ github.head_ref }}
-      base_ref: ${{ github.base_ref }}
-      repo: ${{ github.repository }}
-      sender_login: ${{ github.event.sender.login }}
-      sha: ${{ github.sha }}
-      pr_commit_sha: ${{ github.event.pull_request.head.sha }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check downstream patch applicability
+        shell: bash
+        run: |
+          if [[ ! -d ./stolostron-patches ]]; then
+            echo "Missing expected stolostron-patches directory" >&2
+            exit 1
+          fi
+          shopt -s nullglob
+          patches=(./stolostron-patches/*)
+          if [[ ${#patches[@]} -eq 0 ]]; then
+            echo "Expected at least one downstream patch in stolostron-patches" >&2
+            exit 1
+          fi
+          git apply "${patches[@]}"
