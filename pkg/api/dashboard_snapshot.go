@@ -129,6 +129,13 @@ func (hs *HTTPServer) GetDashboardSnapshot(c *contextmodel.ReqContext) response.
 
 	snapshot := queryResult
 
+	// Snapshots are org-scoped, but lookups by key are global. Reject requests
+	// that resolve a snapshot owned by a different org than the caller's org,
+	// returning NotFound to avoid a cross-org existence oracle.
+	if snapshot.OrgID != c.OrgID {
+		return response.Error(http.StatusNotFound, "Dashboard snapshot not found", nil)
+	}
+
 	// expired snapshots should also be removed from db
 	if snapshot.Expires.Before(time.Now()) {
 		return response.Error(http.StatusNotFound, "Dashboard snapshot not found", err)
@@ -172,7 +179,29 @@ func (hs *HTTPServer) DeleteDashboardSnapshotByDeleteKey(c *contextmodel.ReqCont
 		return response.Error(http.StatusNotFound, "Snapshot not found", nil)
 	}
 
-	err := dashboardsnapshots.DeleteWithKey(c.Req.Context(), key, hs.dashboardsnapshotsService)
+	// Look up the snapshot by its deleteKey first so we can verify org ownership
+	// before performing the deletion. Return NotFound on mismatch to avoid a
+	// cross-org existence oracle.
+	query := &dashboardsnapshots.GetDashboardSnapshotQuery{DeleteKey: key}
+	queryResult, err := hs.dashboardsnapshotsService.GetDashboardSnapshot(c.Req.Context(), query)
+	if err != nil {
+		if errors.Is(err, dashboardsnapshots.ErrBaseNotFound) {
+			return response.Error(http.StatusNotFound, "Snapshot not found", err)
+		}
+		return response.Error(http.StatusInternalServerError, "Failed to get dashboard snapshot", err)
+	}
+	if queryResult == nil {
+		return response.Error(http.StatusNotFound, "Snapshot not found", nil)
+	}
+
+	// Only enforce the org-scoping check for authenticated callers (OrgID > 0).
+	// Anonymous callers (public snapshot mode) authenticate via the secret
+	// deleteKey itself and have no org context.
+	if c.OrgID > 0 && queryResult.OrgID != c.OrgID {
+		return response.Error(http.StatusNotFound, "Snapshot not found", nil)
+	}
+
+	err = dashboardsnapshots.DeleteWithKey(c.Req.Context(), key, hs.dashboardsnapshotsService)
 	if err != nil {
 		if errors.Is(err, dashboardsnapshots.ErrBaseNotFound) {
 			return response.Error(http.StatusNotFound, "Snapshot not found", err)
