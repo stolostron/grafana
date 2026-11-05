@@ -43,3 +43,26 @@ func TestHTTPResponseSender(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Hello worldHello world again", string(bytes))
 }
+
+func TestHTTPResponseSenderNoContent(t *testing.T) {
+	w := httptest.NewRecorder()
+	sender := New(w)
+	require.NotNil(t, sender)
+
+	// Sending a response with 204 No Content and a body should not fail.
+	// The body is silently dropped because HTTP does not allow a body
+	// for 1xx, 204, and 304 status codes.
+	err := sender.Send(&backend.CallResourceResponse{
+		Status: http.StatusNoContent,
+		Body:   []byte("should be ignored"),
+	})
+	require.NoError(t, err)
+
+	resp := w.Result()
+	require.NotNil(t, resp)
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	bytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, resp.Body.Close())
+	require.NoError(t, err)
+	require.Empty(t, bytes, "body should be empty for 204 No Content")
+}
