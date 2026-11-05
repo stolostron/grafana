@@ -371,6 +371,72 @@ func TestGetDashboardSnapshotFailure(t *testing.T) {
 		}, sqlmock)
 }
 
+func TestDashboardSnapshot_CrossOrgAccessBlocked(t *testing.T) {
+	sqlmock := dbtest.NewFakeDB()
+
+	// setUpCrossOrgSnapshotTest creates a mock service that returns a snapshot
+	// belonging to org 2. Since the test framework sets the caller to org 1
+	// (testOrgID), all cross-org checks should reject the request with 404.
+	setUpCrossOrgSnapshotTest := func(t *testing.T) dashboardsnapshots.Service {
+		t.Helper()
+
+		dashSnapSvc := dashboardsnapshots.NewMockService(t)
+		dashSnapSvc.On("DeleteDashboardSnapshot", mock.Anything, mock.AnythingOfType("*dashboardsnapshots.DeleteDashboardSnapshotCommand")).Return(nil).Maybe()
+
+		jsonModel, err := simplejson.NewJson([]byte(`{"id":100}`))
+		require.NoError(t, err)
+
+		res := &dashboardsnapshots.DashboardSnapshot{
+			ID:        1,
+			OrgID:     2, // belongs to org 2, caller will be org 1
+			Key:       "12345",
+			DeleteKey: "54321",
+			Dashboard: jsonModel,
+			Expires:   time.Now().Add(time.Duration(1000) * time.Second),
+			UserID:    999999,
+		}
+		dashSnapSvc.On("GetDashboardSnapshot", mock.Anything, mock.AnythingOfType("*dashboardsnapshots.GetDashboardSnapshotQuery")).Return(res, nil).Maybe()
+		return dashSnapSvc
+	}
+
+	loggedInUserScenarioWithRole(t,
+		"GET /snapshots/{key} should return 404 for snapshot belonging to another org",
+		"GET", "/api/snapshots/12345", "/api/snapshots/:key", org.RoleEditor,
+		func(sc *scenarioContext) {
+			d := setUpCrossOrgSnapshotTest(t)
+			hs := buildHttpServer(d, true)
+			sc.handlerFunc = hs.GetDashboardSnapshot
+			sc.fakeReqWithParams("GET", sc.url, map[string]string{"key": "12345"}).exec()
+
+			assert.Equal(t, http.StatusNotFound, sc.resp.Code, "BODY: "+sc.resp.Body.String())
+		}, sqlmock)
+
+	loggedInUserScenarioWithRole(t,
+		"DELETE /snapshots/{key} should return 401 for snapshot belonging to another org",
+		"DELETE", "/api/snapshots/12345", "/api/snapshots/:key", org.RoleEditor,
+		func(sc *scenarioContext) {
+			d := setUpCrossOrgSnapshotTest(t)
+			hs := buildHttpServer(d, true)
+			sc.handlerFunc = hs.DeleteDashboardSnapshot
+			sc.fakeReqWithParams("DELETE", sc.url, map[string]string{"key": "12345"}).exec()
+
+			// DeleteDashboardSnapshot already had an OrgID check returning 401
+			assert.Equal(t, http.StatusUnauthorized, sc.resp.Code, "BODY: "+sc.resp.Body.String())
+		}, sqlmock)
+
+	loggedInUserScenarioWithRole(t,
+		"GET /snapshots-delete/{deleteKey} should return 404 for snapshot belonging to another org",
+		"GET", "/api/snapshots-delete/12345", "/api/snapshots-delete/:deleteKey", org.RoleEditor,
+		func(sc *scenarioContext) {
+			d := setUpCrossOrgSnapshotTest(t)
+			hs := buildHttpServer(d, true)
+			sc.handlerFunc = hs.DeleteDashboardSnapshotByDeleteKey
+			sc.fakeReqWithParams("GET", sc.url, map[string]string{"deleteKey": "12345"}).exec()
+
+			assert.Equal(t, http.StatusNotFound, sc.resp.Code, "BODY: "+sc.resp.Body.String())
+		}, sqlmock)
+}
+
 func buildHttpServer(d dashboardsnapshots.Service, snapshotEnabled bool) *HTTPServer {
 	hs := &HTTPServer{
 		dashboardsnapshotsService: d,
