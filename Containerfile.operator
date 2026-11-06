@@ -32,7 +32,7 @@ COPY .citools .citools
 COPY stolostron-patches stolostron-patches
 RUN git apply ./stolostron-patches/*
 
-RUN go run build.go -build-tags=strictfipsruntime build
+RUN CGO_ENABLED=1 go run build.go -build-tags=strictfipsruntime build
 
 # Need to copy the generated binaries to a non-platform specific location to handle
 # s390x builds for example
