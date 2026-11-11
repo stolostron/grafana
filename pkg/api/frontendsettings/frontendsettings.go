@@ -65,11 +65,14 @@ func GetBaseFrontendSettings(reqCtx *contextmodel.ReqContext, cfg *setting.Cfg, 
 		RudderstackV3SdkUrl:                  cfg.RudderstackV3SDKURL,
 		RudderstackConfigUrl:                 cfg.RudderstackConfigURL,
 		RudderstackIntegrationsUrl:           cfg.RudderstackIntegrationsURL,
+		RudderstackBatchInterval:             cfg.RudderstackBatchInterval,
 		PostHogToken:                         cfg.PostHogToken,
 		PostHogHost:                          cfg.PostHogHost,
 		AnalyticsConsoleReporting:            cfg.FrontendAnalyticsConsoleReporting,
+		PluginImportTelemetryPackages:        cfg.PluginImportTelemetryPackages,
 		DashboardPerformanceMetrics:          cfg.DashboardPerformanceMetrics,
 		PanelSeriesLimit:                     cfg.PanelSeriesLimit,
+		DashboardDefaultPreload:              cfg.DashboardDefaultPreload,
 		FeedbackLinksEnabled:                 cfg.FeedbackLinksEnabled,
 		ApplicationInsightsConnectionString:  cfg.ApplicationInsightsConnectionString,
 		ApplicationInsightsEndpointUrl:       cfg.ApplicationInsightsEndpointUrl,
@@ -103,6 +106,7 @@ func GetBaseFrontendSettings(reqCtx *contextmodel.ReqContext, cfg *setting.Cfg, 
 		SharedWithMeFolderUID:            folder.SharedWithMeFolderUID,
 		RootFolderUID:                    accesscontrol.GeneralFolderUID,
 		LocalFileSystemAvailable:         cfg.LocalFileSystemAvailable,
+		ProvisioningEnabled:              cfg.ProvisioningEnabled,
 		ReportingStaticContext:           cfg.ReportingStaticContext,
 		ExploreDefaultTimeOffset:         cfg.ExploreDefaultTimeOffset,
 		ExploreHideLogsDownload:          cfg.ExploreHideLogsDownload,
@@ -196,7 +200,8 @@ func GetBaseFrontendSettings(reqCtx *contextmodel.ReqContext, cfg *setting.Cfg, 
 			Backend: cfg.UnifiedAlerting.StateHistory.Backend,
 			Primary: cfg.UnifiedAlerting.StateHistory.MultiPrimary,
 		}
-		if cfg.UnifiedAlerting.StateHistory.PrometheusTargetDatasourceUID != "" {
+		// The frontend shows the alert activity page when this is set, using the same check as the nav tree.
+		if cfg.UnifiedAlerting.StateHistory.HasAlertStateMetrics() {
 			frontendSettings.UnifiedAlerting.StateHistory.PrometheusTargetDatasourceUID = cfg.UnifiedAlerting.StateHistory.PrometheusTargetDatasourceUID
 		}
 		if cfg.UnifiedAlerting.StateHistory.PrometheusMetricName != "" {
@@ -209,6 +214,7 @@ func GetBaseFrontendSettings(reqCtx *contextmodel.ReqContext, cfg *setting.Cfg, 
 	}
 
 	frontendSettings.UnifiedAlerting.RecordingRulesEnabled = cfg.UnifiedAlerting.RecordingRules.Enabled
+	frontendSettings.UnifiedAlerting.NotificationHistoryEnabled = cfg.UnifiedAlerting.NotificationHistory.Enabled
 	frontendSettings.UnifiedAlerting.DefaultRecordingRulesTargetDatasourceUID = cfg.UnifiedAlerting.RecordingRules.DefaultDatasourceUID
 
 	if cfg.UnifiedAlerting.Enabled != nil {

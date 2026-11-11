@@ -2,8 +2,10 @@ package snapshot
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
+	authlib "github.com/grafana/authlib/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	dashV0 "github.com/grafana/grafana/apps/dashboard/pkg/apis/dashboard/v0alpha1"
@@ -15,7 +17,7 @@ import (
 
 func convertSnapshotDTOToK8sResource(v *dashboardsnapshots.DashboardSnapshotDTO, namespacer request.NamespaceMapper) *dashV0.Snapshot {
 	expires := v.Expires.UnixMilli()
-	if v.Expires.After(time.Date(2070, time.January, 0, 0, 0, 0, 0, time.UTC)) {
+	if !v.Expires.Before(time.Date(2070, time.January, 1, 0, 0, 0, 0, time.UTC)) {
 		expires = 0 // ignore things expiring long into the future
 	}
 	snap := &dashV0.Snapshot{
@@ -29,6 +31,9 @@ func convertSnapshotDTOToK8sResource(v *dashboardsnapshots.DashboardSnapshotDTO,
 		Spec: dashV0.SnapshotSpec{
 			Title: &v.Name,
 		},
+	}
+	if v.UserID > 0 {
+		snap.SetCreatedBy(authlib.NewTypeID(authlib.TypeUser, strconv.FormatInt(v.UserID, 10)))
 	}
 
 	// Only show external settings when it is external
@@ -48,7 +53,7 @@ func convertSnapshotDTOToK8sResource(v *dashboardsnapshots.DashboardSnapshotDTO,
 
 func convertSnapshotToK8sResource(v *dashboardsnapshots.DashboardSnapshot, namespacer request.NamespaceMapper) *dashV0.Snapshot {
 	expires := v.Expires.UnixMilli()
-	if v.Expires.After(time.Date(2070, time.January, 0, 0, 0, 0, 0, time.UTC)) {
+	if !v.Expires.Before(time.Date(2070, time.January, 1, 0, 0, 0, 0, time.UTC)) {
 		expires = 0 // ignore things expiring long into the future
 	}
 
@@ -65,8 +70,15 @@ func convertSnapshotToK8sResource(v *dashboardsnapshots.DashboardSnapshot, names
 		},
 	}
 
+	if v.UserID > 0 {
+		snap.SetCreatedBy(authlib.NewTypeID(authlib.TypeUser, strconv.FormatInt(v.UserID, 10)))
+	}
+
 	if v.DeleteKey != "" {
 		snap.Spec.DeleteKey = &v.DeleteKey
+	}
+	if v.External && v.ExternalDeleteURL != "" {
+		snap.Spec.ExternalDeleteUrl = &v.ExternalDeleteURL
 	}
 
 	// Only show external settings when it is external
@@ -125,6 +137,7 @@ func convertK8sResourceToCreateCommand(snap *dashV0.Snapshot, orgID int64, userI
 	// Map external settings
 	if snap.Spec.External != nil && *snap.Spec.External {
 		cmd.External = true
+		cmd.ExternalDeleteURL = snap.GetExternalDeleteURL()
 		if snap.Spec.ExternalUrl != nil {
 			cmd.ExternalURL = *snap.Spec.ExternalUrl
 		}
@@ -160,6 +173,9 @@ func convertCreateCmdToK8sSnapshot(cmd *dashboardsnapshots.CreateDashboardSnapsh
 
 	if cmd.External {
 		snap.Spec.External = &cmd.External
+		if cmd.ExternalDeleteURL != "" {
+			snap.Spec.ExternalDeleteUrl = &cmd.ExternalDeleteURL
+		}
 		if cmd.ExternalURL != "" {
 			snap.Spec.ExternalUrl = &cmd.ExternalURL
 		}

@@ -56,15 +56,12 @@ describe('DashboardModelCompatibilityWrapper', () => {
     expect(wrapper2.timepicker.hidden).toEqual(false);
   });
 
-  it('Shared tooltip functions', () => {
+  it('graphTooltip reflects CursorSync behavior', () => {
     const { scene, wrapper } = setup();
-    expect(wrapper.sharedTooltipModeEnabled()).toBe(false);
-    expect(wrapper.sharedCrosshairModeOnly()).toBe(false);
+    expect(wrapper.graphTooltip).toBe(DashboardCursorSync.Off);
 
     scene.setState({ $behaviors: [new behaviors.CursorSync({ sync: DashboardCursorSync.Crosshair })] });
 
-    expect(wrapper.sharedTooltipModeEnabled()).toBe(true);
-    expect(wrapper.sharedCrosshairModeOnly()).toBe(true);
     expect(wrapper.graphTooltip).toBe(DashboardCursorSync.Crosshair);
   });
 
@@ -90,7 +87,8 @@ describe('DashboardModelCompatibilityWrapper', () => {
   });
 
   it('Can remove panel', () => {
-    const { wrapper } = setup();
+    const { scene, wrapper } = setup();
+    scene.activateSidebar();
 
     expect(wrapper.panels.length).toBe(5);
 

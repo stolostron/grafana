@@ -1,9 +1,10 @@
 import { css, cx } from '@emotion/css';
 import { compact, uniqueId } from 'lodash';
-import * as React from 'react';
 import type { JSX } from 'react';
+import * as React from 'react';
 import AutoSizer from 'react-virtualized-auto-sizer';
 
+import { type TemplateGroupTemplateKind } from '@grafana/api-clients/rtkq/notifications.alerting/v1beta1';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { Trans, t } from '@grafana/i18n';
 import { Alert, Box, Button, CodeEditor, useStyles2 } from '@grafana/ui';
@@ -13,7 +14,6 @@ import {
   type TemplatePreviewResponse,
   type TemplatePreviewResult,
 } from '../../api/templateApi';
-import { AIFeedbackButtonComponent } from '../../enterprise-components/AI/addAIFeedbackButton';
 import { stringifyErrorLike } from '../../utils/misc';
 import { EditorColumnHeader } from '../EditorColumnHeader';
 
@@ -26,8 +26,7 @@ export function TemplatePreview({
   payloadFormatError,
   setPayloadFormatError,
   className,
-  aiGeneratedTemplate,
-  setAiGeneratedTemplate,
+  kind,
 }: {
   payload: string;
   templateName: string;
@@ -35,8 +34,7 @@ export function TemplatePreview({
   payloadFormatError: string | null;
   setPayloadFormatError: (value: React.SetStateAction<string | null>) => void;
   className?: string;
-  aiGeneratedTemplate?: boolean;
-  setAiGeneratedTemplate?: (aiGeneratedTemplate: boolean) => void;
+  kind?: TemplateGroupTemplateKind;
 }) {
   const styles = useStyles2(getStyles);
 
@@ -45,7 +43,7 @@ export function TemplatePreview({
     isLoading,
     onPreview,
     error: previewError,
-  } = usePreviewTemplate(templateContent, templateName, payload, setPayloadFormatError);
+  } = usePreviewTemplate(templateContent, templateName, payload, setPayloadFormatError, kind);
 
   const previewToRender = getPreviewResults(previewError, payloadFormatError, data);
 
@@ -58,10 +56,7 @@ export function TemplatePreview({
             disabled={isLoading}
             icon="sync"
             aria-label={t('alerting.template-preview.aria-label-refresh-preview', 'Refresh preview')}
-            onClick={() => {
-              onPreview();
-              setAiGeneratedTemplate?.(false);
-            }}
+            onClick={() => onPreview()}
             size="sm"
             variant="secondary"
           >
@@ -69,9 +64,6 @@ export function TemplatePreview({
           </Button>
         }
       />
-      <div className={styles.viewer.feedbackContainer}>
-        <AIFeedbackButtonComponent origin="template" shouldShowFeedbackButton={Boolean(aiGeneratedTemplate)} />
-      </div>
       <Box flex={1}>
         <AutoSizer disableWidth>
           {({ height }) => <div className={styles.viewerContainer({ height })}>{previewToRender}</div>}
@@ -178,14 +170,6 @@ const getStyles = (theme: GrafanaTheme2) => ({
     }),
     errorText: css({
       color: theme.colors.error.text,
-    }),
-    feedbackContainer: css({
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderTop: `1px solid ${theme.colors.border.medium}`,
-      backgroundColor: theme.colors.background.secondary,
-      minHeight: 'auto',
     }),
     emptyState: css({
       display: 'flex',

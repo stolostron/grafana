@@ -2,27 +2,36 @@ import { css } from '@emotion/css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAsyncRetry } from 'react-use';
 
-import { type ComponentTypeWithExtensionMeta, PluginExtensionPoints, type GrafanaTheme2 } from '@grafana/data';
-import { t } from '@grafana/i18n';
-import { usePluginComponents } from '@grafana/runtime';
-import { ScrollContainer, Stack, Tab, TabContent, TabsBar, useStyles2 } from '@grafana/ui';
+import { type ComponentTypeWithExtensionMeta, type GrafanaTheme2 } from '@grafana/data';
+import { t, Trans } from '@grafana/i18n';
+import { useFlagGrafanaGrowthHomepage } from '@grafana/runtime/internal';
+import { Box, ScrollContainer, Stack, Tab, TabContent, TabsBar, useStyles2, Text } from '@grafana/ui';
 import { SETUPGUIDE_PLUGIN_ID } from 'app/core/constants';
 import { getMostUsedDashboards, isMostUsedAvailable } from 'app/features/browse-dashboards/api/mostUsed';
-import { getRecentlyViewedDashboards } from 'app/features/browse-dashboards/api/recentlyViewed';
 import { useDashboardLocationInfo } from 'app/features/search/hooks/useDashboardLocationInfo';
 import { getGrafanaSearcher } from 'app/features/search/service/searcher';
 
+import { CardFooter, FooterAction } from '../FooterActions';
+import { HomeSection } from '../HomeSection';
 import { tabChanged } from '../analytics/main';
 
+import { DashboardTabsSkeleton } from './DashboardTabsSkeleton';
 import { MostUsedDashboardsTab } from './MostUsedDashboardsTab';
-import { RecentDashboardsTab } from './RecentDashboardsTab';
+import { RecentActivityFooter } from './RecentActivityFooter';
+import { RecentActivityTab } from './RecentActivityTab';
 import { StarredDashboardsTab } from './StarredDashboardsTab';
-import { type HomepageTabExtensionProps, type HomepageTab, validateHomepageTab } from './types';
+import {
+  type HomepageTabExtensionProps,
+  type HomepageTab,
+  validateHomepageTab,
+  DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN,
+  DASHBOARD_TABS_SCROLL_HEIGHT_DEFAULT,
+} from './types';
+import { useRecentActivity } from './useRecentActivity';
 
 const RECENT_TAB_ID = 'recent';
 const MOST_USED_TAB_ID = 'most-used';
 const STARRED_TAB_ID = 'starred';
-const MAX_RECENT = 20;
 const MAX_MOST_USED = 20;
 const MAX_STARRED = 30;
 const DEFAULT_TAB_IDS = [RECENT_TAB_ID, MOST_USED_TAB_ID, STARRED_TAB_ID];
@@ -55,17 +64,19 @@ function DashboardExtensionTab({
   return <Component register={register} active={activeTab === id} />;
 }
 
-export function DashboardTabs() {
+interface Props {
+  extensionComponents: Array<ComponentTypeWithExtensionMeta<HomepageTabExtensionProps>>;
+}
+
+export function DashboardTabs({ extensionComponents }: Props) {
   const styles = useStyles2(getStyles);
+  const redesignEnabled = useFlagGrafanaGrowthHomepage();
+  const mostUsedAvailable = isMostUsedAvailable();
   const [activeTab, setActiveTab] = useState(RECENT_TAB_ID);
   const [extensionTabs, setExtensionTabs] = useState<HomepageTab[]>([]);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
-  const {
-    value: recentDashboards,
-    loading: recentLoading,
-    error: recentError,
-    retry: recentRetry,
-  } = useAsyncRetry(() => getRecentlyViewedDashboards(MAX_RECENT), []);
+  const recent = useRecentActivity();
 
   const {
     value: starredDashboards,
@@ -77,8 +88,6 @@ export function DashboardTabs() {
     return response.view.toArray();
   }, []);
 
-  const mostUsedAvailable = isMostUsedAvailable();
-
   const {
     value: mostUsedDashboards,
     loading: mostUsedLoading,
@@ -89,17 +98,14 @@ export function DashboardTabs() {
     [mostUsedAvailable]
   );
 
-  const hasRecent = !!recentDashboards?.length;
+  const hasRecent = recent.total > 0;
   const hasMostUsed = mostUsedAvailable && !!mostUsedDashboards?.length;
   const hasStarred = !!starredDashboards?.length;
-  const initialLoading = recentLoading || starredLoading || (mostUsedAvailable && mostUsedLoading);
+  const initialLoading = recent.loading || starredLoading || (mostUsedAvailable && mostUsedLoading);
 
-  const hasDashboards = hasRecent || hasMostUsed || hasStarred;
+  // Folder names are only needed when some row shows a dashboard.
+  const hasDashboards = hasMostUsed || hasStarred || recent.kinds.includes('dashboard');
   const { foldersByUid } = useDashboardLocationInfo(hasDashboards);
-
-  const { components: extensionComponents } = usePluginComponents<HomepageTabExtensionProps>({
-    extensionPointId: PluginExtensionPoints.HomepageTabs,
-  });
 
   const registerTab = useCallback((tab: HomepageTab) => {
     setExtensionTabs((prev) => [...prev, tab]);
@@ -139,19 +145,25 @@ export function DashboardTabs() {
     }
   }, [initialLoading, selectableTabs, activeTab]);
 
+  // Latch once loaded so a later per-source refetch can't flash the skeleton back.
+  useEffect(() => {
+    if (!initialLoading) {
+      setInitialLoadDone(true);
+    }
+  }, [initialLoading]);
+
   const builtInTabs: HomepageTab[] = [
     {
       id: RECENT_TAB_ID,
       label: t('home.dashboard-tabs.recent', 'Recent'),
-      activeLabel: t('home.dashboard-tabs.recent-active', 'Recent dashboards'),
-      counter: recentDashboards?.length,
+      // What the list shows; the whole history is one filter option away.
+      counter: recent.items.length,
     },
     ...(mostUsedAvailable
       ? [
           {
             id: MOST_USED_TAB_ID,
             label: t('home.dashboard-tabs.most-used', 'Most used'),
-            activeLabel: t('home.dashboard-tabs.most-used-active', 'Most used dashboards'),
             counter: mostUsedDashboards?.length,
           },
         ]
@@ -159,34 +171,45 @@ export function DashboardTabs() {
     {
       id: STARRED_TAB_ID,
       label: t('home.dashboard-tabs.starred', 'Starred'),
-      activeLabel: t('home.dashboard-tabs.starred-active', 'Starred dashboards'),
       counter: starredDashboards?.length,
     },
   ];
 
   const contentTabs = [...builtInTabs, ...extensionTabs.filter((tab) => !tab.href)];
   const linkTabs = extensionTabs.filter((tab) => tab.href);
+  const listDensity = redesignEnabled ? 'compact' : 'default';
+  // The Recent footer belongs to its list: only once the list is loaded with rows, an empty row of the same height
+  // until then. The dashboard tabs link out.
+  const footer =
+    activeTab === RECENT_TAB_ID ? (
+      !recent.loading && !recent.error && recent.total > 0 ? (
+        <RecentActivityFooter recent={recent} />
+      ) : (
+        <CardFooter />
+      )
+    ) : (
+      <CardFooter>
+        <FooterAction href="/dashboards">
+          <Trans i18nKey="home.dashboard-tabs.view-all-dashboards">View all dashboards</Trans>
+        </FooterAction>
+      </CardFooter>
+    );
 
-  return (
-    <Stack direction="column" gap={2}>
+  const renderContent = () => (
+    <>
       <TabsBar>
-        {contentTabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          // Keep a consistent tab bar width when on a custom tab by forcing the active label for recent dashboards
-          const forceActiveLabel = !DEFAULT_TAB_IDS.includes(activeTab) && tab.id === RECENT_TAB_ID;
-          return (
-            <Tab
-              key={tab.id}
-              label={isActive || forceActiveLabel ? (tab.activeLabel ?? tab.label) : tab.label}
-              active={isActive}
-              counter={tab.counter}
-              onChangeTab={() => {
-                setActiveTab(tab.id);
-                tabChanged({ tab: tab.id });
-              }}
-            />
-          );
-        })}
+        {contentTabs.map((tab) => (
+          <Tab
+            key={tab.id}
+            label={tab.label}
+            active={activeTab === tab.id}
+            counter={tab.counter}
+            onChangeTab={() => {
+              setActiveTab(tab.id);
+              tabChanged({ tab: tab.id });
+            }}
+          />
+        ))}
         {linkTabs.length > 0 && <div className={styles.linkTabsSpacer} />}
         {linkTabs.map((tab) => (
           <Tab key={tab.id} label={tab.label} icon={tab.icon} href={tab.href!} />
@@ -194,16 +217,18 @@ export function DashboardTabs() {
       </TabsBar>
 
       {DEFAULT_TAB_IDS.includes(activeTab) && (
-        <TabContent className={styles.tabContent}>
-          <ScrollContainer showScrollIndicators maxHeight="256px" minHeight="256px">
+        <TabContent className={redesignEnabled ? undefined : styles.tabContent}>
+          <ScrollContainer
+            showScrollIndicators
+            maxHeight={`${redesignEnabled ? DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN : DASHBOARD_TABS_SCROLL_HEIGHT_DEFAULT}px`}
+            minHeight={`${redesignEnabled ? DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN : DASHBOARD_TABS_SCROLL_HEIGHT_DEFAULT}px`}
+          >
             {activeTab === RECENT_TAB_ID && (
-              <RecentDashboardsTab
-                dashboards={recentDashboards ?? []}
-                loading={recentLoading}
-                error={recentError}
-                retry={recentRetry}
+              <RecentActivityTab
+                recent={recent}
                 foldersByUid={foldersByUid}
                 onStarChange={starredRetry}
+                density={listDensity}
               />
             )}
             {activeTab === MOST_USED_TAB_ID && (
@@ -213,6 +238,7 @@ export function DashboardTabs() {
                 error={mostUsedError}
                 retry={mostUsedRetry}
                 foldersByUid={foldersByUid}
+                density={listDensity}
               />
             )}
             {activeTab === STARRED_TAB_ID && (
@@ -222,9 +248,15 @@ export function DashboardTabs() {
                 error={starredError}
                 retry={starredRetry}
                 foldersByUid={foldersByUid}
+                density={listDensity}
               />
             )}
           </ScrollContainer>
+          {/* Pinned below the scroll area so it stays visible however long the list is; always there, at one
+              height, so the card never moves between tabs or while Recent loads. */}
+          <Box padding={1} paddingTop={1.5}>
+            {footer}
+          </Box>
         </TabContent>
       )}
 
@@ -234,13 +266,33 @@ export function DashboardTabs() {
         .map((Component, i) => (
           <DashboardExtensionTab key={i} Component={Component} registerTab={registerTab} activeTab={activeTab} />
         ))}
+    </>
+  );
+  // The header and card frame don't depend on data; only the tabs wait, since which one to land on isn't known yet.
+  const content = initialLoadDone ? renderContent() : <DashboardTabsSkeleton redesignEnabled={redesignEnabled} />;
+  return (
+    <Stack direction="column" gap={redesignEnabled ? 1 : 2} minWidth={0}>
+      {redesignEnabled ? (
+        <>
+          <Stack justifyContent="space-between" alignItems="center" minHeight={4}>
+            <Text element="h2" variant="h5">
+              <Trans i18nKey="home.dashboard-tabs.title">Jump back in</Trans>
+            </Text>
+          </Stack>
+
+          <HomeSection paddingX={2} paddingY={1} display="flex" direction="column" grow={1}>
+            {content}
+          </HomeSection>
+        </>
+      ) : (
+        content
+      )}
     </Stack>
   );
 }
 
 const getStyles = (theme: GrafanaTheme2) => ({
   tabContent: css({
-    padding: 0,
     background: theme.colors.background.primary,
     borderRadius: theme.shape.radius.default,
   }),

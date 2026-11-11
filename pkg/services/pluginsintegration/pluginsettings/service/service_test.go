@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,10 +100,24 @@ func TestService_DecryptedValuesCache(t *testing.T) {
 	})
 }
 
+func TestService_UpdatePluginSetting_JSONDataSize(t *testing.T) {
+	// A nil store proves the size check runs before any database access.
+	psService := ProvideService(nil, secretsManager.SetupTestService(t, fakes.NewFakeSecretsStore()))
+
+	err := psService.UpdatePluginSetting(context.Background(), &pluginsettings.UpdateArgs{
+		PluginID: "test-app",
+		OrgID:    1,
+		JSONData: map[string]any{"k": strings.Repeat("a", maxJSONDataBytes)},
+	})
+	require.ErrorIs(t, err, pluginsettings.ErrPluginSettingJSONDataTooLarge)
+
+	require.NoError(t, validateJSONDataSize(map[string]any{"k": strings.Repeat("a", maxJSONDataBytes-len(`{"k":""}`))}))
+}
+
 func TestIntegrationPluginSettings(t *testing.T) {
 	testutil.SkipIntegrationTestInShortMode(t)
 
-	store := db.InitTestDB(t)
+	store := db.InitTestDB(t) //nolint:staticcheck // legacy shared-DB test setup; migrate to NewTestStore
 	secretsService := secretsManager.SetupTestService(t, fakes.NewFakeSecretsStore())
 	psService := ProvideService(store, secretsService)
 

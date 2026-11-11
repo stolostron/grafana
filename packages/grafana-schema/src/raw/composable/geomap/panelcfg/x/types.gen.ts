@@ -12,7 +12,7 @@
 
 import * as ui from '@grafana/schema';
 
-export const pluginVersion = "13.1.7";
+export const pluginVersion = "13.3.1";
 
 export interface Options {
   basemap: ui.MapLayerOptions;
@@ -58,7 +58,7 @@ export interface ControlsOptions {
    */
   mouseWheelZoom?: boolean;
   /**
-   * Lower right
+   * Show attribution of layer sources that do not require it (lower right)
    */
   showAttribution?: boolean;
   /**

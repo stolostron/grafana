@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/ini.v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -55,9 +56,12 @@ const DefaultBurst = 300
 const DefaultCacheTTL = 5 * time.Second
 const DefaultCacheMaxEntries = 1000
 
+// DefaultIdleConnTimeout caps how long idle keep-alive connections are pooled.
+const DefaultIdleConnTimeout = 30 * time.Second
+
 const (
 	ApiGroup   = "setting.grafana.app"
-	apiVersion = "v1beta1"
+	apiVersion = "v1"
 	resource   = "settings"
 )
 
@@ -81,6 +85,9 @@ type clientMetrics struct {
 	rateLimiterThrottleTotal prometheus.Counter
 	cacheHitTotal            prometheus.Counter
 	cacheMissTotal           prometheus.Counter
+	cacheEvictionTotal       prometheus.Counter
+	cacheSize                prometheus.Gauge
+	cacheMaxSize             prometheus.Gauge
 }
 
 // Service retrieves configuration settings from a remote settings service.
@@ -131,6 +138,13 @@ type Service interface {
 	List(ctx context.Context, selector metav1.LabelSelector) ([]*Setting, error)
 }
 
+// FieldSelectorService keeps field-filtered queries separate so existing Service implementations remain compatible.
+type FieldSelectorService interface {
+	Service
+	ListWithFieldSelector(ctx context.Context, selector metav1.LabelSelector, fieldSelector fields.Selector) ([]*Setting, error)
+	ListAsIniWithFieldSelector(ctx context.Context, selector metav1.LabelSelector, fieldSelector fields.Selector) (*ini.File, error)
+}
+
 type remoteSettingService struct {
 	restClient   *rest.RESTClient
 	log          logging.Logger
@@ -141,7 +155,7 @@ type remoteSettingService struct {
 	fetchMu      sync.Mutex                          // guards fetchMutexes get-or-create
 }
 
-var _ Service = (*remoteSettingService)(nil)
+var _ FieldSelectorService = (*remoteSettingService)(nil)
 var _ prometheus.Collector = (*remoteSettingService)(nil)
 
 // Config configures a Service.
@@ -171,6 +185,10 @@ type Config struct {
 	CacheTTL time.Duration
 	// CacheMaxEntries sets the max LRU cache entries. Defaults to DefaultCacheMaxEntries (1000).
 	CacheMaxEntries int
+	// IdleConnTimeout caps how long idle keep-alive connections are pooled before
+	// being closed. Defaults to DefaultIdleConnTimeout. Set to a negative value to use the
+	// client-go default.
+	IdleConnTimeout time.Duration
 }
 
 // Setting represents the parsed spec of a Setting resource.
@@ -202,7 +220,7 @@ type settingListMetadata struct {
 }
 
 // New creates a Service from the provided configuration.
-func New(config Config) (Service, error) {
+func New(config Config) (FieldSelectorService, error) {
 	log := logging.New(LogPrefix)
 	metrics := initMetrics(resolveServiceName(config))
 
@@ -230,6 +248,7 @@ func New(config Config) (Service, error) {
 	if config.CacheTTL >= 0 {
 		cache = expirable.NewLRU[string, []*Setting](cacheMaxEntries, nil, cacheTTL)
 		fetchMutexes = expirable.NewLRU[string, *sync.Mutex](cacheMaxEntries, nil, 2*cacheTTL)
+		metrics.cacheMaxSize.Set(float64(cacheMaxEntries))
 	}
 
 	return &remoteSettingService{
@@ -243,6 +262,10 @@ func New(config Config) (Service, error) {
 }
 
 func (s *remoteSettingService) ListAsIni(ctx context.Context, labelSelector metav1.LabelSelector) (*ini.File, error) {
+	return s.ListAsIniWithFieldSelector(ctx, labelSelector, nil)
+}
+
+func (s *remoteSettingService) ListAsIniWithFieldSelector(ctx context.Context, labelSelector metav1.LabelSelector, fieldSelector fields.Selector) (*ini.File, error) {
 	namespace, ok := request.NamespaceFrom(ctx)
 	ns := attribute.String("grafana.namespace.name", namespace)
 	ctx, span := tracer.Start(ctx, "remoteSettingService.ListAsIni",
@@ -253,7 +276,7 @@ func (s *remoteSettingService) ListAsIni(ctx context.Context, labelSelector meta
 		return nil, tracing.Errorf(span, "missing namespace in context")
 	}
 
-	settings, err := s.List(ctx, labelSelector)
+	settings, err := s.ListWithFieldSelector(ctx, labelSelector, fieldSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +287,11 @@ func (s *remoteSettingService) ListAsIni(ctx context.Context, labelSelector meta
 	return iniFile, nil
 }
 
-func (s *remoteSettingService) List(ctx context.Context, labelSelector metav1.LabelSelector) (settings []*Setting, oErr error) {
+func (s *remoteSettingService) List(ctx context.Context, labelSelector metav1.LabelSelector) ([]*Setting, error) {
+	return s.ListWithFieldSelector(ctx, labelSelector, nil)
+}
+
+func (s *remoteSettingService) ListWithFieldSelector(ctx context.Context, labelSelector metav1.LabelSelector, fieldSelector fields.Selector) (settings []*Setting, oErr error) {
 	namespace, ok := request.NamespaceFrom(ctx)
 	ns := attribute.String("grafana.namespace.name", namespace)
 	ctx, span := tracer.Start(ctx, "remoteSettingService.List",
@@ -298,12 +325,16 @@ func (s *remoteSettingService) List(ctx context.Context, labelSelector metav1.La
 		oErr = tracing.Error(span, err)
 		return nil, oErr
 	}
-	if selector.Empty() {
+	fSelector := ""
+	if fieldSelector != nil {
+		fSelector = fieldSelector.String()
+	}
+	if selector.Empty() && fSelector == "" {
 		log.Debug("empty selector. Fetching all settings")
 	}
 
 	lSelector := selector.String()
-	cacheKey := namespace + "|" + lSelector
+	cacheKey := namespace + "|" + lSelector + "|" + fSelector
 
 	if s.cache != nil {
 		if cached, ok := s.cache.Get(cacheKey); ok {
@@ -326,14 +357,16 @@ func (s *remoteSettingService) List(ctx context.Context, labelSelector metav1.La
 	}
 
 	s.metrics.cacheMissTotal.Inc()
-	allSettings, err := s.fetch(ctx, namespace, lSelector, span)
+	allSettings, err := s.fetch(ctx, namespace, lSelector, fSelector, span)
 	if err != nil {
 		oErr = err
 		return nil, oErr
 	}
 
 	if s.cache != nil {
-		s.cache.Add(cacheKey, allSettings)
+		if evicted := s.cache.Add(cacheKey, allSettings); evicted {
+			s.metrics.cacheEvictionTotal.Inc()
+		}
 	}
 
 	return allSettings, nil
@@ -351,7 +384,7 @@ func (s *remoteSettingService) getOrCreateFetchMutex(key string) *sync.Mutex {
 }
 
 // fetch retrieves all settings from the remote service using paginated requests.
-func (s *remoteSettingService) fetch(ctx context.Context, namespace string, lSelector string, span trace.Span) ([]*Setting, error) {
+func (s *remoteSettingService) fetch(ctx context.Context, namespace, lSelector, fSelector string, span trace.Span) ([]*Setting, error) {
 	// Pre-allocate with estimated capacity
 	allSettings := make([]*Setting, 0, s.pageSize*8)
 	var continueToken string
@@ -361,7 +394,7 @@ func (s *remoteSettingService) fetch(ctx context.Context, namespace string, lSel
 	for hasNext && totalPages < 1000 {
 		totalPages++
 
-		settings, nextToken, lErr := s.fetchPage(ctx, namespace, lSelector, continueToken)
+		settings, nextToken, lErr := s.fetchPage(ctx, namespace, lSelector, fSelector, continueToken)
 		if lErr != nil {
 			return nil, tracing.Error(span, lErr)
 		}
@@ -376,7 +409,7 @@ func (s *remoteSettingService) fetch(ctx context.Context, namespace string, lSel
 	return allSettings, nil
 }
 
-func (s *remoteSettingService) fetchPage(ctx context.Context, namespace, labelSelector, continueToken string) ([]*Setting, string, error) {
+func (s *remoteSettingService) fetchPage(ctx context.Context, namespace, labelSelector, fieldSelector, continueToken string) ([]*Setting, string, error) {
 	ctx, span := tracer.Start(ctx, "remoteSettingService.fetchPage")
 	defer span.End()
 
@@ -387,6 +420,9 @@ func (s *remoteSettingService) fetchPage(ctx context.Context, namespace, labelSe
 
 	if labelSelector != "" {
 		req = req.Param("labelSelector", labelSelector)
+	}
+	if fieldSelector != "" {
+		req = req.Param("fieldSelector", fieldSelector)
 	}
 	if continueToken != "" {
 		req = req.Param("continue", continueToken)
@@ -526,9 +562,17 @@ func getRestClient(config Config, log logging.Logger, m clientMetrics) (*rest.RE
 		}
 	}
 
+	idleConnTimeout := DefaultIdleConnTimeout
+	if config.IdleConnTimeout != 0 {
+		idleConnTimeout = config.IdleConnTimeout
+	}
+
 	// Wrap with tracing middleware to propagate trace context to all outbound requests
 	tracingMiddleware := httpclientprovider.TracingMiddleware(logging.NewNopLogger(), tracer)
 	wrapTransport := func(rt http.RoundTripper) http.RoundTripper {
+		if baseTransport, ok := rt.(*http.Transport); ok && idleConnTimeout > 0 {
+			baseTransport.IdleConnTimeout = idleConnTimeout
+		}
 		tracingRT := tracingMiddleware.CreateMiddleware(httpclient.Options{}, rt)
 		return authTransport(tracingRT)
 	}
@@ -545,8 +589,9 @@ func getRestClient(config Config, log logging.Logger, m clientMetrics) (*rest.RE
 
 	userAgent := fmt.Sprintf("settings-client %s (%s)", apiVersion, resolveServiceName(config))
 
-	// Add a default scheme to handle K8s API error responses
+	// Register meta types so error responses (Status) decode with their details.
 	scheme := runtime.NewScheme()
+	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Group: "", Version: "v1"})
 
 	// Create the rate limiter explicitly so we can wrap it with instrumentation
 	rateLimiter := &instrumentedRateLimiter{
@@ -668,6 +713,27 @@ func initMetrics(serviceName string) clientMetrics {
 			Help:        "Total number of List cache misses",
 			ConstLabels: constLabels,
 		}),
+		cacheEvictionTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace:   "settings",
+			Subsystem:   "service",
+			Name:        "list_settings_cache_eviction_total",
+			Help:        "Total number of List cache entries evicted due to capacity (CacheMaxEntries) being exceeded; use to tune cache size",
+			ConstLabels: constLabels,
+		}),
+		cacheSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace:   "settings",
+			Subsystem:   "service",
+			Name:        "list_settings_cache_size",
+			Help:        "Current number of entries in the List cache; compare against CacheMaxEntries to tune cache size",
+			ConstLabels: constLabels,
+		}),
+		cacheMaxSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace:   "settings",
+			Subsystem:   "service",
+			Name:        "list_settings_cache_max_size",
+			Help:        "Configured maximum number of entries in the List cache (CacheMaxEntries); compare against cache_size to tune cache size",
+			ConstLabels: constLabels,
+		}),
 	}
 	return metrics
 }
@@ -678,6 +744,9 @@ func (s *remoteSettingService) Describe(descs chan<- *prometheus.Desc) {
 	s.metrics.rateLimiterThrottleTotal.Describe(descs)
 	s.metrics.cacheHitTotal.Describe(descs)
 	s.metrics.cacheMissTotal.Describe(descs)
+	s.metrics.cacheEvictionTotal.Describe(descs)
+	s.metrics.cacheSize.Describe(descs)
+	s.metrics.cacheMaxSize.Describe(descs)
 }
 
 func (s *remoteSettingService) Collect(metrics chan<- prometheus.Metric) {
@@ -686,4 +755,10 @@ func (s *remoteSettingService) Collect(metrics chan<- prometheus.Metric) {
 	s.metrics.rateLimiterThrottleTotal.Collect(metrics)
 	s.metrics.cacheHitTotal.Collect(metrics)
 	s.metrics.cacheMissTotal.Collect(metrics)
+	s.metrics.cacheEvictionTotal.Collect(metrics)
+	if s.cache != nil {
+		s.metrics.cacheSize.Set(float64(s.cache.Len()))
+	}
+	s.metrics.cacheSize.Collect(metrics)
+	s.metrics.cacheMaxSize.Collect(metrics)
 }

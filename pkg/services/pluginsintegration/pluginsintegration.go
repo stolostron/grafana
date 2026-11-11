@@ -7,9 +7,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/grafana/apps/advisor/pkg/app/checkregistry"
+	"github.com/grafana/grafana/pkg/infra/httpclient/httpclientprovider"
 	"github.com/grafana/grafana/pkg/infra/tracing"
 	"github.com/grafana/grafana/pkg/plugins"
 	"github.com/grafana/grafana/pkg/plugins/auth"
+	v3 "github.com/grafana/grafana/pkg/plugins/backendplugin/v3"
 	"github.com/grafana/grafana/pkg/plugins/envvars"
 	"github.com/grafana/grafana/pkg/plugins/log"
 	"github.com/grafana/grafana/pkg/plugins/manager/client"
@@ -45,8 +47,10 @@ import (
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/licensing"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/loader"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/managedplugins"
+	"github.com/grafana/grafana/pkg/services/pluginsintegration/marketplacelicensing"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/pipeline"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginassets"
+	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginauth"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginchecker"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginconfig"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/plugincontext"
@@ -66,15 +70,18 @@ import (
 // WireSet provides a wire.ProviderSet of plugin providers.
 var WireSet = wire.NewSet(
 	pluginconfig.ProvidePluginManagementConfig,
+	pluginauth.ProvideConfig,
 	pluginconfig.ProvidePluginInstanceConfig,
 	pluginconfig.NewEnvVarsProvider,
 	wire.Bind(new(envvars.Provider), new(*pluginconfig.EnvVarsProvider)),
 	pluginconfig.NewRequestConfigProvider,
 	wire.Bind(new(pluginconfig.PluginRequestConfigProvider), new(*pluginconfig.RequestConfigProvider)),
 	pluginstore.ProvideService,
+	installsync.ProvideClientGenerator,
 	installsync.ProvideSyncer,
 	wire.Bind(new(pluginstore.Store), new(*pluginstore.Service)),
 	wire.Bind(new(plugins.StaticRouteResolver), new(*pluginstore.Service)),
+	wire.Bind(new(v3.ClientV3Loader), new(*pluginstore.Service)),
 	process.ProvideService,
 	wire.Bind(new(process.Manager), new(*process.Service)),
 	coreplugin.ProvideCoreRegistry,
@@ -157,6 +164,7 @@ var WireExtensionSet = wire.NewSet(
 	wire.Bind(new(checkregistry.CheckService), new(*checkregistry.Service)),
 	pluginassets2.NewLocalProvider,
 	wire.Bind(new(pluginassets2.Provider), new(*pluginassets2.LocalProvider)),
+	marketplacelicensing.Provide,
 )
 
 func ProvideClientWithMiddlewares(
@@ -201,7 +209,9 @@ func CreateMiddlewares(cfg *setting.Cfg, oAuthTokenService oauthtoken.OAuthToken
 		clientmiddleware.NewOAuthTokenMiddleware(oAuthTokenService),
 		clientmiddleware.NewCookiesMiddleware(skipCookiesNames),
 		clientmiddleware.NewCachingMiddleware(cachingServiceClient),
-		clientmiddleware.NewForwardIDMiddleware(),
+		// Single-tenant Grafana mints its own id token at the edge (see idimpl), so requester
+		// always carries one and the derive fallback is never needed here.
+		clientmiddleware.NewForwardIDMiddleware(nil),
 		clientmiddleware.NewUseAlertHeadersMiddleware(),
 	)
 
@@ -213,6 +223,12 @@ func CreateMiddlewares(cfg *setting.Cfg, oAuthTokenService oauthtoken.OAuthToken
 		middlewares = append(middlewares, clientmiddleware.NewHostedGrafanaACHeaderMiddleware(cfg))
 	}
 
+	//nolint:staticcheck // Deprecated, kept for backwards compatibility of datasources moved out of core
+	middlewares = append(middlewares, clientmiddleware.NewDataProxyTimeoutMiddleware(
+		httpclientprovider.TimeoutOptionsFromConfig(cfg),
+		httpclientprovider.SDKDefaultTimeoutOptions(),
+	))
+	middlewares = append(middlewares, clientmiddleware.NewHTTPCaptureMiddleware())
 	middlewares = append(middlewares, clientmiddleware.NewHTTPClientMiddleware())
 
 	// ErrorSourceMiddleware should be at the very bottom, or any middlewares below it won't see the

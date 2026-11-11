@@ -16,7 +16,6 @@ import (
 	"github.com/grafana/grafana/pkg/api/dtos"
 	grafanarest "github.com/grafana/grafana/pkg/apiserver/rest"
 	"github.com/grafana/grafana/pkg/services/apiserver/options"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
 	"github.com/grafana/grafana/pkg/services/shorturls"
 	"github.com/grafana/grafana/pkg/setting"
 	"github.com/grafana/grafana/pkg/tests/apis"
@@ -36,37 +35,14 @@ var RESOURCEGROUP = gvr.GroupResource().String()
 func TestIntegrationShortURL(t *testing.T) {
 	testutil.SkipIntegrationTestInShortMode(t)
 
-	t.Run("default setup with k8s flag turned off (legacy APIs)", func(t *testing.T) {
-		helper := apis.NewK8sTestHelper(t, testinfra.GrafanaOpts{
-			AppModeProduction:     true, // do not start extra port 6443
-			DisableAnonymous:      true,
-			EnableFeatureToggles:  []string{}, // legacy APIs only
-			DisableFeatureToggles: []string{featuremgmt.FlagKubernetesShortURLs},
-		})
-		// In this setup, K8s APIs are not available - legacy APIs only
-		doLegacyOnlyTests(t, helper)
-
-		// When no feature toggles are enabled, shortURL K8s APIs should not be available
-		disco := helper.NewDiscoveryClient()
-		groups, err := disco.ServerGroups()
-		require.NoError(t, err)
-
-		hasShortURLGroup := false
-		for _, group := range groups.Groups {
-			if group.Name == "shorturl.grafana.app" {
-				hasShortURLGroup = true
-				break
-			}
-		}
-		require.False(t, hasShortURLGroup, "shortURL K8s APIs should not be available when kubernetesShortURLs feature toggle is disabled")
-	})
-
 	t.Run("with dual write (unified storage, mode 0)", func(t *testing.T) {
+		// ShortURL is migrated to unified storage and enforced to mode 5, so
+		// legacy-only (mode 0) is no longer a supported configuration.
+		t.Skip("shorturls is migrated to unified storage; legacy-only mode is no longer supported")
 		helper := apis.NewK8sTestHelper(t, testinfra.GrafanaOpts{
 			AppModeProduction:    false, // required for  unified storage
 			DisableAnonymous:     true,
 			APIServerStorageType: options.StorageTypeUnified,
-			EnableFeatureToggles: []string{featuremgmt.FlagKubernetesShortURLs},
 			UnifiedStorageConfig: map[string]setting.UnifiedStorageConfig{
 				RESOURCEGROUP: {
 					DualWriterMode: grafanarest.Mode0,
@@ -82,13 +58,15 @@ func TestIntegrationShortURL(t *testing.T) {
 			grafanarest.Mode5,
 		} {
 			t.Run(fmt.Sprintf("dual write (unified storage, mode %d)", mode), func(t *testing.T) {
+				// Dual-write (mode 1) is no longer a supported configuration for
+				// shorturls now that it is migrated to unified storage; mode 5 runs.
+				if mode == grafanarest.Mode1 {
+					t.Skip("shorturls is migrated to unified storage; dual-write mode is no longer supported")
+				}
 				helper := apis.NewK8sTestHelper(t, testinfra.GrafanaOpts{
 					AppModeProduction:    false,
 					DisableAnonymous:     true,
 					APIServerStorageType: options.StorageTypeUnified,
-					EnableFeatureToggles: []string{
-						featuremgmt.FlagKubernetesShortURLs,
-					},
 					UnifiedStorageConfig: map[string]setting.UnifiedStorageConfig{
 						RESOURCEGROUP: {
 							DualWriterMode: mode,
@@ -105,9 +83,6 @@ func TestIntegrationShortURL(t *testing.T) {
 			AppModeProduction:    false,
 			DisableAnonymous:     true,
 			APIServerStorageType: options.StorageTypeUnified,
-			EnableFeatureToggles: []string{
-				featuremgmt.FlagKubernetesShortURLs,
-			},
 			UnifiedStorageConfig: map[string]setting.UnifiedStorageConfig{
 				RESOURCEGROUP: {
 					DualWriterMode: grafanarest.Mode5,

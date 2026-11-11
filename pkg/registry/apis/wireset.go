@@ -4,7 +4,6 @@ import (
 	"github.com/google/wire"
 
 	"github.com/grafana/grafana/pkg/apiserver/auditing"
-	"github.com/grafana/grafana/pkg/registry/apis/appplugin"
 	"github.com/grafana/grafana/pkg/registry/apis/collections"
 	dashboardinternal "github.com/grafana/grafana/pkg/registry/apis/dashboard"
 	"github.com/grafana/grafana/pkg/registry/apis/datasource"
@@ -15,7 +14,6 @@ import (
 	"github.com/grafana/grafana/pkg/registry/apis/iam/legacy"
 	"github.com/grafana/grafana/pkg/registry/apis/iam/noopstorage"
 	"github.com/grafana/grafana/pkg/registry/apis/iam/resourcepermission"
-	"github.com/grafana/grafana/pkg/registry/apis/ofrep"
 	"github.com/grafana/grafana/pkg/registry/apis/preferences"
 	"github.com/grafana/grafana/pkg/registry/apis/provisioning"
 	"github.com/grafana/grafana/pkg/registry/apis/provisioning/extras"
@@ -25,7 +23,9 @@ import (
 	"github.com/grafana/grafana/pkg/registry/apis/secret"
 	"github.com/grafana/grafana/pkg/registry/apis/service"
 	"github.com/grafana/grafana/pkg/registry/apis/userstorage"
+	"github.com/grafana/grafana/pkg/services/folder/cleaner"
 	"github.com/grafana/grafana/pkg/services/pluginsintegration/plugincontext"
+	"github.com/grafana/grafana/pkg/services/pluginsintegration/pluginroute/appsettings"
 )
 
 // WireSetExts is a set of providers that can be overridden by enterprise implementations.
@@ -34,7 +34,6 @@ var WireSetExts = wire.NewSet(
 	iam.ProvideNoopRoleApiInstaller,
 	inmemory.ProvideInMemoryGlobalRoleApiInstaller,
 	iam.ProvideNoopTeamLBACApiInstaller,
-	iam.ProvideNoopExternalGroupMappingApiInstaller,
 	iam.ProvideNoopRoleBindingApiInstaller,
 
 	externalgroupmapping.ProvideNoopTeamGroupsHandlerProvider,
@@ -52,7 +51,6 @@ var WireSetExts = wire.NewSet(
 var provisioningExtras = wire.NewSet(
 	pullrequest.ProvidePullRequestWorker,
 	webhooks.ProvideWebhooksWithImages,
-	extras.ProvideConnectionFactoryFromConfig,
 	extras.ProvideProvisioningExtraAPIs,
 	extras.ProvideExtraWorkers,
 	extras.ProvideQuotaGetter,
@@ -64,7 +62,7 @@ var WireSet = wire.NewSet(
 	// plugin abstractions
 	plugincontext.ProvideService,
 	wire.Bind(new(datasource.PluginContextWrapper), new(*plugincontext.Provider)),
-	wire.Bind(new(appplugin.PluginContextWrapper), new(*plugincontext.Provider)),
+	wire.Bind(new(appsettings.PluginContextWrapper), new(*plugincontext.Provider)),
 	datasource.ProvideDefaultPluginConfigs,
 	datasource.ProvideProxyDependencies,
 
@@ -80,6 +78,8 @@ var WireSet = wire.NewSet(
 	// Each must be added here *and* in the ServiceSink above
 	dashboardinternal.RegisterAPIService,
 	datasource.RegisterAPIService,
+	cleaner.ProvideFolderContentsDeleter,
+	wire.Bind(new(folders.FolderContentsDeleter), new(*cleaner.ContentsCleaner)),
 	folders.RegisterAPIService,
 	iam.RegisterAPIService,
 	provisioning.RegisterAPIService,
@@ -88,6 +88,4 @@ var WireSet = wire.NewSet(
 	preferences.RegisterAPIService,
 	collections.RegisterAPIService,
 	userstorage.RegisterAPIService,
-	ofrep.RegisterAPIService,
-	appplugin.RegisterAPIService,
 )

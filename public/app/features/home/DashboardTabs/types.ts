@@ -1,11 +1,10 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { isIconName } from '@grafana/data';
 
 const HomepageTabSchema = z.object({
   id: z.string(),
   label: z.string(),
-  activeLabel: z.string().optional(),
   icon: z.string().refine(isIconName, { error: 'Unknown icon' }).optional(),
   /** Tab is a link (rendered right-aligned) */
   href: z.string().optional(),
@@ -26,3 +25,9 @@ export interface HomepageTabExtensionProps {
   active: boolean;
   register: (tab: HomepageTab) => () => void;
 }
+
+// Fixed scroll-area heights for the tab content. Shared with DashboardTabs so the
+// skeleton matches the real card and loading doesn't shift neighboring content.
+// The redesign height fits three compact rows so the two grid cards stay above the fold.
+export const DASHBOARD_TABS_SCROLL_HEIGHT_DEFAULT = 256;
+export const DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN = 180;

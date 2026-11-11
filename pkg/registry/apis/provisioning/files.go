@@ -26,23 +26,23 @@ import (
 type filesConnector struct {
 	getter                RepoGetter
 	access                auth.AccessChecker
+	strictAccess          auth.AccessChecker
 	parsers               resources.ParserFactory
 	clients               resources.ClientFactory
 	folderMetadataEnabled bool
-	folderAPIVersion      string
 	// maxFileSize caps the size in bytes of files read from or written to the
 	// repository through this connector. <=0 disables the check.
 	maxFileSize int64
 }
 
-func NewFilesConnector(getter RepoGetter, parsers resources.ParserFactory, clients resources.ClientFactory, access auth.AccessChecker, folderMetadataEnabled bool, folderAPIVersion string, maxFileSize int64) *filesConnector {
+func NewFilesConnector(getter RepoGetter, parsers resources.ParserFactory, clients resources.ClientFactory, access, strictAccess auth.AccessChecker, folderMetadataEnabled bool, maxFileSize int64) *filesConnector {
 	return &filesConnector{
 		getter:                getter,
 		parsers:               parsers,
 		clients:               clients,
 		access:                access,
+		strictAccess:          strictAccess,
 		folderMetadataEnabled: folderMetadataEnabled,
-		folderAPIVersion:      folderAPIVersion,
 		maxFileSize:           maxFileSize,
 	}
 }
@@ -90,6 +90,9 @@ func (c *filesConnector) Connect(ctx context.Context, name string, opts runtime.
 
 // handleRequest processes the HTTP request for files operations.
 func (c *filesConnector) handleRequest(ctx context.Context, name string, r *http.Request, responder rest.Responder, logger logging.Logger) {
+	if sig, ok := auth.GetUserSignature(ctx); ok {
+		ctx = repository.WithAuthorSignature(ctx, sig)
+	}
 	repo, err := c.getRepo(ctx, r.Method, name)
 	if err != nil {
 		logger.Debug("failed to find repository", "error", err)
@@ -175,13 +178,13 @@ func (c *filesConnector) createDualReadWriter(ctx context.Context, repo reposito
 		return nil, nil, fmt.Errorf("failed to get clients: %w", err)
 	}
 
-	folderClient, folderGVK, err := clients.Folder(ctx, c.folderAPIVersion)
+	folderClient, folderGVK, err := clients.Folder(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get folder client: %w", err)
 	}
 
 	folders := resources.NewFolderManager(readWriter, folderClient, resources.NewEmptyFolderTree(), folderGVK, resources.WithFolderMetadataEnabled(c.folderMetadataEnabled))
-	authorizer := resources.NewAuthorizer(repo.Config(), readWriter, c.access, clients, c.folderMetadataEnabled)
+	authorizer := resources.NewFilesAuthorizer(repo.Config(), readWriter, c.strictAccess, c.access, clients, folders, c.folderMetadataEnabled)
 	return resources.NewDualReadWriter(readWriter, parser, folders, authorizer, c.folderMetadataEnabled), authorizer, nil
 }
 
@@ -241,10 +244,14 @@ func (c *filesConnector) handleDirectoryListing(ctx context.Context, name string
 
 // handleMethodRequest routes the request to the appropriate handler based on HTTP method.
 func (c *filesConnector) handleMethodRequest(ctx context.Context, r *http.Request, opts resources.DualWriteOptions, isDir bool, dualReadWriter *resources.DualReadWriter, readWriter repository.ReaderWriter, authorizer resources.Authorizer) (*provisioning.ResourceWrapper, error) {
-	if c.folderMetadataEnabled && r.Method != http.MethodGet && resources.IsFolderMetadataFile(opts.Path) {
+	metadataPath := opts.Path
+	if r.Method == http.MethodPost && resources.IsFolderMetadataFile(opts.OriginalPath) {
+		metadataPath = opts.OriginalPath
+	}
+	if r.Method != http.MethodGet && resources.IsFolderMetadataFile(metadataPath) {
 		return nil, apierrors.NewForbidden(
 			provisioning.RepositoryResourceInfo.GroupResource(),
-			opts.Path,
+			metadataPath,
 			errors.New("folder metadata is managed by the system and cannot be modified directly"),
 		)
 	}

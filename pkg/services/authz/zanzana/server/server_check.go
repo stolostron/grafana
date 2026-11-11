@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	authzv1 "github.com/grafana/authlib/authz/proto/v1"
@@ -58,6 +59,10 @@ func (s *Server) Check(ctx context.Context, r *authzv1.CheckRequest) (*authzv1.C
 func (s *Server) check(ctx context.Context, r *authzv1.CheckRequest) (*authzv1.CheckResponse, error) {
 	if err := authorize(ctx, r.GetNamespace(), s.cfg); err != nil {
 		return nil, err
+	}
+
+	if isLegacyPermissionDelegation(r.GetGroup(), r.GetResource(), r.GetSubresource()) {
+		return &authzv1.CheckResponse{Allowed: false}, nil
 	}
 
 	store, err := s.getStoreInfo(ctx, r.GetNamespace())
@@ -120,17 +125,16 @@ func (s *Server) checkTyped(ctx context.Context, subject, relation string, resou
 	ctx, span := s.tracer.Start(ctx, "server.checkTyped")
 	defer span.End()
 
-	if !resource.IsValidRelation(relation) {
-		return &authzv1.CheckResponse{Allowed: false}, nil
-	}
-
 	var (
 		resourceIdent       = resource.ResourceIdent()
 		resourceCtx         = resource.Context()
 		subresourceRelation = common.SubresourceRelation(relation)
 	)
 
-	if resource.HasSubresource() {
+	// The subresource branch is gated on the subresource relation, independently of the base
+	// relation: a type may support e.g. resource_create without a per-object base create
+	// (user / service-account), so the base-relation guard below must not block it.
+	if resource.HasSubresource() && resource.IsValidRelation(subresourceRelation) {
 		// Check if subject has access as a subresource
 		res, err := s.openfgaCheck(ctx, store, subject, common.SubresourcePermissionRelation(subresourceRelation), resourceIdent, contextuals, resourceCtx)
 		if err != nil {
@@ -142,7 +146,7 @@ func (s *Server) checkTyped(ctx context.Context, subject, relation string, resou
 		}
 	}
 
-	if resourceIdent == "" {
+	if !resource.IsValidRelation(relation) || resourceIdent == "" {
 		return &authzv1.CheckResponse{Allowed: false}, nil
 	}
 
@@ -172,7 +176,7 @@ func (s *Server) checkGeneric(ctx context.Context, subject, relation string, res
 		folderIdent         = resource.FolderIdent()
 		resourceCtx         = resource.Context()
 		folderRelation      = common.SubresourceRelation(relation)
-		folderCheckRelation = common.FolderPermissionRelation(relation)
+		folderCheckRelation = common.FolderContentPermissionRelation(relation)
 	)
 
 	if folderIdent != "" && isFolderPermissionBasedResource(resource.GroupResource()) {
@@ -263,4 +267,11 @@ var folderPermissionBasedResourceExceptions = map[string]bool{
 
 func isFolderPermissionBasedResource(resource string) bool {
 	return !folderPermissionBasedResourceExceptions[resource]
+}
+
+// IAM uses the original RBAC action as a subresource of the permissions pseudo-resource.
+// Zanzana does not model these delegation permissions yet. Deny them before constructing
+// OpenFGA objects, where the action's colon would make the object ID invalid.
+func isLegacyPermissionDelegation(group, resource, subresource string) bool {
+	return group == "iam.grafana.app" && resource == "permissions" && strings.Contains(subresource, ":")
 }

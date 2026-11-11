@@ -1,57 +1,97 @@
 import { css, cx } from '@emotion/css';
 import { useBooleanFlagValue } from '@openfeature/react-sdk';
-import classNames from 'classnames';
+import classNames from 'clsx';
 import { Resizable } from 're-resizable';
-import { type PropsWithChildren, useEffect } from 'react';
+import { lazy, type PropsWithChildren, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { type GrafanaTheme2, store } from '@grafana/data';
 import { Trans } from '@grafana/i18n';
 import { locationSearchToObject, locationService, useScopes } from '@grafana/runtime';
 import { useFlagGrafanaVisualDesignRefresh } from '@grafana/runtime/internal';
 import { ErrorBoundaryAlert, floatingUtils, getDragStyles, LinkButton, useStyles2 } from '@grafana/ui';
+import { DRAWER_INSIDE_ATTRIBUTE } from '@grafana/ui/internal';
 import { SplashScreenModal } from 'app/core/components/SplashScreenModal/SplashScreenModal';
 import { useGrafana } from 'app/core/context/GrafanaContext';
 import { useMediaQueryMinWidth } from 'app/core/hooks/useMediaQueryMinWidth';
-import { CommandPalette } from 'app/features/commandPalette/CommandPalette';
 import { ScopesDashboards } from 'app/features/scopes/dashboards/ScopesDashboards';
+import { useVisualRefreshNudge } from 'app/features/visual-refresh/useVisualRefreshNudge';
 
 import { AppChromeMenu } from './AppChromeMenu';
 import { type AppChromeService, DOCKED_LOCAL_STORAGE_KEY } from './AppChromeService';
-import {
-  ExtensionSidebar,
-  MAX_EXTENSION_SIDEBAR_WIDTH,
-  MIN_EXTENSION_SIDEBAR_WIDTH,
-} from './ExtensionSidebar/ExtensionSidebar';
+import { ExtensionSidebar } from './ExtensionSidebar/ExtensionSidebar';
 import { useExtensionSidebarContext } from './ExtensionSidebar/ExtensionSidebarProvider';
+import { MAX_EXTENSION_SIDEBAR_WIDTH, MIN_EXTENSION_SIDEBAR_WIDTH } from './ExtensionSidebar/constants';
+import { LazyFeatureControlFloating } from './FeatureControl/LazyFeatureControl';
+import { FullscreenWorkspacePlatformBar } from './FullscreenWorkspace/FullscreenWorkspacePlatformBar';
+import { FullscreenWorkspaceShell } from './FullscreenWorkspace/FullscreenWorkspaceShell';
+import { useFullscreenWorkspace } from './FullscreenWorkspace/useFullscreenWorkspace';
 import { MegaMenu, MENU_WIDTH } from './MegaMenu/MegaMenu';
 import { useMegaMenuFocusHelper } from './MegaMenu/utils';
 import { ReturnToPrevious } from './ReturnToPrevious/ReturnToPrevious';
 import { SingleTopBar } from './TopBar/SingleTopBar';
 import { getChromeHeaderLevelHeight, useChromeHeaderLevels } from './TopBar/useChromeHeaderHeight';
 
+export const EXTENSION_SIDEBAR_FLOATING_TESTID = 'extension-sidebar-floating';
+
+const CommandPalette = lazy(() =>
+  import('app/features/commandPalette/CommandPalette').then((module) => ({ default: module.CommandPalette }))
+);
+
 export interface Props extends PropsWithChildren<{}> {}
 
 export function AppChrome({ children }: Props) {
   const { chrome } = useGrafana();
   const visualRefreshEnabled = useFlagGrafanaVisualDesignRefresh();
+  useVisualRefreshNudge(visualRefreshEnabled);
   const {
     isOpen: isExtensionSidebarOpen,
     extensionSidebarWidth,
     setExtensionSidebarWidth,
+    floatingExtensionSidebarWidth,
+    presentation: extensionSidebarPresentation,
+    floatingHidden: isExtensionSidebarFloatingHidden,
   } = useExtensionSidebarContext();
+  const isExtensionSidebarFloating = isExtensionSidebarOpen && extensionSidebarPresentation === 'floating';
+  // Floating, the sidebar sits above drawers, so an open drawer must not hide it from keyboard and screen reader users.
+  const floatingSidebarAttributes = isExtensionSidebarFloating ? { [DRAWER_INSIDE_ATTRIBUTE]: '' } : {};
   const state = chrome.useState();
   const scopes = useScopes();
   const isSplashScreenEnabled = useBooleanFlagValue('splashScreen', false);
 
+  const { fullscreenWorkspaceActive, fullscreenWorkspaceFeatureFlagEnabled } = useFullscreenWorkspace();
+
+  // The DOM node exposed by the fullscreen workspace Platform tab; the shell registers it.
+  const [workspaceHost, setWorkspaceHost] = useState<HTMLElement | null>(null);
+
+  // Only used when the fullscreen workspace feature is enabled: the live page (`children`) is
+  // portaled into this one stable, detached node, so it mounts once and is never unmounted.
+  // `portalHostRef` reparents that node into whichever host is active (the default <main> or the
+  // workspace host), moving DOM without a remount/refetch. When the feature is disabled the page
+  // renders directly inside <main> instead (original behavior, no portal), so we don't create it.
+  const portalTargetRef = useRef<HTMLDivElement | null>(null);
+  if (fullscreenWorkspaceFeatureFlagEnabled && !portalTargetRef.current) {
+    portalTargetRef.current = document.createElement('div');
+    // Keep the portal wrapper out of the box tree so `children` stays a direct flex child of its
+    // host (<main> / workspace Platform tab) and the page's layout is unchanged.
+    portalTargetRef.current.style.display = 'contents';
+  }
+  const portalHostRef = useCallback((host: HTMLElement | null) => {
+    if (host && portalTargetRef.current) {
+      host.appendChild(portalTargetRef.current);
+    }
+  }, []);
+
   const menuDockedAndOpen = !state.chromeless && state.megaMenuDocked && state.megaMenuOpen;
   const isScopesDashboardsOpen = Boolean(
-    scopes?.state.enabled && scopes?.state.drawerOpened && !scopes?.state.readOnly
+    !state.chromeless && scopes?.state.enabled && scopes?.state.drawerOpened && !scopes?.state.readOnly
   );
 
   const headerLevels = useChromeHeaderLevels();
   const styles = useStyles2(getStyles, headerLevels, getChromeHeaderLevelHeight(), visualRefreshEnabled);
-  const contentSizeStyles = useStyles2(getContentSizeStyles, extensionSidebarWidth);
+  const contentSizeStyles = useStyles2(getContentSizeStyles, extensionSidebarWidth, floatingExtensionSidebarWidth);
   const dragStyles = useStyles2(getDragStyles);
+  const isSmallScreen = !useMediaQueryMinWidth('sm');
 
   useResponsiveDockedMegaMenu(chrome);
   useMegaMenuFocusHelper(state.megaMenuOpen, state.megaMenuDocked);
@@ -85,10 +125,28 @@ export function AppChrome({ children }: Props) {
     chrome.setKioskModeFromUrl(queryParams.kiosk);
   }, [chrome, search]);
 
+  const fullscreenWorkspaceChrome = (
+    <div id={floatingUtils.BOUNDARY_ELEMENT_ID}>
+      <FullscreenWorkspaceShell workspaceHostRef={setWorkspaceHost} />
+      {workspaceHost &&
+        createPortal(
+          <>
+            {/* A slim bar (hamburger + breadcrumbs) sits above the live page inside the Platform tab */}
+            <FullscreenWorkspacePlatformBar />
+            {/* `display: contents` keeps this ref wrapper out of the box tree, so the portaled page
+                stays a direct flex child of the workspace host (like it is of <main> in normal mode)
+                and full-height pages (e.g. Explore) can fill the Platform tab instead of collapsing. */}
+            <div ref={portalHostRef} className={styles.portalHost} />
+          </>,
+          workspaceHost
+        )}
+    </div>
+  );
+
   // Chromeless routes are without topNav, mega menu, search & command palette
   // We check chromeless twice here instead of having a separate path so {children}
   // doesn't get re-mounted when chromeless goes from true to false.
-  return (
+  const defaultChrome = (
     <div
       id={floatingUtils.BOUNDARY_ELEMENT_ID}
       className={classNames('main-view', {
@@ -142,35 +200,81 @@ export function AppChrome({ children }: Props) {
               [styles.pageContainerMenuDocked]: menuDockedAndOpen || isScopesDashboardsOpen,
               [styles.pageContainerMenuDockedScopes]: menuDockedAndOpen && isScopesDashboardsOpen,
               [styles.pageContainerWithSidebar]: !state.chromeless && isExtensionSidebarOpen,
-              [contentSizeStyles.contentWidth]: !state.chromeless && isExtensionSidebarOpen,
+              // Floating takes no width from the page, so the docked width is 0.
+              [contentSizeStyles.contentWidth]:
+                !state.chromeless && isExtensionSidebarOpen && !isSmallScreen && !isExtensionSidebarFloating,
             })}
             id="pageContent"
             tabIndex={-1}
+            ref={fullscreenWorkspaceFeatureFlagEnabled ? portalHostRef : undefined}
           >
-            {children}
+            {!fullscreenWorkspaceFeatureFlagEnabled && children}
           </main>
-          {!state.chromeless && isExtensionSidebarOpen && (
-            <Resizable
-              className={styles.sidebarContainer}
-              defaultSize={{ width: extensionSidebarWidth }}
-              enable={{ left: true }}
-              onResize={(_evt, _direction, ref) => setExtensionSidebarWidth(ref.getBoundingClientRect().width)}
-              handleClasses={{ left: dragStyles.dragHandleBaseVertical }}
-              minWidth={MIN_EXTENSION_SIDEBAR_WIDTH}
-              maxWidth={MAX_EXTENSION_SIDEBAR_WIDTH}
-            >
-              <ExtensionSidebar />
-            </Resizable>
-          )}
+          {!state.chromeless &&
+            isExtensionSidebarOpen &&
+            (isSmallScreen ? (
+              <div
+                className={cx(
+                  styles.sidebarContainerFloating,
+                  isExtensionSidebarFloating && [styles.sidebarContainerFloatingBar, contentSizeStyles.floatingWidth],
+                  isExtensionSidebarFloatingHidden && styles.sidebarContainerHidden
+                )}
+                data-testid={EXTENSION_SIDEBAR_FLOATING_TESTID}
+                {...floatingSidebarAttributes}
+              >
+                <ExtensionSidebar />
+              </div>
+            ) : (
+              // Docked and floating share this container so the extension never remounts; floating only
+              // restyles it and turns off resizing.
+              <Resizable
+                className={cx(styles.sidebarContainer, {
+                  [styles.sidebarContainerFloatingBar]: isExtensionSidebarFloating,
+                  [contentSizeStyles.floatingWidth]: isExtensionSidebarFloating,
+                  [styles.sidebarContainerHidden]: isExtensionSidebarFloatingHidden,
+                })}
+                defaultSize={{ width: extensionSidebarWidth }}
+                enable={isExtensionSidebarFloating ? false : { left: true }}
+                onResize={(_evt, _direction, ref) => setExtensionSidebarWidth(ref.getBoundingClientRect().width)}
+                handleClasses={{ left: dragStyles.dragHandleBaseVertical }}
+                // Floating has its own, lower minimum; an inline min-width would override `floatingWidth`.
+                minWidth={isExtensionSidebarFloating ? undefined : MIN_EXTENSION_SIDEBAR_WIDTH}
+                maxWidth={MAX_EXTENSION_SIDEBAR_WIDTH}
+                {...floatingSidebarAttributes}
+              >
+                <ExtensionSidebar />
+              </Resizable>
+            ))}
         </div>
       </div>
       {!state.chromeless && !state.megaMenuDocked && <AppChromeMenu />}
-      {!state.chromeless && <CommandPalette />}
+      {!state.chromeless && (
+        <Suspense fallback={null}>
+          <CommandPalette />
+        </Suspense>
+      )}
       {!state.chromeless && isSplashScreenEnabled && <SplashScreenModal />}
+      {!state.chromeless && <LazyFeatureControlFloating />}
       {shouldShowReturnToPrevious && state.returnToPrevious && (
         <ReturnToPrevious href={state.returnToPrevious.href} title={state.returnToPrevious.title} />
       )}
     </div>
+  );
+
+  if (!fullscreenWorkspaceFeatureFlagEnabled) {
+    return defaultChrome;
+  }
+
+  // With the fullscreen workspace feature flag enabled, we render either the fullscreen workspace
+  // chrome or the default chrome depending on whether the user entered workspace mode.
+  // `children` is rendered once into a stable detached node; `portalHostRef` reparents that node
+  // into whichever host is active (the default <main> or the workspace host / Platform tab), so
+  // toggling workspace mode moves the page's DOM without remounting it.
+  return (
+    <>
+      {fullscreenWorkspaceActive ? fullscreenWorkspaceChrome : defaultChrome}
+      {portalTargetRef.current && createPortal(children, portalTargetRef.current)}
+    </>
   );
 }
 
@@ -235,9 +339,14 @@ const getStyles = (theme: GrafanaTheme2, headerLevels: number, headerHeight: num
       height: `calc(100% - ${headerHeight}px)`,
       zIndex: 1,
     }),
-    scopesDashboardsContainerDocked: css({
-      left: MENU_WIDTH,
-    }),
+    scopesDashboardsContainerDocked: css(
+      {
+        left: MENU_WIDTH,
+      },
+      visualRefreshEnabled && {
+        left: `calc(${MENU_WIDTH} + ${theme.spacing(0.5)})`,
+      }
+    ),
     topNav: css({
       display: 'flex',
       position: 'fixed',
@@ -297,13 +406,51 @@ const getStyles = (theme: GrafanaTheme2, headerLevels: number, headerHeight: num
       zIndex: theme.zIndex.navbarFixed + 1,
       right: 0,
     }),
+    // A panel anchored to the bottom right: content-driven height, no chrome of its own.
+    // Its width comes from `getContentSizeStyles`.
+    sidebarContainerFloatingBar: css({
+      // `Resizable` sets width and height inline.
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      height: 'auto !important' as 'auto',
+      top: 'auto',
+      left: 'auto',
+      // Matches the page's own padding, so the snap points (which reuse this inset) line up with its panes.
+      right: theme.spacing(2),
+      bottom: theme.spacing(2),
+      background: 'transparent',
+      // The sidebar inside can be moved off this box; the box itself must not block the page.
+      pointerEvents: 'none',
+      // Above drawers and their mask (modalBackdrop), so the Assistant stays usable beside, for example, panel
+      // inspect; below modal dialogs, and below the portal that tooltips and menus (its own included) render in.
+      zIndex: theme.zIndex.modalBackdrop + 1,
+    }),
+    // A page holds the floating sidebar hidden: it stays mounted, so it takes over the page's prompt at once.
+    sidebarContainerHidden: css({
+      display: 'none',
+    }),
+    sidebarContainerFloating: css({
+      position: 'fixed',
+      top: headerLevels * headerHeight,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: theme.zIndex.navbarFixed + 1,
+    }),
+    portalHost: css({
+      display: 'contents',
+    }),
   };
 };
 
-const getContentSizeStyles = (_: GrafanaTheme2, extensionSidebarWidth = 0) => {
+const getContentSizeStyles = (theme: GrafanaTheme2, extensionSidebarWidth = 0, floatingExtensionSidebarWidth = 0) => {
   return {
     contentWidth: css({
       maxWidth: `calc(100% - ${extensionSidebarWidth}px) !important`,
+    }),
+    floatingWidth: css({
+      // `Resizable` sets width inline.
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      width: `min(${floatingExtensionSidebarWidth}px, calc(100% - ${theme.spacing(4)})) !important` as 'auto',
     }),
   };
 };

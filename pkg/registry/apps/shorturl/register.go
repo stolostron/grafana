@@ -10,12 +10,12 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/grafana/grafana-app-sdk/app"
-	appsdkapiserver "github.com/grafana/grafana-app-sdk/k8s/apiserver"
 	"github.com/grafana/grafana-app-sdk/simple"
 	"github.com/grafana/grafana/apps/shorturl/pkg/apis"
 	shorturl "github.com/grafana/grafana/apps/shorturl/pkg/apis/shorturl/v1beta1"
 	shorturlapp "github.com/grafana/grafana/apps/shorturl/pkg/app"
 	"github.com/grafana/grafana/pkg/apimachinery/utils"
+	appsdkapiserver "github.com/grafana/grafana/pkg/apiserver/appsdk"
 	grafanarest "github.com/grafana/grafana/pkg/apiserver/rest"
 	"github.com/grafana/grafana/pkg/services/apiserver/appinstaller"
 	"github.com/grafana/grafana/pkg/services/apiserver/endpoints/request"
@@ -42,11 +42,15 @@ func RegisterAppInstaller(
 		service:    service,
 		namespacer: request.GetNamespaceMapper(cfg),
 	}
-	provider := simple.NewAppProvider(apis.LocalManifest(), nil, shorturlapp.New)
+	specificConfig := &shorturlapp.Config{
+		AppURL: cfg.AppURL,
+	}
+	provider := simple.NewAppProvider(apis.LocalManifest(), specificConfig, shorturlapp.New)
 
 	appCfg := app.Config{
-		KubeConfig:   restclient.Config{}, // this will be overridden by the installer's InitializeApp method
-		ManifestData: *apis.LocalManifest().ManifestData,
+		KubeConfig:     restclient.Config{}, // this will be overridden by the installer's InitializeApp method
+		ManifestData:   *apis.LocalManifest().ManifestData,
+		SpecificConfig: specificConfig,
 	}
 	i, err := appsdkapiserver.NewDefaultAppInstaller(provider, appCfg, &apis.GoTypeAssociator{})
 	if err != nil {

@@ -7,8 +7,10 @@ import { reportInteraction, setPluginImportUtils } from '@grafana/runtime';
 import { SceneGridLayout, SceneTimeRange, VizPanel } from '@grafana/scenes';
 import { setTestFlags } from '@grafana/test-utils/unstable';
 import { contextSrv } from 'app/core/services/context_srv';
+import { CustomDashboardTemplateInteractions } from 'app/features/dashboard-scene/analytics/dashboard-templates/main';
 import { registerSaveAsTemplateForm } from 'app/features/dashboard-scene/saving/enterprise-components/SaveAsTemplateFormExtension';
 import { activateFullSceneTree } from 'app/features/dashboard-scene/utils/test-utils';
+import { AccessControlAction } from 'app/types/accessControl';
 
 import { DashboardScene } from '../../DashboardScene';
 import { DashboardGridItem } from '../../layout-default/DashboardGridItem';
@@ -21,6 +23,12 @@ jest.mock('@grafana/runtime', () => ({
   reportInteraction: jest.fn(),
 }));
 
+jest.mock('app/features/dashboard-scene/analytics/dashboard-templates/main', () => ({
+  CustomDashboardTemplateInteractions: {
+    saveAsOpened: jest.fn(),
+  },
+}));
+
 setPluginImportUtils({
   importPanelPlugin: (_id: string) => Promise.resolve(getPanelPlugin({})),
   getPanelPluginFromCache: (_id: string) => undefined,
@@ -29,6 +37,7 @@ setPluginImportUtils({
 interface BuildSceneOpts {
   uid?: string;
   isEditing?: boolean;
+  mode?: 'edit' | 'view';
   isDirty?: boolean;
   canSave?: boolean;
   canMakeEditable?: boolean;
@@ -39,6 +48,7 @@ function buildTestScene(opts: BuildSceneOpts = {}) {
   const {
     uid = 'dash-1',
     isEditing = true,
+    mode = 'edit',
     isDirty = false,
     canSave = true,
     canMakeEditable = false,
@@ -49,6 +59,7 @@ function buildTestScene(opts: BuildSceneOpts = {}) {
     title: 'Test',
     uid,
     isEditing,
+    mode,
     isDirty,
     meta: {
       canSave,
@@ -70,16 +81,22 @@ function buildTestScene(opts: BuildSceneOpts = {}) {
 
 describe('SaveDashboard (toolbar)', () => {
   let originalHasEditPermissionInFolders: boolean;
+  let originalPermissions: typeof contextSrv.user.permissions;
 
   beforeEach(() => {
     registerSaveAsTemplateForm(null as unknown as Parameters<typeof registerSaveAsTemplateForm>[0]);
     originalHasEditPermissionInFolders = contextSrv.hasEditPermissionInFolders;
     contextSrv.hasEditPermissionInFolders = true;
+    originalPermissions = contextSrv.user.permissions;
+    // "Save as template" is gated on the dashboardtemplates:write RBAC action; grant it by
+    // default so the visibility tests pass, and revoke it explicitly in the hidden cases.
+    contextSrv.user.permissions = { [AccessControlAction.DashboardTemplatesWrite]: true };
   });
 
   afterEach(async () => {
     registerSaveAsTemplateForm(null as unknown as Parameters<typeof registerSaveAsTemplateForm>[0]);
     contextSrv.hasEditPermissionInFolders = originalHasEditPermissionInFolders;
+    contextSrv.user.permissions = originalPermissions;
     jest.clearAllMocks();
   });
 
@@ -94,7 +111,7 @@ describe('SaveDashboard (toolbar)', () => {
       // Wrap in act() because setTestFlags fires OpenFeature events that trigger React state
       // updates while the component is still mounted (RTL cleanup runs in a separate afterEach).
       await act(async () => {
-        setTestFlags({ 'grafana.orgDashboardTemplates': true });
+        setTestFlags({ 'grafana.customDashboardTemplates': true });
       });
     });
 
@@ -139,7 +156,7 @@ describe('SaveDashboard (toolbar)', () => {
 
     it('is hidden when the feature flag is off', async () => {
       await act(async () => {
-        setTestFlags({ 'grafana.orgDashboardTemplates': false });
+        setTestFlags({ 'grafana.customDashboardTemplates': false });
       });
       const scene = buildTestScene({ canSave: true });
       const { user } = render(<SaveDashboard dashboard={scene} />);
@@ -150,7 +167,7 @@ describe('SaveDashboard (toolbar)', () => {
 
     it('is hidden when the flag is on but no extension form is registered', async () => {
       await act(async () => {
-        setTestFlags({ 'grafana.orgDashboardTemplates': true });
+        setTestFlags({ 'grafana.customDashboardTemplates': true });
       });
       const scene = buildTestScene({ canSave: true });
       const { user } = render(<SaveDashboard dashboard={scene} />);
@@ -159,9 +176,37 @@ describe('SaveDashboard (toolbar)', () => {
       expect(screen.queryByRole('menuitem', { name: /Save as template/i })).not.toBeInTheDocument();
     });
 
+    it('is hidden without dashboardtemplates:write', async () => {
+      await act(async () => {
+        setTestFlags({ 'grafana.customDashboardTemplates': true });
+      });
+      registerSaveAsTemplateForm(() => null);
+      contextSrv.user.permissions = {};
+
+      const scene = buildTestScene({ canSave: true });
+      const { user } = render(<SaveDashboard dashboard={scene} />);
+
+      await user.click(await screen.findByRole('button', { name: /More save options/i }));
+      expect(screen.queryByRole('menuitem', { name: /Save as template/i })).not.toBeInTheDocument();
+    });
+
+    it('is visible with dashboardtemplates:write', async () => {
+      await act(async () => {
+        setTestFlags({ 'grafana.customDashboardTemplates': true });
+      });
+      registerSaveAsTemplateForm(() => null);
+      contextSrv.user.permissions = { [AccessControlAction.DashboardTemplatesWrite]: true };
+
+      const scene = buildTestScene({ canSave: true });
+      const { user } = render(<SaveDashboard dashboard={scene} />);
+
+      await user.click(await screen.findByRole('button', { name: /More save options/i }));
+      expect(await screen.findByRole('menuitem', { name: /Save as template/i })).toBeInTheDocument();
+    });
+
     it('is visible and triggers openSaveDrawer when flag is on, canSave is true, and an extension form is registered', async () => {
       await act(async () => {
-        setTestFlags({ 'grafana.orgDashboardTemplates': true });
+        setTestFlags({ 'grafana.customDashboardTemplates': true });
       });
       registerSaveAsTemplateForm(() => null);
 
@@ -173,6 +218,79 @@ describe('SaveDashboard (toolbar)', () => {
       await user.click(menuItem);
 
       expect(scene.openSaveDrawer).toHaveBeenCalledWith({ saveAsDashboardTemplate: true });
+    });
+
+    it('fires save_as_opened analytics when the menu item is clicked', async () => {
+      await act(async () => {
+        setTestFlags({ 'grafana.customDashboardTemplates': true });
+      });
+      registerSaveAsTemplateForm(() => null);
+
+      const scene = buildTestScene({ canSave: true, uid: 'my-dash' });
+      const { user } = render(<SaveDashboard dashboard={scene} />);
+
+      await user.click(await screen.findByRole('button', { name: /More save options/i }));
+      await user.click(await screen.findByRole('menuitem', { name: /Save as template/i }));
+
+      expect(CustomDashboardTemplateInteractions.saveAsOpened).toHaveBeenCalledWith({
+        dashboardUid: 'my-dash',
+      });
+    });
+  });
+
+  describe('View changes menu item', () => {
+    beforeEach(async () => {
+      await act(async () => {
+        setTestFlags({
+          dashboardNewLayouts: true,
+          'grafana.dashboardPreviewMode': true,
+          'grafana.customDashboardTemplates': true,
+        });
+      });
+    });
+
+    afterEach(async () => {
+      await act(async () => {
+        setTestFlags({});
+      });
+    });
+
+    it.each([
+      { name: 'editing', options: { mode: 'edit' as const } },
+      { name: 'viewing', options: { mode: 'view' as const } },
+      { name: 'a new dashboard', options: { uid: '' } },
+      { name: 'a dashboard that can only be copied', options: { canSave: false } },
+      { name: 'a dashboard template', options: { isDashboardTemplate: true } },
+    ])('opens the diff from the Save dropdown for $name', async ({ options }) => {
+      const scene = buildTestScene(options);
+      const { user } = render(<SaveDashboard dashboard={scene} />);
+
+      await user.click(await screen.findByRole('button', { name: 'More save options' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'View changes' }));
+
+      expect(scene.openSaveDrawer).toHaveBeenCalledWith({ showDiff: true });
+      expect(screen.queryByRole('button', { name: 'View changes' })).not.toBeInTheDocument();
+    });
+
+    it('preserves the ordinary save menu when the preview feature is disabled', async () => {
+      await act(async () => {
+        setTestFlags({ 'grafana.dashboardPreviewMode': false });
+      });
+      const scene = buildTestScene();
+      const { user } = render(<SaveDashboard dashboard={scene} />);
+
+      await user.click(await screen.findByRole('button', { name: 'More save options' }));
+      expect(await screen.findByRole('menuitem', { name: 'Save as copy' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'View changes' })).not.toBeInTheDocument();
+    });
+
+    it('does not offer session changes outside edit mode', async () => {
+      const scene = buildTestScene({ isEditing: false });
+      const { user } = render(<SaveDashboard dashboard={scene} />);
+
+      await user.click(await screen.findByRole('button', { name: 'More save options' }));
+      expect(await screen.findByRole('menuitem', { name: 'Save as copy' })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'View changes' })).not.toBeInTheDocument();
     });
   });
 

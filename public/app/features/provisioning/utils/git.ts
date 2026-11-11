@@ -21,6 +21,14 @@ export function buildCleanBaseUrl(url: string) {
   return stripSlashes(url.trim()).replace(/\.git\/?$/i, '');
 }
 
+export function withGitSuffix(spec: RepositorySpec): RepositorySpec | undefined {
+  const url = spec.type === 'git' ? spec.git?.url && stripSlashes(spec.git.url.trim()) : undefined;
+  if (!spec.git || !url || /\.git$/i.test(url)) {
+    return undefined;
+  }
+  return { ...spec, git: { ...spec.git, url: `${url}.git` } };
+}
+
 /**
  * Formats a repository URL for display by extracting the path portion.
  * e.g., "https://github.com/owner/repo/tree/main/path" -> "owner/repo/tree/main/path"
@@ -30,6 +38,18 @@ export function formatRepoUrl(url?: string): string {
     return '';
   }
   return url.split('/').slice(3).join('/');
+}
+
+// Extract the scheme + host (e.g. https://ghes.example.com) from a URL; empty string when unparseable.
+export function getServerOrigin(url?: string): string {
+  if (!url) {
+    return '';
+  }
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
 }
 
 // Remove leading and trailing slashes from a string.
@@ -87,6 +107,13 @@ export const getRepoHrefForProvider = (spec?: RepositorySpec) => {
         providerSegments: ['tree'],
         path: spec.github?.path,
       });
+    case 'githubEnterprise':
+      return buildRepoUrl({
+        baseUrl: spec.githubEnterprise?.url,
+        branch: spec.githubEnterprise?.branch,
+        providerSegments: ['tree'],
+        path: spec.githubEnterprise?.path,
+      });
     case 'gitlab':
       return buildRepoUrl({
         baseUrl: spec.gitlab?.url,
@@ -111,7 +138,7 @@ export const getRepoHrefForProvider = (spec?: RepositorySpec) => {
 };
 
 export function getHasTokenInstructions(type: RepoType): type is InstructionAvailability {
-  return type === 'github' || type === 'gitlab' || type === 'bitbucket';
+  return type === 'github' || type === 'githubEnterprise' || type === 'gitlab' || type === 'bitbucket';
 }
 
 type GetRepoFileUrlParams = {
@@ -201,6 +228,7 @@ export function getRepoRawFileUrl({
   const cleanPath = stripSlashes(filePath);
 
   switch (repoType) {
+    case 'githubEnterprise':
     case 'github':
       return buildRepoUrl({
         baseUrl: url,
@@ -252,6 +280,7 @@ export function getRepoEditFileUrl({
   const fullPath = pathPrefix ? `${pathPrefix.replace(/\/+$/, '')}/${filePath}` : filePath;
 
   switch (repoType) {
+    case 'githubEnterprise':
     case 'github':
       return buildRepoUrl({
         baseUrl: url,
@@ -301,6 +330,7 @@ export function getRepoNewFileUrl({
   const fullPath = pathPrefix ? `${pathPrefix.replace(/\/+$/, '')}/${filePath}` : filePath;
 
   switch (repoType) {
+    case 'githubEnterprise':
     case 'github': {
       const base = buildRepoUrl({
         baseUrl: url,
@@ -372,6 +402,17 @@ export function getRepoCommitUrl(spec?: RepositorySpec, commit?: string) {
         });
       }
       break;
+    case 'githubEnterprise':
+      if (spec.githubEnterprise?.url) {
+        providerSegments = ['commit'];
+        url = buildRepoUrl({
+          baseUrl: spec.githubEnterprise.url,
+          branch: undefined,
+          providerSegments,
+          path: commit,
+        });
+      }
+      break;
     case 'gitlab':
       if (spec.gitlab?.url) {
         providerSegments = ['-', 'commit'];
@@ -397,4 +438,23 @@ export function getRepoCommitUrl(spec?: RepositorySpec, commit?: string) {
   }
 
   return { hasUrl: !!url, url };
+}
+
+// Returns the provider-specific config block (which carries `url`, `branch`, `path`)
+// for whichever Git provider the repository uses.
+export function getRemoteConfig(spec?: RepositorySpec) {
+  switch (spec?.type) {
+    case 'github':
+      return spec.github;
+    case 'githubEnterprise':
+      return spec.githubEnterprise;
+    case 'gitlab':
+      return spec.gitlab;
+    case 'bitbucket':
+      return spec.bitbucket;
+    case 'git':
+      return spec.git;
+    default:
+      return undefined;
+  }
 }

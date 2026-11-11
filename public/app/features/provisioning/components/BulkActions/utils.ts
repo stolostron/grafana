@@ -1,16 +1,16 @@
+import { t } from '@grafana/i18n';
 import { type Folder } from 'app/api/clients/folder/v1beta1';
 import { type RepositoryView } from 'app/api/clients/provisioning/v0alpha1';
 import { AnnoKeySourcePath } from 'app/features/apiserver/types';
 import { type DashboardTreeSelection } from 'app/features/browse-dashboards/types';
-import { type WorkflowOption } from 'app/features/provisioning/types';
+import { collectSelectedItems } from 'app/features/browse-dashboards/utils/dashboards';
 
-import { getDefaultRef, getDefaultWorkflow } from '../defaults';
+import { getDefaultRef } from '../defaults';
 import { joinPath } from '../utils/path';
 
 export type BulkActionFormData = {
   comment: string;
   ref: string;
-  workflow?: WorkflowOption;
   targetFolderUID?: string;
 };
 
@@ -21,6 +21,21 @@ export interface BulkActionProvisionResourceProps {
   onDismiss?: () => void;
 }
 
+/**
+ * Localized count summary (e.g. "3 resources") used as the `{{title}}` commit-template variable for
+ * multi-resource bulk operations, which have no single resource title.
+ */
+export function getSelectedResourceCountSummary(
+  selectedItems: BulkActionProvisionResourceProps['selectedItems']
+): string {
+  const count = collectSelectedItems(selectedItems).length;
+  return t('browse-dashboards.bulk-actions.commit-title-resource-count', '', {
+    count,
+    defaultValue_one: '{{count}} resource',
+    defaultValue_other: '{{count}} resources',
+  });
+}
+
 export function getBulkActionInitialValues(
   repository: RepositoryView | undefined,
   branchPrefix: string
@@ -28,7 +43,6 @@ export function getBulkActionInitialValues(
   return {
     comment: '',
     ref: getDefaultRef(repository, branchPrefix),
-    workflow: getDefaultWorkflow(repository),
   };
 }
 
@@ -116,6 +130,10 @@ export function isResourceAlreadyInTarget(currentPath: string, targetFolderPath:
   return normalizeRepoPath(currentPath) === normalizeRepoPath(getResourceTargetPath(currentPath, targetFolderPath));
 }
 
-export function isSameFolderPath(currentFolderPath: string | undefined, targetFolderPath: string): boolean {
-  return normalizeRepoPath(currentFolderPath || '') === normalizeRepoPath(targetFolderPath);
+/**
+ * True when every selected item already sits directly under the target folder, so the move would be a no-op.
+ * Items missing from the browse tree (undefined parent) never match; the backend skips them if already in place.
+ */
+export function isSelectionAlreadyInFolder(parentUIDs: Array<string | undefined>, targetFolderUID: string): boolean {
+  return parentUIDs.length > 0 && parentUIDs.every((parentUID) => parentUID === targetFolderUID);
 }

@@ -1,11 +1,11 @@
-import type OpenLayersMap from 'ol/Map';
 import LayerGroup from 'ol/layer/Group';
 import Layer from 'ol/layer/Layer';
 import VectorLayer from 'ol/layer/Vector';
+import VectorTileLayer from 'ol/layer/VectorTile';
 import VectorSource from 'ol/source/Vector';
 import { apply } from 'ol-mapbox-style';
 
-import { type MapLayerRegistryItem, type MapLayerOptions, type GrafanaTheme2, type EventBus } from '@grafana/data';
+import { type MapLayerRegistryItem } from '@grafana/data';
 
 // https://docs.carto.com/faqs/carto-basemaps
 
@@ -27,23 +27,34 @@ const defaultCartoConfig: CartoConfig = {
   showLabels: true,
 };
 
+/**
+ * CARTO's 512px tiles run out one level short of the view's own zoom 0, so further out every style
+ * rule falls below the style's first zoom stop and the basemap collapses to its background color.
+ * Styling those resolutions as if they were the widest tile keeps the world drawn, only smaller.
+ */
+function clampStyleToWidestTile(layer: VectorTileLayer) {
+  const tileGrid = layer.getSource()?.getTileGrid();
+  const styleFunction = layer.getStyleFunction();
+  if (!tileGrid || !styleFunction) {
+    return;
+  }
+  const widest = tileGrid.getResolution(tileGrid.getMinZoom());
+  layer.setStyle((feature, resolution) => styleFunction(feature, Math.min(resolution, widest)));
+}
+
 export const carto: MapLayerRegistryItem<CartoConfig> = {
   id: 'carto',
   name: 'CARTO basemap',
   description: 'Add layer CARTO vector basemaps',
   isBaseMap: true,
+  requiresAttribution: true,
   defaultOptions: defaultCartoConfig,
 
   /**
    * Function that configures transformation and returns a transformer
    * @param options
    */
-  create: async (
-    map: OpenLayersMap,
-    options: MapLayerOptions<CartoConfig>,
-    eventBus: EventBus,
-    theme: GrafanaTheme2
-  ) => ({
+  create: async (_map, options, _eventBus, theme) => ({
     init: () => {
       const cfg = { ...defaultCartoConfig, ...options.config };
       const dark = !cfg.theme || cfg.theme === LayerTheme.Auto ? theme.isDark : cfg.theme === LayerTheme.Dark;
@@ -64,6 +75,9 @@ export const carto: MapLayerRegistryItem<CartoConfig> = {
             // The TileJSON credits the same two projects in its own words, so drop it and keep one
             if (child !== attribution && child instanceof Layer) {
               child.getSource()?.setAttributions(undefined);
+            }
+            if (child instanceof VectorTileLayer) {
+              clampStyleToWidestTile(child);
             }
           })
         )

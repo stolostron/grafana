@@ -17,20 +17,19 @@ import {
   store,
   type TimeFragment,
   type TimeRange,
-  toUtc,
   type URLRange,
   type URLRangeValue,
 } from '@grafana/data';
-import { getDataSourceSrv } from '@grafana/runtime';
+import { getDataSourceInstance } from '@grafana/runtime';
 import { type DataQuery, type DataSourceJsonData, type DataSourceRef, type TimeZone } from '@grafana/schema';
 import { getLocalRichHistoryStorage } from 'app/core/history/richHistoryStorageProvider';
 import { SortOrder } from 'app/core/utils/richHistoryTypes';
+import { parseUrlTime } from 'app/core/utils/timePicker';
 import { MIXED_DATASOURCE_NAME } from 'app/plugins/datasource/mixed/MixedDataSource';
 import { type ExploreItemState, type ExplorePanelData, type RichHistoryQuery } from 'app/types/explore';
 import { type StoreState } from 'app/types/store';
 
 import { setLastUsedDatasourceUID } from '../../../core/utils/explore';
-import { getDatasourceSrv } from '../../plugins/datasource_srv';
 import { loadSupplementaryQueries } from '../utils/supplementaryQueries';
 
 import { DEFAULT_RANGE } from './constants';
@@ -106,12 +105,12 @@ export async function loadAndInitDatasource(
   let instance: DataSourceApi<DataQuery, DataSourceJsonData, {}>;
   try {
     // let datasource be a ref if we have the info, otherwise a name or uid will do for lookup
-    instance = await getDatasourceSrv().get(datasource);
+    instance = await getDataSourceInstance(datasource);
   } catch (error) {
     // Falling back to the default data source in case the provided data source was not found.
     // It may happen if last used data source or the data source provided in the URL has been
     // removed or it is not provisioned anymore.
-    instance = await getDatasourceSrv().get();
+    instance = await getDataSourceInstance();
   }
   if (instance.init) {
     try {
@@ -221,48 +220,10 @@ export function fromURLRange(range: URLRange): RawTimeRange {
 }
 
 function parseRawTime(urlRangeValue: URLRangeValue | DateTime): TimeFragment | null {
-  if (urlRangeValue === null) {
-    return null;
-  }
-
   if (isDateTime(urlRangeValue)) {
     return urlRangeValue;
   }
-
-  if (typeof urlRangeValue !== 'string') {
-    return null;
-  }
-
-  // it can only be a string now
-  const value = urlRangeValue;
-
-  if (value.indexOf('now') !== -1) {
-    return value;
-  }
-  if (value.length === 8) {
-    return toUtc(value, 'YYYYMMDD');
-  }
-  if (value.length === 15) {
-    return toUtc(value, 'YYYYMMDDTHHmmss');
-  }
-  // Backward compatibility
-  if (value.length === 19) {
-    return toUtc(value, 'YYYY-MM-DD HH:mm:ss');
-  }
-
-  // This should handle cases where value is an epoch time as string
-  if (value.match(/^\d+$/)) {
-    const epoch = parseInt(value, 10);
-    return toUtc(epoch);
-  }
-
-  // This should handle ISO strings
-  const time = toUtc(value);
-  if (time.isValid()) {
-    return time;
-  }
-
-  return null;
+  return typeof urlRangeValue === 'string' ? parseUrlTime(urlRangeValue) : null;
 }
 
 export const filterLogRowsByIndex = (
@@ -295,7 +256,7 @@ export async function getCorrelationsData(state: StoreState, exploreId: string) 
   const isCorrelationEditorMode = state.explore.correlationEditorDetails?.editorMode || false;
   const isLeftPane = Object.keys(state.explore.panes)[0] === exploreId;
   const showCorrelationEditorLinks = isCorrelationEditorMode && isLeftPane;
-  const defaultCorrelationEditorDatasource = showCorrelationEditorLinks ? await getDataSourceSrv().get() : undefined;
+  const defaultCorrelationEditorDatasource = showCorrelationEditorLinks ? await getDataSourceInstance() : undefined;
   const interpolateCorrelationHelperVars =
     isCorrelationEditorMode && !isLeftPane && correlationEditorHelperData !== undefined;
 

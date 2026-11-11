@@ -187,6 +187,16 @@ func (mg *Migrator) GetMigrationIDs(excludeNotLogged bool) []string {
 	return result
 }
 
+// MigrationIDs returns the ordered migration IDs that register would add.
+// cfg must be the same config the migrations will later run with: registration may
+// branch on it (e.g. the enterprise migration set registers its migrations only when
+// the migrator carries a non-nil config), so a different cfg can enumerate a different set.
+func MigrationIDs(cfg *setting.Cfg, driverName string, register func(*Migrator)) []string {
+	mg := newMigrator(nil, cfg, "", NewDialect(driverName))
+	register(mg)
+	return mg.GetMigrationIDs(false)
+}
+
 func (mg *Migrator) GetMigrationLog() (map[string]MigrationLog, error) {
 	logMap := make(map[string]MigrationLog)
 	logItems := make([]MigrationLog, 0)
@@ -221,6 +231,25 @@ func (mg *Migrator) RunMigrations(ctx context.Context, isDatabaseLockingEnabled 
 		return mg.run(ctx)
 	}
 
+	logger := mg.Logger.FromContext(ctx)
+
+	if !mg.Dialect.SupportsAdvisoryLocks() {
+		// Without advisory locks (SQLite) the outer transaction below would only
+		// pin a pooled connection for the whole run while every migration begins
+		// its own transaction on a second connection — a deadlock once the rest
+		// of the pool is occupied. Keep the in-process guard and skip the rest.
+		if err := casRestoreOnErr(&mg.isLocked, false, true, ErrMigratorIsLocked, mg.Dialect.Lock, LockCfg{}); err != nil {
+			logger.Error("Failed to lock database", "error", err)
+			return err
+		}
+		defer func() {
+			if unlockErr := casRestoreOnErr(&mg.isLocked, true, false, ErrMigratorIsUnlocked, mg.Dialect.Unlock, LockCfg{}); unlockErr != nil {
+				logger.Error("Failed to unlock database", "error", unlockErr)
+			}
+		}()
+		return mg.run(ctx)
+	}
+
 	dbName, err := mg.Dialect.GetDBName(mg.DBEngine.DataSourceName())
 	if err != nil {
 		return err
@@ -229,8 +258,6 @@ func (mg *Migrator) RunMigrations(ctx context.Context, isDatabaseLockingEnabled 
 	if err != nil {
 		return err
 	}
-
-	logger := mg.Logger.FromContext(ctx)
 
 	return mg.InTransaction(func(sess *xorm.Session) error {
 		logger.Info("Locking database")
@@ -469,11 +496,35 @@ func (mg *Migrator) InTransaction(callback dbTransactionFunc) error {
 	return errors.Join(lastErr, b.Err())
 }
 
+// connAcquireTimeout bounds how long beginning a migration transaction may wait
+// for a pooled database connection. Waiting longer means the pool is exhausted
+// (e.g. every other connection is held while the migrator holds the database
+// lock); without a bound that wait is a silent deadlock. It is a variable so
+// tests can shorten it.
+var connAcquireTimeout = 30 * time.Second
+
 func (mg *Migrator) inTransaction(callback dbTransactionFunc) error {
 	sess := mg.DBEngine.NewSession()
 	defer sess.Close()
 
-	if err := sess.Begin(); err != nil {
+	// database/sql ties the context passed to BeginTx to the whole transaction
+	// lifetime (cancellation rolls the transaction back), so a plain WithTimeout
+	// would abort long-running migrations. Instead a watchdog cancels the context
+	// only if Begin is still waiting for a connection when the timer fires; on
+	// success the context stays alive until the deferred cancel after
+	// Commit/Rollback.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sess.Context(ctx)
+
+	watchdog := time.AfterFunc(connAcquireTimeout, cancel)
+	err := sess.Begin()
+	if !watchdog.Stop() {
+		// The watchdog fired: even if Begin won the race and succeeded, the
+		// canceled context has already doomed the transaction.
+		return fmt.Errorf("timed out after %s waiting for a database connection to begin a migration transaction (connection pool exhausted?)", connAcquireTimeout)
+	}
+	if err != nil {
 		return err
 	}
 

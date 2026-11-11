@@ -25,13 +25,8 @@ func IsWriteAllowed(repo *provisioning.Repository, ref string) error {
 		}
 	}
 
-	// Ref may be the configured branch for github repositories
-	if ref != "" && repo.Spec.GitHub != nil && repo.Spec.GitHub.Branch == ref {
-		ref = ""
-	}
-
-	// Ref may be the configured branch for git repositories
-	if ref != "" && repo.Spec.Git != nil && repo.Spec.Git.Branch == ref {
+	// A ref matching the configured branch is a direct write, not a branch workflow
+	if ref != "" && repo.Branch() == ref {
 		ref = ""
 	}
 
@@ -62,7 +57,7 @@ func NewIncrementalSyncPolicy(folderMetadataEnabled bool, maxIncrementalChanges 
 // CanUseIncrementalSync determines if an incremental sync is permitted, based on the given deleted paths
 // and total change count. It returns false to require a full sync if:
 //   - The total number of changes exceeds maxIncrementalChanges (when maxIncrementalChanges > 0),
-//   - Any directory only has its folder-metadata file removed (.keep, or _folder.json if folderMetadataEnabled) without
+//   - Any directory only has its folder-metadata file removed (.keep or _folder.json) without
 //     any Grafana resources in that directory being deleted. In such cases, a full sync is needed because the incremental
 //     sync cannot determine whether an entire folder (not just its metadata) was deleted, and these metadata files do not
 //     represent Grafana resources themselves. Returning false ensures deleted directories are properly cleaned up by a full sync.
@@ -96,5 +91,5 @@ func isFolderMetadataFile(path string, folderMetadataEnabled bool) bool {
 	if strings.HasSuffix(path, ".keep") {
 		return true
 	}
-	return folderMetadataEnabled && safepath.Base(path) == "_folder.json"
+	return safepath.Base(path) == "_folder.json"
 }

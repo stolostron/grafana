@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/grafana-app-sdk/logging"
 	"github.com/grafana/grafana-app-sdk/resource"
 	advisorv0alpha1 "github.com/grafana/grafana/apps/advisor/pkg/apis/advisor/v0alpha1"
+	"github.com/grafana/grafana/apps/advisor/pkg/app/checkregistry"
 	"github.com/grafana/grafana/apps/advisor/pkg/app/checks"
 	"github.com/grafana/grafana/apps/advisor/pkg/app/metrics"
 	"github.com/grafana/grafana/pkg/services/contexthandler"
@@ -21,17 +22,17 @@ import (
 
 var retryAnnotationPollingInterval = 1 * time.Second
 
-func getCheck(obj resource.Object, checkMap map[string]checks.Check) (checks.Check, error) {
+func getCheck(obj resource.Object, checkRegistry checkregistry.CheckService) (checks.Check, error) {
 	labels := obj.GetLabels()
 	objTypeLabel, ok := labels[checks.TypeLabel]
 	if !ok {
 		return nil, errors.New("missing check type as label")
 	}
-	c, ok := checkMap[objTypeLabel]
+	c, ok := checkRegistry.Check(objTypeLabel)
 	if !ok {
 		supportedTypes := ""
-		for k := range checkMap {
-			supportedTypes += k + ", "
+		for _, c := range checkRegistry.Checks() {
+			supportedTypes += c.ID() + ", "
 		}
 		return nil, fmt.Errorf("unknown check type %s. Supported types are: %s", objTypeLabel, supportedTypes)
 	}
@@ -48,6 +49,14 @@ func processCheck(ctx context.Context, log logging.Logger, client resource.Clien
 	c, ok := obj.(*advisorv0alpha1.Check)
 	if !ok {
 		return fmt.Errorf("invalid object type")
+	}
+	// processCheck is invoked from the validating admission webhook in a
+	// goroutine, so it can race with the apiserver finishing the write of
+	// the Check resource. Wait for the object to be persisted before any
+	// PATCH below (including the SetStatusAnnotation calls in the error
+	// paths) can hit a "not found" against the in-flight create.
+	if err := waitForItem(ctx, log, client, obj); err != nil {
+		return err
 	}
 	// Get the items to check
 	err := check.Init(ctx)
@@ -84,11 +93,6 @@ func processCheck(ctx context.Context, log logging.Logger, client resource.Clien
 		}
 		return fmt.Errorf("error running steps: %w", err)
 	}
-	// Wait for the item to be persisted before patching the object
-	err = waitForItem(ctx, log, client, obj)
-	if err != nil {
-		return err
-	}
 	report := &advisorv0alpha1.CheckReport{
 		Failures: failures,
 		Count:    int64(len(items)),
@@ -121,6 +125,10 @@ func processCheckRetry(ctx context.Context, log logging.Logger, client resource.
 		return nil
 	} else {
 		log.Debug("Item to retry found", "check", obj.GetName(), "item", itemToRetry)
+	}
+	// Wait for the retry annotation to be persisted before processing the object
+	if err := waitForRetryAnnotation(ctx, log, client, obj, itemToRetry); err != nil {
+		return err
 	}
 	c, ok := obj.(*advisorv0alpha1.Check)
 	if !ok {
@@ -169,11 +177,6 @@ func processCheckRetry(ctx context.Context, log logging.Logger, client resource.
 		return f.ItemID == itemToRetry
 	})
 	c.Status.Report.Failures = append(currentFailures, failures...)
-	// Wait for the retry annotation to be persisted before patching the object
-	err = waitForRetryAnnotation(ctx, log, client, obj, itemToRetry)
-	if err != nil {
-		return err
-	}
 	// Set the status
 	err = checks.SetStatus(ctx, client, obj, c.Status)
 	log.Debug("Status set", "check", obj.GetName(), "status.count", c.Status.Report.Count)

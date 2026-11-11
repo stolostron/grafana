@@ -3,6 +3,7 @@ package dualwrite
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -46,6 +47,15 @@ type dualWriter struct {
 	getMode func(ctx context.Context) (readUnified bool, errorIsOK bool)
 	gr      schema.GroupResource
 	metrics *dualWriterMetrics
+}
+
+// DryRunUpdatePreparer evaluates UpdatedObjectInfo against the authoritative
+// legacy object without writing it. Calling UpdatedObject runs the request's
+// transformers, including mutating admission, so they see the same stored
+// object as a live update. Validating admission runs later in unified storage's
+// dry-run through the separate updateValidation callback.
+type DryRunUpdatePreparer interface {
+	PrepareDryRunUpdate(ctx context.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, error)
 }
 
 func (d *dualWriter) Get(ctx context.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
@@ -360,11 +370,25 @@ func (d *dualWriter) Update(ctx context.Context, name string, objInfo rest.Updat
 			attribute.Bool("readUnified", readUnified)))
 	defer span.End()
 
-	// During dry-run, skip legacy storage and delegate directly to unified storage
-	// which already handles dry-run correctly via DryRunnableStorage.
+	// During dry-run, skip legacy writes and delegate the simulation to unified
+	// storage, which handles dry-run via DryRunnableStorage. If legacy storage
+	// can prepare an update without writing, use its authoritative object for
+	// admission before the unified simulation.
 	if dryrun.IsDryRun(options.DryRun) {
 		if readUnified {
 			return d.unified.Update(ctx, name, objInfo, createValidation, updateValidation, forceAllowCreate, options)
+		}
+		if preparer, ok := d.legacy.(DryRunUpdatePreparer); ok {
+			ctx = addToContext(ctx)
+			approved, err := preparer.PrepareDryRunUpdate(ctx, name, objInfo)
+			if err != nil {
+				return nil, false, err
+			}
+			unifiedInfo := &wrappedUpdateInfo{
+				objInfo:             rest.DefaultUpdatedObjectInfo(approved),
+				updatedSecureValues: getUpdatedSecureValues(ctx),
+			}
+			return d.unified.Update(withMirroredUpdate(ctx), name, unifiedInfo, createValidation, updateValidation, true, options)
 		}
 		return d.unified.Update(ctx, name, &wrappedUpdateInfo{objInfo: objInfo}, createValidation, updateValidation, true, options)
 	}
@@ -410,6 +434,9 @@ func (d *dualWriter) Update(ctx context.Context, name string, objInfo rest.Updat
 	if secure := getUpdatedSecureValues(ctx); secure != nil {
 		unifiedInfo.updatedSecureValues = secure
 	}
+	// Resource admission can distinguish this secondary write from the earlier
+	// write against authoritative legacy storage.
+	ctx = withMirroredUpdate(ctx)
 
 	if errorIsOK {
 		// If unified is not primary, but errors are okay, we can just run in the background.
@@ -441,7 +468,64 @@ func (d *dualWriter) Update(ctx context.Context, name string, objInfo rest.Updat
 
 // DeleteCollection is not supported with dual write
 func (d *dualWriter) DeleteCollection(ctx context.Context, deleteValidation rest.ValidateObjectFunc, options *metav1.DeleteOptions, listOptions *internalversion.ListOptions) (runtime.Object, error) {
-	return nil, apierrors.NewMethodNotSupported(d.gr, "deletecollection")
+	unified, ok := d.unified.(rest.CollectionDeleter)
+	if !ok {
+		return nil, apierrors.NewMethodNotSupported(d.gr, "deletecollection")
+	}
+	legacy, ok := d.legacy.(rest.CollectionDeleter)
+	if !ok {
+		return nil, apierrors.NewMethodNotSupported(d.gr, "deletecollection")
+	}
+
+	readUnified, errorIsOK := d.getMode(ctx)
+	ctx, span := tracer.Start(ctx, "dualwrite.dualWriter.DeleteCollection",
+		trace.WithAttributes(
+			attribute.Bool("errorIsOK", errorIsOK),
+			attribute.Bool("readUnified", readUnified)))
+	defer span.End()
+
+	// During dry-run, skip legacy storage and delegate directly to unified storage
+	// which already handles dry-run correctly via DryRunnableStorage.
+	if dryrun.IsDryRun(options.DryRun) {
+		return unified.DeleteCollection(ctx, deleteValidation, options, listOptions)
+	}
+
+	// In unified mode, legacy may be unavailable post-migration — skip it entirely.
+	if readUnified {
+		return unified.DeleteCollection(ctx, deleteValidation, options, listOptions)
+	}
+
+	log := logging.FromContext(ctx).With("method", "DeleteCollection", "resourceVersion", listOptions.ResourceVersion, "resource", d.gr.String())
+
+	// delete from legacy first, and anything that is successful can be deleted in unistore too.
+	//
+	// we want to delete from legacy first, otherwise if the delete from unistore was successful,
+	// but legacy failed, the user would get a failure, but not be able to retry the delete
+	// as they would not be able to see the object in unistore anymore.
+
+	deletedLegacy, err := legacy.DeleteCollection(ctx, deleteValidation, options, listOptions)
+	if err != nil {
+		log.With("options", options).Error("failed to DELETE collection successfully from legacy storage", "err", err)
+		return nil, err
+	}
+
+	if errorIsOK {
+		// If unified storage is not the primary store and errors are okay, we can just run it in the background.
+		go func(ctxBg context.Context, cancel context.CancelFunc) {
+			defer cancel()
+			if _, err := unified.DeleteCollection(ctxBg, deleteValidation, options, listOptions); err != nil {
+				log.With("objectInfo", objectInfo(deletedLegacy)).Error("failed background DELETE collection to unified storage", "err", err)
+				d.metrics.backgroundErrors.WithLabelValues(d.gr.String(), "DELETE_COLLECTION").Inc()
+			}
+		}(context.WithTimeout(context.WithoutCancel(ctx), backgroundReqTimeout))
+		return deletedLegacy, nil
+	}
+	// Otherwise we have to check the error and run it in the foreground.
+	if _, err := unified.DeleteCollection(ctx, deleteValidation, options, listOptions); err != nil {
+		log.With("objectInfo", objectInfo(deletedLegacy)).Error("failed to DELETE collection successfully from Storage", "err", err)
+		return nil, err
+	}
+	return deletedLegacy, nil
 }
 
 func (d *dualWriter) Destroy() {
@@ -498,9 +582,7 @@ func (w *wrappedUpdateInfo) UpdatedObject(ctx context.Context, oldObj runtime.Ob
 		if existingLabels == nil {
 			existingLabels = make(map[string]string)
 		}
-		for key, value := range w.legacyLabels {
-			existingLabels[key] = value
-		}
+		maps.Copy(existingLabels, w.legacyLabels)
 		meta.SetLabels(existingLabels)
 	}
 	if len(w.legacyAnnotations) > 0 {
@@ -508,9 +590,7 @@ func (w *wrappedUpdateInfo) UpdatedObject(ctx context.Context, oldObj runtime.Ob
 		if existingAnnotations == nil {
 			existingAnnotations = make(map[string]string)
 		}
-		for key, value := range w.legacyAnnotations {
-			existingAnnotations[key] = value
-		}
+		maps.Copy(existingAnnotations, w.legacyAnnotations)
 		meta.SetAnnotations(existingAnnotations)
 	}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,7 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/registry/rest"
 
-	model "github.com/grafana/grafana/apps/alerting/rules/pkg/apis/alerting/v0alpha1"
+	"github.com/grafana/grafana/apps/alerting/rules/pkg/apis/alerting/v1beta1"
+	"github.com/grafana/grafana/apps/alerting/rules/pkg/app/convert"
 	"github.com/grafana/grafana/pkg/apimachinery/identity"
 	grafanarest "github.com/grafana/grafana/pkg/apiserver/rest"
 	"github.com/grafana/grafana/pkg/registry/apps/alerting/rules/common"
@@ -122,13 +122,13 @@ func (s *legacyStorage) List(ctx context.Context, opts *internalversion.ListOpti
 		// fall through to the normal list pipeline below.
 	}
 
-	groupFilter, err := common.ParseLabelSelectorFilter(opts.LabelSelector, model.GroupLabelKey)
+	groupFilter, err := common.ParseLabelSelectorFilter(opts.LabelSelector, v1beta1.GroupLabelKey)
 	if err != nil {
-		return nil, k8serrors.NewBadRequest(fmt.Sprintf("invalid label selector for %s: %s", model.GroupLabelKey, err))
+		return nil, k8serrors.NewBadRequest(fmt.Sprintf("invalid label selector for %s: %s", v1beta1.GroupLabelKey, err))
 	}
-	folderFilter, err := common.ParseLabelSelectorFilter(opts.LabelSelector, model.FolderLabelKey)
+	folderFilter, err := common.ParseLabelSelectorFilter(opts.LabelSelector, v1beta1.FolderLabelKey)
 	if err != nil {
-		return nil, k8serrors.NewBadRequest(fmt.Sprintf("invalid label selector for %s: %s", model.FolderLabelKey, err))
+		return nil, k8serrors.NewBadRequest(fmt.Sprintf("invalid label selector for %s: %s", v1beta1.FolderLabelKey, err))
 	}
 
 	var (
@@ -172,7 +172,7 @@ func (s *legacyStorage) List(ctx context.Context, opts *internalversion.ListOpti
 		}
 	}
 
-	rules, provenanceMap, continueToken, err := s.service.ListAlertRules(ctx, user, provisioning.ListAlertRulesOptions{
+	rules, managerPropsMap, continueToken, err := s.service.ListAlertRules(ctx, user, provisioning.ListAlertRulesOptions{
 		RuleType:                  ngmodels.RuleTypeFilterRecording,
 		Limit:                     opts.Limit,
 		ContinueToken:             opts.Continue,
@@ -186,8 +186,7 @@ func (s *legacyStorage) List(ctx context.Context, opts *internalversion.ListOpti
 	if err != nil {
 		return nil, err
 	}
-
-	return convertToK8sResources(info.OrgID, rules, provenanceMap, s.namespacer, continueToken)
+	return convertToK8sResources(info.OrgID, rules, managerPropsMap, s.namespacer, continueToken)
 }
 
 func (s *legacyStorage) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runtime.Object, error) {
@@ -201,7 +200,7 @@ func (s *legacyStorage) Get(ctx context.Context, name string, _ *metav1.GetOptio
 		return nil, err
 	}
 
-	rule, provenance, err := s.service.GetAlertRule(ctx, user, name)
+	rule, managerProps, err := s.service.GetAlertRule(ctx, user, name)
 	if err != nil {
 		if errors.Is(err, ngmodels.ErrAlertRuleNotFound) {
 			return nil, k8serrors.NewNotFound(ResourceInfo.GroupResource(), name)
@@ -209,7 +208,7 @@ func (s *legacyStorage) Get(ctx context.Context, name string, _ *metav1.GetOptio
 		return nil, err
 	}
 
-	obj, err := convertToK8sResource(info.OrgID, &rule, provenance, s.namespacer)
+	obj, err := convertToK8sResource(info.OrgID, &rule, managerProps, s.namespacer)
 	if err != nil && errors.Is(err, errInvalidRule) {
 		return nil, k8serrors.NewNotFound(ResourceInfo.GroupResource(), name)
 	}
@@ -232,8 +231,9 @@ func (s *legacyStorage) Create(ctx context.Context, obj runtime.Object, createVa
 		}
 	}
 
-	p, ok := obj.(*model.RecordingRule)
-	if !ok {
+	// The dual writer can pass the object in the version of the request.
+	p, err := convert.Hub[*v1beta1.RecordingRule](obj)
+	if err != nil {
 		return nil, k8serrors.NewBadRequest("expected valid recording rule object")
 	}
 
@@ -241,21 +241,21 @@ func (s *legacyStorage) Create(ctx context.Context, obj runtime.Object, createVa
 		return nil, k8serrors.NewBadRequest("generate-name is not supported in legacy storage mode")
 	}
 	// TODO: move this to the validation function
-	if p.Labels[model.GroupLabelKey] != "" || p.Labels[model.GroupIndexLabelKey] != "" {
+	if p.Labels[v1beta1.GroupLabelKey] != "" || p.Labels[v1beta1.GroupIndexLabelKey] != "" {
 		return nil, k8serrors.NewBadRequest("cannot set group label when creating recording rule")
 	}
 
-	model, provenance, err := convertToDomainModel(info.OrgID, p)
+	domainModel, managerProps, err := convertToDomainModel(info.OrgID, p)
 	if err != nil {
 		return nil, err
 	}
 
-	created, err := s.service.CreateAlertRule(ctx, user, *model, provenance)
+	rule, err := s.service.CreateAlertRule(ctx, user, *domainModel, managerProps)
 	if err != nil {
 		return nil, err
 	}
 
-	return convertToK8sResource(info.OrgID, &created, provenance, s.namespacer)
+	return convertToK8sResource(info.OrgID, &rule, managerProps, s.namespacer)
 }
 
 func (s *legacyStorage) Update(ctx context.Context, name string, objInfo rest.UpdatedObjectInfo, _ rest.ValidateObjectFunc, updateValidation rest.ValidateObjectUpdateFunc, _ bool, options *metav1.UpdateOptions) (runtime.Object, bool, error) {
@@ -284,8 +284,8 @@ func (s *legacyStorage) Update(ctx context.Context, name string, objInfo rest.Up
 		}
 	}
 
-	new, ok := obj.(*model.RecordingRule)
-	if !ok {
+	new, err := convert.Hub[*v1beta1.RecordingRule](obj)
+	if err != nil {
 		return nil, false, k8serrors.NewBadRequest("expected valid recording rule object")
 	}
 	// FIXME(@rwwiv): this shouldn't be necessary
@@ -293,23 +293,22 @@ func (s *legacyStorage) Update(ctx context.Context, name string, objInfo rest.Up
 		new.UID = types.UID(new.Name)
 	}
 
-	model, provenance, err := convertToDomainModel(info.OrgID, new)
+	domainModel, managerProps, err := convertToDomainModel(info.OrgID, new)
 	if err != nil {
 		return nil, false, err
 	}
 
-	// ignore returned rule as it doesn't contain the updated version
-	_, err = s.service.UpdateAlertRule(ctx, user, *model, provenance)
+	_, err = s.service.UpdateAlertRule(ctx, user, *domainModel, managerProps)
 	if err != nil {
 		return nil, false, err
 	}
 
-	updated, provenance, err := s.service.GetAlertRule(ctx, user, name)
+	updated, managerProps, err := s.service.GetAlertRule(ctx, user, name)
 	if err != nil {
 		return nil, false, err
 	}
 
-	rule, err := convertToK8sResource(info.OrgID, &updated, provenance, s.namespacer)
+	rule, err := convertToK8sResource(info.OrgID, &updated, managerProps, s.namespacer)
 	if err != nil {
 		return nil, false, err
 	}
@@ -318,6 +317,11 @@ func (s *legacyStorage) Update(ctx context.Context, name string, objInfo rest.Up
 }
 
 func (s *legacyStorage) Delete(ctx context.Context, name string, deleteValidation rest.ValidateObjectFunc, opts *metav1.DeleteOptions) (runtime.Object, bool, error) {
+	info, err := request.NamespaceInfoFrom(ctx, true)
+	if err != nil {
+		return nil, false, err
+	}
+
 	user, err := identity.GetRequester(ctx)
 	if err != nil {
 		return nil, false, err
@@ -332,18 +336,20 @@ func (s *legacyStorage) Delete(ctx context.Context, name string, deleteValidatio
 			return nil, false, err
 		}
 	}
-	p, ok := old.(*model.RecordingRule)
-	if !ok {
+	p, err := convert.Hub[*v1beta1.RecordingRule](old)
+	if err != nil {
 		return nil, false, k8serrors.NewBadRequest("expected valid recording rule object")
 	}
 
-	sourceProv := p.GetProvenanceStatus()
-	if !slices.Contains(model.AcceptedProvenanceStatuses, sourceProv) {
-		return nil, false, fmt.Errorf("invalid provenance status: %s", sourceProv)
+	// Derive manager properties the same way create/update do, so a resource managed
+	// by a specific manager (e.g. Terraform) is deleted with the matching manager and
+	// not the coarser provenance-derived equivalent.
+	_, managerProps, err := convertToDomainModel(info.OrgID, p)
+	if err != nil {
+		return nil, false, err
 	}
-	provenance := ngmodels.Provenance(sourceProv)
 
-	err = s.service.DeleteAlertRule(ctx, user, name, provenance)
+	err = s.service.DeleteAlertRule(ctx, user, name, managerProps)
 	if err != nil {
 		return old, false, err
 	}

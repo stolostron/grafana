@@ -1,93 +1,18 @@
-import { load } from 'js-yaml';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback } from 'react';
 
+import { isDefaultRoutingTreeName } from '@grafana/alerting';
 import { type RulerRulesConfigDTO } from 'app/types/unified-alerting-dto';
 
-import { fetchAlertManagerConfig } from '../../api/alertmanager';
 import { convertToGMAApi } from '../../api/convertToGMAApi';
-import { stringifyErrorLike } from '../../utils/misc';
 
-import { MERGE_MATCHERS_LABEL_NAME } from './Wizard/constants';
-import type { ConvertAlertmanagerResponse, DryRunValidationResult } from './types';
-
-interface ParsedAlertmanagerYaml {
-  alertmanagerConfig: string;
-  templateFiles: Record<string, string>;
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  return Object.values(value).every((v) => typeof v === 'string');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Parse an Alertmanager YAML file and separate template_files from the alertmanager config.
- *
- * YAML files may contain `template_files` at the top level alongside the config fields
- * (route, receivers, templates, time_intervals, etc.). The backend API expects them
- * as two separate fields in the request body:
- *   { alertmanager_config: "<config string>", template_files: { ... } }
- *
- * This function extracts `template_files` and re-serializes the remaining config as JSON.
- */
-function parseAlertmanagerYaml(yamlContent: string): ParsedAlertmanagerYaml {
-  let parsed: unknown;
-  try {
-    parsed = load(yamlContent);
-  } catch {
-    return { alertmanagerConfig: yamlContent, templateFiles: {} };
-  }
-
-  if (!isRecord(parsed)) {
-    return { alertmanagerConfig: yamlContent, templateFiles: {} };
-  }
-
-  const { template_files, ...configWithoutTemplates } = parsed;
-  const templateFiles = isStringRecord(template_files) ? template_files : {};
-
-  return {
-    alertmanagerConfig: JSON.stringify(configWithoutTemplates),
-    templateFiles,
-  };
-}
-
-interface NotificationsSourceParams {
-  source: 'datasource' | 'yaml';
-  /** Datasource name (not UID) - required when source is 'datasource' */
-  datasourceName?: string;
-  yamlFile: File | null;
-  /** Configuration identifier - the name of the extra config (policy tree name) */
-  configIdentifier: string;
-}
-
-/**
- * Resolve the alertmanager config and template files from a YAML file or datasource.
- * Shared between import and dry-run flows.
- */
-async function resolveAlertmanagerConfig(params: NotificationsSourceParams): Promise<ParsedAlertmanagerYaml> {
-  const { source, datasourceName, yamlFile } = params;
-
-  if (source === 'yaml' && yamlFile) {
-    const yamlContent = await yamlFile.text();
-    return parseAlertmanagerYaml(yamlContent);
-  }
-
-  if (source === 'datasource' && datasourceName) {
-    const config = await fetchAlertManagerConfig(datasourceName);
-    return {
-      alertmanagerConfig: JSON.stringify(config.alertmanager_config),
-      templateFiles: config.template_files ?? {},
-    };
-  }
-
-  throw new Error('Invalid import source configuration');
-}
+import { type NotificationsSourceParams, resolveAlertmanagerConfig } from './resolveAlertmanagerConfig';
+import type {
+  ConvertAlertmanagerResponse,
+  DryRunState,
+  DryRunValidationResult,
+  MergeStats,
+  PromoteStatsSummary,
+} from './types';
 
 interface MigrateRulesBaseParams {
   dataSourceUID: string;
@@ -98,28 +23,15 @@ interface MigrateRulesBaseParams {
   targetDatasourceUID?: string;
 }
 
-/**
- * Policy routing via notification_settings.policy (new) and label-based routing via extraLabels (legacy)
- * are mutually exclusive — only one mechanism should be used per import.
- */
-type MigrateRulesParams = MigrateRulesBaseParams &
-  ({ extraLabels?: string; notificationSettings?: never } | { extraLabels?: never; notificationSettings?: string });
+type MigrateRulesParams = MigrateRulesBaseParams & { notificationSettings?: string };
 
-/**
- * Build the routing-specific params for rule import.
- * When the `alertingPolicyRoutingSettings` feature flag is ON and a routing tree is selected,
- * uses the new `notification_settings.policy` mechanism; otherwise falls back to `extraLabels`.
- */
 export function buildRoutingParams(
-  selectedRoutingTree: string | undefined,
-  usePolicyRouting: boolean
-): Pick<MigrateRulesParams, 'extraLabels' | 'notificationSettings'> {
-  if (usePolicyRouting && selectedRoutingTree) {
-    return { notificationSettings: JSON.stringify({ policy: selectedRoutingTree }) };
-  }
-
+  selectedRoutingTreeName: string | undefined
+): Pick<MigrateRulesParams, 'notificationSettings'> {
   return {
-    extraLabels: selectedRoutingTree ? `${MERGE_MATCHERS_LABEL_NAME}=${selectedRoutingTree}` : undefined,
+    notificationSettings: isDefaultRoutingTreeName(selectedRoutingTreeName)
+      ? undefined
+      : JSON.stringify({ policy: selectedRoutingTreeName }),
   };
 }
 
@@ -134,11 +46,12 @@ export function useImportNotifications() {
     async (params: NotificationsSourceParams) => {
       const { alertmanagerConfig, templateFiles } = await resolveAlertmanagerConfig(params);
 
-      await convertAlertmanagerConfig({
+      return await convertAlertmanagerConfig({
         alertmanagerConfig,
         templateFiles,
         configIdentifier: params.configIdentifier,
         forceReplace: true,
+        promote: params.promote,
       }).unwrap();
     },
     [convertAlertmanagerConfig]
@@ -161,7 +74,6 @@ export function useImportRules() {
         pauseRecordingRules,
         payload,
         targetDatasourceUID,
-        extraLabels,
         notificationSettings,
       } = params;
 
@@ -172,7 +84,6 @@ export function useImportRules() {
         pauseAlerts: pauseAlertingRules,
         payload,
         targetDatasourceUID,
-        extraLabels,
         notificationSettings,
       }).unwrap();
     },
@@ -251,9 +162,23 @@ function isRuleManagedByExternalSystem(rule: { labels?: Record<string, string> }
 }
 
 /**
+ * Summarize the per-type merge stats from a promote (dry-run or real) into counts
+ * for display on the review screen.
+ */
+export function summarizeMergeStats(stats: MergeStats | undefined): PromoteStatsSummary {
+  return {
+    route: Boolean(stats?.added_route),
+    receivers: stats?.added_receivers?.length ?? 0,
+    templates: stats?.added_templates?.length ?? 0,
+    timeIntervals: stats?.added_time_intervals?.length ?? 0,
+    inhibitionRules: stats?.added_inhibition_rules?.length ?? 0,
+  };
+}
+
+/**
  * Parse the backend ConvertAlertmanagerResponse into a UI-friendly DryRunValidationResult.
  */
-function parseDryRunResponse(response: ConvertAlertmanagerResponse): DryRunValidationResult {
+export function parseDryRunResponse(response: ConvertAlertmanagerResponse): DryRunValidationResult {
   const renamedReceivers = Object.entries(response.rename_resources?.receivers ?? {}).map(
     ([originalName, newName]) => ({ originalName, newName })
   );
@@ -266,38 +191,44 @@ function parseDryRunResponse(response: ConvertAlertmanagerResponse): DryRunValid
     error: response.error,
     renamedReceivers,
     renamedTimeIntervals,
+    stats: response.stats ? summarizeMergeStats(response.stats) : undefined,
   };
 }
 
 /**
- * Hook to perform dry-run validation for Alertmanager config import.
- * Uses POST /api/convert/api/v1/alerts with X-Grafana-Alerting-Dry-Run: true.
- * Validates the config and checks for conflicts without saving.
+ * Combine the dry-run mutation's cached data with any error into a single UI result.
+ * A pre-run failure (e.g. a template conflict) sets an error while the previous
+ * successful response is still cached, so the error must take precedence over the
+ * stale data — otherwise the review step would report the config as ready to import.
  */
-export function useDryRunNotifications() {
-  const [dryRunAlertmanagerConfig, { isLoading, data, error: mutationError }] =
-    convertToGMAApi.useDryRunAlertmanagerConfigMutation();
-  const [preRunError, setPreRunError] = useState<string>();
+export function deriveDryRunResult(
+  dryRunData: DryRunValidationResult | undefined,
+  dryRunError: string | undefined
+): DryRunValidationResult | undefined {
+  if (dryRunError) {
+    return { valid: false, error: dryRunError, renamedReceivers: [], renamedTimeIntervals: [], stats: undefined };
+  }
+  if (dryRunData) {
+    return dryRunData;
+  }
+  return undefined;
+}
 
-  const runDryRun = useCallback(
-    async (params: NotificationsSourceParams): Promise<void> => {
-      setPreRunError(undefined);
-      try {
-        const { alertmanagerConfig, templateFiles } = await resolveAlertmanagerConfig(params);
-        await dryRunAlertmanagerConfig({
-          alertmanagerConfig,
-          templateFiles,
-          configIdentifier: params.configIdentifier,
-        });
-      } catch (err) {
-        setPreRunError(stringifyErrorLike(err));
-      }
-    },
-    [dryRunAlertmanagerConfig]
-  );
-
-  const result = useMemo(() => (data ? parseDryRunResponse(data) : undefined), [data]);
-  const error = mutationError ? stringifyErrorLike(mutationError) : preRunError;
-
-  return { runDryRun, isLoading, result, error };
+/** Derives the UI-facing dry-run state from a mutation's async state (isLoading/result/error). */
+export function deriveDryRunState(
+  isLoading: boolean,
+  result: DryRunValidationResult | undefined,
+  error: string | undefined
+): DryRunState {
+  if (isLoading) {
+    return 'loading';
+  }
+  if (error || (result && !result.valid)) {
+    return 'error';
+  }
+  if (result?.valid) {
+    const hasRenames = result.renamedReceivers.length > 0 || result.renamedTimeIntervals.length > 0;
+    return hasRenames ? 'warning' : 'success';
+  }
+  return 'idle';
 }

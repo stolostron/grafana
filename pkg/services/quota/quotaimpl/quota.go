@@ -8,10 +8,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/grafana/grafana/pkg/configprovider"
-	"github.com/grafana/grafana/pkg/infra/db"
 	"github.com/grafana/grafana/pkg/infra/log"
 	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
 	"github.com/grafana/grafana/pkg/services/quota"
+	"github.com/grafana/grafana/pkg/storage/legacysql"
 )
 
 // tracer is the global tracer for the quota service. Tracer pulls the globally
@@ -57,10 +57,10 @@ type service struct {
 	targetToSrv *quota.TargetToSrv
 }
 
-func ProvideService(ctx context.Context, db db.DB, configProvider configprovider.ConfigProvider) quota.Service {
+func ProvideService(ctx context.Context, sql legacysql.LegacyDatabaseProvider, configProvider configprovider.ConfigProvider) quota.Service {
 	logger := log.New("quota_service")
 	s := service{
-		store:         &sqlStore{db: db, logger: logger},
+		store:         &sqlStore{sql: sql, logger: logger},
 		cfg:           configProvider,
 		logger:        logger,
 		reporters:     make(map[quota.TargetSrv]quota.UsageReporterFunc),
@@ -203,40 +203,45 @@ func (s *service) CheckQuotaReached(ctx context.Context, targetSrv quota.TargetS
 	if !ok {
 		return false, quota.ErrInvalidTargetSrv
 	}
-	targetUsage, err := usageReporterFunc(ctx, scopeParams)
-	if err != nil {
-		return false, err
+	for _, limit := range targetSrvLimits {
+		if limit == 0 {
+			return true, nil
+		}
 	}
 
+	var targetUsage *quota.Map
 	for t, limit := range targetSrvLimits {
-		switch {
-		case limit < 0:
+		if limit < 0 {
 			continue
-		case limit == 0:
-			return true, nil
-		default:
-			scope, err := t.GetScope()
+		}
+		scope, err := t.GetScope()
+		if err != nil {
+			return false, quota.ErrFailedToGetScope.Errorf("failed to get the scope for target: %s", t)
+		}
+
+		// do not check user quota if the user information is not available (eg no user is signed in)
+		if scope == quota.UserScope && (scopeParams == nil || scopeParams.UserID == 0) {
+			continue
+		}
+
+		// do not check user quota if the org information is not available (eg no user is signed in)
+		if scope == quota.OrgScope && (scopeParams == nil || scopeParams.OrgID == 0) {
+			continue
+		}
+
+		if targetUsage == nil {
+			targetUsage, err = usageReporterFunc(ctx, scopeParams)
 			if err != nil {
-				return false, quota.ErrFailedToGetScope.Errorf("failed to get the scope for target: %s", t)
+				return false, err
 			}
+		}
 
-			// do not check user quota if the user information is not available (eg no user is signed in)
-			if scope == quota.UserScope && (scopeParams == nil || scopeParams.UserID == 0) {
-				continue
-			}
-
-			// do not check user quota if the org information is not available (eg no user is signed in)
-			if scope == quota.OrgScope && (scopeParams == nil || scopeParams.OrgID == 0) {
-				continue
-			}
-
-			u, ok := targetUsage.Get(t)
-			if !ok {
-				return false, quota.ErrUsageFoundForTarget.Errorf("no usage for target:%s", t)
-			}
-			if u >= limit {
-				return true, nil
-			}
+		u, ok := targetUsage.Get(t)
+		if !ok {
+			return false, quota.ErrUsageFoundForTarget.Errorf("no usage for target:%s", t)
+		}
+		if u >= limit {
+			return true, nil
 		}
 	}
 	return false, nil
@@ -345,7 +350,6 @@ func (s *service) getUsage(ctx context.Context, scopeParams *quota.ScopeParamete
 	g, ctx := errgroup.WithContext(ctx)
 
 	for r := range s.getReporters() {
-		r := r
 		g.Go(func() error {
 			u, err := r.reporterFunc(ctx, scopeParams)
 			if err != nil {

@@ -4,9 +4,11 @@ import { useLocation } from 'react-router-dom-v5-compat';
 import { type GrafanaPlugin, type NavModelItem, PluginIncludeType, PluginType } from '@grafana/data';
 import { t } from '@grafana/i18n';
 import { config } from '@grafana/runtime';
+import { useFlagDatasourceConnectionsTab } from '@grafana/runtime/internal';
 import { contextSrv } from 'app/core/services/context_srv';
 import { AccessControlAction } from 'app/types/accessControl';
 
+import { ASSISTANT_PLUGIN_ID } from '../components/AssistantOverview/constants';
 import { usePluginConfig } from '../hooks/usePluginConfig';
 import { type CatalogPlugin, PluginTabIds, PluginTabLabels } from '../types';
 
@@ -37,6 +39,7 @@ export const usePluginDetailsTabs = (
   const { pathname } = useLocation();
   const defaultTab = useDefaultPage(plugin, pluginConfig);
   const isPublished = Boolean(plugin?.isPublished);
+  const isDatasourceConnectionsTabEnabled = useFlagDatasourceConnectionsTab();
 
   const currentPageId = getCurrentPageId(isNarrowScreen, defaultTab, pageId);
 
@@ -110,7 +113,7 @@ export const usePluginDetailsTabs = (
       });
     }
 
-    if (config.featureToggles.datasourceConnectionsTab && plugin?.type === PluginType.datasource) {
+    if (isDatasourceConnectionsTabEnabled && plugin?.type === PluginType.datasource) {
       navModelChildren.push({
         text: PluginTabLabels.DATASOURCE_CONNECTIONS,
         icon: 'database',
@@ -149,7 +152,16 @@ export const usePluginDetailsTabs = (
     }
 
     return navModelChildren;
-  }, [plugin, pluginConfig, pathname, isPublished, currentPageId, isNarrowScreen, loading]);
+  }, [
+    plugin,
+    pluginConfig,
+    pathname,
+    isPublished,
+    currentPageId,
+    isNarrowScreen,
+    loading,
+    isDatasourceConnectionsTabEnabled,
+  ]);
 
   const navModel: NavModelItem = {
     text: plugin?.name ?? '',
@@ -177,6 +189,10 @@ export const usePluginDetailsTabs = (
 
 function useDefaultPage(plugin: CatalogPlugin | undefined, pluginConfig: GrafanaPlugin | undefined | null) {
   if (!plugin || !pluginConfig) {
+    return PluginTabIds.OVERVIEW;
+  }
+
+  if (plugin.id === ASSISTANT_PLUGIN_ID) {
     return PluginTabIds.OVERVIEW;
   }
 

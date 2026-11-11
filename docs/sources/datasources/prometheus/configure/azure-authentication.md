@@ -2,7 +2,7 @@
 aliases:
   - ../data-sources/prometheus/
   - ../features/datasources/prometheus/
-description: Migrating from Prometheus Azure AD authentication to the Azure Monitor Managed Service for Prometheus data source
+description: Migrate from Prometheus Azure AD authentication to the Azure Monitor Managed Service for Prometheus data source
 keywords:
   - grafana
   - prometheus
@@ -49,9 +49,9 @@ To determine if your Prometheus data sources have been migrated:
 
 The banner displays one of the following messages:
 
-- **"Migration Notice"** — The data source has been migrated to the Azure Monitor Managed Service for Prometheus plugin.
-- **"Deprecation Notice"** — The data source hasn't been migrated yet.
-- **No banner** — No migration is needed (the data source doesn't use Azure AD authentication).
+- **"Migration Notice":** The data source has been migrated to the Azure Monitor Managed Service for Prometheus plugin.
+- **"Deprecation Notice":** The data source hasn't been migrated yet.
+- **No banner:** No migration is needed (the data source doesn't use Azure AD authentication).
 
 ## Configure the Azure Monitor Managed Service for Prometheus data source
 
@@ -112,6 +112,8 @@ datasources:
 Replace `<CLIENT_ID>`, `<TENANT_ID>`, and `<CLIENT_SECRET>` with your Azure credentials.
 
 ## Troubleshoot migration issues
+
+The following sections cover common issues you may encounter during or after the migration and how to resolve them.
 
 ### Azure Monitor Managed Service for Prometheus plugin not installed
 
@@ -228,7 +230,7 @@ echo "$response_body" | jq -c '.[] | select(.jsonData["prometheus-type-migration
     read_only=$(echo "$data" | jq -r '.readOnly // false')
 
     if [[ "$read_only" == "true" ]]; then
-        log_message "$uid is readOnly — edit the type to 'prometheus' in the provisioning file instead."
+        log_message "$uid is readOnly; edit the type to 'prometheus' in the provisioning file instead."
         continue
     fi
 

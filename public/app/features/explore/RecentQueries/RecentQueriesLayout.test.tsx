@@ -14,11 +14,15 @@ jest.mock('./RecentQueriesList', () => ({
   RecentQueriesList: jest.fn(() => <div data-testid="list" />),
 }));
 
-jest.mock('app/core/utils/richHistory', () => ({
-  createDatasourcesList: jest.fn(() => [
-    { name: 'Prometheus', uid: 'prom-uid' },
-    { name: 'Loki', uid: 'loki-uid' },
-  ]),
+jest.mock('@grafana/runtime', () => ({
+  ...jest.requireActual('@grafana/runtime'),
+  useDataSourceInstanceList: jest.fn(() => ({
+    isLoading: false,
+    items: [
+      { name: 'Prometheus', uid: 'prom-uid' },
+      { name: 'Loki', uid: 'loki-uid' },
+    ],
+  })),
 }));
 
 const mockRichHistoryQuery: RichHistoryQuery = {
@@ -110,9 +114,8 @@ describe('RecentQueriesLayout', () => {
   it('passes available datasources to filters', () => {
     render(<RecentQueriesLayout {...defaultProps} />);
     const { RecentQueriesFilters } = jest.requireMock('./RecentQueriesFilters');
-    expect(RecentQueriesFilters).toHaveBeenCalledWith(
-      expect.objectContaining({ availableDatasources: ['Prometheus', 'Loki'] }),
-      expect.anything()
+    expect(RecentQueriesFilters.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ availableDatasources: ['Prometheus', 'Loki'] })
     );
   });
 
@@ -157,9 +160,8 @@ describe('RecentQueriesLayout', () => {
   it('passes onAnalyticsEvent to filters', () => {
     render(<RecentQueriesLayout {...defaultProps} />);
     const { RecentQueriesFilters } = jest.requireMock('./RecentQueriesFilters');
-    expect(RecentQueriesFilters).toHaveBeenCalledWith(
-      expect.objectContaining({ onAnalyticsEvent: mockOnAnalyticsEvent }),
-      expect.anything()
+    expect(RecentQueriesFilters.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ onAnalyticsEvent: mockOnAnalyticsEvent })
     );
   });
 
@@ -168,6 +170,6 @@ describe('RecentQueriesLayout', () => {
     mockDataHook.isLoading = true;
     render(<RecentQueriesLayout {...defaultProps} />);
     const { RecentQueriesFilters } = jest.requireMock('./RecentQueriesFilters');
-    expect(RecentQueriesFilters).toHaveBeenCalledWith(expect.objectContaining({ disabled: true }), expect.anything());
+    expect(RecentQueriesFilters.mock.calls[0][0]).toEqual(expect.objectContaining({ disabled: true }));
   });
 });

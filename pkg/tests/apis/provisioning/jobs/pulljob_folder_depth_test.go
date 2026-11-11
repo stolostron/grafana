@@ -40,8 +40,7 @@ func TestIntegrationProvisioning_PullJobFolderDepthExceeded(t *testing.T) {
 			"../testdata/text-options.json":  deepDir + "/dashboard2.json",
 			"../testdata/timeline-demo.json": deepDir + "/dashboard3.json",
 		},
-		SkipSync:               true,
-		SkipResourceAssertions: true,
+		SkipSync: true,
 	})
 
 	job := helper.TriggerJobAndWaitForComplete(t, repo, provisioning.JobSpec{
@@ -171,9 +170,10 @@ func TestIntegrationProvisioning_PullJobFolderDepthExceeded_RecoversAfterFix(t *
 			"../testdata/all-panels.json":   "ok/dashboard.json",
 			"../testdata/text-options.json": deepDashboardRel,
 		},
-		SkipSync:               true,
-		SkipResourceAssertions: true,
+		SkipSync: true,
 	})
+
+	common.WriteFolderMetadata(t, repo, repoPath, "ok", deepDir)
 
 	job := helper.TriggerJobAndWaitForComplete(t, repo, provisioning.JobSpec{
 		Action: provisioning.JobActionPull,
@@ -189,7 +189,10 @@ func TestIntegrationProvisioning_PullJobFolderDepthExceeded_RecoversAfterFix(t *
 	require.NoError(t, os.Remove(filepath.Join(repoPath, deepDashboardRel)))
 	require.NoError(t, os.RemoveAll(filepath.Join(repoPath, "a")))
 
-	helper.SyncAndWait(t, repo, nil)
+	helper.TriggerJobAndWaitForSuccess(t, repo, provisioning.JobSpec{
+		Action: provisioning.JobActionPull,
+		Pull:   &provisioning.SyncJobOptions{},
+	})
 	helper.WaitForConditionReason(t, repo,
 		provisioning.ConditionTypePullStatus,
 		provisioning.ReasonSuccess)

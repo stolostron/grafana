@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 
 import { Trans, t } from '@grafana/i18n';
-import { getDataSourceSrv } from '@grafana/runtime';
+import { getDataSourceInstanceSettings } from '@grafana/runtime';
 import { type Dashboard } from '@grafana/schema';
 import { type Spec as DashboardV2Spec } from '@grafana/schema/apis/dashboard.grafana.app/v2';
 import { Alert } from '@grafana/ui';
@@ -21,12 +21,13 @@ import {
   type ImportFormDataV2,
 } from 'app/features/manage-dashboards/types';
 
+import { useBranchStatus } from '../../hooks/useBranchStatus';
 import { RepoViewStatus } from '../../hooks/useGetResourceRepositoryView';
 import { useImportProvisionedSave } from '../../hooks/useImportProvisionedSave';
 import { type BaseProvisionedFormData } from '../../types/form';
 import { getIsReadOnlyRepo } from '../../utils/repository';
 import { RepoInvalidStateBanner } from '../Shared/RepoInvalidStateBanner';
-import { getCanPushToConfiguredBranch, getDefaultRef, getDefaultWorkflow } from '../defaults';
+import { getCanPushToConfiguredBranch, getDefaultRef } from '../defaults';
 import { generatePath, slugifyForFilename } from '../utils/path';
 import { generateTimestamp } from '../utils/timestamp';
 
@@ -115,7 +116,6 @@ function ProvisionedImportOverviewReady({
       title,
       uid: dashboardUid ?? '',
       folderUid,
-      workflow: getDefaultWorkflow(repository),
       ref: getDefaultRef(repository, 'import'),
       path: generatePath({ timestamp: generateTimestamp(), slug, folderPath }),
       comment: '',
@@ -127,11 +127,12 @@ function ProvisionedImportOverviewReady({
     defaultValues,
     mode: 'onChange',
   });
+  const { isNewBranch } = useBranchStatus(repository, methods.watch('ref'));
 
   async function onSubmit(form: ProvisionedImportFormData) {
     const spec = isV2
       ? buildV2Spec(dashboard, form, normalizedLayout, hasFloatGridItems)
-      : buildV1Spec(dashboard, form, inputs);
+      : await buildV1Spec(dashboard, form, inputs);
 
     await save({
       spec,
@@ -139,12 +140,8 @@ function ProvisionedImportOverviewReady({
       uid: form.uid || undefined,
       folderUid: form.folderUid,
       title: form.title,
-      form: {
-        ref: form.ref,
-        path: form.path,
-        comment: form.comment,
-        workflow: form.workflow,
-      },
+      isNewBranch,
+      form: { ref: form.ref, path: form.path, comment: form.comment },
     });
   }
 
@@ -188,7 +185,21 @@ function buildV2Spec(
   };
 }
 
-function buildV1Spec(dash: Dashboard, form: ProvisionedImportFormData, inputs: DashboardInputs): Dashboard {
+async function buildV1Spec(
+  dash: Dashboard,
+  form: ProvisionedImportFormData,
+  inputs: DashboardInputs
+): Promise<Dashboard> {
+  const resolvedDataSources = await Promise.all(
+    inputs.dataSources.map((ds) => {
+      const selected = form[`datasource-${ds.name}`];
+      if (!isRecord(selected) || typeof selected.uid !== 'string') {
+        return undefined;
+      }
+      return getDataSourceInstanceSettings(selected.uid);
+    })
+  );
+
   const v1Form: ImportDashboardDTO = {
     title: form.title,
     uid: form.uid,
@@ -197,14 +208,7 @@ function buildV1Spec(dash: Dashboard, form: ProvisionedImportFormData, inputs: D
       const val = form[`constant-${c.name}`];
       return typeof val === 'string' ? val : c.value;
     }),
-    dataSources: inputs.dataSources.flatMap((ds) => {
-      const selected = form[`datasource-${ds.name}`];
-      if (!isRecord(selected) || typeof selected.uid !== 'string') {
-        return [];
-      }
-      const settings = getDataSourceSrv().getInstanceSettings(selected.uid);
-      return settings ? [settings] : [];
-    }),
+    dataSources: resolvedDataSources.filter((settings) => settings !== undefined),
     elements: [],
     folder: { uid: form.folderUid },
   };
