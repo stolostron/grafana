@@ -1,3 +1,39 @@
+<!-- 13.1.9 START -->
+
+# 13.1.9 (2026-10-27)
+
+### Security
+
+- Security: Fix CVE-2026-100105
+- Security: Fix CVE-2026-88858
+- Security: Fix CVE-2026-88967
+
+### Features and enhancements
+
+- **Provisioning:** Default save from a branch preview to the previewed branch [#135175](https://github.com/grafana/grafana/pull/135175), [@Clarity-89](https://github.com/Clarity-89)
+
+<!-- 13.1.9 END -->
+<!-- 13.1.8 START -->
+
+# 13.1.8 (2026-10-13)
+
+### Security
+
+- Security: Fix CVE-2026-15577
+- Security: Fix CVE-2026-33374
+- Security: Fix CVE-2026-93294
+- Security: Fix CVE-2026-95502
+
+### Features and enhancements
+
+- **Alerting:** Strip sensitive headers from oauth2 cross-host redirects [#134428](https://github.com/grafana/grafana/pull/134428), [@JacobsonMT](https://github.com/JacobsonMT)
+- **Dashboard:** Fall back when collection deletion is unsupported [#134225](https://github.com/grafana/grafana/pull/134225), [@bestend](https://github.com/bestend)
+
+### Bug fixes
+
+- **CVE-2026-92539:** IAM: Fix: SCIM (Enterprise)
+
+<!-- 13.1.8 END -->
 <!-- 13.1.7 START -->
 
 # 13.1.7 (2026-09-29)
