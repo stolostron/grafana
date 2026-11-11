@@ -1237,18 +1237,6 @@ func (h *ProvisioningTestHelper) RequireRepoFolderCountAndGetManaged(t *testing.
 	return managed
 }
 
-// filterManagedResources returns the resources managed by repoName.
-func filterManagedResources(items []unstructured.Unstructured, repoName string) []unstructured.Unstructured {
-	var managed []unstructured.Unstructured
-	for i := range items {
-		annotations := items[i].GetAnnotations()
-		if annotations["grafana.app/managedBy"] == "repo" && annotations["grafana.app/managerId"] == repoName {
-			managed = append(managed, items[i])
-		}
-	}
-	return managed
-}
-
 // TriggerConnectionReconciliation forces the controller to re-process a connection
 // by touching its status (aging the health timestamp by 1ms). A merge patch on the
 // status subresource carries no resourceVersion, so it never conflicts with
@@ -1580,25 +1568,6 @@ func WithConnectionTypes(types []string) GrafanaOption {
 func WithProvisioningPublicRootURL(url string) GrafanaOption {
 	return func(opts *testinfra.GrafanaOpts) {
 		opts.ProvisioningPublicRootURL = url
-	}
-}
-
-// WithProvisioningWebhookRateLimitRPS sets [provisioning] webhook_rate_limit_rps,
-// enabling the per-client webhook rate limiter at the given sustained rate. The
-// limiter's burst is twice the rate. A value <= 0 leaves the limiter disabled.
-// With no trusted IP header configured the limiter keys on the TCP peer.
-func WithProvisioningWebhookRateLimitRPS(rps int) GrafanaOption {
-	return func(opts *testinfra.GrafanaOpts) {
-		opts.ProvisioningWebhookRateLimitRPS = rps
-	}
-}
-
-// WithProvisioningWebhookTrustedIPHeader sets [provisioning]
-// webhook_trusted_ip_header, naming the header whose value the rate limiter keys
-// on. When unset, the limiter keys on the real TCP peer instead.
-func WithProvisioningWebhookTrustedIPHeader(header string) GrafanaOption {
-	return func(opts *testinfra.GrafanaOpts) {
-		opts.ProvisioningWebhookTrustedIPHeader = header
 	}
 }
 
