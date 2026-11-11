@@ -161,7 +161,9 @@ func TestIntegrationDiagnosticsSinglePanel(t *testing.T) {
 		require.True(t, ok, "plugins: %v", env.Plugins)
 		assert.Equal(t, "datasource", ds.Type)
 		assert.Equal(t, "core", ds.Class)
-		assert.Empty(t, ds.Version, "a core plugin ships no version of its own; read grafana.version instead")
+		loadedPlugin, found := testEnv.PluginRegistry.Plugin(ctx, testDataSourceType, "")
+		require.True(t, found, "test datasource plugin must be loaded")
+		assert.Equal(t, loadedPlugin.Info.Version, ds.Version, "environment.json must report the loaded plugin version")
 		assert.False(t, ds.NotInstalled)
 
 		// The panel's viz plugin is recorded too, read from the posted panel JSON ("type":"timeseries").
