@@ -1,35 +1,35 @@
 {
-  "1591-react19.c8d5e532991b209273a0.js": {
-    "src": "public/build/1591-react19.c8d5e532991b209273a0.js",
-    "integrity": "sha384-IMvXFyuxueHZ9q7yqZaBn8gatfkmUG52W1xegVBMBtf/5TGeaVyF5lSWLLaofjL+ sha512-0Sg0evk0IUhju3oNJo70x6DqIlN71mczXHVj5QVY16zaUtfGzo9lNlV54Mh6MWLyMQK3rW2W3aIwf2Pd1hbiwA=="
+  "2742-react19.9443008786cc5553e21b.js": {
+    "src": "public/build/2742-react19.9443008786cc5553e21b.js",
+    "integrity": "sha384-2S8KK205zuECBsz8xQFKhlpnRcQmGqmXMYVx4agpCY1KT0G0PzViU99dfbJRAHIq sha512-wlRXFxhw/aJhZAWElA+VkDvztJi6fufKYPjVO3zlj95weQPp51pVlhHwQng/7T6LGjl8v9kc5rISJuBFbCC0BQ=="
   },
-  "1985-react19.2be0e698212ccbea673c.js": {
-    "src": "public/build/1985-react19.2be0e698212ccbea673c.js",
-    "integrity": "sha384-ZJH3j0MPO5Z4zYFe24Jmj9IQlQaj6XtZeuxQhZ0z49fCO9ty0CtLtXK5iKJoxPHV sha512-DUJAcQpIVim8igdi8/tcY4mqwOe+huPnWJKnVJlctteRlMjL/O/jNL1WruVgzoCMFEChavntR94GJEIudBD1kg=="
+  "5371-react19.3f99b83025d33ff7938a.js": {
+    "src": "public/build/5371-react19.3f99b83025d33ff7938a.js",
+    "integrity": "sha384-p0MGKwcY1gOCH5TBGRneTHgnbjRii6ZeONdy6PoTEvnm58Gg7gpgEVlrVXNFavfc sha512-geyTzsZ4GTNrck5gmEi4jsd+Zh+oCWfgrRWwoX1mMoFRNU3Vvbh/bmm3AhRQAnTrkVkJL9OBHCYmn+xVBB9UHg=="
   },
-  "5371-react19.89cdc086cc9d56cd5c8b.js": {
-    "src": "public/build/5371-react19.89cdc086cc9d56cd5c8b.js",
-    "integrity": "sha384-pLPeJzC46yCOnIM0chBJLrkEDvZp9FSq4Fq9e9/8Z2aKTcqVlywnrGleEXlcVyEG sha512-aF9AIUrANLQ0OcDXReCbWRh0DjTeN0L3Dyo6j9pJEquFeFic6CJq929Eu1hS6eRyrSsyTIg8I4aaLmJoo/svMg=="
+  "5573-react19.dbd39454416e96cd316b.js": {
+    "src": "public/build/5573-react19.dbd39454416e96cd316b.js",
+    "integrity": "sha384-s0NuID/aaz0KzlJG79zpUbd1StNMw6XB530azqs44Mp60j7zZIgBB/eREAbaxYaV sha512-eiLEW5fJulp7GtrmjMJNVQcvMSJ8LdeAFn7nAZ7QvBkNWud0nicQ4Wt+ncORV+sPRIvXB+tWZ1O5YVwqWVujZQ=="
   },
-  "5573-react19.0192d8a518b8e012d294.js": {
-    "src": "public/build/5573-react19.0192d8a518b8e012d294.js",
-    "integrity": "sha384-9eHPu1SDHCHzowttC7rw2Bqx7E8zXowudFcG/kvF7YKTypeCpkiavbLFJE06mqzH sha512-uQHZN+XPnweveTY/eqfSUWKeSQ9Um0OrON5nahivU54ftYLnl1gccEG2hHZD5CRN6NNLtyFuEpNZyQOurevKpw=="
+  "72-react19.12d023e985a58a9c130a.js": {
+    "src": "public/build/72-react19.12d023e985a58a9c130a.js",
+    "integrity": "sha384-96I+gddyvYYVQpGBAIByKkCYhs6ODiYM3jypiUfN2JAMRJQNkBphNZEQ2pVFCJqA sha512-dXsc2OyPjGHVDt4J3RfKwpKNOMtdCK7+vccVenLQ31AKAPXCVdR8GwtNAZq1cWiY2PIXQwVXXNz5YPbPEYMs2g=="
   },
-  "6029-react19.bd349141416938549393.js": {
-    "src": "public/build/6029-react19.bd349141416938549393.js",
-    "integrity": "sha384-Qk40CPD3xtyY48uTCPAdktenHdjopzo4eJqgu4MYF9qRK2ZfMWvcLrYBPG/Gw+sV sha512-RsByqLPRgpa6JpFp1nmVwc58iwjIFRw56qF370EJnHnbjoKdYtsXQu8cpWNOQz+AOU/qa4uKq76ORJ3RbUzggA=="
+  "841-react19.ebf2888557e1f33d93c1.js": {
+    "src": "public/build/841-react19.ebf2888557e1f33d93c1.js",
+    "integrity": "sha384-Xgejkrwq/z4o3IDMe4BV7E9XoiXdql9eMcASXzPSpMH7d4Gp710Oq0QDl0Xyaav1 sha512-snNfPhVeh/Dl3Ii0qUqFm2LKYZ5bRaFgI2xo4ojGTfYV+VyWXBbC+eGaorkN081GpuX0Rd9WMpUU66hwn6JuHw=="
   },
-  "841-react19.d06aab797396ad4d9018.js": {
-    "src": "public/build/841-react19.d06aab797396ad4d9018.js",
-    "integrity": "sha384-BavJqY+OtqiCZPnnN2GMOJvl9eOcQdJwOJrPL4SO9VUaMuNaX9XbcVC+fKn1Zbe+ sha512-3SZ9AtP1yfVGcUXdPtksS0z4W24/4hjcw/M4UwZRibmrR9SIbk183wxXZ+KxqzynKeFsyDtpkJb5s1DPX8rjkQ=="
+  "9184-react19.784a38d7970b0170b150.js": {
+    "src": "public/build/9184-react19.784a38d7970b0170b150.js",
+    "integrity": "sha384-hCW5tjALjw0aBflT4MDMSZ5PXaRakWoVYTCijsEqMr0srfpoisxqh8XpFypFQ0ik sha512-/N82RmUaZelFS2wqPq2oCM3fdROE5Ja5BLAur/ksg7HcwrZdGR79Wpzyz3TxYJfUxX0tMRkiyjbW8Paew9b1Dg=="
   },
   "app.css": {
     "src": "public/build/grafana.app-react19.956286b013bf6a89b7b0.css",
     "integrity": "sha384-W3K8N1VngYS0kPNnjbqaUgSGeodKO6QUDmzpcanueWnHjgvJaIGI3N02rFqJLFqT sha512-BGegWiriTcC8rhVN9w+YdVUWuE7u0ZsyB/bYqUbG44sqiTbN6ga299JGi3rNOLxwHYdOuHyc0flFq3HFfN1pyg=="
   },
   "app.js": {
-    "src": "public/build/app-react19.e965c450a82d9d6351af.js",
-    "integrity": "sha384-8vb6uLyK6Iwbl/xxkaHHEEilgEjipS/lG6BZ6xr9PfGNc+lNH3+7B0lH2XVVmBM6 sha512-gsSv4+t4QSn2ivBQAni1PSiJ3KaZh5kQK1h2a+fh6AU88+z3R+VI4n+U1tHXPD+psHJGNFqPJlrsj9p/nYuQCQ=="
+    "src": "public/build/app-react19.aca63848845fb09dbef8.js",
+    "integrity": "sha384-uOYuMTQCFJcc5BLo+9jQ9WzudeN2lYtGUM3hAJ6Km0ked04EdnbydYyVTnkJ3B3s sha512-HeSpIXJ9vfFtgbqLMULeE4GittyvwY42hm41NX4zxT+TLn36cxt8j8ijob+Yj6MBB1FniuKOB1k7bmKYEx+skg=="
   },
   "boot.js": {
     "src": "public/build/boot.js",
@@ -52,28 +52,28 @@
     "integrity": "sha384-zq7zdek9Z+V7I8B5uE5pBn02Mrft6qLYqQbg992Ep/BCBBYVnApcZUrKrtPQMDLC sha512-Z/JwasezVbXhD1eP45no7Y095Sn8cnX1hsoDF0g6x1rRiTn6R/cEnqMcvXFWDxScwqc0bzf+OgrVGb59TlbWPA=="
   },
   "runtime.js": {
-    "src": "public/build/runtime-react19.b7a1599f8750cc96a0a4.js",
-    "integrity": "sha384-0nnWmh87vR+KNT4I9JjTHlRVGF+wajgZoJ2KOgk2R9apsWgTnTJY4uPzn6WFjx8p sha512-Eki+pbYQkaHIBJ6C69IZi9DoqZfwp5O95WcDajdQLJrau2+o1hq/g6rtpD+2fUqG+MBsPACVAjlmms2/v2DIcA=="
+    "src": "public/build/runtime-react19.e238533cc67d5864c19e.js",
+    "integrity": "sha384-4t6VUpifOLDiJRoe3/82XS2JLBc0LXYV5Cxc0xXwbXZMel/i3pHs8WITL4pev2O0 sha512-xGLwJmA3nHRs7Kt7u1k7Yv/P+vfANoAEIkUbadHFGYefsBaC2s3CBIj55mBrawh8omW53yWyLxXdwXRbpPk+Ng=="
   },
   "swagger.css": {
-    "src": "public/build/grafana.swagger-react19.1e30a363d4bd7a2f1229.css",
-    "integrity": "sha384-E0bcmTY2ivLkH0mM5jvNYjBISo7CGSp7XVkt4D9bALKu74k750krHZDd07Wvn4Q1 sha512-hwrDXG0wgOg93RnDSHq/zS7hLlgcSyEMxOmgPity5zvwNfbpQwHEoRBrmaiwtulr6dlAb77AAQqtUc4qSYEL0w=="
+    "src": "public/build/grafana.swagger-react19.68aaf3c24d8d3a4c8eee.css",
+    "integrity": "sha384-390OmZHr003R/t5GxywkWaP9+uAHmEdKu+9YgW9rIiFRdJL3hCaTPSU/4wscynAa sha512-fywvYHa9jx7JeNuRi0qfdn6+TJsDLrL90tKEuCtZ61Q58iX3ZfbLYxdz/oIBjTcbVsumNMmRtPFrM/IfCK6k1Q=="
   },
   "swagger.js": {
-    "src": "public/build/swagger-react19.7cf6fe93c57fdc8d4dae.js",
-    "integrity": "sha384-lA7PaNzWKT3wlBhv9QtxzIx8WbSIzNvLSQf29/ZzXcVKuwvPGvODiF2zHF4jWIa4 sha512-Nv85q7gWzjNsH68KprtrVOIwkrfi+3lKwaxhyuCqtoaryDGlvMP/Xl7Qek7/YlXB9+OwUXma/0/77Zkv6E4bag=="
+    "src": "public/build/swagger-react19.5998b3114dccf4fabadb.js",
+    "integrity": "sha384-8ZVSnxAXK3LgOTUsF22eraL6ljr3IYMt4ITyUMLjLpHS5ePS7lp0Ij34lyJJv8vf sha512-th7PKeZUCtk8r7dAvSdt2XiB3RfxPwToQZOvK/OTvFLKP9HWfCTiDLDYV4dePhU7uyox9k3b2UtC+ETcSdCi9A=="
   },
   "entrypoints": {
     "app": {
       "assets": {
         "js": [
-          "public/build/runtime-react19.b7a1599f8750cc96a0a4.js",
-          "public/build/6029-react19.bd349141416938549393.js",
-          "public/build/1985-react19.2be0e698212ccbea673c.js",
-          "public/build/1591-react19.c8d5e532991b209273a0.js",
-          "public/build/5371-react19.89cdc086cc9d56cd5c8b.js",
-          "public/build/841-react19.d06aab797396ad4d9018.js",
-          "public/build/app-react19.e965c450a82d9d6351af.js"
+          "public/build/runtime-react19.e238533cc67d5864c19e.js",
+          "public/build/72-react19.12d023e985a58a9c130a.js",
+          "public/build/9184-react19.784a38d7970b0170b150.js",
+          "public/build/2742-react19.9443008786cc5553e21b.js",
+          "public/build/5371-react19.3f99b83025d33ff7938a.js",
+          "public/build/841-react19.ebf2888557e1f33d93c1.js",
+          "public/build/app-react19.aca63848845fb09dbef8.js"
         ],
         "css": [
           "public/build/grafana.app-react19.956286b013bf6a89b7b0.css"
@@ -83,15 +83,15 @@
     "swagger": {
       "assets": {
         "js": [
-          "public/build/runtime-react19.b7a1599f8750cc96a0a4.js",
-          "public/build/6029-react19.bd349141416938549393.js",
-          "public/build/1985-react19.2be0e698212ccbea673c.js",
-          "public/build/5573-react19.0192d8a518b8e012d294.js",
-          "public/build/5371-react19.89cdc086cc9d56cd5c8b.js",
-          "public/build/swagger-react19.7cf6fe93c57fdc8d4dae.js"
+          "public/build/runtime-react19.e238533cc67d5864c19e.js",
+          "public/build/72-react19.12d023e985a58a9c130a.js",
+          "public/build/9184-react19.784a38d7970b0170b150.js",
+          "public/build/5573-react19.dbd39454416e96cd316b.js",
+          "public/build/5371-react19.3f99b83025d33ff7938a.js",
+          "public/build/swagger-react19.5998b3114dccf4fabadb.js"
         ],
         "css": [
-          "public/build/grafana.swagger-react19.1e30a363d4bd7a2f1229.css"
+          "public/build/grafana.swagger-react19.68aaf3c24d8d3a4c8eee.css"
         ]
       }
     },
@@ -105,7 +105,7 @@
     "dark": {
       "assets": {
         "js": [
-          "public/build/runtime-react19.b7a1599f8750cc96a0a4.js",
+          "public/build/runtime-react19.e238533cc67d5864c19e.js",
           "public/build/dark-react19.723d98fc7ff48d8dc77e.js"
         ],
         "css": [
@@ -116,7 +116,7 @@
     "light": {
       "assets": {
         "js": [
-          "public/build/runtime-react19.b7a1599f8750cc96a0a4.js",
+          "public/build/runtime-react19.e238533cc67d5864c19e.js",
           "public/build/light-react19.21131b27294d6677a8af.js"
         ],
         "css": [
