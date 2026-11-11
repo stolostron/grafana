@@ -1,0 +1,1 @@
+(globalThis.rspackChunkgrafana||=[]).push([[9958],{58774(a,s,g){a.exports=g.p+"static/img/irm_logo.4dc5ca30.svg"},15645(a,s,g){a.exports=g.p+"static/img/oncall_logo.37d332b2.svg"}}]);

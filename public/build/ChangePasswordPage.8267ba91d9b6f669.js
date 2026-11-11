@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[42490],{72083(a,s,e){e.r(s);var r=e(74848),d=e(59575),n=e(23946),h=e(34774);let i=a=>(0,r.jsx)(n.GU,{isChangingPassword:!0,children:(0,r.jsx)(n.qm,{children:(0,r.jsx)(d.A,{resetCode:a.queryParams.code,children:({changePassword:a})=>(0,r.jsx)(h.S,{onSubmit:a})})})});e.d(s,{},{ChangePasswordPage:i,default:i})}}]);
+//# sourceMappingURL=ChangePasswordPage.8267ba91d9b6f669.js.map

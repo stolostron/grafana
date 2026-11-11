@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[98359],{68106(e,r,a){var n=a(74848),s=a(8965),l=a(42590);a.d(r,{},{MergeTransformerEditor:({input:e,options:r,onChange:a})=>e.length<=1?(0,n.jsx)(l.P,{children:(0,n.jsx)(s.x6,{i18nKey:"transformers.merge-transformer-editor.merge-effect-applied-single-frame",children:"Merge has no effect when applied on a single frame."})}):null})}}]);
+//# sourceMappingURL=98359.efeaeecffe41432a.js.map

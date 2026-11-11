@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[87089],{12296(n,a,r){var s=r(74848),e=r(24467);function i({input:n,options:a,onChange:r}){return 0===n.length?null:(0,s.jsx)("div",{children:(0,s.jsx)(e.B,{frame:n[0],mappings:a.mappings??[],onChange:n=>r({...a,mappings:n}),withNameAndValue:!0})})}r.d(a,{RowsToFieldsTransformerEditor:()=>i})}}]);
+//# sourceMappingURL=87089.f2198c6032e0ce56.js.map

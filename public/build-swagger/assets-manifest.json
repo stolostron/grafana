@@ -1,0 +1,23 @@
+{
+  "entrypoints": {
+    "app": {
+      "assets": {
+        "css": [
+          "public/build-swagger/app.59d92a619468c98b.css"
+        ],
+        "js": [
+          "public/build-swagger/app.0f6983fd4aa7ec74.js"
+        ]
+      }
+    },
+    "esModule": true
+  },
+  "app.js": {
+    "src": "public/build-swagger/app.0f6983fd4aa7ec74.js",
+    "integrity": "sha384-0PCBhNFBw8h8Dl5RD4VC4PaNnzGBSWTH94tvayXR8NkeLy6vmClmRvEX7WGj06pr"
+  },
+  "app.css": {
+    "src": "public/build-swagger/app.59d92a619468c98b.css",
+    "integrity": "sha384-gdVUH0AF2czcc7A5QItYWuBwO0rrZSSFqh4LEJ0amAK5B2KkIzDHwn5pIEwtXaIk"
+  }
+}

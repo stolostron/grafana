@@ -1,0 +1,1 @@
+(globalThis.rspackChunkgrafana||=[]).push([[28810],{70635(a,s,p){a.exports=p.p+"static/img/add-panel.2d18e995.svg"}}]);

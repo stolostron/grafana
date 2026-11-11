@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[34490],{98799(a,r,l){l.r(r);var e=l(74848),p=l(54148),s=l(74027);l.d(r,{},{default:()=>{let{"*":a}=(0,p.g)(),r=(0,p.zy)(),l=(0,s.v)("grafana-metricsdrilldown-app").path.replaceAll("*",""),t=`${l}${a}${r.search}`;return(0,e.jsx)(p.C5,{replace:!0,to:t})}})}}]);
+//# sourceMappingURL=MetricsDrilldownRedirect.9f2ec01e8094ac77.js.map

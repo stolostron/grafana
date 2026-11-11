@@ -1,0 +1,1 @@
+(globalThis.rspackChunkgrafana||=[]).push([[25384],{8411(a,e,n){n.r(e);var s=n(93622),o=n(88664),m=n(55435),i=n(14744);n.d(e,{DEFAULT_TAG_COLORS:()=>o.s6,canonicalZoneName:()=>m.s$,findTimeZoneAt:()=>m.SC,getTimeZonesAt:()=>m.Gg,momentCompat:()=>i.A,useObservable:()=>s.J})}}]);

@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[11830],{12853(r,s,e){var t=e(40354),o=e(24414);class a{options;buffer=[];supportedEvents=[t.on.Performance];constructor(r){this.options=r}addEvent=r=>{this.buffer.push(r.payload)};flush=()=>{0!==this.buffer.length&&(o.IB.post("/api/frontend-metrics",{events:this.buffer},{showErrorAlert:!1}).catch(()=>{}),this.buffer=[])}}e.d(s,{PerformanceBackend:()=>a})}}]);
+//# sourceMappingURL=11830.ee378bed3cca643e.js.map

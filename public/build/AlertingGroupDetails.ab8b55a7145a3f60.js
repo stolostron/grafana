@@ -1,0 +1,1 @@
+(globalThis.rspackChunkgrafana||=[]).push([[80669],{56162(s,a,i){s.exports=i.p+"static/img/mimir_logo.4e4cd518.svg"},63708(s,a,i){s.exports=i.p+"static/img/prometheus_logo.aba8e5ec.svg"},81348(s,a,i){s.exports=i.p+"static/img/loki_icon.a2ccdedd.svg"}}]);

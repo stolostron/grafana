@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[854],{27849(t,e,l){var n=l(15874),r=l(83107);let i=(t,e)=>{let l=t.search(/\S|$/);return(0,r.y$)(t,e,l)},o=n.t.of((t,e)=>{let l,n=t.doc.lineAt(e);if(n.number===t.doc.lines||0===n.text.trim().length)return null;let r=i(n.text,t.tabSize);for(let e=n.number+1;e<=t.doc.lines;e++){let n=t.doc.line(e);if(0!==n.text.trim().length){if(i(n.text,t.tabSize)<=r)break;l=n.to}}return void 0===l?null:{from:n.to,to:l}});l.d(e,{},{foldByIndentation:o})}}]);
+//# sourceMappingURL=codemirror-lang-sql.a4f312d5df625e64.js.map
