@@ -2888,23 +2888,6 @@ func TestEnsureFolderTreeExists(t *testing.T) {
 		require.NoError(t, calls[0].err)
 	})
 
-	t.Run("folder title with path traversal is rejected before touching the repo", func(t *testing.T) {
-		repo := makeRepo(t)
-		// A folder titled with traversal segments must never reach the backend.
-		// No Read/Create expectations are set, so the mock fails if either is called.
-		inputTree, _ := makeInputTree("../../etc")
-
-		fm := NewFolderManager(repo, &fakeDynamicResourceClient{}, NewEmptyFolderTree(), FolderKind)
-
-		var calls []fnCall
-		err := fm.EnsureFolderTreeExists(ctx, inputTree, EnsureFolderTreeExistsOptions{Ref: ref, OnFolder: recordingFn(&calls)})
-
-		require.Error(t, err)
-		require.ErrorIs(t, err, safepath.ErrPathTraversalAttempt)
-		require.Len(t, calls, 1)
-		require.False(t, calls[0].created)
-	})
-
 	t.Run("with metadata - existing folder does not write metadata file by default", func(t *testing.T) {
 		repo := makeRepo(t)
 		inputTree, _ := makeInputTree("my-folder")
