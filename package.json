@@ -3,7 +3,7 @@
   "license": "AGPL-3.0-only",
   "private": true,
   "name": "grafana",
-  "version": "13.1.7",
+  "version": "13.1.10",
   "repository": "github:grafana/grafana",
   "scripts": {
     "analytics-report": "node ./scripts/cli/analytics/main.mts",
@@ -88,7 +88,7 @@
     "releaseNotesUrl": "https://grafana.com/docs/grafana/next/release-notes/"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.2",
+    "@arethetypeswrong/cli": "^0.18.5",
     "@axe-core/playwright": "^4.11.1",
     "@emotion/eslint-plugin": "11.12.0",
     "@grafana/eslint-config": "8.2.0",
@@ -354,7 +354,7 @@
     "micro-memoize": "^4.1.2",
     "ml-regression-polynomial": "^3.0.0",
     "ml-regression-simple-linear": "^3.0.0",
-    "moment": "2.30.1",
+    "moment": "2.31.0",
     "moment-timezone": "0.5.47",
     "monaco-editor": "0.34.1",
     "moveable": "0.53.0",
@@ -438,13 +438,14 @@
     "tmp@npm:^0.0.33": "~0.2.1",
     "js-yaml@npm:4.1.1": "^4.1.0",
     "js-yaml@npm:=4.1.1": "^4.1.0",
-    "nodemailer": "8.0.7",
+    "nodemailer": "10.1.7",
     "storybook@npm:10.3.6": "patch:storybook@npm%3A10.3.6#~/.yarn/patches/storybook-npm-10.3.6-8a0644ac0b.patch",
     "@types/slate/immutable": "^4.0.0",
     "@types/slate-react/immutable": "^4.0.0",
     "ws": "^8.20.1",
     "js-cookie": "^3.0.7",
-    "@opentelemetry/core": "2.8.0"
+    "@opentelemetry/core": "2.8.0",
+    "tar@npm:7.5.11": "7.5.22"
   },
   "workspaces": {
     "packages": [
