@@ -38,11 +38,6 @@ var errRuleUIDRequired = errutil.BadRequest(
 	errutil.WithPublicMessage("ruleUID is required when using the annotations state-history backend. Querying history across rules requires Loki."),
 )
 
-const (
-	annotationTagKeyColumnMaxLength   = 100
-	annotationTagValueColumnMaxLength = 100
-)
-
 type AccessControl interface {
 	CanReadAllRules(ctx context.Context, user identity.Requester) (bool, error)
 	AuthorizeAccessInFolder(ctx context.Context, user identity.Requester, rule ngmodels.Namespaced) error

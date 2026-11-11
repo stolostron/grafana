@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/web"
@@ -17,8 +16,7 @@ import (
 var gzipLogger = log.New("middleware.gzip")
 
 type gzipResponseWriter struct {
-	w    *gzip.Writer
-	sink *gzipSink
+	w *gzip.Writer
 	web.ResponseWriter
 }
 
