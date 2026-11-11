@@ -76,6 +76,7 @@ func TestLoader_Load(t *testing.T) {
 						Type: plugins.TypeDataSource,
 						Name: "Graphite",
 						Info: plugins.Info{
+							Version: "13.3.1",
 							Author: plugins.InfoLink{
 								Name: "Grafana Labs",
 								URL:  "https://grafana.com",
@@ -121,11 +122,12 @@ func TestLoader_Load(t *testing.T) {
 							"maxDataPoints": true,
 							"cacheTimeout":  true,
 						},
+						BuildMode: "production",
 					},
 					Class:           plugins.ClassCore,
 					BaseURL:         "public/plugins/graphite",
-					FS:              mustNewStaticFSForTests(t, filepath.Join(corePluginDir(t), "app/plugins/datasource/graphite")),
-					Module:          "core:plugin/graphite",
+					FS:              mustNewStaticFSForTests(t, filepath.Join(corePluginDir(t), "app/plugins/datasource/graphite/dist")),
+					Module:          "public/plugins/graphite/module.js",
 					Signature:       plugins.SignatureStatusInternal,
 					SkipHostEnvVars: true,
 					Translations:    map[string]string{},

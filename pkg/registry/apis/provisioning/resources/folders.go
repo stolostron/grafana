@@ -663,6 +663,12 @@ func (fm *FolderManager) EnsureFolderTreeExists(ctx context.Context, tree Folder
 		// duration: it is invoked after the read/write below, so it cannot time
 		// the operation itself.
 		startedAt := time.Now()
+		// Walk sanitizes the path, so check the original title for traversal first.
+		for _, segment := range safepath.Split(folder.Title) {
+			if segment == "." || segment == ".." {
+				return opts.OnFolder(folder, false, startedAt, fmt.Errorf("unsafe folder title %q: %w", folder.Title, safepath.ErrPathTraversalAttempt))
+			}
+		}
 
 		p := folder.Path
 		if opts.Path != "" {
