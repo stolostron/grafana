@@ -1,0 +1,4 @@
+(globalThis.rspackChunkgrafana||=[]).push([[43142],{53951(e,n,l){l.r(n);var i=l(74848),r=l(8965),a=l(43776),o=l(73260);function f(){let e=(0,o.C)("profile-settings");return(0,i.jsx)(a.Y,{navModel:e,children:(0,i.jsxs)(a.Y.Contents,{children:[(0,i.jsx)("h1",{children:(0,i.jsx)(r.x6,{i18nKey:"profile.feature-toggle-page.profile-not-enabled",children:"Profile is not enabled."})}),(0,i.jsx)(r.x6,{i18nKey:"profile.feature-toggles-age.enable-in-config",children:"Enable profile in the Grafana config file."}),(0,i.jsx)("div",{children:(0,i.jsx)("pre",{children:`[profile]
+enable = true
+`})})]})})}l.d(n,{default:()=>f})}}]);
+//# sourceMappingURL=ProfileFeatureTogglePage.4d9170ca2316b882.js.map

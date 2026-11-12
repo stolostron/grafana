@@ -13,12 +13,13 @@ import (
 	"github.com/grafana/grafana-app-sdk/resource"
 	"github.com/grafana/grafana-app-sdk/simple"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	v1 "github.com/grafana/grafana/apps/alerting/rules/pkg/apis/alerting/v0alpha1"
+	"github.com/grafana/grafana/apps/alerting/rules/pkg/apis/alerting/v0alpha1"
+	v1 "github.com/grafana/grafana/apps/alerting/rules/pkg/apis/alerting/v1beta1"
 	manifestdata "github.com/grafana/grafana/apps/alerting/rules/pkg/apis/manifestdata"
 	"github.com/grafana/grafana/apps/alerting/rules/pkg/app/alertrule"
 	"github.com/grafana/grafana/apps/alerting/rules/pkg/app/config"
+	"github.com/grafana/grafana/apps/alerting/rules/pkg/app/convert"
 	"github.com/grafana/grafana/apps/alerting/rules/pkg/app/recordingrule"
 	"github.com/grafana/grafana/apps/alerting/rules/pkg/app/rulesequence"
 	"github.com/grafana/grafana/apps/alerting/rules/pkg/app/validation"
@@ -108,7 +109,7 @@ func TestAlertRuleValidation_Success(t *testing.T) {
 
 func TestAlertRuleValidation_OpenAPISchemaValidation(t *testing.T) {
 	validator, err := validation.NewBuilder[*v1.AlertRule]().
-		WithOpenAPIValidation(*manifestdata.LocalManifest().ManifestData, schema.GroupKind{Group: "rules.alerting.grafana.app", Kind: "AlertRule"}).
+		WithOpenAPIValidation(*manifestdata.LocalManifest().ManifestData, v1.AlertRuleKind().GroupVersionKind()).
 		OnWrite(alertrule.ValidateWrite(makeDefaultRuntimeConfig())).
 		OnDelete(alertrule.ValidateDelete(makeDefaultRuntimeConfig())).
 		Build()
@@ -131,6 +132,58 @@ func TestAlertRuleValidation_OpenAPISchemaValidation(t *testing.T) {
 		require.Error(t, err)
 		require.False(t, apierrors.IsForbidden(err), "expected semantic (non-Forbidden) error, got %v", err)
 	})
+}
+
+func TestAlertRuleMutation_DefaultsNotificationSettingsType(t *testing.T) {
+	r := baseAlertRule()
+	r.Spec.NotificationSettings = &v1.AlertRuleNotificationSettings{
+		SimplifiedRouting: &v1.AlertRuleSimplifiedRouting{
+			Receiver: "notif-ok",
+			// omit type
+		},
+	}
+
+	validator, err := validation.NewBuilder[*v1.AlertRule]().
+		WithOpenAPIValidation(*manifestdata.LocalManifest().ManifestData, v1.AlertRuleKind().GroupVersionKind()).
+		Build()
+	require.NoError(t, err)
+
+	err = validator.Validate(context.Background(), &appsdk.AdmissionRequest{Action: resource.AdmissionActionCreate, Object: r})
+	// this should fail because the mutator hasn't added the default type yet
+	require.Error(t, err, "empty notification settings type should fail schema validation before mutation")
+
+	resp, err := alertrule.NewMutator(makeDefaultRuntimeConfig()).Mutate(context.Background(), &appsdk.AdmissionRequest{Action: resource.AdmissionActionCreate, Object: r})
+	require.NoError(t, err)
+	mutated := resp.UpdatedObject.(*v1.AlertRule)
+	require.Equal(t, v1.AlertRuleNotificationSettingsTypeSimplifiedRouting, mutated.Spec.NotificationSettings.SimplifiedRouting.Type)
+
+	require.NoError(t, validator.Validate(context.Background(), &appsdk.AdmissionRequest{Action: resource.AdmissionActionCreate, Object: mutated}))
+}
+
+// The apiserver can hand admission the version the request was sent as, which
+// has to come back in that version.
+func TestAlertRuleAdmission_RequestVersion(t *testing.T) {
+	hub := baseAlertRule()
+	hub.Spec.NotificationSettings = &v1.AlertRuleNotificationSettings{
+		SimplifiedRouting: &v1.AlertRuleSimplifiedRouting{Receiver: "notif-ok"},
+	}
+	r, err := convert.Like(hub, &v0alpha1.AlertRule{})
+	require.NoError(t, err)
+	alpha := r.(*v0alpha1.AlertRule)
+	alpha.Labels = nil
+
+	resp, err := alertrule.NewMutator(makeDefaultRuntimeConfig()).Mutate(context.Background(), &appsdk.AdmissionRequest{Action: resource.AdmissionActionCreate, Object: alpha})
+	require.NoError(t, err)
+	mutated, ok := resp.UpdatedObject.(*v0alpha1.AlertRule)
+	require.True(t, ok, "got %T", resp.UpdatedObject)
+	require.Equal(t, alpha.Annotations[v0alpha1.FolderAnnotationKey], mutated.Labels[v0alpha1.FolderLabelKey])
+
+	validator, err := validation.NewBuilder[*v1.AlertRule]().
+		WithOpenAPIValidation(*manifestdata.LocalManifest().ManifestData, v1.AlertRuleKind().GroupVersionKind()).
+		OnWrite(alertrule.ValidateWrite(makeDefaultRuntimeConfig())).
+		Build()
+	require.NoError(t, err)
+	require.NoError(t, validator.Validate(context.Background(), &appsdk.AdmissionRequest{Action: resource.AdmissionActionCreate, Object: mutated}))
 }
 
 func TestAlertRuleValidation_SuccessWithNamedRoutingTree(t *testing.T) {
@@ -575,7 +628,7 @@ func baseRuleSequence() *v1.RuleSequence {
 		RecordingRules: []v1.RuleSequenceRuleRef{
 			{Name: "rec-1"},
 		},
-		AlertingRules: []v1.RuleSequenceRuleRef{
+		AlertRules: []v1.RuleSequenceRuleRef{
 			{Name: "alert-1"},
 		},
 	}
@@ -655,7 +708,7 @@ func TestRuleSequenceValidation_Errors(t *testing.T) {
 	t.Run("duplicate name", func(t *testing.T) {
 		err := mk(func(r *v1.RuleSequence) {
 			r.Spec.RecordingRules = []v1.RuleSequenceRuleRef{{Name: "rec-1"}}
-			r.Spec.AlertingRules = []v1.RuleSequenceRuleRef{{Name: "rec-1"}}
+			r.Spec.AlertRules = []v1.RuleSequenceRuleRef{{Name: "rec-1"}}
 		})
 		require.Error(t, err)
 	})
@@ -670,7 +723,7 @@ func TestRuleSequenceValidation_Errors(t *testing.T) {
 	t.Run("rule in wrong folder", func(t *testing.T) {
 		err := mk(func(r *v1.RuleSequence) {
 			r.Spec.RecordingRules = []v1.RuleSequenceRuleRef{{Name: "other-folder-rule"}}
-			r.Spec.AlertingRules = nil
+			r.Spec.AlertRules = nil
 		})
 		require.Error(t, err)
 	})

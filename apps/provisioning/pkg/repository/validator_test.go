@@ -156,7 +156,7 @@ func TestValidator_Validate(t *testing.T) {
 			},
 		},
 		{
-			name: "githubEnterprise enabled when image rendering is not allowed",
+			name: "githubEnterprise previews enabled via pull request options when image rendering is not allowed",
 			repository: func() *provisioning.Repository {
 				return &provisioning.Repository{
 					ObjectMeta: metav1.ObjectMeta{
@@ -165,7 +165,8 @@ func TestValidator_Validate(t *testing.T) {
 					Spec: provisioning.RepositorySpec{
 						Title:            "Test Repo",
 						Type:             provisioning.GitHubEnterpriseRepositoryType,
-						GitHubEnterprise: &provisioning.GitHubEnterpriseRepositoryConfig{GenerateDashboardPreviews: true},
+						GitHubEnterprise: &provisioning.GitHubEnterpriseRepositoryConfig{},
+						PullRequest:      &provisioning.PullRequestOptions{GenerateDashboardPreviews: true},
 					},
 				}
 			}(),
@@ -529,6 +530,25 @@ func TestValidator_Validate(t *testing.T) {
 				require.Contains(t, errors.ToAggregate().Error(), "cannot have no finalizers set on resources not marked for deletion")
 			},
 		},
+		{
+			// A resource marked for deletion legitimately has its finalizers
+			// removed, so the missing-finalizer check must be skipped for it.
+			name: "no finalizers allowed on resource marked for deletion",
+			repository: func() *provisioning.Repository {
+				return &provisioning.Repository{
+					ObjectMeta: metav1.ObjectMeta{
+						DeletionTimestamp: &metav1.Time{Time: time.Now()},
+						Finalizers:        []string{},
+					},
+					Spec: provisioning.RepositorySpec{
+						Title:     "Test Repo",
+						Type:      provisioning.GitHubRepositoryType,
+						Workflows: []provisioning.Workflow{provisioning.WriteWorkflow},
+					},
+				}
+			}(),
+			expectedErrs: 0,
+		},
 	}
 
 	mockFactory := NewMockFactory(t)
@@ -652,6 +672,10 @@ func testPrivateEndpointGitRepository(repoType provisioning.RepositoryType, rawU
 }
 
 func newAdmissionValidatorTestAttributes(obj, old runtime.Object, op admission.Operation) admission.Attributes {
+	return newAdmissionValidatorTestAttributesWithSubresource(obj, old, op, "")
+}
+
+func newAdmissionValidatorTestAttributesWithSubresource(obj, old runtime.Object, op admission.Operation, subresource string) admission.Attributes {
 	return admission.NewAttributesRecord(
 		obj,
 		old,
@@ -659,7 +683,7 @@ func newAdmissionValidatorTestAttributes(obj, old runtime.Object, op admission.O
 		"default",
 		"test",
 		provisioning.RepositoryResourceInfo.GroupVersionResource(),
-		"",
+		subresource,
 		op,
 		nil,
 		false,
@@ -939,6 +963,59 @@ func TestAdmissionValidator_Validate(t *testing.T) {
 	}
 }
 
+func TestAdmissionValidator_Validate_SkipsSubresourcePatches(t *testing.T) {
+	mockFactory := NewMockFactory(t)
+	// No EXPECT() set up for Validate: the mock will fail the test if it's called,
+	// confirming the factory/extras validation never runs for status patches.
+
+	validator := NewValidator(false, mockFactory)
+	admissionValidator := NewAdmissionValidator(
+		[]provisioning.SyncTargetType{provisioning.SyncTargetTypeFolder},
+		validator,
+	)
+
+	// Missing finalizers and title would normally fail RepositoryValidator.Validate,
+	// but since old carries the exact same spec/secure, this is a pure status patch.
+	repo := &provisioning.Repository{
+		ObjectMeta: metav1.ObjectMeta{Name: "test"},
+		Spec:       provisioning.RepositorySpec{},
+	}
+	old := repo.DeepCopy()
+
+	attr := newAdmissionValidatorTestAttributesWithSubresource(repo, old, admission.Update, "status")
+
+	require.NoError(t, admissionValidator.Validate(context.Background(), attr, nil))
+}
+
+func TestAdmissionValidator_Validate_RunsForBundledSpecChange(t *testing.T) {
+	old := &provisioning.Repository{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test",
+			Finalizers: []string{CleanFinalizer, RemoveOrphanResourcesFinalizer},
+		},
+		Spec: provisioning.RepositorySpec{Title: "Test Repo"},
+	}
+	// Bundled onto a /status request: spec.title is cleared, which
+	// RepositoryValidator.Validate rejects.
+	repo := old.DeepCopy()
+	repo.Spec.Title = ""
+
+	mockFactory := NewMockFactory(t)
+	mockFactory.EXPECT().Validate(mock.Anything, mock.Anything).Return(field.ErrorList{}).Once()
+
+	validator := NewValidator(false, mockFactory)
+	admissionValidator := NewAdmissionValidator(
+		[]provisioning.SyncTargetType{provisioning.SyncTargetTypeFolder},
+		validator,
+	)
+
+	attr := newAdmissionValidatorTestAttributesWithSubresource(repo, old, admission.Update, "status")
+
+	err := admissionValidator.Validate(context.Background(), attr, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "spec.title: Required value")
+}
+
 func TestAdmissionValidator_CopiesSecureValuesOnUpdate(t *testing.T) {
 	mockFactory := NewMockFactory(t)
 	mockFactory.EXPECT().Validate(mock.Anything, mock.Anything).Return(field.ErrorList{}).Maybe()
@@ -994,6 +1071,7 @@ func TestAdmissionValidator_RequiresNewTokenWhenURLChanges(t *testing.T) {
 		oldURL          string
 		newURL          string
 		newToken        common.InlineSecureValue
+		connection      string
 		wantErr         bool
 		wantErrContains string
 	}{
@@ -1017,6 +1095,29 @@ func TestAdmissionValidator_RequiresNewTokenWhenURLChanges(t *testing.T) {
 			newURL:  "https://github.com/grafana/repo",
 			wantErr: false,
 		},
+		{
+			name:       "allows url change on the same host for a connection-backed repository",
+			oldURL:     "https://github.com/grafana/old",
+			newURL:     "https://github.com/grafana/new",
+			connection: "gh-app",
+			wantErr:    false,
+		},
+		{
+			name:            "rejects url change when the stored token reference is echoed back",
+			oldURL:          "https://github.com/grafana/old",
+			newURL:          "https://github.com/grafana/new",
+			newToken:        common.InlineSecureValue{Name: "old-token"},
+			wantErr:         true,
+			wantErrContains: "secure.token",
+		},
+		{
+			name:            "rejects host change for a connection-backed repository",
+			oldURL:          "https://github.com/grafana/old",
+			newURL:          "https://attacker.example.com/grafana/old",
+			connection:      "gh-app",
+			wantErr:         true,
+			wantErrContains: "secure.token",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1035,6 +1136,10 @@ func TestAdmissionValidator_RequiresNewTokenWhenURLChanges(t *testing.T) {
 
 			newRepo := newGitHubRepositoryForURLChangeTest(tt.newURL)
 			newRepo.Secure.Token = tt.newToken
+			if tt.connection != "" {
+				oldRepo.Spec.Connection = &provisioning.ConnectionInfo{Name: tt.connection}
+				newRepo.Spec.Connection = &provisioning.ConnectionInfo{Name: tt.connection}
+			}
 
 			attr := newAdmissionValidatorTestAttributes(newRepo, oldRepo, admission.Update)
 
@@ -1042,7 +1147,7 @@ func TestAdmissionValidator_RequiresNewTokenWhenURLChanges(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrContains)
-				assert.True(t, newRepo.Secure.Token.IsZero(), "old token should not be copied after rejection")
+				assert.Equal(t, tt.newToken, newRepo.Secure.Token, "secure values should not be copied after rejection")
 				return
 			}
 
@@ -1144,4 +1249,73 @@ func TestAdmissionValidator_ValidatorError(t *testing.T) {
 	err := admissionValidator.Validate(context.Background(), attr, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate repository")
+}
+
+func TestValidateCommitOptions(t *testing.T) {
+	tests := []struct {
+		name         string
+		commit       *provisioning.CommitOptions
+		expectedErrs []string
+	}{
+		{
+			name:   "no commit options",
+			commit: nil,
+		},
+		{
+			name:   "author override without signing",
+			commit: &provisioning.CommitOptions{AuthorName: "Sync Bot", AuthorEmail: "bot@example.com"},
+		},
+		{
+			name:   "signing without author override",
+			commit: &provisioning.CommitOptions{SigningMethod: provisioning.SSHSigningMethod, SignerName: "Bot Signer"},
+		},
+		{
+			name: "signer without a signing method",
+			commit: &provisioning.CommitOptions{
+				SignerName:     "Bot Signer",
+				SignerEmail:    "signer@example.com",
+				SignerIsAuthor: true,
+			},
+			expectedErrs: []string{"spec.commit.signerName", "spec.commit.signerEmail", "spec.commit.signerIsAuthor"},
+		},
+		{
+			name:         "signer as author without a signing method",
+			commit:       &provisioning.CommitOptions{SignerIsAuthor: true},
+			expectedErrs: []string{"spec.commit.signerIsAuthor"},
+		},
+		{
+			name: "author override with signing",
+			commit: &provisioning.CommitOptions{
+				AuthorName:    "Sync Bot",
+				AuthorEmail:   "bot@example.com",
+				SigningMethod: provisioning.SSHSigningMethod,
+			},
+			expectedErrs: []string{"spec.commit.authorName", "spec.commit.authorEmail"},
+		},
+		{
+			name: "author email override with signing",
+			commit: &provisioning.CommitOptions{
+				AuthorEmail:   "bot@example.com",
+				SigningMethod: provisioning.SSHSigningMethod,
+			},
+			expectedErrs: []string{"spec.commit.authorEmail"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := validateCommitOptions(&provisioning.Repository{
+				Spec: provisioning.RepositorySpec{
+					Title:  "Test Repo",
+					Type:   provisioning.GitHubRepositoryType,
+					Commit: tt.commit,
+				},
+			})
+
+			require.Len(t, errs, len(tt.expectedErrs))
+			for i, expected := range tt.expectedErrs {
+				assert.Equal(t, expected, errs[i].Field)
+			}
+		})
+	}
 }

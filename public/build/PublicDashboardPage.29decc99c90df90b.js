@@ -1,0 +1,1 @@
+(globalThis.rspackChunkgrafana||=[]).push([[60254],{12326(a,g,t){a.exports=t.p+"static/img/grafana_text_logo_dark.3b09aade.svg"},71542(a,g,t){a.exports=t.p+"static/img/grafana_text_logo_light.c91a6bdc.svg"}}]);

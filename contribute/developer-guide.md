@@ -6,7 +6,7 @@ This guide helps you get started developing Grafana.
 
 Make sure you have the following dependencies installed before setting up your developer environment:
 
-- [Git](https://git-scm.com/)
+- [Git](https://git-scm.com/) (The Grafana organization requires signed commits. See the [Github docs](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits) on how to set this up, if it is not already.)
 - [Go](https://golang.org/dl/) (see [go.mod](../go.mod#L3) for minimum required version)
 - [Node.js (Long Term Support)](https://nodejs.org), with [corepack enabled](https://nodejs.org/api/corepack.html#enabling-the-feature). See [.nvmrc](../.nvmrc) for supported version. We recommend that you use a version manager such as [nvm](https://github.com/nvm-sh/nvm), [fnm](https://github.com/Schniz/fnm), or similar.
 - [GCC](https://gcc.gnu.org/) (optional, not recommended; enables CGO for smaller, dynamically linked binaries)
@@ -100,26 +100,25 @@ After the command has finished, you can start building the source code:
 yarn start
 ```
 
-This command generates SASS theme files, builds all external plugins, and then builds the frontend assets.
+This command generates SASS theme files, builds all external plugins, and then starts the rspack dev server. The dev server supports hot module replacement and React Fast Refresh: when you edit a component, the running page updates without a reload and keeps its app state. When rspack cannot hot-apply a module, it reloads the page.
 
-After `yarn start` has built the assets, it will continue to do so whenever any of the files change. This means you don't have to manually build the assets every time you change the code.
+Keep using `http://localhost:3000`. The dev server holds the bundles in memory and listens on the port named by `[frontend_dev] server_url`. Grafana treats it as a CDN: the `index.html` it renders points the browser straight at the dev server for frontend assets, and the hot-update websocket connects there too.
 
 > **Troubleshooting:** if your first build works, after pulling updates you may see unexpected errors in the "Type-checking in progress..." stage. These errors can be caused by the [tsbuildinfo cache supporting incremental builds](https://www.typescriptlang.org/tsconfig#incremental). In this case, you can enter `rm tsconfig.tsbuildinfo` and re-try.
+
+#### How the dev server affects the build on disk
+
+- Almost nothing is written to `public/build`. The one exception is `boot.js`, which every start command builds to disk first, because the backend reads it from there at startup. To serve the rest of the build from a static file server, as `make frontend-service` does, run `yarn start:noHmr` instead.
+- If the dev server is not running, Grafana falls back to whatever the last build left on disk. A stale page usually means the dev server stopped.
+- Turning on `[security] content_security_policy` disables the dev server. A `'self'` policy will not let the page load assets from another origin, so Grafana logs a line and serves the build on disk. That is what keeps the e2e suite off the dev server, since the suite also runs in development mode.
+- Blanking `server_url` in a config file does not turn the dev server off, and leaves the two halves disagreeing: `yarn start` refuses to start, while Grafana ignores empty values in `custom.ini` and still points the browser at the dev server. To build without one, run `yarn start:noHmr`. To stop Grafana looking for one, pass `cfg:frontend_dev.server_url=` on the command line.
 
 #### Plugins
 
 If you want to contribute to any of the plugins listed below (that are found within the `public/app/plugins` directory) they require running additional commands to watch and rebuild them.
 
 - azuremonitor
-- cloud-monitoring
-- grafana-postgresql-datasource
-- grafana-pyroscope-datasource
 - grafana-testdata-datasource
-- jaeger
-- mysql
-- parca
-- tempo
-- loki
 
 To build and watch all these plugins you can run the following command. Note this can be quite resource intensive as it will start separate build processes for each plugin.
 
@@ -127,7 +126,8 @@ To build and watch all these plugins you can run the following command. Note thi
 yarn plugin:build:dev
 ```
 
-If, instead, you would like to build and watch a specific plugin you can run the following command. Make sure to substitute `<name_of_plugin>` with the plugins name field found in its package.json. e.g. `@grafana-plugins/tempo`.
+If, instead, you would like to build and watch a specific plugin you can run the following command. Make sure to substitute `<name_of_plugin>`
+with the plugins name field found in its package.json. e.g. `@grafana-plugins/awesome_plugin`.
 
 ```
 yarn workspace <name_of_plugin> dev
@@ -136,7 +136,7 @@ yarn workspace <name_of_plugin> dev
 If you want to run multiple specific plugins, you can use the following command.
 
 ```
-yarn nx run-many -t dev --projects="@grafana-plugins/grafana-azure-monitor-datasource,@grafana-plugins/jaeger"
+yarn nx run-many -t dev --projects="@grafana-plugins/<name_of_plugin>,@grafana-plugins/<name_of_plugin>"
 ```
 
 If you're unsure of the name of the plugins you'd like to run you can query nx with the following command to get a list of all plugins:
@@ -303,7 +303,7 @@ Installing and configuring databases can be a tricky business. Grafana uses [Doc
 In the root directory of your Grafana repository, run the following command:
 
 ```
-make devenv sources=influxdb,loki
+make devenv sources=influxdb
 ```
 
 The script generates a Docker Compose file with the databases you specify as `sources`, and runs them in the background.

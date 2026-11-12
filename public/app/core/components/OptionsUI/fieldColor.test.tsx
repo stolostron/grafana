@@ -1,12 +1,19 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { render } from 'test/test-utils';
 
 import { FieldColorModeId } from '@grafana/data';
-import { config } from '@grafana/runtime';
+import { setTestFlags } from '@grafana/test-utils/unstable';
 
 import { FieldColorEditor } from './fieldColor';
 
 const testRegistryItems = [
+  {
+    id: FieldColorModeId.Gradient,
+    name: 'Gradient',
+    description: 'Gradient color scheme',
+    getCalculator: () => 'red',
+  },
   {
     id: 'foo',
     name: 'Foo',
@@ -32,6 +39,24 @@ const testRegistryItems = [
     description: 'Colorblind-safe palette option',
     getCalculator: () => 'red',
   },
+  {
+    id: FieldColorModeId.PaletteCategoricalNext,
+    name: 'Categorical Next',
+    description: 'Experimental categorical palette',
+    getCalculator: () => 'red',
+  },
+  {
+    id: FieldColorModeId.PaletteCategoricalNext2,
+    name: 'Categorical Next 2',
+    description: 'Experimental categorical palette',
+    getCalculator: () => 'red',
+  },
+  {
+    id: FieldColorModeId.PaletteCategoricalNext3,
+    name: 'Categorical Next 3',
+    description: 'Experimental categorical palette',
+    getCalculator: () => 'red',
+  },
 ];
 
 jest.mock('@grafana/data', () => {
@@ -52,6 +77,11 @@ const defaultEditorProps = {
 };
 
 describe('fieldColor', () => {
+  afterEach(() => {
+    cleanup();
+    setTestFlags({});
+  });
+
   it('filters out registry options with excludeFromPicker=true', async () => {
     render(<FieldColorEditor {...defaultEditorProps} />);
     await userEvent.type(screen.getByRole('combobox'), '{arrowdown}');
@@ -61,18 +91,8 @@ describe('fieldColor', () => {
   });
 
   describe('enableColorblindSafePanelOptions', () => {
-    let previousEnableColorblindSafePanelOptions: boolean | undefined;
-
-    beforeEach(() => {
-      previousEnableColorblindSafePanelOptions = config.featureToggles.enableColorblindSafePanelOptions;
-    });
-
-    afterEach(() => {
-      config.featureToggles.enableColorblindSafePanelOptions = previousEnableColorblindSafePanelOptions;
-    });
-
     it('shows the colorblind palette option only when the feature flag is enabled', async () => {
-      config.featureToggles.enableColorblindSafePanelOptions = true;
+      setTestFlags({ enableColorblindSafePanelOptions: true });
       render(<FieldColorEditor {...defaultEditorProps} />);
       await userEvent.type(screen.getByRole('combobox'), '{arrowdown}');
       expect(screen.getByText(/^Colorblind safe/i)).toBeInTheDocument();
@@ -80,11 +100,56 @@ describe('fieldColor', () => {
     });
 
     it('does not show the colorblind palette option when the feature flag is disabled', async () => {
-      config.featureToggles.enableColorblindSafePanelOptions = false;
+      setTestFlags({ enableColorblindSafePanelOptions: false });
       render(<FieldColorEditor {...defaultEditorProps} />);
       await userEvent.type(screen.getByRole('combobox'), '{arrowdown}');
       expect(screen.queryByText(/^Colorblind safe/i)).not.toBeInTheDocument();
       expect(screen.getAllByRole('option')).toHaveLength(2);
     });
   });
+
+  describe('dataviz.experimentalColorSchemes', () => {
+    it('shows the experimental categorical palette options only when the feature flag is enabled', async () => {
+      setTestFlags({ 'dataviz.experimentalColorSchemes': true });
+      render(<FieldColorEditor {...defaultEditorProps} />);
+      await userEvent.type(screen.getByRole('combobox'), '{arrowdown}');
+      expect(screen.getByText(/^Categorical Next$/i)).toBeInTheDocument();
+      expect(screen.getByText(/^Categorical Next 2$/i)).toBeInTheDocument();
+      expect(screen.getByText(/^Categorical Next 3$/i)).toBeInTheDocument();
+    });
+
+    it('does not show the experimental categorical palette options when the feature flag is disabled', async () => {
+      setTestFlags({ 'dataviz.experimentalColorSchemes': false });
+      render(<FieldColorEditor {...defaultEditorProps} />);
+      await userEvent.type(screen.getByRole('combobox'), '{arrowdown}');
+      expect(screen.queryByText(/^Categorical Next$/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Categorical Next 2$/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Categorical Next 3$/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it.each([
+    { flag: false, gradientSupport: true, visible: false },
+    { flag: true, gradientSupport: false, visible: false },
+    { flag: true, gradientSupport: true, visible: true },
+  ])(
+    'shows gradient=$visible with flag=$flag and support=$gradientSupport',
+    async ({ flag, gradientSupport, visible }) => {
+      setTestFlags({ pieChartGradientColorScheme: flag });
+      render(
+        <FieldColorEditor
+          {...defaultEditorProps}
+          item={{ ...defaultEditorProps.item, settings: { gradientSupport } }}
+        />
+      );
+      await userEvent.type(screen.getByRole('combobox'), '{arrowdown}');
+
+      expect(screen.getByText(/^Foo/i)).toBeInTheDocument();
+      if (visible) {
+        expect(screen.getByRole('option', { name: /Gradient/ })).toBeInTheDocument();
+      } else {
+        expect(screen.queryByRole('option', { name: /Gradient/ })).not.toBeInTheDocument();
+      }
+    }
+  );
 });

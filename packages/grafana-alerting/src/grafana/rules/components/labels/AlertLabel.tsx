@@ -4,7 +4,7 @@ import tinycolor2 from 'tinycolor2';
 import { type MergeExclusive } from 'type-fest';
 
 import { type GrafanaTheme2, type IconName } from '@grafana/data';
-import { Icon, Stack, getTagColorsFromName, useStyles2 } from '@grafana/ui';
+import { Icon, Stack, getTagColorsFromName, useStyles2, useTheme2 } from '@grafana/ui';
 
 export type LabelSize = 'md' | 'sm' | 'xs';
 
@@ -20,8 +20,10 @@ type Props = BaseProps & MergeExclusive<{ color?: string }, { colorBy?: 'key' | 
 
 const AlertLabel = (props: Props) => {
   const { labelKey, value, icon, color, colorBy, size = 'md', onClick, ...rest } = props;
-  const theColor = getColorFromProps({ color, colorBy, labelKey, value });
-  const styles = useStyles2(getStyles, theColor, size);
+  const theme = useTheme2();
+  const tagColors = getColorFromProps({ color, colorBy, labelKey, value, theme });
+  // passing primitives keeps the memoization in useStyles2 effective
+  const styles = useStyles2(getStyles, tagColors?.background, tagColors?.text, size);
 
   const ariaLabel = `${labelKey}: ${value}`;
   const keyless = !Boolean(labelKey);
@@ -67,20 +69,23 @@ const AlertLabel = (props: Props) => {
   );
 };
 
-function getAccessibleTagColor(name?: string): string | undefined {
+type TagColors = { background: string; text: string };
+
+export function getAccessibleTagColor(name: string | undefined, theme: GrafanaTheme2): TagColors | undefined {
   if (!name) {
     return;
   }
   const attempts = Array.from({ length: 6 }, (_, i) => name + '-'.repeat(i));
   const readableAttempt = attempts.find((attempt) => {
-    const candidate = getTagColorsFromName(attempt).color;
+    const { background } = getTagColorsFromName(attempt, theme);
     return (
-      tinycolor2.isReadable(candidate, '#000', { level: 'AA', size: 'small' }) ||
-      tinycolor2.isReadable(candidate, '#fff', { level: 'AA', size: 'small' })
+      tinycolor2.isReadable(background, '#000', { level: 'AA', size: 'small' }) ||
+      tinycolor2.isReadable(background, '#fff', { level: 'AA', size: 'small' })
     );
   });
   const chosen = readableAttempt ?? name;
-  return getTagColorsFromName(chosen).color;
+  const { background, text } = getTagColorsFromName(chosen, theme);
+  return { background, text };
 }
 
 function getColorFromProps({
@@ -88,21 +93,22 @@ function getColorFromProps({
   colorBy,
   labelKey,
   value,
-}: Pick<Props, 'color' | 'colorBy' | 'labelKey' | 'value'>) {
+  theme,
+}: Pick<Props, 'color' | 'colorBy' | 'labelKey' | 'value'> & { theme: GrafanaTheme2 }) {
   if (color) {
-    return getAccessibleTagColor(color);
+    return getAccessibleTagColor(color, theme);
   }
 
   if (colorBy === 'key') {
-    return getAccessibleTagColor(labelKey);
+    return getAccessibleTagColor(labelKey, theme);
   }
 
   if (colorBy === 'value') {
-    return getAccessibleTagColor(value);
+    return getAccessibleTagColor(value, theme);
   }
 
   if (colorBy === 'both' && labelKey && value) {
-    return getAccessibleTagColor(labelKey + value);
+    return getAccessibleTagColor(labelKey + value, theme);
   }
 
   return;
@@ -132,24 +138,51 @@ function getReadableFontColor(bg: string, fallback: string): string {
     .toHexString();
 }
 
-const getStyles = (theme: GrafanaTheme2, color?: string, size?: string) => {
-  const backgroundColor = color ?? theme.colors.secondary.main;
+export type AlertLabelColors = {
+  background: string;
+  border: string;
+  text: string;
+  valueBackground: string;
+  valueText: string;
+};
 
-  const borderColor = theme.isDark
-    ? tinycolor2(backgroundColor).lighten(5).toString()
-    : tinycolor2(backgroundColor).darken(5).toString();
+/**
+ * Works out the colors an AlertLabel uses for a given tag color, so other label-like components can match them.
+ */
+export function getAlertLabelColors(theme: GrafanaTheme2, color?: string, textColor?: string): AlertLabelColors {
+  const background = color ?? theme.colors.secondary.main;
 
-  const valueBackgroundColor = theme.isDark
-    ? tinycolor2(backgroundColor).darken(5).toString()
-    : tinycolor2(backgroundColor).lighten(5).toString();
+  // the visual refresh tag palette pairs each background with an accessible text color, so use it
+  // instead of deriving one from the background
+  const paletteTextColor = theme.flags.visualDesignRefresh ? textColor : undefined;
 
-  const labelFontColor = color
-    ? getReadableFontColor(backgroundColor, theme.colors.text.primary)
+  const border = theme.isDark
+    ? tinycolor2(background).lighten(5).toString()
+    : tinycolor2(background).darken(5).toString();
+
+  const valueBackground = theme.isDark
+    ? tinycolor2(background).darken(5).toString()
+    : tinycolor2(background).lighten(5).toString();
+
+  const text = color
+    ? (paletteTextColor ?? getReadableFontColor(background, theme.colors.text.primary))
     : theme.colors.text.primary;
 
-  const valueFontColor = color
-    ? getReadableFontColor(valueBackgroundColor, theme.colors.text.primary)
+  const valueText = color
+    ? (paletteTextColor ?? getReadableFontColor(valueBackground, theme.colors.text.primary))
     : theme.colors.text.primary;
+
+  return { background, border, text, valueBackground, valueText };
+}
+
+const getStyles = (theme: GrafanaTheme2, color?: string, textColor?: string, size?: string) => {
+  const {
+    background: backgroundColor,
+    border: borderColor,
+    text: labelFontColor,
+    valueBackground: valueBackgroundColor,
+    valueText: valueFontColor,
+  } = getAlertLabelColors(theme, color, textColor);
 
   let padding: CSSProperties['padding'] = theme.spacing(0.33, 1);
 
@@ -166,7 +199,6 @@ const getStyles = (theme: GrafanaTheme2, color?: string, size?: string) => {
 
   return {
     wrapper: css({
-      fontSize: theme.typography.bodySmall.fontSize,
       borderRadius: theme.shape.borderRadius(2),
     }),
     labelText: css({
@@ -179,6 +211,7 @@ const getStyles = (theme: GrafanaTheme2, color?: string, size?: string) => {
       display: 'flex',
       alignItems: 'center',
       color: labelFontColor,
+      fontSize: theme.typography.sm.fontSize,
 
       padding: padding,
       background: backgroundColor,
@@ -213,6 +246,7 @@ const getStyles = (theme: GrafanaTheme2, color?: string, size?: string) => {
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       maxWidth: '300px',
+      fontSize: theme.typography.sm.fontSize,
     }),
     valueWithoutKey: css({
       borderTopLeftRadius: theme.shape.borderRadius(2),
@@ -223,4 +257,3 @@ const getStyles = (theme: GrafanaTheme2, color?: string, size?: string) => {
 };
 
 export { AlertLabel };
-export type AlertLabelProps = Props;

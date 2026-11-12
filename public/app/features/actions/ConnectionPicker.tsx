@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { ActionType, type DataSourceInstanceSettings } from '@grafana/data';
+import { ActionType, type DataSourceInstanceListItem } from '@grafana/data';
 import { t } from '@grafana/i18n';
-import { config, getDataSourceSrv } from '@grafana/runtime';
+import { getDataSourceInstanceList } from '@grafana/runtime';
+import { useFlagVizActionsAuth } from '@grafana/runtime/internal';
 import { Select } from '@grafana/ui';
 
 import { INFINITY_DATASOURCE_TYPE } from './utils';
@@ -18,22 +19,32 @@ interface ConnectionOption {
 interface ConnectionPickerProps {
   actionType: ActionType;
   datasourceUid?: string;
-  onChange: (connectionType: 'direct' | DataSourceInstanceSettings) => void;
+  onChange: (connectionType: 'direct' | DataSourceInstanceListItem) => void;
   id?: string;
 }
 
 const DIRECT_OPTION_VALUE = 'direct';
 
-const getSupportedDataSources = () => {
-  const dataSourceSrv = getDataSourceSrv();
-
-  return dataSourceSrv.getList({
-    filter: (ds) => ds.type === INFINITY_DATASOURCE_TYPE,
-  });
-};
-
 export const ConnectionPicker = ({ actionType, datasourceUid, onChange, id }: ConnectionPickerProps) => {
-  const connectionOptions: ConnectionOption[] = useMemo(() => {
+  const vizActionsAuth = useFlagVizActionsAuth();
+  const [supportedDataSources, setSupportedDataSources] = useState<DataSourceInstanceListItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (vizActionsAuth) {
+      getDataSourceInstanceList({
+        filter: (item) => item.type === INFINITY_DATASOURCE_TYPE,
+      }).then((dataSources) => {
+        if (!cancelled) {
+          setSupportedDataSources(dataSources);
+        }
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [vizActionsAuth]);
+
+  const connectionOptions = useMemo(() => {
     const options: ConnectionOption[] = [
       {
         label: t('grafana-ui.action-editor.modal.connection-direct-label', 'Direct from browser'),
@@ -45,21 +56,16 @@ export const ConnectionPicker = ({ actionType, datasourceUid, onChange, id }: Co
         icon: 'adjust-circle',
       },
     ];
-
-    if (config.featureToggles.vizActionsAuth) {
-      const supportedDataSources = getSupportedDataSources();
-
-      supportedDataSources.forEach((ds) => {
-        options.push({
-          label: ds.name,
-          value: ds.uid,
-          imgUrl: ds.meta.info.logos.small,
-        });
+    (vizActionsAuth ? supportedDataSources : []).forEach((ds) => {
+      options.push({
+        label: ds.name,
+        value: ds.uid,
+        imgUrl: ds.meta.info.logos.small,
       });
-    }
+    });
 
     return options;
-  }, []);
+  }, [supportedDataSources, vizActionsAuth]);
 
   const getCurrentValue = () => {
     if (actionType === ActionType.Fetch) {
@@ -74,12 +80,9 @@ export const ConnectionPicker = ({ actionType, datasourceUid, onChange, id }: Co
     if (selectedValue === DIRECT_OPTION_VALUE) {
       onChange(DIRECT_OPTION_VALUE);
     } else {
-      const supportedDataSources = getSupportedDataSources();
-      const selectedDatasource = supportedDataSources.find((ds) => ds.uid === selectedValue);
-      if (selectedDatasource) {
-        onChange(selectedDatasource);
-      } else {
-        console.error('ConnectionPicker: Could not find datasource with UID:', selectedValue);
+      const selected = supportedDataSources.find((ds) => ds.uid === selectedValue);
+      if (selected) {
+        onChange(selected);
       }
     }
   };

@@ -1,37 +1,58 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { createAssistantContextItem, type ChatContextItem, useProvidePageContext } from '@grafana/assistant';
 import { type DataSourceApi } from '@grafana/data';
-import { getDataSourceSrv } from '@grafana/runtime';
+import { getDataSourceInstanceSettings } from '@grafana/runtime';
 import { type DataQuery } from '@grafana/schema';
 import { type ExploreItemState } from 'app/types/explore';
 
+import { getQueryExpressionText } from '../utils/queries';
+
 export function useExplorePageContext(panes: Array<[string, ExploreItemState]>): void {
-  const setContext = useProvidePageContext(/^\/explore/);
+  const [items, setItems] = useState<ChatContextItem[]>([]);
 
   useEffect(() => {
-    setContext(buildContext(panes));
-  }, [panes, setContext]);
+    let cancelled = false;
+    buildContext(panes).then((built) => {
+      if (!cancelled) {
+        setItems(built);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [panes]);
+
+  // Provide the built items as the registration's context. Passing them here
+  // (rather than via the imperative setter) means the assistant SDK both
+  // re-applies them whenever they change and re-creates the registration with
+  // them if it remounts — otherwise the items are lost when the registration
+  // is re-created empty and the effect that set them
+  // doesn't re-run, leaving Explore context missing until an unrelated render.
+  useProvidePageContext(/^\/explore/, items);
 }
 
-function buildContext(panes: Array<[string, ExploreItemState]>): ChatContextItem[] {
-  return panes.flatMap(([, pane]) => {
-    const ds = pane.datasourceInstance;
-    if (!ds) {
-      return [];
-    }
+async function buildContext(panes: Array<[string, ExploreItemState]>): Promise<ChatContextItem[]> {
+  const itemsPerPane = await Promise.all(
+    panes.map(async ([, pane]) => {
+      const ds = pane.datasourceInstance;
+      if (!ds) {
+        return [];
+      }
 
-    // if `-- Mixed --` datasource, we add each data source individual
-    if (ds.meta.mixed) {
-      return buildMixedContext(pane.queries);
-    }
+      // if `-- Mixed --` datasource, we add each data source individual
+      if (ds.meta.mixed) {
+        return buildMixedContext(pane.queries);
+      }
 
-    const matchingQueries = pane.queries.filter((q) => !q.datasource?.uid || q.datasource.uid === ds.uid);
-    return buildDatasourceContext(ds.uid, ds.name, ds.meta?.info?.logos?.small, matchingQueries, ds);
-  });
+      const matchingQueries = pane.queries.filter((q) => !q.datasource?.uid || q.datasource.uid === ds.uid);
+      return buildDatasourceContext(ds.uid, ds.name, ds.meta?.info?.logos?.small, matchingQueries, ds);
+    })
+  );
+  return itemsPerPane.flat();
 }
 
-function buildMixedContext(queries: DataQuery[]): ChatContextItem[] {
+async function buildMixedContext(queries: DataQuery[]): Promise<ChatContextItem[]> {
   const grouped = new Map<string, DataQuery[]>();
   for (const query of queries) {
     const uid = query.datasource?.uid;
@@ -48,7 +69,7 @@ function buildMixedContext(queries: DataQuery[]): ChatContextItem[] {
 
   const items: ChatContextItem[] = [];
   for (const [uid, dsQueries] of grouped) {
-    const settings = getDataSourceSrv().getInstanceSettings(uid);
+    const settings = await getDataSourceInstanceSettings(uid);
     if (!settings) {
       continue;
     }
@@ -81,8 +102,7 @@ function buildDatasourceContext(
   return items;
 }
 
-// maintain these field lists to avoid passing full query objects to the assistant.
-const EXPRESSION_FIELDS = new Set(['expr', 'expression', 'query', 'rawSql', 'rawQuery']);
+// Only these fields leave the browser, so the assistant never sees a full query object.
 const METADATA_FIELDS = new Set([
   'queryType',
   'format',
@@ -107,15 +127,12 @@ function getDisplayText(query: DataQuery, ds?: DataSourceApi): string | undefine
 function summarizeQuery(query: DataQuery, ds?: DataSourceApi): Record<string, unknown> {
   const summary: Record<string, unknown> = { refId: query.refId };
 
-  const displayText = getDisplayText(query, ds);
-  if (displayText) {
-    summary.expression = displayText;
+  const expression = getDisplayText(query, ds) || getQueryExpressionText(query);
+  if (expression) {
+    summary.expression = expression;
   }
 
   for (const [key, value] of Object.entries(query)) {
-    if (!summary.expression && EXPRESSION_FIELDS.has(key) && value) {
-      summary.expression = value;
-    }
     if (METADATA_FIELDS.has(key) && value != null) {
       summary[key] = value;
     }

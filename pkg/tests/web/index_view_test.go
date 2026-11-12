@@ -14,11 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/grafana/pkg/infra/tracing"
 	"github.com/grafana/grafana/pkg/services/login"
 	"github.com/grafana/grafana/pkg/services/login/authinfoimpl"
 	"github.com/grafana/grafana/pkg/services/secrets/database"
 	secretsManager "github.com/grafana/grafana/pkg/services/secrets/manager"
 	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/grafana/grafana/pkg/storage/legacysql"
 	"github.com/grafana/grafana/pkg/tests/testinfra"
 	"github.com/grafana/grafana/pkg/tests/testsuite"
 	"github.com/grafana/grafana/pkg/util/testutil"
@@ -171,8 +173,9 @@ func TestIntegrationIndexViewAnalytics(t *testing.T) {
 			})
 
 			secretsService := secretsManager.SetupTestService(t, database.ProvideSecretsStore(store))
-			authInfoStore, err := authinfoimpl.ProvideStore(store, secretsService)
+			legacyAuthInfoStore, err := authinfoimpl.ProvideLegacyStore(context.Background(), legacysql.NewDatabaseProvider(store), secretsService)
 			require.NoError(t, err)
+			authInfoStore := authinfoimpl.ProvideStore(legacyAuthInfoStore, env.Cfg, nil, tracing.InitializeTracerForTest())
 
 			// insert user_auth relationship
 			err = authInfoStore.SetAuthInfo(context.Background(), &login.SetAuthInfoCommand{
@@ -208,7 +211,6 @@ func TestIntegrationIndexViewAnalytics(t *testing.T) {
 			var analyticsSettings user.AnalyticsSettings
 			require.NoError(t, json.Unmarshal([]byte(parsedHTML), &analyticsSettings))
 
-			require.NotEmpty(t, analyticsSettings.IntercomIdentifier)
 			require.Equal(t, tc.wantIdentifier, analyticsSettings.Identifier)
 		})
 	}

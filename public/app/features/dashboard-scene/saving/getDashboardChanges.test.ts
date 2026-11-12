@@ -1,5 +1,4 @@
 import { type AdHocVariableFilter, type AdHocVariableModel } from '@grafana/data';
-import { config } from '@grafana/runtime';
 import { type Dashboard, type VariableModel } from '@grafana/schema';
 import { type Spec as DashboardV2Spec, type VariableKind } from '@grafana/schema/apis/dashboard.grafana.app/v2';
 
@@ -108,43 +107,11 @@ describe('getDashboardChanges', () => {
       diffCount: 0,
       hasChanges: false,
       hasTimeChanges: false,
-      isNew: false,
       hasVariableValueChanges: false,
       hasRefreshChange: false,
     };
 
     const result = getRawDashboardChanges(initial, changed, false, false, false);
-
-    expect(result).toEqual(expectedChanges);
-  });
-
-  it('should return the correct result when is new', () => {
-    const newDashInitial = {
-      ...initial,
-      version: 0,
-    };
-    const changed = {
-      ...newDashInitial,
-      version: 0,
-    };
-
-    const expectedChanges = {
-      changedSaveModel: {
-        ...newDashInitial,
-      },
-      initialSaveModel: {
-        ...changed,
-      },
-      diffs: {},
-      diffCount: 0,
-      hasChanges: false,
-      hasTimeChanges: false,
-      isNew: true,
-      hasVariableValueChanges: false,
-      hasRefreshChange: false,
-    };
-
-    const result = getRawDashboardChanges(newDashInitial, changed, false, false, false);
 
     expect(result).toEqual(expectedChanges);
   });
@@ -169,7 +136,6 @@ describe('getDashboardChanges', () => {
       diffCount: 0,
       hasChanges: false,
       hasTimeChanges: true,
-      isNew: false,
       hasVariableValueChanges: false,
       hasRefreshChange: false,
     };
@@ -210,7 +176,6 @@ describe('getDashboardChanges', () => {
       diffCount: 1,
       hasChanges: true,
       hasTimeChanges: true,
-      isNew: false,
       hasVariableValueChanges: false,
       hasRefreshChange: false,
     };
@@ -237,7 +202,6 @@ describe('getDashboardChanges', () => {
       diffCount: 0,
       hasChanges: false,
       hasTimeChanges: false,
-      isNew: false,
       hasVariableValueChanges: false,
       hasRefreshChange: true,
     };
@@ -275,7 +239,6 @@ describe('getDashboardChanges', () => {
       diffCount: 1,
       hasChanges: true,
       hasTimeChanges: false,
-      isNew: false,
       hasVariableValueChanges: false,
       hasRefreshChange: true,
     };
@@ -315,7 +278,6 @@ describe('getDashboardChanges', () => {
       diffCount: 0,
       hasChanges: false,
       hasTimeChanges: false,
-      isNew: false,
       hasVariableValueChanges: true,
       hasRefreshChange: false,
     };
@@ -373,7 +335,6 @@ describe('getDashboardChanges', () => {
       diffCount: 0,
       hasChanges: false,
       hasTimeChanges: false,
-      isNew: false,
       hasVariableValueChanges: false,
       hasRefreshChange: false,
     };
@@ -424,7 +385,6 @@ describe('getDashboardChanges', () => {
       diffCount: 1,
       hasChanges: true,
       hasTimeChanges: false,
-      isNew: false,
       hasVariableValueChanges: true,
       hasRefreshChange: false,
     };
@@ -435,7 +395,7 @@ describe('getDashboardChanges', () => {
   });
 });
 
-describe('getDashboardChanges with adHocFilterDefaultValues', () => {
+describe('getDashboardChanges with origin filters', () => {
   const makeDashboardWithAdhoc = (filters: AdHocVariableFilter[]): Dashboard => {
     return {
       id: 1,
@@ -450,112 +410,74 @@ describe('getDashboardChanges with adHocFilterDefaultValues', () => {
     };
   };
 
-  afterEach(() => {
-    config.featureToggles.adHocFilterDefaultValues = false;
+  it('should not report variable value changes when only origin filters differ', () => {
+    const initial = makeDashboardWithAdhoc([]);
+    const changed = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' }]);
+
+    const result = getRawDashboardChanges(initial, changed, false, false, false);
+
+    expect(result.hasVariableValueChanges).toBe(false);
   });
 
-  describe('when feature flag is enabled', () => {
-    beforeEach(() => {
-      config.featureToggles.adHocFilterDefaultValues = true;
-    });
+  it('should report variable value changes when runtime filters differ', () => {
+    const initial = makeDashboardWithAdhoc([]);
+    const changed = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost' }]);
 
-    it('should not report variable value changes when only origin filters differ', () => {
-      const initial = makeDashboardWithAdhoc([]);
-      const changed = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' }]);
+    const result = getRawDashboardChanges(initial, changed, false, false, false);
 
-      const result = getRawDashboardChanges(initial, changed, false, false, false);
-
-      expect(result.hasVariableValueChanges).toBe(false);
-    });
-
-    it('should report variable value changes when runtime filters differ', () => {
-      const initial = makeDashboardWithAdhoc([]);
-      const changed = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost' }]);
-
-      const result = getRawDashboardChanges(initial, changed, false, false, false);
-
-      expect(result.hasVariableValueChanges).toBe(true);
-    });
-
-    it('should keep both origin and runtime filters when saveVariables is true', () => {
-      const initial = makeDashboardWithAdhoc([]);
-      const changed = makeDashboardWithAdhoc([
-        { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
-        { key: 'env', operator: '=', value: 'prod' },
-      ]);
-
-      getRawDashboardChanges(initial, changed, false, true, false);
-
-      const savedFilters = (changed.templating!.list![0] as AdHocVariableModel).filters;
-      expect(savedFilters).toEqual([
-        { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
-        { key: 'env', operator: '=', value: 'prod' },
-      ]);
-    });
-
-    it('should preserve origin filters and restore runtime filters when saveVariables is false', () => {
-      const initial = makeDashboardWithAdhoc([{ key: 'env', operator: '=', value: 'prod' }]);
-      const changed = makeDashboardWithAdhoc([
-        { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
-        { key: 'env', operator: '=', value: 'staging' },
-      ]);
-
-      getRawDashboardChanges(initial, changed, false, false, false);
-
-      const savedFilters = (changed.templating!.list![0] as AdHocVariableModel).filters;
-      expect(savedFilters).toEqual([
-        { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
-        { key: 'env', operator: '=', value: 'prod' },
-      ]);
-    });
-
-    it('should detect schema changes when origin filters are added', () => {
-      const initial = makeDashboardWithAdhoc([]);
-      const changed = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' }]);
-
-      const result = getRawDashboardChanges(initial, changed, false, false, false);
-
-      expect(result.hasVariableValueChanges).toBe(false);
-      expect(result.hasChanges).toBe(true);
-    });
-
-    it('should detect schema changes when origin filters are removed', () => {
-      const initial = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' }]);
-      const changed = makeDashboardWithAdhoc([]);
-
-      const result = getRawDashboardChanges(initial, changed, false, false, false);
-
-      expect(result.hasVariableValueChanges).toBe(false);
-      expect(result.hasChanges).toBe(true);
-    });
+    expect(result.hasVariableValueChanges).toBe(true);
   });
 
-  describe('when feature flag is disabled', () => {
-    beforeEach(() => {
-      config.featureToggles.adHocFilterDefaultValues = false;
-    });
+  it('should keep both origin and runtime filters when saveVariables is true', () => {
+    const initial = makeDashboardWithAdhoc([]);
+    const changed = makeDashboardWithAdhoc([
+      { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
+      { key: 'env', operator: '=', value: 'prod' },
+    ]);
 
-    it('should not report variable value changes when only origin filters differ', () => {
-      const initial = makeDashboardWithAdhoc([]);
-      const changed = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' }]);
+    getRawDashboardChanges(initial, changed, false, true, false);
 
-      const result = getRawDashboardChanges(initial, changed, false, false, false);
+    const savedFilters = (changed.templating!.list![0] as AdHocVariableModel).filters;
+    expect(savedFilters).toEqual([
+      { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
+      { key: 'env', operator: '=', value: 'prod' },
+    ]);
+  });
 
-      expect(result.hasVariableValueChanges).toBe(false);
-    });
+  it('should preserve origin filters and restore runtime filters when saveVariables is false', () => {
+    const initial = makeDashboardWithAdhoc([{ key: 'env', operator: '=', value: 'prod' }]);
+    const changed = makeDashboardWithAdhoc([
+      { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
+      { key: 'env', operator: '=', value: 'staging' },
+    ]);
 
-    it('should reset all filters when saveVariables is false', () => {
-      const initial = makeDashboardWithAdhoc([{ key: 'a', operator: '=', value: '1' }]);
-      const changed = makeDashboardWithAdhoc([
-        { key: 'a', operator: '=', value: '1' },
-        { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
-      ]);
+    getRawDashboardChanges(initial, changed, false, false, false);
 
-      getRawDashboardChanges(initial, changed, false, false, false);
+    const savedFilters = (changed.templating!.list![0] as AdHocVariableModel).filters;
+    expect(savedFilters).toEqual([
+      { key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' },
+      { key: 'env', operator: '=', value: 'prod' },
+    ]);
+  });
 
-      const savedFilters = (changed.templating!.list![0] as AdHocVariableModel).filters;
-      expect(savedFilters).toEqual([{ key: 'a', operator: '=', value: '1' }]);
-    });
+  it('should detect schema changes when origin filters are added', () => {
+    const initial = makeDashboardWithAdhoc([]);
+    const changed = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' }]);
+
+    const result = getRawDashboardChanges(initial, changed, false, false, false);
+
+    expect(result.hasVariableValueChanges).toBe(false);
+    expect(result.hasChanges).toBe(true);
+  });
+
+  it('should detect schema changes when origin filters are removed', () => {
+    const initial = makeDashboardWithAdhoc([{ key: 'host', operator: '=', value: 'localhost', origin: 'dashboard' }]);
+    const changed = makeDashboardWithAdhoc([]);
+
+    const result = getRawDashboardChanges(initial, changed, false, false, false);
+
+    expect(result.hasVariableValueChanges).toBe(false);
+    expect(result.hasChanges).toBe(true);
   });
 });
 
@@ -711,5 +633,187 @@ describe('getRawDashboardV2Changes - section variables', () => {
     expect(getCurrentValue(row?.spec.variables)).toBe('dev');
     expect(result.hasVariableValueChanges).toBe(true);
     expect(result.hasChanges).toBe(false);
+  });
+});
+
+describe('getRawDashboardV2Changes - custom variable query persistence', () => {
+  const makeV2Dashboard = ({
+    query,
+    currentValue,
+    currentText = currentValue,
+    valuesFormat = 'csv',
+    includeAll = false,
+  }: {
+    query: string;
+    currentValue: string | string[];
+    currentText?: string | string[];
+    valuesFormat?: 'csv' | 'json';
+    includeAll?: boolean;
+  }): DashboardV2Spec => ({
+    title: 'Dashboard V2',
+    description: '',
+    cursorSync: 'Crosshair',
+    editable: true,
+    links: [],
+    tags: [],
+    preload: false,
+    liveNow: false,
+    timeSettings: {
+      from: 'now-6h',
+      to: 'now',
+      autoRefresh: '5m',
+      autoRefreshIntervals: [],
+      hideTimepicker: false,
+      fiscalYearStartMonth: 0,
+    },
+    variables: [
+      {
+        kind: 'CustomVariable',
+        spec: {
+          name: 'custom0',
+          query,
+          current: { text: currentText, value: currentValue },
+          options: [],
+          multi: Array.isArray(currentValue),
+          includeAll,
+          hide: 'dontHide',
+          skipUrlSync: false,
+          allowCustomValue: true,
+          valuesFormat,
+        },
+      },
+    ],
+    elements: {},
+    annotations: [],
+    layout: {
+      kind: 'GridLayout',
+      spec: { items: [] },
+    },
+  });
+
+  it('appends current value to CustomVariable query when saving variable defaults', () => {
+    const initial = makeV2Dashboard({ query: 'custom0', currentValue: 'foo' });
+    const changed = makeV2Dashboard({ query: 'custom0', currentValue: 'bar' });
+
+    const result = getRawDashboardV2Changes(initial, changed, false, true, false);
+    const variable = result.changedSaveModel.variables?.[0];
+
+    expect(variable?.kind).toBe('CustomVariable');
+    if (variable?.kind === 'CustomVariable') {
+      expect(variable.spec.current?.value).toBe('bar');
+      expect(variable.spec.query).toBe('custom0,bar');
+    }
+  });
+
+  it('preserves CSV label : value when appending a labeled current selection', () => {
+    const initial = makeV2Dashboard({ query: 'Prod : prod', currentValue: 'prod', currentText: 'Prod' });
+    const changed = makeV2Dashboard({
+      query: 'Prod : prod',
+      currentValue: 'staging',
+      currentText: 'Staging',
+    });
+
+    const result = getRawDashboardV2Changes(initial, changed, false, true, false);
+    const variable = result.changedSaveModel.variables?.[0];
+
+    expect(variable?.kind).toBe('CustomVariable');
+    if (variable?.kind === 'CustomVariable') {
+      expect(variable.spec.query).toBe('Prod : prod,Staging : staging');
+    }
+  });
+
+  it('does not rewrite a malformed JSON query when saving variable defaults', () => {
+    const malformedQuery = '[{invalid json';
+    const initial = makeV2Dashboard({
+      query: malformedQuery,
+      currentValue: 'foo',
+      valuesFormat: 'json',
+    });
+    const changed = makeV2Dashboard({
+      query: malformedQuery,
+      currentValue: 'bar',
+      valuesFormat: 'json',
+    });
+
+    const result = getRawDashboardV2Changes(initial, changed, false, true, false);
+    const variable = result.changedSaveModel.variables?.[0];
+
+    expect(variable?.kind).toBe('CustomVariable');
+    if (variable?.kind === 'CustomVariable') {
+      expect(variable.spec.current?.value).toBe('bar');
+      expect(variable.spec.query).toBe(malformedQuery);
+    }
+  });
+
+  it('does not rewrite a JSON query when the current value is already present', () => {
+    // Non-canonical formatting + an extra field that parse/map would drop.
+    const formattedQuery = '[\n  { "text": "Foo", "value": "foo", "selected": true }\n]';
+    const initial = makeV2Dashboard({
+      query: formattedQuery,
+      currentValue: 'bar',
+      valuesFormat: 'json',
+    });
+    const changed = makeV2Dashboard({
+      query: formattedQuery,
+      currentValue: 'foo',
+      currentText: 'Foo',
+      valuesFormat: 'json',
+    });
+
+    const result = getRawDashboardV2Changes(initial, changed, false, true, false);
+    const variable = result.changedSaveModel.variables?.[0];
+
+    expect(variable?.kind).toBe('CustomVariable');
+    if (variable?.kind === 'CustomVariable') {
+      expect(variable.spec.current?.value).toBe('foo');
+      expect(variable.spec.query).toBe(formattedQuery);
+    }
+  });
+
+  it('appends current value to a JSON CustomVariable query when saving variable defaults', () => {
+    const query = '[{"text":"Foo","value":"foo"}]';
+    const initial = makeV2Dashboard({
+      query,
+      currentValue: 'foo',
+      valuesFormat: 'json',
+    });
+    const changed = makeV2Dashboard({
+      query,
+      currentValue: 'bar',
+      currentText: 'Bar',
+      valuesFormat: 'json',
+    });
+
+    const result = getRawDashboardV2Changes(initial, changed, false, true, false);
+    const variable = result.changedSaveModel.variables?.[0];
+
+    expect(variable?.kind).toBe('CustomVariable');
+    if (variable?.kind === 'CustomVariable') {
+      expect(variable.spec.current?.value).toBe('bar');
+      expect(variable.spec.query).toBe('[{"value":"foo","text":"Foo"},{"value":"bar","text":"Bar"}]');
+    }
+  });
+
+  it('does not append $__all as a literal option when All is selected', () => {
+    const initial = makeV2Dashboard({
+      query: 'foo,bar',
+      currentValue: 'foo',
+      includeAll: true,
+    });
+    const changed = makeV2Dashboard({
+      query: 'foo,bar',
+      currentValue: '$__all',
+      currentText: 'All',
+      includeAll: true,
+    });
+
+    const result = getRawDashboardV2Changes(initial, changed, false, true, false);
+    const variable = result.changedSaveModel.variables?.[0];
+
+    expect(variable?.kind).toBe('CustomVariable');
+    if (variable?.kind === 'CustomVariable') {
+      expect(variable.spec.current?.value).toBe('$__all');
+      expect(variable.spec.query).toBe('foo,bar');
+    }
   });
 });

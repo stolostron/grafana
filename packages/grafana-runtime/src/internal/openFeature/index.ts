@@ -1,5 +1,13 @@
+import { LocalStorageProvider } from '@openfeature/localstorage-provider';
 import { OFREPWebProvider } from '@openfeature/ofrep-web-provider';
-import { OpenFeature, ProviderEvents, NOOP_PROVIDER, type EventDetails } from '@openfeature/react-sdk';
+import {
+  OpenFeature,
+  ProviderEvents,
+  NOOP_PROVIDER,
+  type EventDetails,
+  MultiProvider,
+  type Provider,
+} from '@openfeature/react-sdk';
 
 import { config } from '../../config';
 import { logError } from '../../utils/logging';
@@ -32,25 +40,65 @@ function checkDefaultProvider(event?: EventDetails) {
 // If changing this, you MUST also update the same constant in packages/grafana-test-utils/src/utilities/featureFlags.ts
 // to ensure tests work correctly.
 const GRAFANA_CORE_OPEN_FEATURE_DOMAIN = 'internal-grafana-core';
+const GRAFANA_OPEN_FEATURE_LOCALSTORAGE_PREFIX = 'grafana.openfeature.';
+
+// Allow direct access to a singleton localStorage provider,
+//  to allow the feature control developer UI to override flags via the provider
+let localStorageProvider: LocalStorageProvider;
+export function getLocalStorageProvider() {
+  return (localStorageProvider ??= new LocalStorageProvider({
+    prefix: GRAFANA_OPEN_FEATURE_LOCALSTORAGE_PREFIX,
+  }));
+}
+
+// Allow direct access to a singleton OFREP provider,
+//  to allow the feature control developer UI to discover flags from the provider
+let ofrepWebProvider: OFREPWebProvider;
+export function getOFREPWebProvider() {
+  return (ofrepWebProvider ??= new OFREPWebProvider({
+    baseUrl: `${config.appSubUrl || ''}`,
+    disableVisibilityRefresh: true, // Do not refresh
+    cacheMode: 'disabled', // Do not write to localStorage
+    timeoutMs: 5_000,
+  }));
+}
 
 export async function initOpenFeature() {
   OpenFeature.addHandler(ProviderEvents.Ready, checkDefaultProvider);
   OpenFeature.addHandler(ProviderEvents.Error, checkDefaultProvider);
 
-  const subPath = config.appSubUrl || '';
-  const baseUrl = `${subPath}/apis/features.grafana.app/v0alpha1/namespaces/${config.namespace}`;
+  const lsProvider = getLocalStorageProvider();
+  const ofProvider = getOFREPWebProvider();
+  let meticulousProvider: Provider | undefined;
 
-  const ofProvider = new OFREPWebProvider({
-    baseUrl: baseUrl,
-    disableVisibilityRefresh: true, // Do not refresh
-    cacheMode: 'disabled', // Do not write to localStorage
-    timeoutMs: 5_000,
-  });
+  if (window.Meticulous != null) {
+    try {
+      const { MeticulousProvider, createMeticulousReportingHook, isMeticulousReportingHook } = await import(
+        /* webpackChunkName: "meticulous-openfeature" */ './meticulous'
+      );
+      meticulousProvider = new MeticulousProvider();
+      if (!OpenFeature.getHooks().some(isMeticulousReportingHook)) {
+        // Report the final value after all providers resolve, including caller defaults.
+        OpenFeature.addHooks(createMeticulousReportingHook(GRAFANA_CORE_OPEN_FEATURE_DOMAIN));
+      }
+    } catch (error) {
+      console.error('Failed to load Meticulous OpenFeature integration', error);
+    }
+  }
 
-  await OpenFeature.setProviderAndWait(GRAFANA_CORE_OPEN_FEATURE_DOMAIN, ofProvider, {
-    targetingKey: config.namespace,
-    ...config.openFeatureContext,
-  });
+  await OpenFeature.setProviderAndWait(
+    GRAFANA_CORE_OPEN_FEATURE_DOMAIN,
+    new MultiProvider([
+      // Grafana core only: plugins must not copy the Meticulous provider because it is wired to the private core domain.
+      ...(meticulousProvider ? [{ provider: meticulousProvider }] : []),
+      { provider: lsProvider },
+      { provider: ofProvider },
+    ]),
+    {
+      targetingKey: config.namespace,
+      ...config.openFeatureContext,
+    }
+  );
 }
 
 /**

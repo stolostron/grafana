@@ -23,3 +23,10 @@ export const MEGA_MENU_TOGGLE_ID = 'mega-menu-toggle';
  * grafana-setupguide-app plugin ID, used in extension points to provide Cloud-only UI functionality.
  */
 export const SETUPGUIDE_PLUGIN_ID = 'grafana-setupguide-app';
+
+/**
+ * grafana-assistant-app plugin ID, used in extension points to provide Assistant-only UI functionality.
+ */
+export const ASSISTANT_PLUGIN_ID = 'grafana-assistant-app';
+/** Where the Assistant serves Grafana Pages: one page per `${ASSISTANT_PAGES_PATH}/<id>`; the path itself lists them. */
+export const ASSISTANT_PAGES_PATH = `/a/${ASSISTANT_PLUGIN_ID}/pages`;

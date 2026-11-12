@@ -1,0 +1,1 @@
+(globalThis.rspackChunkgrafana||=[]).push([[36762],{37089(a,r,e){var c=e(23415);e(49716),e.d(r,{createArchitectureServices:()=>c.S})}}]);

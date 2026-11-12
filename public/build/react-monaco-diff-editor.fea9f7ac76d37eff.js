@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[17583],{3422(a,o,n){n.r(o);var t=n(74848),r=n(66060),e=n(76263),f=n(96540),i=n(16994),s=n(39073);r.wG.config({monaco:e}),n.d(o,{},{ReactMonacoDiffEditor:a=>{let{options:o,onMount:n,...c}=a,d=(0,i.$j)();return(0,f.useEffect)(()=>{(0,s.A)(e,d)},[d]),(0,t.jsx)(r.zC,{...c,options:{...o,fontFamily:d.typography.code.fontFamily},theme:d.isDark?"grafana-dark":"grafana-light",onMount:(a,o)=>{document.fonts.ready.then(()=>{o.editor.remeasureFonts()}),n?.(a,o)}})}})}}]);
+//# sourceMappingURL=react-monaco-diff-editor.fea9f7ac76d37eff.js.map

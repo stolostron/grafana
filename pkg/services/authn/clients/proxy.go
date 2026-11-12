@@ -41,8 +41,8 @@ var (
 )
 
 var (
-	_ authn.HookClient         = new(Proxy)
-	_ authn.ContextAwareClient = new(Proxy)
+	_ authn.HookClient         = (*Proxy)(nil)
+	_ authn.ContextAwareClient = (*Proxy)(nil)
 )
 
 func ProvideProxy(cfg *setting.Cfg, cache proxyCache, tracer trace.Tracer, clients ...authn.ProxyClient) (*Proxy, error) {
@@ -85,11 +85,24 @@ func (c *Proxy) Authenticate(ctx context.Context, r *authn.Request) (*authn.Iden
 	}
 
 	additional := getAdditionalProxyHeaders(r, c.cfg)
+	c.logProxyHeaders(ctx, additional)
+
 	cacheKey, ok := getProxyCacheKey(username, additional)
 
 	if c.cfg.AuthProxy.SyncTTL != 0 && ok {
 		identity, errCache := c.retrieveIDFromCache(ctx, cacheKey, r)
 		if errCache == nil {
+			// Rehydrate ExternalGroups from the live Groups header.
+			// Safe as the groups header value is part of the cache key.
+			// Only matters when IDUseExternalGroupsForGroupsClaim is true as
+			// we rely directly on ExternalGroups to determine team membership.
+			// Sync hooks that consume ExternalGroups (e.g. team sync) are not run on a cache hit.
+			// GAP: LDAP external groups cannot be rehydrated here.
+			if c.cfg.IDUseExternalGroupsForGroupsClaim {
+				if v, ok := additional[proxyFieldGroups]; ok {
+					identity.ExternalGroups = util.SplitString(v)
+				}
+			}
 			return identity, nil
 		}
 
@@ -111,7 +124,7 @@ func (c *Proxy) Authenticate(ctx context.Context, r *authn.Request) (*authn.Iden
 	return nil, clientErr
 }
 
-func (c *Proxy) IsEnabled() bool {
+func (c *Proxy) IsEnabled(context.Context) bool {
 	return c.cfg.AuthProxy.Enabled
 }
 
@@ -155,6 +168,11 @@ func (c *Proxy) Priority() uint {
 func (c *Proxy) Hook(ctx context.Context, id *authn.Identity, r *authn.Request) error {
 	ctx, span := c.tracer.Start(ctx, "authn.proxy.Hook")
 	defer span.End()
+
+	if c.cfg.AuthProxy.SyncTTL == 0 {
+		return nil
+	}
+
 	if id.ClientParams.CacheAuthProxyKey == "" {
 		return nil
 	}
@@ -275,6 +293,18 @@ func getAdditionalProxyHeaders(r *authn.Request, cfg *setting.Cfg) map[string]st
 		}
 	}
 	return additional
+}
+
+func (c *Proxy) logProxyHeaders(ctx context.Context, additional map[string]string) {
+	logCtx := make([]any, 0, len(c.cfg.AuthProxy.Headers)*2)
+	for _, field := range proxyFields {
+		headerName := c.cfg.AuthProxy.Headers[field]
+		if headerName == "" {
+			continue
+		}
+		logCtx = append(logCtx, headerName, additional[field] != "")
+	}
+	c.log.FromContext(ctx).Debug("Auth proxy headers", logCtx...)
 }
 
 func getProxyCacheKey(username string, additional map[string]string) (string, bool) {

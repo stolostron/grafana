@@ -1,0 +1,1 @@
+(globalThis.rspackChunkgrafana||=[]).push([[63765],{99768(t,a,g){t.exports=g.p+"static/img/at_a_glance_dark.33ec5913.svg"},88065(t,a,g){t.exports=g.p+"static/img/at_a_glance_light.b2c64233.svg"},26941(t,a,g){t.exports=g.p+"static/img/irm_logo.6207416f.svg"},28823(t,a,g){t.exports=g.p+"static/img/synthetic_monitoring_logo.3a231fef.svg"}}]);

@@ -1,15 +1,18 @@
 import Feature from 'ol/Feature';
 import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import { Point } from 'ol/geom';
+import LayerGroup from 'ol/layer/Group';
+import VectorLayer from 'ol/layer/Vector';
 import WebGLPointsLayer from 'ol/layer/WebGLPoints';
 import VectorSource from 'ol/source/Vector';
 
-import { DataHoverClearEvent, type DataFrame, type PanelProps } from '@grafana/data';
+import { DataHoverClearEvent, type DataFrame } from '@grafana/data';
 
 import { GeomapPanel } from '../GeomapPanel';
 import { type GeomapHoverPayload, type GeomapLayerHover } from '../event';
-import { type Options } from '../panelcfg.gen';
+import { type MapLayerState } from '../types';
 
+import { getMapLayerState } from './layers';
 import { pointerMoveListener, setTooltipListeners } from './tooltip';
 
 // Mock the GeomapPanel class
@@ -21,6 +24,9 @@ jest.mock('../GeomapPanel', () => {
           getEventPixel: jest.fn().mockReturnValue([100, 100]),
           getCoordinateFromPixel: jest.fn().mockReturnValue([0, 0]),
           forEachFeatureAtPixel: jest.fn(),
+          getView: jest.fn().mockReturnValue({
+            getResolution: jest.fn().mockReturnValue(100), // 100 map units/pixel → tolerance = 100 * 2 = 200 map units
+          }),
         },
         mapDiv: {
           style: { cursor: 'auto' },
@@ -49,7 +55,6 @@ jest.mock('./layers', () => {
   return {
     getMapLayerState: jest.fn().mockReturnValue({
       options: { tooltip: true },
-      mouseEvents: { next: jest.fn() },
     }),
   };
 });
@@ -72,7 +77,7 @@ describe('tooltip utils', () => {
     jest.clearAllMocks();
 
     // Create mock objects
-    panel = new GeomapPanel({} as PanelProps<Options>);
+    panel = new GeomapPanel({} as ConstructorParameters<typeof GeomapPanel>[0]);
 
     // Create a proper MouseEvent instance to pass the instanceof check
     const mouseEvent = new MouseEvent('pointermove');
@@ -109,7 +114,7 @@ describe('tooltip utils', () => {
     });
 
     differentFeature = new Feature({
-      geometry: new Point([1, 1]),
+      geometry: new Point([50000, 50000]), // well outside pixel tolerance
       rowIndex: 4,
       frame: {} as DataFrame,
     });
@@ -216,6 +221,113 @@ describe('tooltip utils', () => {
       expect(layerHover.features[2].getProperties()['rowIndex']).toBe(3); // feature3
       // The last feature (feature4) has no rowIndex, so it should be at the end
       expect(layerHover.features[3].getProperties()['rowIndex']).toBeUndefined();
+    });
+
+    it('should match near-overlapping features within pixel tolerance', () => {
+      // Mock resolution: 100 map units/pixel, HIT_TOLERANCE_PX = 2, tolerance = 200 map units
+      // Per-axis: |dx| <= 200 && |dy| <= 200
+      // Create features with coordinates close to [0,0] but not exactly equal
+      // (simulates geocoding/lookup mode floating-point imprecision)
+      const nearFeature1 = new Feature({
+        geometry: new Point([50, 50]), // |dx| = |dy| = 50, within 200
+        rowIndex: 10,
+        frame: {} as DataFrame,
+      });
+
+      const nearFeature2 = new Feature({
+        geometry: new Point([-30, 20]), // |dx| = 30, |dy| = 20, within 200
+        rowIndex: 11,
+        frame: {} as DataFrame,
+      });
+
+      (mockVectorSource.forEachFeature as jest.Mock).mockImplementation((callback) => {
+        callback(nearFeature1);
+        callback(nearFeature2);
+      });
+
+      pointerMoveListener(mockEvent, panel);
+
+      const layerHover = panel.hoverPayload.layers?.[0] as GeomapLayerHover;
+      expect(layerHover.features.length).toBe(3); // feature1 + 2 near features
+      expect(layerHover.features).toContain(feature1);
+      expect(layerHover.features).toContain(nearFeature1);
+      expect(layerHover.features).toContain(nearFeature2);
+    });
+
+    it('should match features exactly at the tolerance boundary (inclusive)', () => {
+      // Mock resolution: 100 map units/pixel, HIT_TOLERANCE_PX = 2, tolerance = 200 map units
+      // Feature at [200, 0] → |dx| = 200, exactly equal to tolerance → should match (<=)
+      const boundaryFeature = new Feature({
+        geometry: new Point([200, 0]),
+        rowIndex: 15,
+        frame: {} as DataFrame,
+      });
+
+      (mockVectorSource.forEachFeature as jest.Mock).mockImplementation((callback) => {
+        callback(boundaryFeature);
+      });
+
+      pointerMoveListener(mockEvent, panel);
+
+      const layerHover = panel.hoverPayload.layers?.[0] as GeomapLayerHover;
+      expect(layerHover.features.length).toBe(2);
+      expect(layerHover.features).toContain(boundaryFeature);
+    });
+
+    it('should not match features outside pixel tolerance', () => {
+      // Mock resolution: 100 map units/pixel, HIT_TOLERANCE_PX = 2, tolerance = 200 map units
+      // Per-axis: |dx| > 200 || |dy| > 200
+      const farFeature = new Feature({
+        geometry: new Point([500, 500]), // |dx| = |dy| = 500, outside 200
+        rowIndex: 20,
+        frame: {} as DataFrame,
+      });
+
+      (mockVectorSource.forEachFeature as jest.Mock).mockImplementation((callback) => {
+        callback(farFeature);
+      });
+
+      pointerMoveListener(mockEvent, panel);
+
+      const layerHover = panel.hoverPayload.layers?.[0] as GeomapLayerHover;
+      expect(layerHover.features.length).toBe(1); // only feature1
+      expect(layerHover.features).not.toContain(farFeature);
+    });
+  });
+
+  describe('layer filter', () => {
+    afterEach(() =>
+      jest
+        .mocked(getMapLayerState)
+        .mockReturnValue({ options: { tooltip: true } } as ReturnType<typeof getMapLayerState>)
+    );
+
+    function hoverFilter() {
+      pointerMoveListener(mockEvent, panel);
+      const options = (panel.map!.forEachFeatureAtPixel as jest.Mock).mock.calls[0][2];
+      return options.layerFilter as (layer: unknown) => boolean;
+    }
+
+    it.each([
+      { desc: 'hit-tests data layers that show tooltips', state: { options: { tooltip: true } }, tested: true },
+      { desc: 'skips data layers with tooltips off', state: { options: { tooltip: false } }, tested: false },
+      // A vector basemap returned directly carries layer state, so every road would otherwise be hoverable
+      { desc: 'skips the basemap', state: { isBasemap: true, options: {} }, tested: false },
+    ])('$desc', ({ state, tested }) => {
+      jest.mocked(getMapLayerState).mockReturnValue(state as ReturnType<typeof getMapLayerState>);
+
+      expect(hoverFilter()(mockWebGLLayer)).toBe(tested);
+    });
+
+    it('skips layers inside a basemap layer group', () => {
+      const basemapChild = new VectorLayer();
+      panel.layers = [
+        { isBasemap: true, layer: new LayerGroup({ layers: [basemapChild] }) } as unknown as MapLayerState,
+      ];
+
+      const layerFilter = hoverFilter();
+      expect(layerFilter(basemapChild)).toBe(false);
+      expect(layerFilter(mockWebGLLayer)).toBe(true);
     });
   });
 });

@@ -1,29 +1,38 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 
 import { AppEvents } from '@grafana/data';
 import { Trans, t } from '@grafana/i18n';
 import { getAppEvents, reportInteraction } from '@grafana/runtime';
 import { Button, Stack } from '@grafana/ui';
-import { type Job, type RepositoryView } from 'app/api/clients/provisioning/v0alpha1';
+import { type RepositoryView } from 'app/api/clients/provisioning/v0alpha1';
+import { extractErrorMessage } from 'app/api/utils';
 import { AffectedFolderContents } from 'app/features/browse-dashboards/components/BrowseActions/AffectedFolderContents';
-import { getSelectedFolderUIDs } from 'app/features/browse-dashboards/components/BrowseActions/utils';
-import { collectSelectedItems } from 'app/features/browse-dashboards/utils/dashboards';
+import { collectSelectedItems, getSelectedUIDs } from 'app/features/browse-dashboards/utils/dashboards';
 import {
   RepoViewStatus,
   useGetResourceRepositoryView,
 } from 'app/features/provisioning/hooks/useGetResourceRepositoryView';
 import { isRootFolderUID } from 'app/features/search/constants';
 
+import { useCommitMessageTemplate } from '../../hooks/useCommitMessageTemplate';
+import { getJobRef, useResourceJob } from '../../hooks/useResourceJob';
 import { useSelectionRepoValidation } from '../../hooks/useSelectionRepoValidation';
-import { withSavedByTrailer } from '../../utils/currentUser';
+import { type DeleteJobSpec } from '../../types/job';
+import { type CommitTemplateVars } from '../../utils/commitMessage';
+import { getCurrentCommitUser } from '../../utils/currentUser';
+import { getRequestRef, getWorkflowForRef } from '../../utils/workflow';
 import { ProvisionedFormGate } from '../ProvisionedFormGate';
 import { ResourceEditFormSharedFields } from '../Shared/ResourceEditFormSharedFields';
+import { ResourceJobStatus } from '../Shared/ResourceJobStatus';
 import { getCanPushToConfiguredBranch } from '../defaults';
 
-import { BulkActionJobStatus } from './BulkActionJobStatus';
-import { type DeleteJobSpec, useBulkActionJob } from './useBulkActionJob';
-import { type BulkActionFormData, type BulkActionProvisionResourceProps, getBulkActionInitialValues } from './utils';
+import {
+  type BulkActionFormData,
+  type BulkActionProvisionResourceProps,
+  getBulkActionInitialValues,
+  getSelectedResourceCountSummary,
+} from './utils';
 
 interface FormProps extends BulkActionProvisionResourceProps {
   initialValues: BulkActionFormData;
@@ -32,26 +41,36 @@ interface FormProps extends BulkActionProvisionResourceProps {
 }
 
 function FormContent({ initialValues, selectedItems, repository, canPushToConfiguredBranch, onDismiss }: FormProps) {
-  // States
-  const [job, setJob] = useState<Job>();
-  const [hasSubmitted, setHasSubmitted] = useState(false);
-  // Captured at submit time so the success message matches the workflow the job used.
-  const submittedViaBranchWorkflow = useRef(false);
-
-  // Hooks
-  const { createBulkJob, isLoading: isCreatingJob } = useBulkActionJob();
+  const { submitted, submit, isCreating } = useResourceJob({ repository });
   const methods = useForm<BulkActionFormData>({ defaultValues: initialValues });
-  const { handleSubmit } = methods;
+  const { handleSubmit, watch, setValue, formState } = methods;
+
+  const fallbackMessage = t('browse-dashboards.bulk-delete-resources-form.default-commit-message', 'Delete resources');
+  // Bulk operations span multiple resources, so `resourceKind` is omitted and `title` is a count
+  // summary rather than a single resource name.
+  const templateVars: CommitTemplateVars = {
+    action: 'delete',
+    resourceID: '',
+    title: getSelectedResourceCountSummary(selectedItems),
+    ...getCurrentCommitUser(),
+  };
+  const { locked, message } = useCommitMessageTemplate({
+    repository,
+    vars: templateVars,
+    comment: watch('comment') ?? '',
+    isCommentDirty: Boolean(formState.dirtyFields.comment),
+    setComment: (value) => setValue('comment', value, { shouldDirty: false }),
+    fallbackMessage,
+  });
 
   const handleSubmitForm = async (data: BulkActionFormData) => {
-    setHasSubmitted(true);
-
     const resources = collectSelectedItems(selectedItems);
+    const workflow = getWorkflowForRef(repository, data.ref);
 
     const folderCount = Object.keys(selectedItems.folder || {}).length;
     const dashboardCount = Object.keys(selectedItems.dashboard || {}).length;
     reportInteraction('grafana_provisioning_bulk_delete_submitted', {
-      workflow: data.workflow,
+      workflow,
       repositoryName: repository.name ?? 'unknown',
       repositoryType: repository.type ?? 'unknown',
       resourceCount: resources.length,
@@ -59,55 +78,44 @@ function FormContent({ initialValues, selectedItems, repository, canPushToConfig
       dashboardCount,
     });
 
-    submittedViaBranchWorkflow.current = data.workflow === 'branch';
-
-    // Create the delete job spec. The Grafana-saved-by trailer rides through
-    // JobSpec.Message to the resulting git commit.
     const jobSpec: DeleteJobSpec = {
       action: 'delete',
-      message: withSavedByTrailer(
-        data.comment?.trim() ||
-          t('browse-dashboards.bulk-delete-resources-form.default-commit-message', 'Delete resources')
-      ),
+      message,
       delete: {
-        ref: data.workflow === 'write' ? undefined : data.ref,
+        ref: getRequestRef(repository, data.ref),
         resources,
       },
     };
 
-    const result = await createBulkJob(repository, jobSpec);
-
-    if (result.success && result.job) {
-      setJob(result.job); // Store the job for tracking
-    } else if (!result.success && result.error) {
-      // Handle error case - show error alert
+    try {
+      await submit(jobSpec);
+    } catch (error) {
       getAppEvents().publish({
         type: AppEvents.alertError.name,
         payload: [
           t('browse-dashboards.bulk-delete-resources-form.error-deleting-resources', 'Error deleting resources'),
-          result.error,
+          extractErrorMessage(
+            error,
+            t('browse-dashboards.bulk-actions.error-generic', 'Unexpected error happened when creating job')
+          ),
         ],
       });
-      setHasSubmitted(false); // Reset submit state so user can try again
     }
   };
-
-  const disableBtn =
-    isCreatingJob || job?.status?.state === 'working' || job?.status?.state === 'pending' || hasSubmitted;
 
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(handleSubmitForm)}>
         <Stack direction="column" gap={2}>
-          {hasSubmitted && job ? (
-            <BulkActionJobStatus
-              job={job}
+          {submitted ? (
+            <ResourceJobStatus
+              job={submitted.job}
               jobType="delete"
-              committedTitle={t(
-                'browse-dashboards.bulk-delete-resources-form.success-title',
-                'Resources deleted successfully'
-              )}
-              pushedToBranch={submittedViaBranchWorkflow.current}
+              successTitle={
+                getJobRef(submitted.jobSpec)
+                  ? t('provisioning.bulk-action.success-title-branch', 'Requested changes were pushed to a branch')
+                  : t('browse-dashboards.bulk-delete-resources-form.success-title', 'Resources deleted successfully')
+              }
             />
           ) : (
             <>
@@ -119,14 +127,14 @@ function FormContent({ initialValues, selectedItems, repository, canPushToConfig
                   </Trans>
                 }
                 emptyMessage={t('browse-dashboards.bulk-delete-resources-form.folder-empty', '', {
-                  count: getSelectedFolderUIDs(selectedItems).length,
+                  count: getSelectedUIDs(selectedItems, 'folder').length,
                   defaultValue_one: 'Selected folder is empty',
                   defaultValue_other: 'Selected folders are empty',
                 })}
                 nonEmptyMessage={t('browse-dashboards.bulk-delete-resources-form.folder-not-empty', '', {
-                  count: getSelectedFolderUIDs(selectedItems).length,
-                  defaultValue_one: 'Selected folder contains other resources that will be deleted',
-                  defaultValue_other: 'Selected folders contain other resources that will be deleted',
+                  count: getSelectedUIDs(selectedItems, 'folder').length,
+                  defaultValue_one: 'Selected folder contains resources that will be deleted',
+                  defaultValue_other: 'Selected folders contain resources that will be deleted',
                 })}
               />
               <ResourceEditFormSharedFields
@@ -135,13 +143,15 @@ function FormContent({ initialValues, selectedItems, repository, canPushToConfig
                 canPushToConfiguredBranch={canPushToConfiguredBranch}
                 repository={repository}
                 hiddenFields={['path']}
+                lockComment={locked}
+                commitMessage={message}
               />
               <Stack gap={2}>
-                <Button variant="secondary" fill="outline" onClick={onDismiss} disabled={isCreatingJob}>
+                <Button variant="secondary" fill="outline" onClick={onDismiss} disabled={isCreating}>
                   <Trans i18nKey="browse-dashboards.bulk-delete-resources-form.button-cancel">Cancel</Trans>
                 </Button>
-                <Button type="submit" disabled={disableBtn} variant="destructive">
-                  {job?.status?.state === 'working' || job?.status?.state === 'pending'
+                <Button type="submit" disabled={isCreating} variant="destructive">
+                  {isCreating
                     ? t('browse-dashboards.bulk-delete-resources-form.button-deleting', 'Deleting...')
                     : t('browse-dashboards.bulk-delete-resources-form.button-delete', 'Delete')}
                 </Button>

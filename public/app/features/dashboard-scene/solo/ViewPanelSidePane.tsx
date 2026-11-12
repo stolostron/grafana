@@ -9,13 +9,17 @@ import {
   SceneObjectBase,
   type SceneObjectRef,
   type SceneObjectState,
+  SceneObjectUrlSyncConfig,
+  type SceneObjectUrlValues,
   type VizPanel,
 } from '@grafana/scenes';
 import { Box, ScrollContainer, Sidebar, Text, RadioButtonDot, Button, Spinner } from '@grafana/ui';
 import { OptionsPaneCategory } from 'app/features/dashboard/components/PanelEditor/OptionsPaneCategory';
 import { importPanelPlugin } from 'app/features/plugins/importPanelPlugin';
 
+import { canManuallyEditDashboard } from '../scene/dashboardModes';
 import { getDashboardSceneLike } from '../scene/types/dashboard';
+import { DashboardInteractions } from '../utils/interactions';
 
 import { ViewPanelQuickToggles } from './ViewPanelQuickToggles';
 
@@ -26,18 +30,36 @@ export interface ViewPanelSidePaneState extends SceneObjectState {
 
 export class ViewPanelSidePane extends SceneObjectBase<ViewPanelSidePaneState> {
   public static Component = ViewPanelSidePaneRenderer;
+
+  protected _urlSync = new SceneObjectUrlSyncConfig(this, { keys: ['fanout'] });
+
   public getId() {
     return 'view-panel-pane';
   }
 
   public onSetMode(value: string | undefined) {
     this.setState({ fanoutMode: value });
+    DashboardInteractions.viewPanelAction({ action: 'set_fanout_mode', value: value ?? '' });
+  }
+
+  public getUrlState() {
+    return { fanout: this.state.fanoutMode };
+  }
+
+  public updateFromUrl(values: SceneObjectUrlValues) {
+    if (typeof values.fanout === 'string') {
+      this.setState({ fanoutMode: values.fanout });
+    } else if (Object.hasOwn(values, 'fanout')) {
+      this.setState({ fanoutMode: undefined });
+    }
   }
 }
 
 function ViewPanelSidePaneRenderer({ model }: SceneComponentProps<ViewPanelSidePane>) {
   const dashboard = getDashboardSceneLike(model);
-  const { viewPanel } = dashboard.useState();
+  const state = dashboard.useState();
+  const { viewPanel } = state;
+  const canEditOptions = canManuallyEditDashboard(state);
   const { panelRef } = model.useState();
   const panel = panelRef.resolve();
   //const { fieldConfig, options } = panel.useState();
@@ -48,7 +70,7 @@ function ViewPanelSidePaneRenderer({ model }: SceneComponentProps<ViewPanelSideP
    */
   useEffect(() => {
     if (!viewPanel) {
-      dashboard.state.editPane.closePane();
+      dashboard.state.sidebar.closePane();
     }
   }, [viewPanel, dashboard]);
 
@@ -78,7 +100,9 @@ function ViewPanelSidePaneRenderer({ model }: SceneComponentProps<ViewPanelSideP
               <Trans i18nKey="dashboard.view-panel.back-to-dashboard">Back to dashboard</Trans>
             </Button>
           </Box>
-          {viewPanelOptions?.quickToggles && <ViewPanelQuickToggles panel={panel} plugin={plugin.value} />}
+          {canEditOptions && viewPanelOptions?.quickToggles && (
+            <ViewPanelQuickToggles panel={panel} plugin={plugin.value} />
+          )}
           {viewPanelOptions?.fanout?.enabled && <ViewPanelFanoutOptions panel={panel} pane={model} />}
         </Box>
       </ScrollContainer>

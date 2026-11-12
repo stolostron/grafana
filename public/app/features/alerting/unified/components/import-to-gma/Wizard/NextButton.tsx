@@ -1,8 +1,11 @@
+import { selectors } from '@grafana/e2e-selectors';
 import { t } from '@grafana/i18n';
 import { Button, Stack } from '@grafana/ui';
 
+import { isLoading, useAsync } from '../../../hooks/useAsync';
+
 import { useStepperState } from './StepperState';
-import { getNextStep, isLastStep } from './constants';
+import { getNextStep, isLastStep } from './steps';
 
 interface NextButtonProps {
   /** Handler called when clicking next - should return true to proceed */
@@ -15,23 +18,25 @@ interface NextButtonProps {
   onSkip?: () => void;
   /** Disable the next button */
   disabled?: boolean;
+  /** Tooltip shown while the button is disabled, explaining why the user can't continue */
+  disabledTooltip?: string;
 }
 
 /**
  * NextButton - navigation button to proceed to the next step
  * Shows the next step name or "Submit" on the last step
  */
-export const NextButton = ({ onNext, canSkip, skipLabel, onSkip, disabled }: NextButtonProps) => {
+export const NextButton = ({ onNext, canSkip, skipLabel, onSkip, disabled, disabledTooltip }: NextButtonProps) => {
   const { activeStep, setActiveStep } = useStepperState();
   const nextStep = getNextStep(activeStep);
   const isLast = isLastStep(activeStep);
-
-  const handleClick = async () => {
+  const [{ execute: handleClick }, nextState] = useAsync(async () => {
     const shouldProceed = await onNext();
     if (shouldProceed && nextStep) {
       setActiveStep(nextStep.id);
     }
-  };
+  });
+  const isPending = isLoading(nextState);
 
   const handleSkip = () => {
     if (onSkip) {
@@ -50,16 +55,22 @@ export const NextButton = ({ onNext, canSkip, skipLabel, onSkip, disabled }: Nex
   return (
     <Stack direction="row" gap={1}>
       {canSkip && (
-        <Button variant="secondary" onClick={handleSkip} data-testid="wizard-skip-button">
+        <Button
+          variant="secondary"
+          onClick={handleSkip}
+          disabled={isPending}
+          data-testid={selectors.pages.Alerting.ImportToGMA.skipButton}
+        >
           {skipLabel || t('alerting.import-to-gma.wizard.skip', 'Skip')}
         </Button>
       )}
       <Button
         variant="primary"
-        icon="arrow-right"
+        icon={isPending ? 'spinner' : 'arrow-right'}
         onClick={handleClick}
-        disabled={disabled}
-        data-testid="wizard-next-button"
+        disabled={disabled || isPending}
+        tooltip={disabled && disabledTooltip ? disabledTooltip : undefined}
+        data-testid={selectors.pages.Alerting.ImportToGMA.nextButton}
       >
         {nextStep.name}
       </Button>

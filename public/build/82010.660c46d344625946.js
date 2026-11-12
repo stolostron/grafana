@@ -1,0 +1,1 @@
+(globalThis.rspackChunkgrafana||=[]).push([[82010],{33281(a,n,h){var s=h(8965);h.d(n,{getI18nInstance:()=>s.kh})}}]);

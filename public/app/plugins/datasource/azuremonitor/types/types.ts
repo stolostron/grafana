@@ -31,6 +31,8 @@ export interface AzureMonitorDataSourceJsonData extends AzureDataSourceJsonData 
   // monitor
   subscriptionId?: string;
   basicLogsEnabled?: boolean;
+  auxiliaryLogsEnabled?: boolean;
+  batchAPIEnabled?: boolean;
 
   // logs
   /** @deprecated Azure Logs credentials */
@@ -196,6 +198,7 @@ export interface AzureResourceGraphOptions {
 export type GetMetricNamespacesQuery = AzureGetMetricNamespacesQuery | LegacyAzureGetMetricNamespacesQuery;
 export type GetMetricNamesQuery = AzureGetMetricNamesQuery | LegacyAzureGetMetricNamesQuery;
 export type GetMetricMetadataQuery = AzureGetMetricMetadataQuery | LegacyAzureGetMetricMetadataQuery;
+export type GetDimensionValuesQuery = LegacyAzureGetMetricMetadataQuery & { dimension: string };
 
 interface AzureGetMetricNamespacesQuery {
   resourceUri: string;
@@ -249,18 +252,6 @@ export interface AzureMonitorLocations {
   displayName: string;
   name: string;
   supportsLogs?: boolean;
-}
-
-export interface AzureMonitorProvidersResponse {
-  namespace: string;
-  resourceTypes: ProviderResourceType[];
-}
-
-interface ProviderResourceType {
-  resourceType: string;
-  locations: string[];
-  apiVersions: string[];
-  capabilities: string;
 }
 
 export interface AzureAPIResponse<T> {
@@ -403,6 +394,7 @@ export type DropdownCategories = {
 export enum TablePlan {
   Analytics = 'Analytics',
   Basic = 'Basic',
+  Auxiliary = 'Auxiliary',
 }
 
 export interface GetLogAnalyticsTableSuccessResponse {

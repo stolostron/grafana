@@ -9,12 +9,12 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/grafana/grafana-app-sdk/app"
-	appsdkapiserver "github.com/grafana/grafana-app-sdk/k8s/apiserver"
 	"github.com/grafana/grafana-app-sdk/simple"
 	"github.com/grafana/grafana/apps/correlations/pkg/apis"
 	correlationsV0 "github.com/grafana/grafana/apps/correlations/pkg/apis/correlation/v0alpha1"
 	correlationsapp "github.com/grafana/grafana/apps/correlations/pkg/app"
 	"github.com/grafana/grafana/pkg/apimachinery/utils"
+	appsdkapiserver "github.com/grafana/grafana/pkg/apiserver/appsdk"
 	"github.com/grafana/grafana/pkg/apiserver/rest"
 	"github.com/grafana/grafana/pkg/services/apiserver/appinstaller"
 	roleauthorizer "github.com/grafana/grafana/pkg/services/apiserver/auth/authorizer"
@@ -38,7 +38,7 @@ type AppInstaller struct {
 func RegisterAppInstaller(
 	cfg *setting.Cfg,
 	features featuremgmt.FeatureToggles,
-	service correlations.Service,
+	legacyService *correlations.CorrelationsService,
 ) (*AppInstaller, error) {
 	installer := &AppInstaller{}
 	provider := simple.NewAppProvider(apis.LocalManifest(), nil, correlationsapp.New)
@@ -53,9 +53,9 @@ func RegisterAppInstaller(
 	}
 	installer.AppInstaller = i
 
-	if service != nil {
+	if legacyService != nil {
 		installer.legacy = &legacyStorage{
-			service:    service,
+			service:    legacyService,
 			namespacer: request.GetNamespaceMapper(cfg),
 		}
 	}

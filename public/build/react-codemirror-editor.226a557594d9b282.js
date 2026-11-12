@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[25064],{34856(e,r,n){var u=n(96540);function a(e){let r=(0,u.useRef)(e);return(0,u.useInsertionEffect)(()=>{r.current=e},[e]),(0,u.useCallback)((...e)=>r.current(...e),[])}n.d(r,{K:()=>a})}}]);
+//# sourceMappingURL=react-codemirror-editor.226a557594d9b282.js.map

@@ -95,6 +95,7 @@ func TestStableTimeFormat(t *testing.T) {
 				t.Errorf("stored time contains duplicated zone offset: %q", stored)
 			}
 
+			// The stored value must round-trip back to the original instant.
 			parsed, err := time.Parse("2006-01-02 15:04:05.999999999-07:00", stored)
 			if err != nil {
 				t.Fatalf("parse stored time %q: %v", stored, err)

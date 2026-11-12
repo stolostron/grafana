@@ -3,8 +3,10 @@ package dashboard
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	dashV0 "github.com/grafana/grafana/apps/dashboard/pkg/apis/dashboard/v0alpha1"
 	v1 "github.com/grafana/grafana/apps/dashboard/pkg/apis/dashboard/v1"
 	folders "github.com/grafana/grafana/apps/folder/pkg/apis/folder/v1"
+	foldersV1beta1 "github.com/grafana/grafana/apps/folder/pkg/apis/folder/v1beta1"
 	"github.com/grafana/grafana/pkg/registry/apis/dashboard/migrator"
 	"github.com/grafana/grafana/pkg/storage/unified/migrations"
 )
@@ -17,8 +19,17 @@ func FoldersDashboardsMigration(migrator migrator.FoldersDashboardsMigrator) mig
 		ID:          migrations.FoldersDashboardsMigrationID,
 		MigrationID: "folders and dashboards migration",
 		Resources: []migrations.ResourceInfo{
-			{GroupResource: folderGR, LockTables: []string{"dashboard", "dashboard_version", "dashboard_provisioning"}},
-			{GroupResource: dashboardGR, LockTables: []string{"dashboard", "dashboard_version", "dashboard_provisioning"}},
+			{
+				GroupResource: folderGR,
+				LockTables:    []string{"dashboard", "dashboard_version", "dashboard_provisioning"},
+				// Earlier migrations left folders as v1beta1 and do not re-run.
+				FloorVersion: foldersV1beta1.APIVersion,
+			},
+			{
+				GroupResource: dashboardGR,
+				LockTables:    []string{"dashboard", "dashboard_version", "dashboard_provisioning"},
+				FloorVersion:  dashV0.VERSION,
+			},
 		},
 		Migrators: map[schema.GroupResource]migrations.MigratorFunc{
 			folderGR:    migrator.MigrateFolders,
@@ -36,6 +47,36 @@ func FoldersDashboardsMigration(migrator migrator.FoldersDashboardsMigrator) mig
 			migrations.FolderTreeValidation(folderGR),
 		},
 		// Folder and Dashboard tables are still being used
+		RenameTables: []string{},
+	}
+}
+
+func LibraryPanelsMigration(migrator migrator.FoldersDashboardsMigrator) migrations.MigrationDefinition {
+	libraryPanelGR := schema.GroupResource{
+		Group:    dashV0.GROUP,
+		Resource: dashV0.LIBRARY_PANEL_RESOURCE,
+	}
+
+	return migrations.MigrationDefinition{
+		ID:          "librarypanels",
+		MigrationID: "librarypanels migration",
+		Resources: []migrations.ResourceInfo{
+			{
+				GroupResource: libraryPanelGR,
+				LockTables:    []string{"library_element", "user"},
+				FloorVersion:  dashV0.VERSION,
+			},
+		},
+		Migrators: map[schema.GroupResource]migrations.MigratorFunc{
+			libraryPanelGR: migrator.MigrateLibraryPanels,
+		},
+		Validators: []migrations.ValidatorFactory{
+			migrations.CountValidation(libraryPanelGR, migrations.CountValidationOptions{
+				Table: "library_element",
+				Where: "org_id = ?",
+			}),
+		},
+		// The library_element table is still read by the legacy service in dual-write modes
 		RenameTables: []string{},
 	}
 }

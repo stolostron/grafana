@@ -1,0 +1,2 @@
+(globalThis.rspackChunkgrafana||=[]).push([[46377],{20074(t,a,g){t.exports=g.p+"static/img/bitbucket.c592c93f.svg"},55849(t,a,g){t.exports=g.p+"static/img/git.9648b201.svg"},68198(t,a,g){t.exports=g.p+"static/img/gitlab.051703bb.svg"},12326(t,a,g){t.exports=g.p+"static/img/grafana_text_logo_dark.3b09aade.svg"},71542(t,a,g){t.exports=g.p+"static/img/grafana_text_logo_light.c91a6bdc.svg"},64119(t,a,g){g.r(a);var s=g(74848),i=g(240);g.d(a,{},{default:function(t){return(0,s.jsx)(i.default,{...t})}})}}]);
+//# sourceMappingURL=DashboardPageProxy.f811332164261288.js.map

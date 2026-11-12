@@ -6,7 +6,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/grafana/grafana-app-sdk/app"
-	appsdkapiserver "github.com/grafana/grafana-app-sdk/k8s/apiserver"
+	appsdkapiserver "github.com/grafana/grafana/pkg/apiserver/appsdk"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/registry"
 	"github.com/grafana/grafana/pkg/registry/apps/advisor"
@@ -56,15 +56,13 @@ func ProvideAppInstallers(
 		exampleAppInstaller,
 		quotasAppInstaller,
 	}
-	//nolint:staticcheck // not yet migrated to OpenFeature
-	if features.IsEnabledGlobally(featuremgmt.FlagKubernetesShortURLs) {
-		installers = append(installers, shorturlAppInstaller)
-	}
+	installers = append(installers, shorturlAppInstaller)
+
 	if rulesAppInstaller != nil {
 		installers = append(installers, rulesAppInstaller)
 	}
 	//nolint:staticcheck // not yet migrated to OpenFeature
-	if features.IsEnabledGlobally(featuremgmt.FlagKubernetesCorrelations) {
+	if features.IsEnabledGlobally(featuremgmt.FlagKubernetesCorrelations) || features.IsEnabledGlobally(featuremgmt.FlagGrafanaCorrelationsSkipLegacy) {
 		installers = append(installers, correlationsAppInstaller)
 	}
 	if alertingNotificationAppInstaller != nil {
@@ -75,12 +73,10 @@ func ProvideAppInstallers(
 		installers = append(installers, logsdrilldownAppInstaller)
 	}
 
-	//nolint:staticcheck // not yet migrated to OpenFeature
-	if features.IsEnabledGlobally(featuremgmt.FlagGrafanaAdvisor) {
+	if advisorAppInstaller != nil {
 		installers = append(installers, advisorAppInstaller)
 	}
-	//nolint:staticcheck // not yet migrated to OpenFeature
-	if features.IsEnabledGlobally(featuremgmt.FlagKubernetesAlertingHistorian) && alertingHistorianAppInstaller != nil {
+	if alertingHistorianAppInstaller != nil {
 		installers = append(installers, alertingHistorianAppInstaller)
 	}
 

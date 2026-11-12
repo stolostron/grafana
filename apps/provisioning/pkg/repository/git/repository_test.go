@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -99,12 +102,39 @@ func TestNewGit(t *testing.T) {
 
 	// This should succeed in creating the client but won't be able to connect
 	// We just test that the basic structure is created correctly
-	gitRepo, err := NewRepository(ctx, config, gitConfig)
+	gitRepo, err := NewRepository(ctx, config, gitConfig, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, gitRepo)
 	require.Equal(t, "https://git.example.com/owner/repo.git", gitRepo.URL())
 	require.Equal(t, "main", gitRepo.Branch())
 	require.Equal(t, config, gitRepo.Config())
+}
+
+func TestNewRepository_SendsUserAgent(t *testing.T) {
+	var mu sync.Mutex
+	var agents []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		agents = append(agents, r.UserAgent())
+		mu.Unlock()
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(server.Close)
+
+	config := &provisioning.Repository{Spec: provisioning.RepositorySpec{Type: provisioning.GitHubRepositoryType}}
+	gitRepo, err := NewRepository(t.Context(), config, RepositoryConfig{URL: server.URL + "/owner/repo", Branch: "main"}, nil, nil)
+	require.NoError(t, err)
+
+	ok, err := gitRepo.(*gitRepository).client.CanRead(t.Context())
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, agents)
+	for _, agent := range agents {
+		require.Equal(t, userAgent, agent)
+	}
 }
 
 func TestCreateSignature(t *testing.T) {
@@ -293,7 +323,7 @@ func TestGitRepository_Test(t *testing.T) {
 						Detail: "failed check if authorized: auth error",
 					},
 				},
-				Code: http.StatusBadRequest,
+				Code: http.StatusUnauthorized,
 			},
 			wantError: nil,
 		},
@@ -314,7 +344,7 @@ func TestGitRepository_Test(t *testing.T) {
 						Detail: "not authorized",
 					},
 				},
-				Code: http.StatusBadRequest,
+				Code: http.StatusUnauthorized,
 			},
 			wantError: nil,
 		},
@@ -336,7 +366,7 @@ func TestGitRepository_Test(t *testing.T) {
 						Detail: "failed check if repository exists: repo error",
 					},
 				},
-				Code: http.StatusBadRequest,
+				Code: http.StatusNotFound,
 			},
 			wantError: nil,
 		},
@@ -358,7 +388,7 @@ func TestGitRepository_Test(t *testing.T) {
 						Detail: "repository not found",
 					},
 				},
-				Code: http.StatusBadRequest,
+				Code: http.StatusNotFound,
 			},
 			wantError: nil,
 		},
@@ -2252,6 +2282,76 @@ func TestGitRepository_createSignature(t *testing.T) {
 		require.Equal(t, "Bot Signer", committer.Name)
 		require.Equal(t, "signer@example.com", committer.Email)
 	})
+
+	t.Run("should override author and committer from spec", func(t *testing.T) {
+		repo := &gitRepository{
+			config: &provisioning.Repository{
+				Spec: provisioning.RepositorySpec{
+					Type: provisioning.GitHubRepositoryType,
+					Commit: &provisioning.CommitOptions{
+						AuthorName:  "Sync Bot",
+						AuthorEmail: "bot@example.com",
+					},
+				},
+			},
+		}
+		ctx := repository.WithAuthorSignature(context.Background(), repository.CommitSignature{
+			Name:  "John Doe",
+			Email: "john@example.com",
+		})
+
+		author, committer := repo.createSignature(ctx)
+
+		require.Equal(t, "Sync Bot", author.Name)
+		require.Equal(t, "bot@example.com", author.Email)
+		require.Equal(t, "Sync Bot", committer.Name)
+		require.Equal(t, "bot@example.com", committer.Email)
+	})
+
+	t.Run("should default author name when only author email is overridden", func(t *testing.T) {
+		repo := &gitRepository{
+			config: &provisioning.Repository{
+				Spec: provisioning.RepositorySpec{
+					Type:   provisioning.GitHubRepositoryType,
+					Commit: &provisioning.CommitOptions{AuthorEmail: "bot@example.com"},
+				},
+			},
+		}
+		ctx := repository.WithAuthorSignature(context.Background(), repository.CommitSignature{
+			Name:  "John Doe",
+			Email: "john@example.com",
+		})
+
+		author, committer := repo.createSignature(ctx)
+
+		require.Equal(t, "Grafana", author.Name)
+		require.Equal(t, "bot@example.com", author.Email)
+		require.Equal(t, "Grafana", committer.Name)
+		require.Equal(t, "bot@example.com", committer.Email)
+	})
+
+	t.Run("should keep the signer as committer when the author is overridden", func(t *testing.T) {
+		repo := &gitRepository{
+			config: &provisioning.Repository{
+				Spec: provisioning.RepositorySpec{
+					Type: provisioning.GitHubRepositoryType,
+					Commit: &provisioning.CommitOptions{
+						AuthorName:  "Sync Bot",
+						AuthorEmail: "bot@example.com",
+						SignerName:  "Bot Signer",
+						SignerEmail: "signer@example.com",
+					},
+				},
+			},
+		}
+
+		author, committer := repo.createSignature(context.Background())
+
+		require.Equal(t, "Sync Bot", author.Name)
+		require.Equal(t, "bot@example.com", author.Email)
+		require.Equal(t, "Bot Signer", committer.Name)
+		require.Equal(t, "signer@example.com", committer.Email)
+	})
 }
 
 func TestNewGitRepository(t *testing.T) {
@@ -2309,7 +2409,7 @@ func TestNewGitRepository(t *testing.T) {
 				},
 			}
 
-			gitRepo, err := NewRepository(ctx, config, tt.gitConfig)
+			gitRepo, err := NewRepository(ctx, config, tt.gitConfig, nil, nil)
 
 			if tt.wantError {
 				require.Error(t, err)
@@ -2325,6 +2425,10 @@ func TestNewGitRepository(t *testing.T) {
 				} else {
 					require.Empty(t, gitRepo.(*gitRepository).writerOptions)
 				}
+				// The hardcoded per-file content cap is always seeded into the
+				// post-read size check so oversized blobs are rejected even if
+				// WithMaxFileSize is never called explicitly.
+				require.Equal(t, int64(maxFileContentBytes), gitRepo.(*gitRepository).maxBytes.Load())
 			}
 		})
 	}
@@ -3153,7 +3257,7 @@ func TestGitRepository_NewGitRepository_ClientError(t *testing.T) {
 		Path:   "configs",
 	}
 
-	gitRepo, err := NewRepository(ctx, config, gitConfig)
+	gitRepo, err := NewRepository(ctx, config, gitConfig, nil, nil)
 
 	// We expect this to fail during client creation
 	require.Error(t, err)
@@ -3974,11 +4078,12 @@ func TestGitRepository_EmptyRefHandling(t *testing.T) {
 
 func TestGitRepository_CompareFiles_ResolveErrors(t *testing.T) {
 	tests := []struct {
-		name      string
-		setupMock func(*mocks.FakeClient)
-		base      string
-		ref       string
-		wantError string
+		name           string
+		setupMock      func(*mocks.FakeClient)
+		base           string
+		ref            string
+		wantError      string
+		wantMissingRef string
 	}{
 		{
 			name: "resolve base ref error",
@@ -4003,6 +4108,30 @@ func TestGitRepository_CompareFiles_ResolveErrors(t *testing.T) {
 			base:      "main",
 			ref:       "feature",
 			wantError: "resolve ref",
+		},
+		{
+			name: "base ref not found identifies base operand",
+			setupMock: func(mockClient *mocks.FakeClient) {
+				mockClient.GetRefReturns(nanogit.Ref{}, nanogit.ErrObjectNotFound)
+			},
+			base:           "main",
+			ref:            "feature",
+			wantError:      "resolve base ref: ref not found",
+			wantMissingRef: "main",
+		},
+		{
+			name: "target ref not found identifies target operand",
+			setupMock: func(mockClient *mocks.FakeClient) {
+				mockClient.GetRefReturnsOnCall(0, nanogit.Ref{
+					Name: "refs/heads/main",
+					Hash: hash.MustFromHex("0102030405060708090a0b0c0d0e0f1011121314"),
+				}, nil)
+				mockClient.GetRefReturnsOnCall(1, nanogit.Ref{}, nanogit.ErrObjectNotFound)
+			},
+			base:           "main",
+			ref:            "feature",
+			wantError:      "resolve ref: ref not found",
+			wantMissingRef: "feature",
 		},
 	}
 
@@ -4029,6 +4158,12 @@ func TestGitRepository_CompareFiles_ResolveErrors(t *testing.T) {
 			require.Error(t, err)
 			require.Nil(t, changes)
 			require.Contains(t, err.Error(), tt.wantError)
+			if tt.wantMissingRef != "" {
+				var missingRef *repository.CompareRefNotFoundError
+				require.ErrorAs(t, err, &missingRef)
+				require.Equal(t, tt.wantMissingRef, missingRef.Ref)
+				require.ErrorIs(t, err, repository.ErrRefNotFound)
+			}
 		})
 	}
 }
@@ -4940,6 +5075,7 @@ func TestGitRepository_GetDefaultBranch(t *testing.T) {
 		expectedBranch string
 		wantError      bool
 		errorContains  string
+		expectedError  error
 	}{
 		{
 			name: "returns main when main branch exists",
@@ -5007,6 +5143,36 @@ func TestGitRepository_GetDefaultBranch(t *testing.T) {
 			wantError:     true,
 			errorContains: "list refs",
 		},
+		{
+			name: "maps wrapped nanogit unauthorized error",
+			setupMock: func(mockClient *mocks.FakeClient) {
+				mockClient.ListRefsReturns(nil, fmt.Errorf("list refs: send ls-refs command: %w",
+					client.NewUnauthorizedError("POST", "git-upload-pack", errors.New("got status code 401: 401 Unauthorized"))))
+			},
+			wantError:     true,
+			errorContains: "list refs",
+			expectedError: repository.ErrUnauthorized,
+		},
+		{
+			name: "maps wrapped nanogit permission denied error",
+			setupMock: func(mockClient *mocks.FakeClient) {
+				mockClient.ListRefsReturns(nil, fmt.Errorf("list refs: send ls-refs command: %w",
+					client.NewPermissionDeniedError("POST", "git-upload-pack", errors.New("got status code 403: 403 Forbidden"))))
+			},
+			wantError:     true,
+			errorContains: "list refs",
+			expectedError: repository.ErrPermissionDenied,
+		},
+		{
+			name: "maps wrapped nanogit server unavailable error",
+			setupMock: func(mockClient *mocks.FakeClient) {
+				mockClient.ListRefsReturns(nil, fmt.Errorf("list refs: send ls-refs command: %w",
+					client.NewServerUnavailableError("POST", http.StatusServiceUnavailable, errors.New("got status code 503: 503 Service Unavailable"))))
+			},
+			wantError:     true,
+			errorContains: "list refs",
+			expectedError: repository.ErrServerUnavailable,
+		},
 	}
 
 	for _, tt := range tests {
@@ -5034,6 +5200,10 @@ func TestGitRepository_GetDefaultBranch(t *testing.T) {
 			if tt.wantError {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.errorContains)
+				if tt.expectedError != nil {
+					require.ErrorIs(t, err, tt.expectedError)
+					require.EqualError(t, err, "list refs: "+tt.expectedError.Error())
+				}
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedBranch, branch)
@@ -5154,4 +5324,77 @@ func TestGitRepository_AuditLog(t *testing.T) {
 	require.Contains(t, output, `"namespace":"my-ns"`)
 	require.Contains(t, output, `"repository_name":"my-repo"`)
 	require.Contains(t, output, `"url":"https://git.example.com/owner/repo.git"`)
+}
+
+func TestGitRepository_CompareFiles_DeletedDirectories(t *testing.T) {
+	mockClient := &mocks.FakeClient{}
+	mockClient.GetRefReturns(nanogit.Ref{Hash: hash.Hash{1}}, nil)
+	mockClient.CompareCommitsReturns([]nanogit.CommitFile{
+		{Path: "configs/empty.json", Type: protocol.ObjectTypeTree, Status: protocol.FileStatusDeleted},
+		{Path: "configs/dashboard.json", Type: protocol.ObjectTypeBlob, Status: protocol.FileStatusDeleted},
+	}, nil)
+	repo := &gitRepository{client: mockClient, gitConfig: RepositoryConfig{Path: "configs"}, config: &provisioning.Repository{}}
+	changes, err := repo.CompareFiles(t.Context(), "main", "feature")
+	require.NoError(t, err)
+	require.Equal(t, []repository.VersionedFileChange{
+		{Action: repository.FileActionDeleted, Path: "empty.json/", PreviousPath: "empty.json/", Ref: "feature", PreviousRef: "main"},
+		{Action: repository.FileActionDeleted, Path: "dashboard.json", PreviousPath: "dashboard.json", Ref: "feature", PreviousRef: "main"},
+	}, changes)
+}
+
+func TestGitRepository_CompareFiles_HiddenPaths(t *testing.T) {
+	for _, status := range []protocol.FileStatus{protocol.FileStatusAdded, protocol.FileStatusModified, protocol.FileStatusDeleted, protocol.FileStatusTypeChanged} {
+		t.Run(string(status), func(t *testing.T) {
+			mockClient := &mocks.FakeClient{}
+			mockClient.GetRefReturns(nanogit.Ref{Hash: hash.Hash{1}}, nil)
+			mockClient.CompareCommitsReturns([]nanogit.CommitFile{
+				{Path: "configs/.ci/dashboard.json", Type: protocol.ObjectTypeBlob, Status: status},
+				{Path: "configs/.ci/.keep", Type: protocol.ObjectTypeBlob, Status: status},
+				{Path: "configs/team/.keep", Type: protocol.ObjectTypeTree, Status: status},
+				{Path: "configs/visible/.keep", Type: protocol.ObjectTypeBlob, Status: status},
+			}, nil)
+			repo := &gitRepository{client: mockClient, gitConfig: RepositoryConfig{Path: "configs"}, config: &provisioning.Repository{}}
+			changes, err := repo.CompareFiles(t.Context(), "main", "feature")
+			require.NoError(t, err)
+			require.Len(t, changes, 1)
+			require.Equal(t, "visible/.keep", changes[0].Path)
+		})
+	}
+}
+
+func TestGitRepository_CompareFiles_HiddenPathRenames(t *testing.T) {
+	for _, prefix := range []string{"", "configs/"} {
+		for _, tt := range []struct {
+			from, to string
+			kind     protocol.ObjectType
+			want     []repository.VersionedFileChange
+		}{
+			{"dashboard.json", ".ci/dashboard.json", protocol.ObjectTypeBlob, []repository.VersionedFileChange{
+				{Action: repository.FileActionDeleted, Path: "dashboard.json", PreviousPath: "dashboard.json", Ref: "feature", PreviousRef: "main"},
+			}},
+			{".ci/dashboard.json", "dashboard.json", protocol.ObjectTypeBlob, []repository.VersionedFileChange{
+				{Action: repository.FileActionCreated, Path: "dashboard.json", Ref: "feature"},
+			}},
+			{".ci/old.json", ".ci/new.json", protocol.ObjectTypeBlob, []repository.VersionedFileChange{}},
+			{"team", ".ci", protocol.ObjectTypeTree, []repository.VersionedFileChange{
+				{Action: repository.FileActionDeleted, Path: "team/", PreviousPath: "team/", Ref: "feature", PreviousRef: "main"},
+			}},
+			{".ci", "team", protocol.ObjectTypeTree, []repository.VersionedFileChange{
+				{Action: repository.FileActionCreated, Path: "team/", Ref: "feature"},
+			}},
+			{".ci", ".github", protocol.ObjectTypeTree, []repository.VersionedFileChange{}},
+		} {
+			t.Run(prefix+tt.from+" to "+tt.to, func(t *testing.T) {
+				mockClient := &mocks.FakeClient{}
+				mockClient.GetRefReturns(nanogit.Ref{Hash: hash.Hash{1}}, nil)
+				mockClient.CompareCommitsReturns([]nanogit.CommitFile{{
+					Path: prefix + tt.to, OldPath: prefix + tt.from, Type: tt.kind, Status: protocol.FileStatusRenamed,
+				}}, nil)
+				repo := &gitRepository{client: mockClient, gitConfig: RepositoryConfig{Path: prefix}, config: &provisioning.Repository{}}
+				changes, err := repo.CompareFiles(t.Context(), "main", "feature")
+				require.NoError(t, err)
+				require.Equal(t, tt.want, changes)
+			})
+		}
+	}
 }
