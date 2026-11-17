@@ -45,3 +45,5 @@ replace github.com/crewjam/saml => github.com/grafana/saml v0.4.15-0.20240917091
 
 // CVE-2026-46385
 replace github.com/hamba/avro/v2 => github.com/iskorotkov/avro/v2 v2.33.1
+
+replace github.com/labstack/echo/v4 => github.com/labstack/echo/v4 v4.16.1
