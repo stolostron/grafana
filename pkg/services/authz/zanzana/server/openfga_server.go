@@ -218,6 +218,7 @@ func NewOpenFGAHttpServer(cfg setting.ZanzanaServerSettings, grpcSrv grpcserver.
 	}
 
 	muxOpts := []runtime.ServeMuxOption{
+		runtime.WithDisableHTTPMethodOverride(),
 		runtime.WithForwardResponseOption(httpmiddleware.HTTPResponseModifier),
 		runtime.WithErrorHandler(func(c context.Context,
 			sr *runtime.ServeMux, mm runtime.Marshaler, w http.ResponseWriter, r *http.Request, e error) {
