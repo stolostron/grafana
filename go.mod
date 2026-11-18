@@ -196,18 +196,18 @@ require (
 	go.uber.org/zap v1.27.1 // @grafana/identity-access-team
 	gocloud.dev v0.42.0 // @grafana/grafana-app-platform-squad
 	gocloud.dev/secrets/hashivault v0.42.0 // @grafana/grafana-operator-experience-squad
-	golang.org/x/crypto v0.53.0 // @grafana/grafana-backend-group
+	golang.org/x/crypto v0.55.0 // @grafana/grafana-backend-group
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // @grafana/alerting-backend
-	golang.org/x/mod v0.36.0 // indirect; @grafana/grafana-backend-group
-	golang.org/x/net v0.56.0 // @grafana/oss-big-tent @grafana/partner-datasources
+	golang.org/x/mod v0.38.0 // indirect; @grafana/grafana-backend-group
+	golang.org/x/net v0.58.0 // @grafana/oss-big-tent @grafana/partner-datasources
 	golang.org/x/oauth2 v0.36.0 // @grafana/identity-access-team
-	golang.org/x/sync v0.21.0 // @grafana/alerting-backend
-	golang.org/x/text v0.38.0 // @grafana/grafana-backend-group
+	golang.org/x/sync v0.22.0 // @grafana/alerting-backend
+	golang.org/x/text v0.41.0 // @grafana/grafana-backend-group
 	golang.org/x/time v0.14.0 // @grafana/grafana-backend-group
-	golang.org/x/tools v0.45.0 // indirect; @grafana/grafana-as-code
+	golang.org/x/tools v0.48.0 // indirect; @grafana/grafana-as-code
 	gonum.org/v1/gonum v0.17.0 // @grafana/oss-big-tent
 	google.golang.org/api v0.264.0 // @grafana/grafana-backend-group
-	google.golang.org/grpc v1.83.1 // @grafana/plugins-platform-backend
+	google.golang.org/grpc v1.83.2 // @grafana/plugins-platform-backend
 	google.golang.org/protobuf v1.36.11 // @grafana/plugins-platform-backend
 	gopkg.in/ini.v1 v1.67.0 // @grafana/alerting-backend
 	gopkg.in/mail.v2 v2.3.1 // @grafana/grafana-backend-group
@@ -602,9 +602,9 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go4.org/netipx v0.0.0-20230125063823-8449b0a6169f // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260508192327-42602be52be6 // indirect
-	golang.org/x/term v0.44.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 // indirect
+	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto v0.0.0-20260128011058-8636f8732409 // indirect
@@ -681,4 +681,4 @@ replace (
 	sigs.k8s.io/yaml => sigs.k8s.io/yaml v1.5.0
 )
 
-replace github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch1
+replace github.com/getkin/kin-openapi => github.com/stolostron/kin-openapi v0.133.0-patch2
